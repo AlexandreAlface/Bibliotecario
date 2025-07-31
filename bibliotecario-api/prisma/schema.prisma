@@ -176,7 +176,7 @@ model Rating {
 // Definição de selos e troféus
 model Badge {
   id          Int               @id @default(autoincrement()) // PK: id_badge
-  name        String                                     // nome do selo/troféu
+  name        String            @unique                   // nome do selo/troféu
   type        String                                     // tipo (“SELLO”/“TROFÉU”)
   criteria    String                                     // critério de atribuição
 
