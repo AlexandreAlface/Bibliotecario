@@ -1,0 +1,294 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Tabela de perfis de utilizador
+model Role {
+  id        Int         @id @default(autoincrement()) // PK: id_role
+  name      String      @unique                       // nome do perfil (ex.: “FAMÍLIA”, “BIBLIOTECÁRIO”, “CRIANÇA”)
+  userRoles UserRole[]                                // relação N:N → UserRole
+}
+
+// Tabela de utilizadores (família, bibliotecário, criança, administrador)
+model User {
+  id                  Int                   @id @default(autoincrement()) // PK: id_user
+  fullName            String                                   // nome completo
+  email               String      @unique                   // e-mail
+  phone               String?                                  // telemóvel
+  citizenCard         String?                                  // nº Cartão de Cidadão
+  address             String?                                  // morada completa
+  passwordHash        String                                   // hash da palavra-passe
+
+  userRoles           UserRole[]                              // relação N:N → UserRole
+  userLibraries       UserLibrary[]                           // relação N:N → UserLibrary
+  children            ChildFamily[]                           // relação N:N → ChildFamily
+  ratings             Rating[]                                // relação 1:N → Rating
+  pointsHistory       PointsHistory[]                         // relação 1:N → PointsHistory
+  bookReservations    BookReservation[]                       // relação 1:N → BookReservation
+  eventReservations   EventReservation[]                      // relação 1:N → EventReservation
+
+  consultationsAsFamily      Consultation[] @relation("ConsultationsAsFamily")      // relação 1:N → Consultation (família)
+  consultationsAsLibrarian   Consultation[] @relation("ConsultationsAsLibrarian")  // relação 1:N → Consultation (bibliotecário)
+
+  newsletterSubscriptions NewsletterSubscription[]            // relação 1:N → NewsletterSubscription
+  microInteractions       MicroInteraction[]                  // relação 1:N → MicroInteraction
+}
+
+// Associação N:N entre User e Role
+model UserRole {
+  user   User @relation(fields: [userId], references: [id])
+  userId Int                                      // FK → User.id
+  role   Role @relation(fields: [roleId], references: [id])
+  roleId Int                                      // FK → Role.id
+
+  @@id([userId, roleId])                         // PK composto
+}
+
+// Tabela de bibliotecas
+model Library {
+  id            Int             @id @default(autoincrement()) // PK: id_biblioteca
+  name          String                                   // nome da biblioteca
+  address       String?                                  // morada da biblioteca
+  contact       String?                                  // contacto (telefone ou e-mail)
+
+  userLibraries UserLibrary[]                           // relação N:N → UserLibrary
+  feeds         FeedRss[]                               // relação 1:N → FeedRss
+}
+
+// Associação N:N entre User e Library
+model UserLibrary {
+  user      User    @relation(fields: [userId], references: [id])
+  userId    Int                                          // FK → User.id
+  library   Library @relation(fields: [libraryId], references: [id])
+  libraryId Int                                          // FK → Library.id
+
+  @@id([userId, libraryId])                            // PK composto
+}
+
+// Configuração de feeds RSS por biblioteca
+model FeedRss {
+  id             Int      @id @default(autoincrement()) // PK: id_feed
+  library        Library @relation(fields: [libraryId], references: [id])
+  libraryId      Int                                      // FK → Library.id
+  url            String                                   // url_feed
+  lastBuildDate  DateTime?                                // última data de atualização
+  ttl            Int?                                     // tempo de validade (minutos)
+
+  events         CulturalEvent[]                         // relação 1:N → CulturalEvent
+}
+
+// Definição de fontes CSV para catálogo de livros
+model CsvSource {
+  id         Int      @id @default(autoincrement()) // PK: id_csv
+  name       String   @unique                       // nome_fonte
+  filePath   String                                 // path_ficheiro ou URL
+  importDate DateTime                               // data_import
+}
+
+// Catálogo de livros
+model Book {
+  isbn            String         @id                     // ISBN
+  title           String                                 // título
+  summary         String?                                // “Resumo” do livro
+  author          String                                 // Autor_Beja
+  publicationYear Int?                                  // ano (extraído de Publicacao_Beja)
+  collection      String?                                // Colecao_Beja
+  category        String?                                // Assuntos_Beja
+  cdu             String?                                // CDU_Beja
+  ageRange        String?                                // faixa etária
+  coverUrl        String?                                // URL da capa
+
+  origins         BookOrigin[]                           // ligações às origens
+  readings        Reading[]
+  ratings         Rating[]
+  bookReservations BookReservation[]
+}
+
+
+// Tabela de origens de cada livro (PNL, CSV, API externa…)
+model Origin {
+  id          Int           @id @default(autoincrement()) // PK: id_origem
+  description String        @unique                       // descrição da origem
+
+  books       BookOrigin[]                             // relação N:N → BookOrigin
+}
+
+// Associação N:N entre Book e Origin
+model BookOrigin {
+  book     Book   @relation(fields: [bookIsbn], references: [isbn])
+  bookIsbn String                                  // FK → Book.isbn
+  origin   Origin @relation(fields: [originId], references: [id])
+  originId Int                                     // FK → Origin.id
+
+  @@id([bookIsbn, originId])                       // PK composto
+}
+
+// Dados de crianças para perfil de leitor
+model Child {
+  id            Int          @id @default(autoincrement()) // PK: id_crianca
+  name          String                                   // nome da criança
+  birthDate     DateTime                                 // data de nascimento
+  gender        String?                                  // género (“M”/“F”)
+  readerProfile String?                                  // perfil_leitor
+
+  families      ChildFamily[]                           // relação N:N → ChildFamily
+  readings      Reading[]                               // relação 1:N → Reading
+  badgeAssignments BadgeAssignment[]                   // relação 1:N → BadgeAssignment
+}
+
+// Associação N:N entre Child e User (família)
+model ChildFamily {
+  child     Child @relation(fields: [childId], references: [id])
+  childId   Int                                     // FK → Child.id
+  family    User  @relation(fields: [familyId], references: [id])
+  familyId  Int                                     // FK → User.id (role = FAMÍLIA)
+
+  @@id([childId, familyId])                        // PK composto
+}
+
+// Histórico de leituras marcadas
+model Reading {
+  id        Int      @id @default(autoincrement()) // PK: id_leitura
+  child     Child   @relation(fields: [childId], references: [id])
+  childId   Int                                     // FK → Child.id
+  book      Book    @relation(fields: [bookIsbn], references: [isbn])
+  bookIsbn  String                                  // FK → Book.isbn
+  readAt    DateTime @default(now())                // data_leitura
+}
+
+// Avaliação de livros
+model Rating {
+  id        Int      @id @default(autoincrement()) // PK: id_avaliacao
+  user      User    @relation(fields: [userId], references: [id])
+  userId    Int                                      // FK → User.id
+  book      Book    @relation(fields: [bookIsbn], references: [isbn])
+  bookIsbn  String                                   // FK → Book.isbn
+  stars     Int                                      // estrelas (1–5)
+  comment   String?                                 // comentário opcional
+  ratedAt   DateTime @default(now())                // data_avaliacao
+}
+
+// Definição de selos e troféus
+model Badge {
+  id          Int               @id @default(autoincrement()) // PK: id_badge
+  name        String                                     // nome do selo/troféu
+  type        String                                     // tipo (“SELLO”/“TROFÉU”)
+  criteria    String                                     // critério de atribuição
+
+  assignments BadgeAssignment[]                          // relação 1:N → BadgeAssignment
+}
+
+// Associação entre Badge e Child
+model BadgeAssignment {
+  child      Child  @relation(fields: [childId], references: [id])
+  childId    Int                                      // FK → Child.id
+  badge      Badge  @relation(fields: [badgeId], references: [id])
+  badgeId    Int                                      // FK → Badge.id
+  assignedAt DateTime @default(now())                 // data_atribuicao
+
+  @@id([childId, badgeId])                           // PK composto
+}
+
+// Histórico de pontos por ação (LER, AVALIAR, RESERVAR…)
+model PointsHistory {
+  id         Int      @id @default(autoincrement()) // PK: id_ponto
+  user       User    @relation(fields: [userId], references: [id])
+  userId     Int                                      // FK → User.id
+  action     String                                  // ação (ex.: “LER”, “EVENTO”)
+  points     Float                                   // pontos ganhos
+  actionDate DateTime @default(now())                // data_acao
+}
+
+// Pedidos de consulta
+model Consultation {
+  id           Int      @id @default(autoincrement()) // PK: id_consulta
+
+  family       User     @relation("ConsultationsAsFamily", fields: [familyId], references: [id])
+  familyId     Int                                      // FK → User.id (família)
+
+  librarian    User     @relation("ConsultationsAsLibrarian", fields: [librarianId], references: [id])
+  librarianId  Int                                      // FK → User.id (bibliotecário)
+
+  requestedAt  DateTime @default(now())                // data_pedido
+  scheduledAt  DateTime?                              // data_marcação
+  status       String                                  // estado (PENDENTE/CONFIRMADO/RECUSADO)
+}
+
+// Eventos culturais (importados de RSS ou manualmente)
+model CulturalEvent {
+  id           Int      @id @default(autoincrement()) // PK: id_evento
+  feed         FeedRss? @relation(fields: [feedId], references: [id])
+  feedId       Int?                                    // FK → FeedRss.id (opcional)
+  guid         String   @unique
+  title        String                                 // título do evento
+  description  String?                                // descrição
+  pubDate      DateTime?                              // pub_date
+  startDate    DateTime                               // data de início
+  endDate      DateTime?                              // data de fim
+  location     String?                                // localização
+  category     String?
+  capacity     Int?                                   // capacidade
+
+  reservations EventReservation[]                     // relação 1:N → EventReservation
+}
+
+// Reservas de eventos culturais
+model EventReservation {
+  id         Int            @id @default(autoincrement()) // PK: id_reserva_evento
+  family     User           @relation(fields: [familyId], references: [id])
+  familyId   Int                                      // FK → User.id
+  event      CulturalEvent  @relation(fields: [eventId], references: [id])
+  eventId    Int                                      // FK → CulturalEvent.id
+  bookedAt   DateTime      @default(now())             // data_reserva
+  status     String                                  // estado (CONFIRMADA/PENDENTE)
+}
+
+// Reservas de livros
+model BookReservation {
+  id          Int      @id @default(autoincrement()) // PK: id_reserva_livro
+  user        User    @relation(fields: [userId], references: [id])
+  userId      Int                                      // FK → User.id
+  book        Book    @relation(fields: [bookIsbn], references: [isbn])
+  bookIsbn    String                                   // FK → Book.isbn
+  reservedAt  DateTime @default(now())                // data_reserva
+}
+
+// Tabela de newsletters
+model Newsletter {
+  id           Int      @id @default(autoincrement()) // PK: id_newsletter
+  title        String                                 // título
+  content      String                                 // conteúdo
+  publishedAt  DateTime @default(now())                // data_publicacao
+}
+
+// Subscrições de newsletter por família
+model NewsletterSubscription {
+  id            Int      @id @default(autoincrement()) // PK: id_subscricao
+  family        User    @relation(fields: [familyId], references: [id])
+  familyId      Int                                      // FK → User.id
+  frequency     String                                  // frequência (SEMANAL/MENSAL)
+  subscribedAt  DateTime @default(now())                // data_subscricao
+  status        String                                  // estado (ATIVA/INATIVA)
+}
+
+// Micro-conteúdos “Sabias que…”
+model MicroContent {
+  id            Int      @id @default(autoincrement()) // PK: id_micro
+  text          String                                 // texto do micro-conteúdo
+  interactions  MicroInteraction[]                     // relação 1:N → MicroInteraction
+}
+
+// Interações com micro-conteúdos
+model MicroInteraction {
+  id             Int          @id @default(autoincrement()) // PK: id_interacao
+  user           User         @relation(fields: [userId], references: [id])
+  userId         Int                                        // FK → User.id
+  microContent   MicroContent @relation(fields: [microContentId], references: [id])
+  microContentId Int                                        // FK → MicroContent.id
+  interactedAt   DateTime    @default(now())                // data_interacao
+}
