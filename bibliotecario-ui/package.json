@@ -4,14 +4,17 @@
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"],
-
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "prepublishOnly": "npm run build"
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
-
   "peerDependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
@@ -19,17 +22,19 @@
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
-
   "dependencies": {
+    "@fontsource/poppins": "^5.2.6",
     "tslib": "^2.6.1"
   },
-
   "devDependencies": {
     "@rollup/plugin-typescript": "^12.1.4",
+    "@storybook/react-vite": "^9.1.0",
     "@types/react": "^18.2.14",
     "rollup": "^4.3.2",
     "rollup-plugin-dts": "^6.2.1",
     "rollup-plugin-peer-deps-external": "^2.2.4",
-    "typescript": "^5.2.2"
+    "storybook": "^9.1.0",
+    "typescript": "^5.2.2",
+    "@storybook/addon-docs": "^9.1.0"
   }
 }
