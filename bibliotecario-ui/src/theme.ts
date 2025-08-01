@@ -10,6 +10,11 @@ const palette = {
   },
 };
 
+export type SizeProps = {
+  radius?: number; // unidades de spacing do tema
+  px?: number;     // padding horizontal em spacing
+};
+
 export const theme = createTheme({
   palette,
   typography: {

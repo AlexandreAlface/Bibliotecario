@@ -1,9 +1,9 @@
 // NumericField.tsx
 
-import { BaseTextField } from './BaseTextField';
+import { BaseProps, BaseTextField } from './BaseTextField';
 import type { TextFieldProps } from '@mui/material';
 
-export function NumericField(props: TextFieldProps) {
+export function NumericField(props: TextFieldProps & BaseProps) {
   return (
     <BaseTextField
       label="Número de telemóvel"

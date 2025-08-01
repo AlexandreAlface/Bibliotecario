@@ -1,8 +1,8 @@
 // EmailField.tsx
-import { BaseTextField } from './BaseTextField';
+import { BaseTextField, type BaseProps } from './BaseTextField';
 import type { TextFieldProps } from '@mui/material';
 
-export function EmailField(props: TextFieldProps) {
+export function EmailField(props: TextFieldProps & BaseProps) {
   return (
     <BaseTextField
       type="email"

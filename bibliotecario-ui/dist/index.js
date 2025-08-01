@@ -1,23 +1,19 @@
 import { jsx, jsxs } from 'react/jsx-runtime';
-import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton } from '@mui/material';
+import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link } from '@mui/material';
+import { shouldForwardProp, styled as styled$1 } from '@mui/system';
 import { createTheme } from '@mui/material/styles';
 import '@fontsource/poppins/400.css';
 import '@fontsource/poppins/500.css';
 import '@fontsource/poppins/600.css';
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import { VisibilityOff, Visibility } from '@mui/icons-material';
 
-/**
- * Botão principal da aplicação.
- * - Raio de canto consistente com o tema
- * - Hover subtil (90 % da cor primária)
- * - Desactiva a sombra normal do MUI
- * - Estado :disabled harmonizado com o tema
- * - Outline visível para acessibilidade (focus-visible)
- */
-const StyledPrimaryButton = styled(Button)(({ theme }) => ({
-    borderRadius: theme.spacing(4), // 32 px se spacing = 8
-    paddingInline: theme.spacing(3), // horizontal 24 px
+const Styled$1 = styled(Button, {
+    // Impede que props customizadas vão parar ao DOM
+    shouldForwardProp: (prop) => shouldForwardProp(prop) && prop !== 'radius' && prop !== 'px',
+})(({ theme, radius = 4, px = 3 }) => ({
+    borderRadius: theme.spacing(radius),
+    paddingInline: theme.spacing(px),
     textTransform: 'none',
     fontWeight: 600,
     boxShadow: 'none',
@@ -36,13 +32,14 @@ const StyledPrimaryButton = styled(Button)(({ theme }) => ({
     },
 }));
 function PrimaryButton(props) {
-    return (jsx(StyledPrimaryButton, { variant: "contained", color: "primary", disableElevation: true, ...props }));
+    return (jsx(Styled$1, { variant: "contained", color: "primary", disableElevation: true, ...props }));
 }
 
-// src/components/Button/SecondaryButton.tsx
-const SecondaryButton = styled(Button)(({ theme }) => ({
-    borderRadius: 32,
-    paddingInline: theme.spacing(3),
+const Styled = styled(Button, {
+    shouldForwardProp: (prop) => shouldForwardProp(prop) && prop !== 'radius' && prop !== 'px',
+})(({ theme, radius = 4, px = 3 }) => ({
+    borderRadius: theme.spacing(radius),
+    paddingInline: theme.spacing(px),
     textTransform: 'none',
     fontWeight: 500,
     backgroundColor: theme.palette.common.white,
@@ -59,6 +56,9 @@ const SecondaryButton = styled(Button)(({ theme }) => ({
         borderColor: theme.palette.action.disabledBackground,
     },
 }));
+function SecondaryButton(props) {
+    return jsx(Styled, { variant: "outlined", ...props });
+}
 
 /* Paleta baseada nas tuas cores */
 const palette = {
@@ -96,14 +96,20 @@ function BibliotecarioThemeProvider({ children }) {
     return (jsxs(ThemeProvider, { theme: theme, children: [jsx(CssBaseline, {}), children] }));
 }
 
-const BaseTextField = styled((props) => (jsx(TextField, { variant: "outlined", fullWidth: true, ...props })))(({ theme }) => ({
+// src/components/TextField/BaseTextField.tsx
+const BaseTextField = styled$1(TextField, {
+    shouldForwardProp: (prop) => shouldForwardProp(prop) &&
+        !['radius', 'px', 'py'].includes(prop),
+})(({ theme, radius = 3, px = 2, py = 1.5 }) => ({
     '& .MuiOutlinedInput-root': {
-        borderRadius: theme.spacing(3), // 24 px se spacing=8
+        borderRadius: theme.spacing(radius),
         '& fieldset': { borderColor: theme.palette.grey[400] },
         '&:hover fieldset': { borderColor: theme.palette.primary.main },
         '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
     },
-    '& .MuiInputBase-input': { padding: theme.spacing(1.5, 2) },
+    '& .MuiInputBase-input': {
+        padding: theme.spacing(py, px),
+    },
 }));
 
 function EmailField(props) {
@@ -121,5 +127,48 @@ function PasswordField(props) {
         }, ...props }));
 }
 
-export { BibliotecarioThemeProvider, EmailField, NumericField, PasswordField, PrimaryButton, SecondaryButton, theme };
+function SectionDivider({ label, width = '100%', thickness = 1, spacingY = 3, sx, }) {
+    return (jsx(Divider, { textAlign: "center", sx: {
+            width,
+            my: spacingY,
+            borderBottomWidth: thickness,
+            ...sx,
+        }, children: jsx(Typography, { variant: "body2", color: "text.secondary", fontWeight: 500, sx: { px: 1 }, children: label }) }));
+}
+
+const StyledLink = styled(Link, {
+    shouldForwardProp: (prop) => prop !== 'underlineThickness' && prop !== 'weight',
+})(({ theme, underlineThickness = 1, weight = 500 }) => ({
+    ...theme.typography.body2,
+    fontWeight: weight,
+    color: theme.palette.text.primary,
+    textDecoration: 'none',
+    position: 'relative',
+    display: 'inline-block',
+    '&::after': {
+        content: '""',
+        position: 'absolute',
+        left: 0,
+        bottom: 0,
+        width: '100%',
+        height: underlineThickness,
+        backgroundColor: 'currentColor',
+        transition: 'opacity .2s',
+        opacity: 1,
+    },
+    '&:hover::after': { opacity: 0.6 },
+    '&:focus-visible': {
+        outline: `2px solid ${theme.palette.primary.light}`,
+        outlineOffset: 2,
+    },
+}));
+/**
+ * RouteLink – link estilizado com sublinhado custom.
+ * Usa <a> por defeito mas aceita component={RouterLink} se precisares de routing.
+ */
+const RouteLink = forwardRef(function RouteLink(props, ref) {
+    return jsx(StyledLink, { ref: ref, ...props });
+});
+
+export { BibliotecarioThemeProvider, EmailField, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, theme };
 //# sourceMappingURL=index.js.map

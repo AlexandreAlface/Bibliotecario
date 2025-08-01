@@ -4,10 +4,10 @@ import {
   Visibility,
   VisibilityOff,
 } from '@mui/icons-material';
-import { BaseTextField } from './BaseTextField';
+import { BaseProps, BaseTextField } from './BaseTextField';
 import { IconButton, InputAdornment, type TextFieldProps } from '@mui/material';
 
-export function PasswordField(props: TextFieldProps) {
+export function PasswordField(props: TextFieldProps & BaseProps) {
   const [show, setShow] = useState(false);
 
   return (

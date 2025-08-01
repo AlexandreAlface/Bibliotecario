@@ -1,28 +1,61 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import * as _mui_material from '@mui/material';
-import { ButtonProps, TextFieldProps } from '@mui/material';
-import * as _emotion_styled from '@emotion/styled';
-import * as _mui_system from '@mui/system';
-import * as react from 'react';
-import * as _mui_material_OverridableComponent from '@mui/material/OverridableComponent';
+import { ButtonProps, TextFieldProps, SxProps, Theme, LinkProps } from '@mui/material';
 import * as _mui_material_styles from '@mui/material/styles';
+import * as react from 'react';
 
-declare function PrimaryButton(props: ButtonProps): react_jsx_runtime.JSX.Element;
+type SizeProps = {
+    radius?: number;
+    px?: number;
+};
+declare const theme: _mui_material_styles.Theme;
 
-declare const SecondaryButton: _emotion_styled.StyledComponent<_mui_material.ButtonOwnProps & Omit<_mui_material.ButtonBaseOwnProps, "classes"> & _mui_material_OverridableComponent.CommonProps & Omit<Omit<react.DetailedHTMLProps<react.ButtonHTMLAttributes<HTMLButtonElement>, HTMLButtonElement>, "ref"> & {
-    ref?: ((instance: HTMLButtonElement | null) => void | react.DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES[keyof react.DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES]) | react.RefObject<HTMLButtonElement> | null | undefined;
-}, "color" | "disableElevation" | "disabled" | "fullWidth" | "startIcon" | "endIcon" | "loading" | "loadingIndicator" | "className" | "style" | "classes" | "action" | "centerRipple" | "children" | "disableRipple" | "disableTouchRipple" | "focusRipple" | "focusVisibleClassName" | "LinkComponent" | "onFocusVisible" | "sx" | "tabIndex" | "TouchRippleProps" | "touchRippleRef" | "disableFocusRipple" | "href" | "loadingPosition" | "size" | "variant"> & _mui_system.MUIStyledCommonProps<_mui_material.Theme>, {}, {}>;
+interface PrimaryProps extends ButtonProps, SizeProps {
+}
+declare function PrimaryButton(props: PrimaryProps): react_jsx_runtime.JSX.Element;
+
+interface SecondaryProps extends ButtonProps, SizeProps {
+}
+declare function SecondaryButton(props: SecondaryProps): react_jsx_runtime.JSX.Element;
 
 declare function BibliotecarioThemeProvider({ children }: {
     children: React.ReactNode;
 }): react_jsx_runtime.JSX.Element;
 
-declare const theme: _mui_material_styles.Theme;
+interface BaseProps$1 {
+    radius?: number;
+    px?: number;
+    py?: number;
+}
 
-declare function EmailField(props: TextFieldProps): react_jsx_runtime.JSX.Element;
+declare function EmailField(props: TextFieldProps & BaseProps$1): react_jsx_runtime.JSX.Element;
 
-declare function NumericField(props: TextFieldProps): react_jsx_runtime.JSX.Element;
+declare function NumericField(props: TextFieldProps & BaseProps): react_jsx_runtime.JSX.Element;
 
-declare function PasswordField(props: TextFieldProps): react_jsx_runtime.JSX.Element;
+declare function PasswordField(props: TextFieldProps & BaseProps$1): react_jsx_runtime.JSX.Element;
 
-export { BibliotecarioThemeProvider, EmailField, NumericField, PasswordField, PrimaryButton, SecondaryButton, theme };
+interface SectionDividerProps {
+    label: string;
+    /** Largura total do divisor. Aceita %, px, rem…  – default '100%' */
+    width?: string | number;
+    /** Espessura da linha em px – default 1 */
+    thickness?: number;
+    /** Espaçamento vertical (theme.spacing) – default 3 */
+    spacingY?: number;
+    /** Qualquer extra do sx para override fino */
+    sx?: SxProps<Theme>;
+}
+declare function SectionDivider({ label, width, thickness, spacingY, sx, }: SectionDividerProps): react_jsx_runtime.JSX.Element;
+
+interface RouteLinkProps extends LinkProps {
+    /** Raio do sublinhado (espessura em px) – default 1 */
+    underlineThickness?: number;
+    /** Peso do texto – default 500 */
+    weight?: number;
+}
+/**
+ * RouteLink – link estilizado com sublinhado custom.
+ * Usa <a> por defeito mas aceita component={RouterLink} se precisares de routing.
+ */
+declare const RouteLink: react.ForwardRefExoticComponent<Omit<RouteLinkProps, "ref"> & react.RefAttributes<HTMLAnchorElement>>;
+
+export { BibliotecarioThemeProvider, EmailField, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, theme };

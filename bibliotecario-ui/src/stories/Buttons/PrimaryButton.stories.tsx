@@ -1,12 +1,16 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { PrimaryButton } from '../../Buttons';
 
-const meta: Meta<typeof PrimaryButton> = {
-  title: 'Atoms/Button/Primary',          // <-- igual nos dois
+
+export default {
+  title: 'Atoms/Button',
   component: PrimaryButton,
-  tags: ['autodocs'],
-};
-export default meta;
+  argTypes: {
+    radius: { control: { type: 'number', min: 0, max: 8 } },
+    px: { control: { type: 'number', min: 1, max: 6 } },
+    fullWidth: { control: 'boolean' },
+  },
+} as Meta;
 
 type Story = StoryObj<typeof PrimaryButton>;
 

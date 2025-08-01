@@ -1,15 +1,27 @@
-// BaseTextField.tsx
-import { styled, TextField, TextFieldProps } from '@mui/material';
+// src/components/TextField/BaseTextField.tsx
+import { styled, shouldForwardProp } from '@mui/system';
+import { TextField, type TextFieldProps } from '@mui/material';
 
-export const BaseTextField = styled((props: TextFieldProps) => (
-  <TextField variant="outlined" fullWidth {...props} />
-))(({ theme }) => ({
-  '& .MuiOutlinedInput-root': {
-    borderRadius: theme.spacing(3),          // 24 px se spacing=8
-    '& fieldset': { borderColor: theme.palette.grey[400] },
-    '&:hover fieldset': { borderColor: theme.palette.primary.main },
-    '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
-  },
-  '& .MuiInputBase-input': { padding: theme.spacing(1.5, 2) },
-}));
-    
+export interface BaseProps {
+  radius?: number;
+  px?: number;
+  py?: number;
+}
+
+export const BaseTextField = styled(TextField, {
+  shouldForwardProp: (prop) =>
+    shouldForwardProp(prop) &&
+    !['radius', 'px', 'py'].includes(prop as string),
+})<TextFieldProps & BaseProps>(
+  ({ theme, radius = 3, px = 2, py = 1.5 }) => ({
+    '& .MuiOutlinedInput-root': {
+      borderRadius: theme.spacing(radius),
+      '& fieldset': { borderColor: theme.palette.grey[400] },
+      '&:hover fieldset': { borderColor: theme.palette.primary.main },
+      '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
+    },
+    '& .MuiInputBase-input': {
+      padding: theme.spacing(py, px),
+    },
+  }),
+);

@@ -1,17 +1,21 @@
 // src/components/Button/PrimaryButton.tsx
-import { styled, alpha, Button as MuiButton, ButtonProps } from '@mui/material';
+import {
+  styled,
+  alpha,
+  Button as MuiButton,
+  type ButtonProps,
+} from '@mui/material';
+import { shouldForwardProp } from '@mui/system';
+import { SizeProps } from '../theme';
 
-/**
- * Botão principal da aplicação.
- * - Raio de canto consistente com o tema
- * - Hover subtil (90 % da cor primária)
- * - Desactiva a sombra normal do MUI
- * - Estado :disabled harmonizado com o tema
- * - Outline visível para acessibilidade (focus-visible)
- */
-const StyledPrimaryButton = styled(MuiButton)(({ theme }) => ({
-  borderRadius: theme.spacing(4),          // 32 px se spacing = 8
-  paddingInline: theme.spacing(3),         // horizontal 24 px
+interface PrimaryProps extends ButtonProps, SizeProps {}
+
+const Styled = styled(MuiButton, {
+  // Impede que props customizadas vão parar ao DOM
+  shouldForwardProp: (prop) => shouldForwardProp(prop) && prop !== 'radius' && prop !== 'px',
+})<SizeProps>(({ theme, radius = 4, px = 3 }) => ({
+  borderRadius: theme.spacing(radius),
+  paddingInline: theme.spacing(px),
   textTransform: 'none',
   fontWeight: 600,
   boxShadow: 'none',
@@ -33,9 +37,9 @@ const StyledPrimaryButton = styled(MuiButton)(({ theme }) => ({
   },
 }));
 
-export function PrimaryButton(props: ButtonProps) {
+export function PrimaryButton(props: PrimaryProps) {
   return (
-    <StyledPrimaryButton
+    <Styled
       variant="contained"
       color="primary"
       disableElevation

@@ -8,3 +8,5 @@ import '@fontsource/poppins/500.css'; /* semi-bold (medium) */
 import '@fontsource/poppins/600.css'; /* bold */
 
 export * from './TextFields/index';
+export * from './Divider/index';
+export * from './Link';
