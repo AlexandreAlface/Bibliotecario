@@ -1,9 +1,11 @@
 import { jsx, jsxs } from 'react/jsx-runtime';
-import { styled, Button, alpha, ThemeProvider, CssBaseline } from '@mui/material';
+import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton } from '@mui/material';
 import { createTheme } from '@mui/material/styles';
 import '@fontsource/poppins/400.css';
 import '@fontsource/poppins/500.css';
 import '@fontsource/poppins/600.css';
+import { useState } from 'react';
+import { VisibilityOff, Visibility } from '@mui/icons-material';
 
 /**
  * Botão principal da aplicação.
@@ -94,5 +96,30 @@ function BibliotecarioThemeProvider({ children }) {
     return (jsxs(ThemeProvider, { theme: theme, children: [jsx(CssBaseline, {}), children] }));
 }
 
-export { BibliotecarioThemeProvider, PrimaryButton, SecondaryButton, theme };
+const BaseTextField = styled((props) => (jsx(TextField, { variant: "outlined", fullWidth: true, ...props })))(({ theme }) => ({
+    '& .MuiOutlinedInput-root': {
+        borderRadius: theme.spacing(3), // 24 px se spacing=8
+        '& fieldset': { borderColor: theme.palette.grey[400] },
+        '&:hover fieldset': { borderColor: theme.palette.primary.main },
+        '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
+    },
+    '& .MuiInputBase-input': { padding: theme.spacing(1.5, 2) },
+}));
+
+function EmailField(props) {
+    return (jsx(BaseTextField, { type: "email", label: "E-mail ou telem\u00F3vel", autoComplete: "email", ...props }));
+}
+
+function NumericField(props) {
+    return (jsx(BaseTextField, { label: "N\u00FAmero de telem\u00F3vel", type: "tel", inputProps: { inputMode: 'numeric', pattern: '[0-9]*' }, ...props }));
+}
+
+function PasswordField(props) {
+    const [show, setShow] = useState(false);
+    return (jsx(BaseTextField, { type: show ? 'text' : 'password', label: "Palavra-passe", autoComplete: "current-password", InputProps: {
+            endAdornment: (jsxs(InputAdornment, { position: "end", children: [jsx(IconButton, { onClick: () => setShow((v) => !v), edge: "end", "aria-label": show ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe', size: "small", children: show ? jsx(VisibilityOff, {}) : jsx(Visibility, {}) }), jsx("span", { style: { marginLeft: 4, fontSize: 14 }, children: show ? 'Ocultar' : 'Mostrar' })] })),
+        }, ...props }));
+}
+
+export { BibliotecarioThemeProvider, EmailField, NumericField, PasswordField, PrimaryButton, SecondaryButton, theme };
 //# sourceMappingURL=index.js.map
