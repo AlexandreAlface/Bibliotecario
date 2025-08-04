@@ -79,7 +79,7 @@ export function Login() {
 
         <SectionDivider label="Novo por aqui?" />
 
-        <SecondaryButton fullWidth sx={{ mt: 3 }}>
+        <SecondaryButton fullWidth sx={{ mt: 3 }} href='/criar-conta'>
           Criar conta
         </SecondaryButton>
       </WhiteCard>

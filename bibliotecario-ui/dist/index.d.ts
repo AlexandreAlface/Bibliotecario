@@ -1,8 +1,9 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as _mui_material from '@mui/material';
-import { ButtonProps, TextFieldProps, SxProps, Theme, LinkProps, CardProps, BoxProps } from '@mui/material';
+import { ButtonProps, TextFieldProps, SxProps, Theme, LinkProps, CardProps, BoxProps, Card } from '@mui/material';
 import * as _mui_material_styles from '@mui/material/styles';
 import * as react from 'react';
+import react__default, { PropsWithChildren } from 'react';
 import * as _emotion_styled from '@emotion/styled';
 import * as _mui_system from '@mui/system';
 
@@ -20,15 +21,23 @@ interface SecondaryProps extends ButtonProps, SizeProps {
 }
 declare function SecondaryButton(props: SecondaryProps): react_jsx_runtime.JSX.Element;
 
-declare function BibliotecarioThemeProvider({ children }: {
-    children: React.ReactNode;
-}): react_jsx_runtime.JSX.Element;
+/**
+ * BibliotecarioThemeProvider is a custom theme provider that applies the MUI theme
+ * and CssBaseline to the application.
+ *
+ * @param {PropsWithChildren} props - The props containing children components.
+ * @returns {JSX.Element} The ThemeProvider with the applied theme and CssBaseline.
+ */
+declare function BibliotecarioThemeProvider({ children }: PropsWithChildren): react_jsx_runtime.JSX.Element;
 
 interface BaseProps {
     radius?: number;
     px?: number;
     py?: number;
 }
+declare const BaseTextField: _emotion_styled.StyledComponent<{
+    variant?: _mui_material.TextFieldVariants | undefined;
+} & Omit<_mui_material.OutlinedTextFieldProps | _mui_material.FilledTextFieldProps | _mui_material.StandardTextFieldProps, "variant"> & (_mui_system.MUIStyledCommonProps<_mui_system.Theme> & (TextFieldProps & BaseProps)), {}, {}>;
 
 declare function EmailField(props: TextFieldProps & BaseProps): react_jsx_runtime.JSX.Element;
 
@@ -81,4 +90,43 @@ declare const GradientBackground: _emotion_styled.StyledComponent<_mui_system.Bo
     ref?: ((instance: HTMLDivElement | null) => void | react.DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES[keyof react.DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES]) | react.RefObject<HTMLDivElement> | null | undefined;
 }, keyof _mui_system.BoxOwnProps<_mui_material.Theme>> & _mui_system.MUIStyledCommonProps<_mui_material.Theme> & GradientProps, {}, {}>;
 
-export { BibliotecarioThemeProvider, EmailField, GradientBackground, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard, theme };
+interface InfoStepCardProps {
+    step: number | string;
+    title: string;
+    description: string;
+    accentColor?: string;
+    backgroundColor?: string;
+    /** Diâmetro do círculo (px) – default 88 px */
+    circleSize?: number;
+    /** Largura do aro branco (px) – default 6 px */
+    circleBorderWidth?: number;
+    /** Cor do aro – default #fff */
+    circleBorderColor?: string;
+    cardProps?: react__default.ComponentProps<typeof Card>;
+}
+declare const InfoStepCard: react__default.FC<InfoStepCardProps>;
+
+interface HowItWorksSectionProps {
+    /**
+     * Lista de passos a apresentar.
+     * Cada item é simplesmente o conjunto de props de <InfoStepCard />.
+     */
+    steps: InfoStepCardProps[];
+    /**
+     * Direcção dos cartões.
+     * - 'vertical' (por defeito) = empilhados
+     * - 'horizontal' = lado-a-lado
+     */
+    orientation?: 'vertical' | 'horizontal';
+    /**
+     * Espaço entre cartões em unidades de theme.spacing (default 6 = 48 px)
+     */
+    spacing?: number;
+    /**
+     * Sx extra para o <Stack />
+     */
+    sx?: object;
+}
+declare const HowItWorksSection: react__default.FC<HowItWorksSectionProps>;
+
+export { BaseTextField, BibliotecarioThemeProvider, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard, theme };

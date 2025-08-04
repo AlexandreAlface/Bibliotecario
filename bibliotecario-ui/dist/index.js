@@ -1,10 +1,10 @@
 import { jsx, jsxs } from 'react/jsx-runtime';
-import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link, Card, Box } from '@mui/material';
+import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link, Card, Box, Stack } from '@mui/material';
 import { shouldForwardProp, styled as styled$1 } from '@mui/system';
 import { createTheme, styled as styled$2 } from '@mui/material/styles';
 import '@fontsource/poppins/400.css';
-import '@fontsource/poppins/500.css';
 import '@fontsource/poppins/600.css';
+import '@fontsource/poppins/700.css';
 import { useState, forwardRef } from 'react';
 import { VisibilityOff, Visibility } from '@mui/icons-material';
 
@@ -92,6 +92,13 @@ const theme = createTheme({
     },
 });
 
+/**
+ * BibliotecarioThemeProvider is a custom theme provider that applies the MUI theme
+ * and CssBaseline to the application.
+ *
+ * @param {PropsWithChildren} props - The props containing children components.
+ * @returns {JSX.Element} The ThemeProvider with the applied theme and CssBaseline.
+ */
 function BibliotecarioThemeProvider({ children }) {
     return (jsxs(ThemeProvider, { theme: theme, children: [jsx(CssBaseline, {}), children] }));
 }
@@ -211,5 +218,43 @@ const GradientBackground = styled$2(Box, {
     overflow: 'hidden',
 }));
 
-export { BibliotecarioThemeProvider, EmailField, GradientBackground, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard, theme };
+const Circle = styled$1(Box, {
+    shouldForwardProp: (prop) => !['accentColor', 'circleSize', 'circleBorderWidth', 'circleBorderColor'].includes(prop),
+})(({ theme, accentColor, circleSize, circleBorderWidth, circleBorderColor }) => ({
+    position: 'absolute',
+    top: 0,
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: circleSize,
+    height: circleSize,
+    borderRadius: '50%',
+    backgroundColor: accentColor || theme.palette.primary.main,
+    color: theme.palette.getContrastText(accentColor || theme.palette.primary.main),
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 700,
+    fontSize: circleSize * 0.35,
+    border: `${circleBorderWidth}px solid ${circleBorderColor}`,
+    boxSizing: 'border-box',
+}));
+const InfoStepCard = ({ step, title, description, accentColor, backgroundColor, circleSize = 88, circleBorderWidth = 6, circleBorderColor = '#fff', cardProps, }) => {
+    const topSpacing = circleSize / 2; // espaço para o círculo “entrar” no cartão
+    return (jsxs(Box, { position: "relative", textAlign: "center", mt: topSpacing, children: [jsx(Circle, { accentColor: accentColor || '', circleSize: circleSize, circleBorderWidth: circleBorderWidth, circleBorderColor: circleBorderColor, children: step }), jsxs(WhiteCard, { sx: {
+                    pt: topSpacing, // mais 16 px para afastar o texto do círculo
+                    pb: 4,
+                    px: 5,
+                    border: 'none',
+                    backgroundColor,
+                    ...cardProps === null || cardProps === void 0 ? void 0 : cardProps.sx,
+                }, ...cardProps, children: [jsx(Typography, { variant: "h6", component: "h3", gutterBottom: true, children: title }), jsx(Typography, { variant: "body2", sx: { whiteSpace: 'pre-line' }, children: description })] })] }));
+};
+
+const HowItWorksSection = ({ steps, orientation = 'vertical', spacing = 6, sx, }) => {
+    if (!(steps === null || steps === void 0 ? void 0 : steps.length))
+        return null;
+    return (jsx(Box, { width: "100%", children: jsx(Stack, { direction: orientation === 'horizontal' ? 'row' : 'column', spacing: spacing, alignItems: "center", justifyContent: "center", sx: sx, children: steps.map((step, idx) => (jsx(InfoStepCard, { ...step }, idx))) }) }));
+};
+
+export { BaseTextField, BibliotecarioThemeProvider, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard, theme };
 //# sourceMappingURL=index.js.map
