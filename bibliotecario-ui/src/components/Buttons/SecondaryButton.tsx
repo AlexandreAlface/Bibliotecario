@@ -1,7 +1,7 @@
 // src/components/Button/SecondaryButton.tsx
 import { styled, Button as MuiButton, type ButtonProps } from '@mui/material';
 import { shouldForwardProp } from '@mui/system';
-import { SizeProps } from '../theme';
+import { SizeProps } from '../../theme';
 
 interface SecondaryProps extends ButtonProps, SizeProps {}
 

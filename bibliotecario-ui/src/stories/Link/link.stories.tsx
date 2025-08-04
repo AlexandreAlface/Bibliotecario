@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { RouteLink } from '../../Link';
+import { RouteLink } from '../../components/Link';
 
 const meta: Meta<typeof RouteLink> = {
   title: 'Atoms/Link',

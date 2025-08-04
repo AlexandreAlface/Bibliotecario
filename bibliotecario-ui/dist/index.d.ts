@@ -1,5 +1,5 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import { ButtonProps, TextFieldProps, SxProps, Theme, LinkProps } from '@mui/material';
+import { ButtonProps, TextFieldProps, SxProps, Theme, LinkProps, CardProps } from '@mui/material';
 import * as _mui_material_styles from '@mui/material/styles';
 import * as react from 'react';
 
@@ -21,17 +21,17 @@ declare function BibliotecarioThemeProvider({ children }: {
     children: React.ReactNode;
 }): react_jsx_runtime.JSX.Element;
 
-interface BaseProps$1 {
+interface BaseProps {
     radius?: number;
     px?: number;
     py?: number;
 }
 
-declare function EmailField(props: TextFieldProps & BaseProps$1): react_jsx_runtime.JSX.Element;
+declare function EmailField(props: TextFieldProps & BaseProps): react_jsx_runtime.JSX.Element;
 
 declare function NumericField(props: TextFieldProps & BaseProps): react_jsx_runtime.JSX.Element;
 
-declare function PasswordField(props: TextFieldProps & BaseProps$1): react_jsx_runtime.JSX.Element;
+declare function PasswordField(props: TextFieldProps & BaseProps): react_jsx_runtime.JSX.Element;
 
 interface SectionDividerProps {
     label: string;
@@ -58,4 +58,12 @@ interface RouteLinkProps extends LinkProps {
  */
 declare const RouteLink: react.ForwardRefExoticComponent<Omit<RouteLinkProps, "ref"> & react.RefAttributes<HTMLAnchorElement>>;
 
-export { BibliotecarioThemeProvider, EmailField, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, theme };
+interface WhiteCardProps extends CardProps {
+    /** Largura (px, %, rem…). Se omitido usa auto/max-content */
+    width?: string | number;
+    /** Altura (px, %, vh…). Opcional */
+    height?: string | number;
+}
+declare function WhiteCard(props: WhiteCardProps): react_jsx_runtime.JSX.Element;
+
+export { BibliotecarioThemeProvider, EmailField, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard, theme };

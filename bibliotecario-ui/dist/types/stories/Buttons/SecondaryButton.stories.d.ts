@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { SecondaryButton } from '../../Buttons';
+import { SecondaryButton } from '../../components/Buttons';
 declare const meta: Meta<typeof SecondaryButton>;
 export default meta;
 type Story = StoryObj<typeof SecondaryButton>;

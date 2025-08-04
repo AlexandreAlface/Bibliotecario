@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { PrimaryButton } from '../../Buttons';
+import { PrimaryButton } from '../../components/Buttons';
 
 
 export default {

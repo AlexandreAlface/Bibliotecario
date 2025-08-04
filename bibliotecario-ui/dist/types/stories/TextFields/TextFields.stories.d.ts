@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { EmailField } from '../../TextFields';
+import { EmailField } from '../../components/TextFields';
 declare const meta: Meta<typeof EmailField>;
 export default meta;
 type Story = StoryObj;

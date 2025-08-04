@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { EmailField, NumericField, PasswordField } from '../../TextFields';
+import { EmailField, NumericField, PasswordField } from '../../components/TextFields';
 
 
 const meta: Meta<typeof EmailField> = {

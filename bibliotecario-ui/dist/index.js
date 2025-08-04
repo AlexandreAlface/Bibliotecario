@@ -1,5 +1,5 @@
 import { jsx, jsxs } from 'react/jsx-runtime';
-import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link } from '@mui/material';
+import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link, Card } from '@mui/material';
 import { shouldForwardProp, styled as styled$1 } from '@mui/system';
 import { createTheme } from '@mui/material/styles';
 import '@fontsource/poppins/400.css';
@@ -170,5 +170,19 @@ const RouteLink = forwardRef(function RouteLink(props, ref) {
     return jsx(StyledLink, { ref: ref, ...props });
 });
 
-export { BibliotecarioThemeProvider, EmailField, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, theme };
+const StyledCard = styled(Card, {
+    shouldForwardProp: (prop) => shouldForwardProp(prop) && prop !== 'width' && prop !== 'height',
+})(({ theme, width, height }) => ({
+    borderRadius: theme.spacing(3), /* 24 px se spacing = 8 */
+    padding: theme.spacing(4), /* 32 px */
+    backgroundColor: theme.palette.common.white,
+    boxShadow: `0 4px 12px ${theme.palette.grey[300]}`,
+    width,
+    height,
+}));
+function WhiteCard(props) {
+    return jsx(StyledCard, { variant: "outlined", ...props });
+}
+
+export { BibliotecarioThemeProvider, EmailField, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard, theme };
 //# sourceMappingURL=index.js.map

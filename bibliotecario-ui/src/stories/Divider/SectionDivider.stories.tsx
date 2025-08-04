@@ -1,6 +1,6 @@
 // SectionDivider.stories.tsx
 import type { Meta, StoryObj } from '@storybook/react';
-import { SectionDivider } from '../../Divider/SectionDivider';
+import { SectionDivider } from '../../components/Divider/SectionDivider';
 
 
 const meta: Meta<typeof SectionDivider> = {

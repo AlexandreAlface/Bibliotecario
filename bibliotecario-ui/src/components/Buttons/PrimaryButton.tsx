@@ -6,7 +6,7 @@ import {
   type ButtonProps,
 } from '@mui/material';
 import { shouldForwardProp } from '@mui/system';
-import { SizeProps } from '../theme';
+import { SizeProps } from '../../theme';
 
 interface PrimaryProps extends ButtonProps, SizeProps {}
 
