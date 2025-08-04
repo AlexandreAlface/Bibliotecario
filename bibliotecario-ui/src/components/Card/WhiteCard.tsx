@@ -15,7 +15,6 @@ const StyledCard = styled(Card, {
   borderRadius: theme.spacing(3),      /* 24 px se spacing = 8 */
   padding: theme.spacing(4),           /* 32 px */
   backgroundColor: theme.palette.common.white,
-  boxShadow: `0 4px 12px ${theme.palette.grey[300]}`,
   width,
   height,
 }));

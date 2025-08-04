@@ -1,7 +1,7 @@
 import { jsx, jsxs } from 'react/jsx-runtime';
-import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link, Card } from '@mui/material';
+import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link, Card, Box } from '@mui/material';
 import { shouldForwardProp, styled as styled$1 } from '@mui/system';
-import { createTheme } from '@mui/material/styles';
+import { createTheme, styled as styled$2 } from '@mui/material/styles';
 import '@fontsource/poppins/400.css';
 import '@fontsource/poppins/500.css';
 import '@fontsource/poppins/600.css';
@@ -96,19 +96,37 @@ function BibliotecarioThemeProvider({ children }) {
     return (jsxs(ThemeProvider, { theme: theme, children: [jsx(CssBaseline, {}), children] }));
 }
 
-// src/components/TextField/BaseTextField.tsx
 const BaseTextField = styled$1(TextField, {
-    shouldForwardProp: (prop) => shouldForwardProp(prop) &&
-        !['radius', 'px', 'py'].includes(prop),
+    shouldForwardProp: (prop) => shouldForwardProp(prop) && !['radius', 'px', 'py'].includes(prop),
 })(({ theme, radius = 3, px = 2, py = 1.5 }) => ({
     '& .MuiOutlinedInput-root': {
         borderRadius: theme.spacing(radius),
+        '& input': {
+            padding: theme.spacing(py, px),
+            fontSize: 
+            // pxToRem não está tipado em versões antigas, usa fallback
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            theme.typography.pxToRem
+                ? // @ts-expect-error – método não existe nos tipos antigos
+                    theme.typography.pxToRem(14)
+                : '0.875rem',
+            lineHeight: 1.25,
+        },
         '& fieldset': { borderColor: theme.palette.grey[400] },
         '&:hover fieldset': { borderColor: theme.palette.primary.main },
         '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
     },
-    '& .MuiInputBase-input': {
-        padding: theme.spacing(py, px),
+    '& .MuiInputLabel-root': {
+        fontSize: 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        theme.typography.pxToRem
+            ? // @ts-expect-error idem
+                theme.typography.pxToRem(14)
+            : '0.875rem',
+        lineHeight: 1.2,
+    },
+    '& .MuiInputLabel-shrink': {
+        transform: 'translate(14px, -6px) scale(0.85)',
     },
 }));
 
@@ -176,7 +194,6 @@ const StyledCard = styled(Card, {
     borderRadius: theme.spacing(3), /* 24 px se spacing = 8 */
     padding: theme.spacing(4), /* 32 px */
     backgroundColor: theme.palette.common.white,
-    boxShadow: `0 4px 12px ${theme.palette.grey[300]}`,
     width,
     height,
 }));
@@ -184,5 +201,15 @@ function WhiteCard(props) {
     return jsx(StyledCard, { variant: "outlined", ...props });
 }
 
-export { BibliotecarioThemeProvider, EmailField, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard, theme };
+const GradientBackground = styled$2(Box, {
+    shouldForwardProp: (prop) => prop !== 'from' && prop !== 'to' && prop !== 'angle',
+})(({ theme, from, to, angle = 135 }) => ({
+    minHeight: '100vh',
+    width: '100%',
+    background: `linear-gradient(${angle}deg, ${from !== null && from !== void 0 ? from : theme.palette.secondary.main} 0%, ${to !== null && to !== void 0 ? to : theme.palette.primary.main} 100%)`,
+    position: 'relative',
+    overflow: 'hidden',
+}));
+
+export { BibliotecarioThemeProvider, EmailField, GradientBackground, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard, theme };
 //# sourceMappingURL=index.js.map

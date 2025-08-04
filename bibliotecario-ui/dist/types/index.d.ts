@@ -8,3 +8,4 @@ export * from './components/TextFields/index';
 export * from './components/Divider/index';
 export * from './components/Link';
 export * from './components/Card';
+export * from './components/Background';

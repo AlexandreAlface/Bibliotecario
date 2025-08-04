@@ -1,7 +1,10 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
-import { ButtonProps, TextFieldProps, SxProps, Theme, LinkProps, CardProps } from '@mui/material';
+import * as _mui_material from '@mui/material';
+import { ButtonProps, TextFieldProps, SxProps, Theme, LinkProps, CardProps, BoxProps } from '@mui/material';
 import * as _mui_material_styles from '@mui/material/styles';
 import * as react from 'react';
+import * as _emotion_styled from '@emotion/styled';
+import * as _mui_system from '@mui/system';
 
 type SizeProps = {
     radius?: number;
@@ -66,4 +69,16 @@ interface WhiteCardProps extends CardProps {
 }
 declare function WhiteCard(props: WhiteCardProps): react_jsx_runtime.JSX.Element;
 
-export { BibliotecarioThemeProvider, EmailField, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard, theme };
+interface GradientProps extends BoxProps {
+    /** cor inicial (qualquer CSS color) – default theme.palette.secondary.main (verde) */
+    from?: string;
+    /** cor final – default theme.palette.primary.main (roxo) */
+    to?: string;
+    /** ângulo do gradiente em deg – default 135 */
+    angle?: number;
+}
+declare const GradientBackground: _emotion_styled.StyledComponent<_mui_system.BoxOwnProps<_mui_material.Theme> & Omit<Omit<react.DetailedHTMLProps<react.HTMLAttributes<HTMLDivElement>, HTMLDivElement>, "ref"> & {
+    ref?: ((instance: HTMLDivElement | null) => void | react.DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES[keyof react.DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES]) | react.RefObject<HTMLDivElement> | null | undefined;
+}, keyof _mui_system.BoxOwnProps<_mui_material.Theme>> & _mui_system.MUIStyledCommonProps<_mui_material.Theme> & GradientProps, {}, {}>;
+
+export { BibliotecarioThemeProvider, EmailField, GradientBackground, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard, theme };
