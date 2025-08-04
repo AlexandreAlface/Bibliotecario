@@ -1,9 +1,13 @@
 import React from 'react';
-import { Typography, Box } from '@mui/material';
-import Grid from '@mui/material/GridLegacy'
-import { GradientBackground, WhiteCard ,HowItWorksSection, RouteLink } from 'bibliotecario-ui';
+import Grid from '@mui/material/GridLegacy';
+import { Box, Typography } from '@mui/material';
+import {
+  GradientBackground,
+  WhiteCard,
+  HowItWorksSection,
+  RouteLink,
+} from 'bibliotecario-ui';
 import SignUpForm from '../../Forms/SignUpForm';
-
 
 const steps = [
   {
@@ -26,9 +30,9 @@ const steps = [
 
 const CreateAccountPage: React.FC = () => (
   <GradientBackground>
-    <Box py={{ xs: 6, md: 10 }} maxWidth="lg" mx="auto">
+    <Box py={{ xs: 8, md: 10 }} maxWidth="xl" mx="auto" px={{ xs: 2, md: 4 }}>
       <Grid container spacing={10} justifyContent="center">
-        {/* Coluna ESQ – How it works */}
+        {/* Coluna esquerda */}
         <Grid item xs={12} md={4}>
           <WhiteCard sx={{ py: 6, px: 4, textAlign: 'center' }}>
             <Typography variant="h4" component="h1" gutterBottom>
@@ -39,7 +43,7 @@ const CreateAccountPage: React.FC = () => (
           </WhiteCard>
         </Grid>
 
-        {/* Coluna DIR – Formulário */}
+        {/* Coluna direita */}
         <Grid item xs={12} md={6}>
           <WhiteCard sx={{ py: 6, px: { xs: 4, md: 6 } }}>
             <Typography variant="h4" component="h2" gutterBottom>
@@ -52,7 +56,7 @@ const CreateAccountPage: React.FC = () => (
             />
 
             <Typography variant="body2" sx={{ mt: 4, textAlign: 'center' }}>
-              Já és um membro? <RouteLink href="/login">Entrar</RouteLink>
+              Já és um membro? <RouteLink href="/">Entrar</RouteLink>
             </Typography>
           </WhiteCard>
         </Grid>
