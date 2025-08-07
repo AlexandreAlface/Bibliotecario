@@ -6,6 +6,7 @@ import {
   SecondaryButton,
   SectionDivider,
   RouteLink,
+  Logo
 } from 'bibliotecario-ui';
 
 import { Typography, Box } from '@mui/material';
@@ -33,7 +34,7 @@ export function Login() {
 
   return (
     <AuthLayout>
-      <WhiteCard width={480}>
+        <WhiteCard width={480}>
         <Typography variant="h5" textAlign="center" mb={3}>
           Entrar
         </Typography>
@@ -77,9 +78,9 @@ export function Login() {
           <RouteLink href="#" weight={400}>Esqueceste-te da palavra-passe?</RouteLink>
         </Box>
 
-        <SectionDivider label="Novo por aqui?" />
+        <SectionDivider label="Novo por aqui?"/>
 
-        <SecondaryButton fullWidth sx={{ mt: 3 }} href='/criar-conta'>
+        <SecondaryButton fullWidth sx={{ mt: 2 }} href='/criar-conta'>
           Criar conta
         </SecondaryButton>
       </WhiteCard>

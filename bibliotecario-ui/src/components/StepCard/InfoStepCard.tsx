@@ -62,27 +62,32 @@ const InfoStepCard: React.FC<InfoStepCardProps> = ({
   const topSpacing = circleSize / 2; // espaço para o círculo “entrar” no cartão
 
   return (
-    <Box position="relative" textAlign="center" mt={topSpacing}>
+    <Box position="relative" textAlign="center" mt={2} width="100%">
       <Circle
         accentColor={accentColor || ''}
         circleSize={circleSize}
         circleBorderWidth={circleBorderWidth}
         circleBorderColor={circleBorderColor}
+        marginTop='1em'
       >
         {step}
       </Circle>
 
       <WhiteCard
         sx={{
-          pt: topSpacing, // mais 16 px para afastar o texto do círculo
-          pb: 4,
-          px: 5,
+          width: '100%',            // ← garante 100% de largura
+          pt: '3em',
+          padding: '3em',
+          pb: 3,
+          px: 3,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-start',
           border: 'none',
+          marginTop:'2em',
           backgroundColor,
           ...cardProps?.sx,
-        }}
-        {...cardProps}
-      >
+        }}>
         <Typography variant="h6" component="h3" gutterBottom>
           {title}
         </Typography>

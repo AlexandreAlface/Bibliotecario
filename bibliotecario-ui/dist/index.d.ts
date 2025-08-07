@@ -2,8 +2,8 @@ import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as _mui_material from '@mui/material';
 import { ButtonProps, TextFieldProps, SxProps, Theme, LinkProps, CardProps, BoxProps, Card } from '@mui/material';
 import * as _mui_material_styles from '@mui/material/styles';
-import * as react from 'react';
-import react__default, { PropsWithChildren } from 'react';
+import * as React from 'react';
+import React__default, { PropsWithChildren } from 'react';
 import * as _emotion_styled from '@emotion/styled';
 import * as _mui_system from '@mui/system';
 
@@ -37,7 +37,7 @@ interface BaseProps {
 }
 declare const BaseTextField: _emotion_styled.StyledComponent<{
     variant?: _mui_material.TextFieldVariants | undefined;
-} & Omit<_mui_material.OutlinedTextFieldProps | _mui_material.FilledTextFieldProps | _mui_material.StandardTextFieldProps, "variant"> & (_mui_system.MUIStyledCommonProps<_mui_system.Theme> & (TextFieldProps & BaseProps)), {}, {}>;
+} & Omit<_mui_material.FilledTextFieldProps | _mui_material.OutlinedTextFieldProps | _mui_material.StandardTextFieldProps, "variant"> & (_mui_system.MUIStyledCommonProps<_mui_system.Theme> & (TextFieldProps & BaseProps)), {}, {}>;
 
 declare function EmailField(props: TextFieldProps & BaseProps): react_jsx_runtime.JSX.Element;
 
@@ -68,7 +68,7 @@ interface RouteLinkProps extends LinkProps {
  * RouteLink – link estilizado com sublinhado custom.
  * Usa <a> por defeito mas aceita component={RouterLink} se precisares de routing.
  */
-declare const RouteLink: react.ForwardRefExoticComponent<Omit<RouteLinkProps, "ref"> & react.RefAttributes<HTMLAnchorElement>>;
+declare const RouteLink: React.ForwardRefExoticComponent<Omit<RouteLinkProps, "ref"> & React.RefAttributes<HTMLAnchorElement>>;
 
 interface WhiteCardProps extends CardProps {
     /** Largura (px, %, rem…). Se omitido usa auto/max-content */
@@ -86,8 +86,8 @@ interface GradientProps extends BoxProps {
     /** ângulo do gradiente em deg – default 135 */
     angle?: number;
 }
-declare const GradientBackground: _emotion_styled.StyledComponent<_mui_system.BoxOwnProps<_mui_material.Theme> & Omit<Omit<react.DetailedHTMLProps<react.HTMLAttributes<HTMLDivElement>, HTMLDivElement>, "ref"> & {
-    ref?: ((instance: HTMLDivElement | null) => void | react.DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES[keyof react.DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES]) | react.RefObject<HTMLDivElement> | null | undefined;
+declare const GradientBackground: _emotion_styled.StyledComponent<_mui_system.BoxOwnProps<_mui_material.Theme> & Omit<Omit<React.DetailedHTMLProps<React.HTMLAttributes<HTMLDivElement>, HTMLDivElement>, "ref"> & {
+    ref?: ((instance: HTMLDivElement | null) => void | React.DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES[keyof React.DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES]) | React.RefObject<HTMLDivElement> | null | undefined;
 }, keyof _mui_system.BoxOwnProps<_mui_material.Theme>> & _mui_system.MUIStyledCommonProps<_mui_material.Theme> & GradientProps, {}, {}>;
 
 interface InfoStepCardProps {
@@ -102,9 +102,9 @@ interface InfoStepCardProps {
     circleBorderWidth?: number;
     /** Cor do aro – default #fff */
     circleBorderColor?: string;
-    cardProps?: react__default.ComponentProps<typeof Card>;
+    cardProps?: React__default.ComponentProps<typeof Card>;
 }
-declare const InfoStepCard: react__default.FC<InfoStepCardProps>;
+declare const InfoStepCard: React__default.FC<InfoStepCardProps>;
 
 interface HowItWorksSectionProps {
     /**
@@ -127,6 +127,86 @@ interface HowItWorksSectionProps {
      */
     sx?: object;
 }
-declare const HowItWorksSection: react__default.FC<HowItWorksSectionProps>;
+declare const HowItWorksSection: React__default.FC<HowItWorksSectionProps>;
 
-export { BaseTextField, BibliotecarioThemeProvider, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard, theme };
+declare const Logo: React__default.FC;
+
+type Option = {
+    value: string | number;
+    label: React__default.ReactNode;
+};
+interface SelectableOptionsProps {
+    /** Título/legenda do grupo (opcional) */
+    label?: string;
+    /** Lista de opções */
+    options: Option[];
+    /** Valor(es) selecionado(s) */
+    value: string | number | (string | number)[];
+    /** Callback de alteração */
+    onChange: (value: string | number | (string | number)[]) => void;
+    /** Tipo de controlo */
+    variant?: 'checkbox' | 'radio';
+    /** Disposição horizontal ou vertical */
+    row?: boolean;
+    /** Estilos adicionais */
+    sx?: SxProps<Theme>;
+}
+declare const SelectableOptions: React__default.FC<SelectableOptionsProps>;
+
+interface AvatarUploadProps {
+    /** URL/Blob da imagem (controlado) */
+    value?: string;
+    /** Callback devolve o ficheiro e o URL criado */
+    onChange?: (file: File | null, url: string | null) => void;
+    /** Diâmetro do avatar (px) */
+    size?: number;
+    /** Placeholder (ex.: iniciais) se não houver imagem */
+    placeholder?: React__default.ReactNode;
+    /** Mostrar ou esconder o botão-ícone */
+    showIcon?: boolean;
+    /** Estilos extra */
+    sx?: SxProps<Theme>;
+}
+declare const AvatarUpload: React__default.FC<AvatarUploadProps>;
+
+interface Action {
+    /** Ícone a renderizar dentro do IconButton */
+    icon: React__default.ReactNode;
+    /** Tooltip opcional */
+    tooltip?: string;
+    /** Callback */
+    onClick?: () => void;
+    /** Desabilitar botão? */
+    disabled?: boolean;
+}
+interface AvatarListItemProps {
+    avatarSrc?: string;
+    /** Texto principal (ex.: "Camila, 7 anos") */
+    label: React__default.ReactNode;
+    /** Lista de acções à direita */
+    actions?: Action[];
+    /** Tamanho do avatar (px) */
+    avatarSize?: number;
+    /** Estilos extra */
+    sx?: SxProps<Theme>;
+}
+declare const AvatarListItem: React__default.FC<AvatarListItemProps>;
+
+interface MenuItem {
+    label: string;
+    icon: React__default.ReactNode;
+    onClick?: () => void;
+    selected?: boolean;
+    disabled?: boolean;
+}
+interface SidebarMenuProps {
+    items: MenuItem[];
+    footerItems?: MenuItem[];
+    open?: boolean;
+    onToggle?: (open: boolean) => void;
+    sx?: SxProps<Theme>;
+}
+declare const SidebarMenu: React__default.FC<SidebarMenuProps>;
+
+export { AvatarListItem, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, WhiteCard, theme };
+export type { Action, AvatarListItemProps, AvatarUploadProps, MenuItem, Option, SelectableOptionsProps, SidebarMenuProps };

@@ -45,10 +45,10 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
         </Grid>
 
         {/* Morada + Código-postal */}
-        <Grid item xs={12} md={8}>
+        <Grid item xs={12} md={6}>
           <BaseTextField fullWidth label="Morada" name="address" />
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={6}>
           <BaseTextField fullWidth label="Código Postal" name="postalCode" />
         </Grid>
 
@@ -70,7 +70,7 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSubmit, onBack }) => {
           <SecondaryButton type="button" onClick={onBack}>
             Voltar
           </SecondaryButton>
-          <PrimaryButton type="submit">Seguinte</PrimaryButton>
+          <PrimaryButton type="submit" href='/criar-conta-filhos'>Seguinte</PrimaryButton>
         </Grid>
       </Grid>
     </Box>

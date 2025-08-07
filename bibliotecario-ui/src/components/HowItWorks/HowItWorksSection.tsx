@@ -39,13 +39,29 @@ export const HowItWorksSection: React.FC<HowItWorksSectionProps> = ({
       <Stack
         direction={orientation === 'horizontal' ? 'row' : 'column'}
         spacing={spacing}
-        alignItems="center"
+        alignItems="stretch"
         justifyContent="center"
+        
         sx={sx}
       >
-        {steps.map((step, idx) => (
-          <InfoStepCard key={idx} {...step} />
-        ))}
+       {steps.map((step, idx) => {
+          const mergedCardProps = {
+            ...step.cardProps,
+            sx: {
+              ...(step.cardProps?.sx || {}),
+              minHeight: 'auto',
+              
+            },
+          };
+
+          return (
+            <InfoStepCard
+              key={idx}
+              {...step}
+              cardProps={mergedCardProps}
+            />
+          );
+        })}
       </Stack>
     </Box>
   );

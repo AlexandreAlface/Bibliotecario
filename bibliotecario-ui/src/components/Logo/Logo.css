@@ -1,0 +1,10 @@
+.logo{
+  width: 340px;      /* ajuste se quiser */
+  margin: 40px auto;
+}
+
+.logo__img{
+  display: block;
+  width: 100%;
+  height: auto;
+}

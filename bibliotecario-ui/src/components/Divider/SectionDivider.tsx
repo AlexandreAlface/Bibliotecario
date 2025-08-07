@@ -27,6 +27,7 @@ export function SectionDivider({
         width,
         my: spacingY,
         borderBottomWidth: thickness,
+        marginBottom: '0em',
         ...sx,
       }}
     >

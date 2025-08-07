@@ -12,3 +12,10 @@ export * from './components/Card';
 export * from './components/Background';
 export * from './components/HowItWorks';
 export * from './components/StepCard';
+export * from './components/Logo';
+export * from './components/SelectableOptions';
+export * from './components/AvatarUpload';
+export * from './components/AvatarListItem';
+export * from './components/SidebarMenu';
+
+
