@@ -1,17 +1,23 @@
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
-import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link, Card, Box, Stack, FormControl, FormLabel, FormGroup, FormControlLabel, Checkbox, RadioGroup, Radio, Avatar, Tooltip, Drawer, List, ListItemButton, ListItemIcon, ListItemText } from '@mui/material';
+import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link, Card, Box, Stack, FormControl, FormLabel, FormGroup, FormControlLabel, Checkbox, RadioGroup, Radio, Avatar, Tooltip, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Badge, Menu, ListItem, MenuItem, InputLabel, Select, ListItemAvatar, LinearProgress, linearProgressClasses, Popper, ClickAwayListener, Paper, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, TablePagination } from '@mui/material';
 import { shouldForwardProp, styled as styled$1 } from '@mui/system';
 import { createTheme, styled as styled$2 } from '@mui/material/styles';
 import '@fontsource/poppins/400.css';
 import '@fontsource/poppins/600.css';
 import '@fontsource/poppins/700.css';
-import { useState, forwardRef, useRef, useEffect } from 'react';
+import { useState, forwardRef, useRef, useEffect, useMemo } from 'react';
 import { VisibilityOff, Visibility } from '@mui/icons-material';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import FilterAltIcon from '@mui/icons-material/FilterAlt';
+import ClearIcon from '@mui/icons-material/Clear';
+import DoneIcon from '@mui/icons-material/Done';
 
 const Styled$1 = styled(Button, {
     // Impede que props customizadas vão parar ao DOM
@@ -394,10 +400,35 @@ const AvatarListItem = ({ avatarSrc, label, actions = [
     { icon: jsx(DeleteIcon, {}), tooltip: 'Remover' },
 ], avatarSize = 48, sx, }) => (jsxs(Box, { display: "flex", alignItems: "center", gap: 2, sx: sx, children: [jsx(Avatar, { src: avatarSrc, sx: { width: avatarSize, height: avatarSize, flexShrink: 0 } }), jsx(Typography, { variant: "body1", sx: { flexGrow: 1 }, children: label }), actions.map(({ icon, tooltip, onClick, disabled }, idx) => tooltip ? (jsx(Tooltip, { title: tooltip, children: jsx("span", { children: jsx(IconButton, { onClick: onClick, disabled: disabled, size: "small", color: "inherit", children: icon }) }) }, idx)) : (jsx(IconButton, { onClick: onClick, disabled: disabled, size: "small", color: "inherit", children: icon }, idx)))] }));
 
-/* ---------- Constantes de estilo ---------- */
+const Handle = styled(IconButton)({
+    position: 'fixed',
+    transform: 'translate(-50%, -50%)',
+    width: 36,
+    height: 36,
+    borderRadius: '50%',
+    background: '#fff',
+    border: '1px solid #E0E0E0',
+    boxShadow: '0 2px 6px rgba(0,0,0,.15)',
+    zIndex: 1301,
+    '&:hover': { background: '#fff' },
+});
+const getTop = (v) => {
+    if (typeof v === 'number')
+        return v;
+    if (v === 'top')
+        return 40; // 40 px do topo
+    if (v === 'bottom')
+        return 'calc(100% - 40px)'; // 40 px do fundo
+    return '50%'; // center (default)
+};
+const SidebarToggle = ({ open, openWidth, closedWidth, onToggle, vertical = 'center', }) => (jsx(Handle, { onClick: onToggle, sx: {
+        left: open ? openWidth : closedWidth,
+        top: getTop(vertical),
+    }, children: open ? jsx(ChevronLeftIcon, { fontSize: "small" }) : jsx(ChevronRightIcon, { fontSize: "small" }) }));
+
+/* ---------- Constantes ---------- */
 const OPEN = 260;
 const CLOSED = 64;
-/* cor da linha seleccionada */
 const selectedSX = {
     bgcolor: '#EEF3FF',
     '& .MuiListItemIcon-root, & .MuiListItemText-primary': {
@@ -406,40 +437,137 @@ const selectedSX = {
     },
 };
 /* ---------- Componente ---------- */
-const SidebarMenu = ({ items, footerItems, open: controlled, onToggle, sx, }) => {
+const SidebarMenu = ({ items, footerItems, open: controlled, onToggle, toggleVertical = 'center', sx, }) => {
     const [internal, setInternal] = useState(true);
     const open = controlled !== null && controlled !== void 0 ? controlled : internal;
     const toggle = () => (onToggle ? onToggle(!open) : setInternal(!open));
-    /* render helper */
-    const render = (arr) => arr.map(({ label, icon, selected, ...rest }) => (jsx(Tooltip, { title: !open ? label : '', placement: "right", arrow: true, disableInteractive: true, children: jsxs(ListItemButton, { sx: { px: 2, my: 0.5, borderRadius: 1, ...(selected && selectedSX) }, ...rest, children: [jsx(ListItemIcon, { sx: {
+    const render = (arr) => arr.map(({ label, icon, selected, ...rest }) => (jsx(Tooltip, { title: !open ? label : '', placement: "right", arrow: true, disableInteractive: true, children: jsxs(ListItemButton, { sx: {
+                my: 0.5,
+                borderRadius: 1,
+                px: open ? 2 : 0, // sem “padding” lateral quando fechado
+                justifyContent: open ? 'flex-start' : 'center',
+                ...(selected && selectedSX),
+            }, ...rest, children: [jsx(ListItemIcon, { sx: {
                         minWidth: 0,
-                        mr: open ? 2 : 'auto',
+                        mr: open ? 2 : '0',
                         justifyContent: 'center',
                     }, children: icon }), open && jsx(ListItemText, { primary: label })] }) }, label)));
-    return (jsxs(Drawer, { variant: "permanent", PaperProps: {
-            sx: {
-                width: open ? OPEN : CLOSED,
-                overflowX: 'visible',
-                borderRadius: '0 8px 8px 0',
-                boxShadow: '0 4px 24px rgba(0,0,0,.08)',
-                transition: (t) => t.transitions.create('width', { duration: t.transitions.duration.shorter }),
-                display: 'flex',
-                flexDirection: 'column',
-                ...sx,
-            },
-        }, children: [jsx(IconButton, { size: "small", onClick: toggle, sx: {
-                    position: 'absolute',
-                    top: 12,
-                    right: -16,
-                    transform: 'translateX(50%)',
-                    bgcolor: '#fff',
-                    border: '1px solid #E0E0E0',
-                    boxShadow: 1,
-                    zIndex: 1,
-                    '&:hover': { bgcolor: '#fff' },
-                }, children: open ? jsx(ChevronLeftIcon, { fontSize: "small" }) : jsx(ChevronRightIcon, { fontSize: "small" }) }), jsxs(Stack, { alignItems: "center", spacing: open ? 1 : 0, mt: 3, mb: 2, children: [jsx(Box, { component: "img", src: "https://placehold.co/40x40/000/fff" // troca pelo avatar real
-                        , width: 40, height: 40, borderRadius: "50%" }), open && (jsxs(Fragment, { children: [jsxs(Stack, { spacing: 0, alignItems: "center", children: [jsx(Typography, { fontWeight: 700, fontSize: 14, children: "Alexandre Brissos" }), jsx(Typography, { variant: "caption", color: "text.secondary", children: "TUTOR" })] }), jsx(Divider, { sx: { width: '100%', mt: 1 } })] }))] }), jsx(List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(items) }), !!(footerItems === null || footerItems === void 0 ? void 0 : footerItems.length) && (jsx(Box, { mt: "auto", pb: 2, children: jsx(List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(footerItems) }) }))] }));
+    return (jsxs(Fragment, { children: [jsxs(Drawer, { variant: "permanent", PaperProps: {
+                    sx: {
+                        width: open ? OPEN : CLOSED,
+                        overflowX: 'clip', // evita barra horizontal
+                        borderRadius: '0 8px 8px 0',
+                        boxShadow: '0 4px 24px rgba(0,0,0,.08)',
+                        transition: (t) => t.transitions.create('width', {
+                            duration: t.transitions.duration.shorter,
+                        }),
+                        display: 'flex',
+                        flexDirection: 'column',
+                        ...sx,
+                    },
+                }, children: [jsxs(Stack, { position: "relative", alignItems: "center", spacing: 1, mt: 3, mb: 2, children: [jsx(Box, { component: "img", src: "https://placehold.co/40", width: 40, height: 40, borderRadius: "50%" }), open && (jsxs(Fragment, { children: [jsx(Typography, { fontWeight: 700, fontSize: 14, children: "Alexandre Brissos" }), jsx(Typography, { variant: "caption", color: "text.secondary", children: "TUTOR" }), jsx(Divider, { sx: { width: '100%', mt: 1 } })] }))] }), jsx(List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(items) }), !!(footerItems === null || footerItems === void 0 ? void 0 : footerItems.length) && (jsx(Box, { mt: "auto", pb: 2, children: jsx(List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(footerItems) }) }))] }), jsx(SidebarToggle, { open: open, openWidth: OPEN, closedWidth: CLOSED, vertical: toggleVertical, onToggle: toggle })] }));
 };
 
-export { AvatarListItem, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, WhiteCard, theme };
+const NotificationBell = ({ items, onSelect, onRemove, onClearAll, showZero = false, ...iconButtonProps }) => {
+    const [anchor, setAnchor] = useState(null);
+    const open = Boolean(anchor);
+    const unread = items.filter((i) => !i.lida).length;
+    return (jsxs(Fragment, { children: [jsx(Tooltip, { title: "Notifica\u00E7\u00F5es", children: jsx(IconButton, { ...iconButtonProps, onClick: (e) => setAnchor(e.currentTarget), size: "large", children: jsx(Badge, { color: "error", badgeContent: unread, invisible: !showZero && unread === 0, children: jsx(NotificationsNoneIcon, {}) }) }) }), jsxs(Menu, { anchorEl: anchor, open: open, onClose: () => setAnchor(null), PaperProps: { sx: { width: 300, maxHeight: 360, p: 0 } }, children: [jsx(Box, { px: 2, py: 1.5, children: jsx(Typography, { fontWeight: 600, children: "Notifica\u00E7\u00F5es" }) }), jsx(Divider, {}), items.length === 0 ? (jsx(Box, { p: 3, textAlign: "center", children: jsx(Typography, { variant: "body2", color: "text.secondary", children: "Sem notifica\u00E7\u00F5es." }) })) : (jsx(List, { dense: true, disablePadding: true, children: items.map((n) => (jsx(ListItem, { alignItems: "flex-start", secondaryAction: onRemove && (jsx(IconButton, { edge: "end", size: "small", onClick: () => onRemove(n.id), children: jsx(DeleteOutlineIcon, { fontSize: "small" }) })), sx: {
+                                bgcolor: n.lida ? 'background.paper' : 'action.hover',
+                                cursor: 'pointer',
+                                '&:hover': { bgcolor: 'action.selected' },
+                            }, onClick: () => {
+                                onSelect === null || onSelect === void 0 ? void 0 : onSelect(n);
+                                setAnchor(null);
+                            }, children: jsx(ListItemText, { primary: jsx(Typography, { variant: "body2", fontWeight: n.lida ? 400 : 600, children: n.titulo }), secondary: n.mensagem && (jsx(Typography, { variant: "caption", color: "text.secondary", noWrap: true, children: n.mensagem })) }) }, n.id))) })), !!items.length && (jsxs(Fragment, { children: [jsx(Divider, {}), jsx(MenuItem, { onClick: () => onClearAll === null || onClearAll === void 0 ? void 0 : onClearAll(), children: jsx(Typography, { variant: "body2", textAlign: "center", width: "100%", children: "Limpar todas" }) })] }))] })] }));
+};
+
+const AvatarSelect = ({ label, options, value, onChange, disabled = false, placeholderAvatar, minWidth, }) => {
+    const current = options.find((o) => o.id === value);
+    /* devolve só o id */
+    const handle = (e) => onChange(e.target.value);
+    const Placeholder = (jsxs(Box, { display: "flex", alignItems: "center", gap: 1, color: "text.secondary", children: [jsx(Avatar, { sx: { width: 24, height: 24, bgcolor: '#E0E0E0' }, children: placeholderAvatar !== null && placeholderAvatar !== void 0 ? placeholderAvatar : jsx(PersonOutlineIcon, { fontSize: "small" }) }), label] }));
+    return (jsxs(FormControl, { fullWidth: true, variant: "standard", disabled: disabled, sx: { minWidth }, children: [jsx(InputLabel, { shrink: true, children: label }), jsx(Select, { value: value, onChange: handle, renderValue: () => value && current ? (jsxs(Box, { display: "flex", alignItems: "center", gap: 1, children: [jsx(Avatar, { src: current.avatar, sx: { width: 24, height: 24 }, children: current.nome[0] }), current.nome] })) : (Placeholder), children: options.map((o) => (jsx(MenuItem, { value: o.id, children: jsxs(ListItem, { disableGutters: true, children: [jsx(ListItemAvatar, { sx: { minWidth: 32 }, children: jsx(Avatar, { src: o.avatar, sx: { width: 32, height: 32, marginRight: '1em' }, children: o.nome[0] }) }), jsx(ListItemText, { primary: o.nome })] }) }, o.id))) })] }));
+};
+
+/**
+ * Barra de progresso animada para o Quiz.
+ */
+const QuizProgressBar = ({ passo, total, mostrarTexto = true, }) => {
+    /* evita divisões por zero */
+    const pct = useMemo(() => (total > 0 ? (passo / total) * 100 : 0), [passo, total]);
+    return (jsxs(Box, { children: [mostrarTexto && (jsxs(Typography, { variant: "caption", mb: 0.5, display: "block", children: [Math.round(pct), "% conclu\u00EDdo"] })), jsx(LinearProgress, { variant: "determinate", value: pct, sx: {
+                    height: 8,
+                    borderRadius: 4,
+                    [`&.${linearProgressClasses.colorPrimary}`]: {
+                        bgcolor: '#E4E4E4',
+                    },
+                    [`& .${linearProgressClasses.bar}`]: {
+                        borderRadius: 4,
+                        /* animação suave */
+                        transition: 'transform .4s ease-out',
+                        bgcolor: 'primary.main',
+                    },
+                } })] }));
+};
+
+function ColumnFilterPopper({ open, anchorEl, values, selected, onClose, onApply, }) {
+    const [query, setQuery] = useState('');
+    const [local, setLocal] = useState(new Set(selected));
+    useEffect(() => {
+        if (open)
+            setLocal(new Set(selected));
+    }, [open, selected]);
+    const list = useMemo(() => values.filter((v) => String(v !== null && v !== void 0 ? v : '')
+        .toLowerCase()
+        .includes(query.toLowerCase())), [values, query]);
+    const toggle = (v) => {
+        const next = new Set(local);
+        next.has(v) ? next.delete(v) : next.add(v);
+        setLocal(next);
+    };
+    return (jsx(Popper, { open: open, anchorEl: anchorEl, placement: "bottom-start", children: jsx(ClickAwayListener, { onClickAway: onClose, children: jsxs(Box, { bgcolor: "#fff", borderRadius: 1, boxShadow: 3, p: 2, maxHeight: 300, overflow: "auto", minWidth: 220, children: [jsxs(Stack, { direction: "row", justifyContent: "space-between", alignItems: "center", mb: 1, children: [jsx(Typography, { variant: "subtitle2", children: "Filtrar" }), jsx(IconButton, { size: "small", onClick: () => setLocal(new Set()), children: jsx(ClearIcon, { fontSize: "inherit" }) })] }), jsx(TextField, { size: "small", placeholder: "Pesquisar\u2026", fullWidth: true, value: query, onChange: (e) => setQuery(e.target.value), sx: { mb: 1 } }), list.map((v) => (jsxs(MenuItem, { onClick: () => toggle(v), children: [jsx(Checkbox, { size: "small", checked: local.has(v), sx: { mr: 1 } }), String(v !== null && v !== void 0 ? v : '—')] }, String(v)))), jsx(Box, { textAlign: "right", mt: 1, children: jsx(IconButton, { size: "small", color: "primary", onClick: () => (onApply(local), onClose()), children: jsx(DoneIcon, { fontSize: "inherit" }) }) })] }) }) }));
+}
+
+function SimpleDataTable({ columns, rows, rowsPerPageOptions = [5, 10, 25], sx, }) {
+    var _a;
+    /* paginação */
+    const [page, setPage] = useState(0);
+    const [perPage, setPerPage] = useState(rowsPerPageOptions[0]);
+    /* filtros */
+    const [filters, setFilters] = useState({});
+    const [anchor, setAnchor] = useState(null);
+    const [colFilter, setColFilter] = useState(null);
+    /* aplica filtros activos */
+    const filteredRows = rows.filter((r) => columns.every((c) => {
+        var _a;
+        const active = filters[c.label];
+        if (!(active === null || active === void 0 ? void 0 : active.size))
+            return true;
+        const val = c.field ? r[c.field] : (_a = c.render) === null || _a === void 0 ? void 0 : _a.call(c, r);
+        return active.has(val);
+    }));
+    /* paginação calculada */
+    const slice = filteredRows.slice(page * perPage, page * perPage + perPage);
+    /* open popper */
+    const openFilter = (el, col) => {
+        setAnchor(el);
+        setColFilter(col);
+    };
+    /* valores únicos da coluna */
+    const colValues = colFilter
+        ? [...new Set(rows.map((r) => (colFilter.field ? r[colFilter.field] : colFilter.render(r))))]
+        : [];
+    return (jsxs(Paper, { sx: { width: '100%', overflow: 'hidden', ...sx }, children: [jsx(TableContainer, { children: jsxs(Table, { children: [jsx(TableHead, { children: jsx(TableRow, { children: columns.map((c) => {
+                                    var _a;
+                                    return (jsx(TableCell, { align: c.align, sx: { width: c.width, fontWeight: 700, ...c.sx }, children: jsxs(Stack, { direction: "row", spacing: 0.5, alignItems: "center", sx: { cursor: c.filterable ? 'pointer' : 'default' }, onClick: c.filterable
+                                                ? (e) => openFilter(e.currentTarget, c)
+                                                : undefined, children: [c.label, c.filterable && (jsx(FilterAltIcon, { fontSize: "small", color: ((_a = filters[c.label]) === null || _a === void 0 ? void 0 : _a.size) ? 'primary' : 'inherit' }))] }) }, c.label));
+                                }) }) }), jsx(TableBody, { children: slice.map((row, i) => (jsx(TableRow, { children: columns.map((c) => (jsx(TableCell, { align: c.align, children: c.render ? c.render(row) : row[c.field] }, String(c.label)))) }, i))) })] }) }), jsx(TablePagination, { component: "div", rowsPerPageOptions: rowsPerPageOptions, count: filteredRows.length, rowsPerPage: perPage, page: page, onPageChange: (_, p) => setPage(p), onRowsPerPageChange: (e) => {
+                    setPerPage(parseInt(e.target.value, 10));
+                    setPage(0);
+                }, labelRowsPerPage: "Items por p\u00E1gina:" }), colFilter && (jsx(ColumnFilterPopper, { open: true, anchorEl: anchor, values: colValues, selected: (_a = filters[colFilter.label]) !== null && _a !== void 0 ? _a : new Set(), onClose: () => setColFilter(null), onApply: (set) => setFilters({ ...filters, [colFilter.label]: set }) }))] }));
+}
+
+export { AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NotificationBell, NumericField, PasswordField, PrimaryButton, QuizProgressBar, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
 //# sourceMappingURL=index.js.map

@@ -17,5 +17,8 @@ export * from './components/SelectableOptions';
 export * from './components/AvatarUpload';
 export * from './components/AvatarListItem';
 export * from './components/SidebarMenu';
-
+export * from './components/NotificationBell';
+export * from './components/AvatarSelect';
+export * from './components/QuizProgressBar';
+export * from './components/SimpleDataTable';
 

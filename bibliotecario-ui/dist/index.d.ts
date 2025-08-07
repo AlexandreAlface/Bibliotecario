@@ -1,6 +1,6 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as _mui_material from '@mui/material';
-import { ButtonProps, TextFieldProps, SxProps, Theme, LinkProps, CardProps, BoxProps, Card } from '@mui/material';
+import { ButtonProps, TextFieldProps, SxProps, Theme, LinkProps, CardProps, BoxProps, Card, IconButtonProps } from '@mui/material';
 import * as _mui_material_styles from '@mui/material/styles';
 import * as React from 'react';
 import React__default, { PropsWithChildren } from 'react';
@@ -192,6 +192,8 @@ interface AvatarListItemProps {
 }
 declare const AvatarListItem: React__default.FC<AvatarListItemProps>;
 
+type VerticalPos = 'top' | 'center' | 'bottom' | number;
+
 interface MenuItem {
     label: string;
     icon: React__default.ReactNode;
@@ -204,9 +206,79 @@ interface SidebarMenuProps {
     footerItems?: MenuItem[];
     open?: boolean;
     onToggle?: (open: boolean) => void;
+    toggleVertical?: VerticalPos;
     sx?: SxProps<Theme>;
 }
 declare const SidebarMenu: React__default.FC<SidebarMenuProps>;
 
-export { AvatarListItem, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NumericField, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, WhiteCard, theme };
-export type { Action, AvatarListItemProps, AvatarUploadProps, MenuItem, Option, SelectableOptionsProps, SidebarMenuProps };
+interface NotificationItem {
+    id: string;
+    titulo: string;
+    mensagem?: string;
+    lida?: boolean;
+    data?: Date;
+}
+interface NotificationBellProps extends Omit<IconButtonProps, 'onSelect'> {
+    /** Lista actual de notificações (ordenada como quiseres) */
+    items: NotificationItem[];
+    /** Clicar numa notificação */
+    onSelect?: (item: NotificationItem) => void;
+    /** Remover (apenas) uma notificação */
+    onRemove?: (id: string) => void;
+    /** Marcar todas como lidas / limpar contador  */
+    onClearAll?: () => void;
+    /** Mostrar badge mesmo quando 0 (ex.: cor cinza) */
+    showZero?: boolean;
+}
+declare const NotificationBell: React__default.FC<NotificationBellProps>;
+
+interface ChildOption {
+    id: string;
+    nome: string;
+    avatar?: string;
+}
+interface AvatarSelectProps {
+    label: string;
+    options: ChildOption[];
+    value: string | '';
+    onChange: (id: string) => void;
+    disabled?: boolean;
+    /** ReactNode para o avatar de placeholder (default ícone pessoa) */
+    placeholderAvatar?: React__default.ReactNode;
+    /** Largura mínima, útil em <Stack spacing> */
+    minWidth?: number | string;
+}
+declare const AvatarSelect: React__default.FC<AvatarSelectProps>;
+
+interface QuizProgressBarProps {
+    /** Passo actual (1-based) */
+    passo: number;
+    /** Número total de passos/perguntas */
+    total: number;
+    /** Mostrar percentagem por cima?  */
+    mostrarTexto?: boolean;
+}
+/**
+ * Barra de progresso animada para o Quiz.
+ */
+declare const QuizProgressBar: React__default.FC<QuizProgressBarProps>;
+
+interface DataColumn<Row = any> {
+    label: string;
+    field?: keyof Row;
+    render?: (row: Row) => React__default.ReactNode;
+    width?: number | string;
+    align?: 'left' | 'center' | 'right';
+    filterable?: boolean;
+    sx?: SxProps<Theme>;
+}
+interface SimpleDataTableProps<Row = any> {
+    columns: DataColumn<Row>[];
+    rows: Row[];
+    rowsPerPageOptions?: number[];
+    sx?: SxProps<Theme>;
+}
+declare function SimpleDataTable<Row>({ columns, rows, rowsPerPageOptions, sx, }: SimpleDataTableProps<Row>): react_jsx_runtime.JSX.Element;
+
+export { AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NotificationBell, NumericField, PasswordField, PrimaryButton, QuizProgressBar, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
+export type { Action, AvatarListItemProps, AvatarSelectProps, AvatarUploadProps, ChildOption, DataColumn, MenuItem, NotificationBellProps, NotificationItem, Option, QuizProgressBarProps, SelectableOptionsProps, SidebarMenuProps, SimpleDataTableProps };
