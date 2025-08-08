@@ -22,25 +22,25 @@ import { createTheme } from '@mui/material/styles';
 // };
 
 // /* palete de cores pedida 2 */
-// const palette2 = {
-//   primary:{ main: '#05a79e', contrastText: '#ffffff' }, // verde
-//   secondary:  { main: '#f6941f', contrastText: '#ffffff' }, // roxo
-//   // secondaryComplement:  { main: '#fab041', contrastText: '#ffffff' }, // roxo
-//   background: {
-//     default: '#fafafa',
-//     paper:   '#ffffff',
-//   },
-// };
-
 const palette = {
   primary:{ main: '#05a79e', contrastText: '#ffffff' }, // verde
-  secondary:  { main: '#413f7f', contrastText: '#ffffff' }, // roxo
-  // secondaryComplement:  { main: '#5758a7', contrastText: '#ffffff' }, // roxo
+  secondary:  { main: '#f6941f', contrastText: '#ffffff' }, // roxo
+  // secondaryComplement:  { main: '#fab041', contrastText: '#ffffff' }, // roxo
   background: {
     default: '#fafafa',
     paper:   '#ffffff',
   },
 };
+
+// const palette = {
+//   primary:{ main: '#05a79e', contrastText: '#ffffff' }, // verde
+//   secondary:  { main: '#413f7f', contrastText: '#ffffff' }, // roxo
+//   // secondaryComplement:  { main: '#5758a7', contrastText: '#ffffff' }, // roxo
+//   background: {
+//     default: '#fafafa',
+//     paper:   '#ffffff',
+//   },
+// };
 
 export type SizeProps = {
   radius?: number; // unidades de spacing do tema

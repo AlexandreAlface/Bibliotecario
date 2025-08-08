@@ -129,7 +129,11 @@ interface HowItWorksSectionProps {
 }
 declare const HowItWorksSection: React__default.FC<HowItWorksSectionProps>;
 
-declare const Logo: React__default.FC;
+interface LogoProps extends BoxProps {
+    width?: string | number;
+    height?: string | number;
+}
+declare const Logo: React__default.FC<LogoProps>;
 
 type Option = {
     value: string | number;
@@ -280,5 +284,19 @@ interface SimpleDataTableProps<Row = any> {
 }
 declare function SimpleDataTable<Row>({ columns, rows, rowsPerPageOptions, sx, }: SimpleDataTableProps<Row>): react_jsx_runtime.JSX.Element;
 
-export { AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NotificationBell, NumericField, PasswordField, PrimaryButton, QuizProgressBar, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
-export type { Action, AvatarListItemProps, AvatarSelectProps, AvatarUploadProps, ChildOption, DataColumn, MenuItem, NotificationBellProps, NotificationItem, Option, QuizProgressBarProps, SelectableOptionsProps, SidebarMenuProps, SimpleDataTableProps };
+type BookCardVariant = 'view' | 'edit' | 'reserve';
+interface BookCardProps {
+    variant?: BookCardVariant;
+    title: string;
+    coverImage: string;
+    startDate?: string;
+    endDate?: string;
+    rating?: number;
+    comment?: string;
+    onSave?: (rating: number, comment: string, coverImage: string) => void;
+    onReserve?: () => void;
+}
+declare const BookCard: React__default.FC<BookCardProps>;
+
+export { AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, BookCard, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NotificationBell, NumericField, PasswordField, PrimaryButton, QuizProgressBar, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
+export type { Action, AvatarListItemProps, AvatarSelectProps, AvatarUploadProps, BookCardProps, BookCardVariant, ChildOption, DataColumn, LogoProps, MenuItem, NotificationBellProps, NotificationItem, Option, QuizProgressBarProps, SelectableOptionsProps, SidebarMenuProps, SimpleDataTableProps };

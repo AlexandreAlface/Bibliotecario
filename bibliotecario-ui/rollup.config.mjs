@@ -6,9 +6,10 @@ import postcss       from 'rollup-plugin-postcss';
 import postcssImport from 'postcss-import';
 import url           from '@rollup/plugin-url';
 
-/* ────────────────────────── */
-/* plugin “ignora estáticos”  */
-/* ────────────────────────── */
+/* ──────────────────────────────────────── */
+/* Plugin “ignora estáticos” para gerar  */
+/* apenas .d.ts limpos (sem erros TS)    */
+/* ──────────────────────────────────────── */
 const ignoreStatic = () => ({
   name: 'ignore-static',
   resolveId(id) {
@@ -20,42 +21,70 @@ const ignoreStatic = () => ({
 });
 
 export default [
-  /* 1) bundle JS */
+  /* ────────────────────────── */
+  /* 1) bundle JS (ESM)        */
+  /* ────────────────────────── */
   {
     input: 'src/index.ts',
-    output: { file: 'dist/index.js', format: 'esm', sourcemap: true },
+    output: {
+      file:      'dist/index.js',
+      format:    'esm',
+      sourcemap: true,
+    },
     external: [
-      'react','react-dom',
-      '@mui/system','@mui/material','@mui/icons-material',
-      '@emotion/react','@emotion/styled',
+      'react',
+      'react-dom',
+      '@mui/system',
+      '@mui/material',
+      '@mui/icons-material',
+      '@emotion/react',
+      '@emotion/styled',
+      // fontes
       /^@fontsource\/poppins\/.+\.css$/,
     ],
     plugins: [
       peer(),
-      // transforma imports de PNG/JPG/SVG em URLs e copia para dist/assets
+
+      // ❶ Inline todos os SVGs (logo, ícones vetoriais, etc.) como data-URI
       url({
-        include: ['**/*.{png,jpg,jpeg,gif,svg,webp}'],
-        limit: 0,                                   // 0 = nunca inline
-        fileName: 'assets/[name]-[hash][extname]',  // saída: dist/assets/...
+        include: ['**/*.svg'],
+        // Infinity = todo SVG fica embutido no JS como base64
+        limit: Infinity,
       }),
-      ts({ tsconfig: './tsconfig.json' }),
+
+      // ❷ Copia PNG/JPG/GIF/WebP/… para dist/assets
+      url({
+        include: ['**/*.{png,jpg,jpeg,gif,webp}'],
+        limit:     0,                                // nunca inline
+        fileName:  'assets/[name]-[hash][extname]',
+        sourceDir: 'src',
+      }),
+
+      // TypeScript
+      ts({
+        tsconfig: './tsconfig.json',
+      }),
+
+      // PostCSS / SCSS com módulos CSS
       postcss({
-        inject: true,
-        minimize: true,
-        modules: { generateScopedName: '[local]__[hash:base64:5]' },
+        inject:     true,
+        minimize:   true,
+        modules:    { generateScopedName: '[local]__[hash:base64:5]' },
         extensions: ['.css', '.scss'],
-        use: ['sass'],
-        plugins: [postcssImport()],
+        use:        ['sass'],
+        plugins:    [ postcssImport() ],
       }),
     ],
   },
 
-  /* 2) bundle só das declarações (.d.ts) */
+  /* ──────────────────────────────────────── */
+  /* 2) bundle só das declarações (.d.ts)  */
+  /* ──────────────────────────────────────── */
   {
-    input: 'src/index.ts',
+    input:  'src/index.ts',
     output: { file: 'dist/index.d.ts', format: 'esm' },
     plugins: [
-      ignoreStatic(),   // precisa vir antes do dts()
+      ignoreStatic(),
       dts(),
     ],
   },

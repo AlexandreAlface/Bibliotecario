@@ -21,4 +21,5 @@ export * from './components/NotificationBell';
 export * from './components/AvatarSelect';
 export * from './components/QuizProgressBar';
 export * from './components/SimpleDataTable';
+export * from './components/BookCard';
 

@@ -48,7 +48,7 @@ const CreateProfilesPage: React.FC = () => {
     setChildren((prev) => prev.filter((c) => c.id !== id));
 
   return (
-    <GradientBackground sx={{ minHeight: '100vh' }}>
+    <GradientBackground sx={{ height: '100vh' }} display='flex' justifyContent={'center'}>
       <Box
         py={{ xs: 8, md: 10 }}
         px={{ xs: 2, md: 4 }}

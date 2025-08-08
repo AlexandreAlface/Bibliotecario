@@ -1,12 +1,27 @@
+// src/components/Logo/Logo.tsx
 import React from 'react';
-import logoPng from './Logo.png';
-import './Logo.css';
+import { Box, BoxProps } from '@mui/material';
+import logoUrl from './LogoBiblio.svg';
 
-const Logo: React.FC = () => (
-  <div className="logo">
-    <img className="logo__img" src={logoPng} alt="BLIFA — Bibliotecário de Família" />
-  </div>
+export interface LogoProps extends BoxProps {
+  width?: string | number;
+  height?: string | number;
+}
+
+export const Logo: React.FC<LogoProps> = ({
+  width  = '120px',
+  height = 'auto',
+  sx,
+  ...boxProps
+}) => (
+  <Box
+    component="img"
+    src={logoUrl}
+    alt="Logótipo"
+    sx={[
+      { display: 'block', width, height },
+      ...(Array.isArray(sx) ? sx : [sx]),
+    ]}
+    {...boxProps}
+  />
 );
-
-export default Logo;
-export { Logo };

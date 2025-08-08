@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react';
 import { SimpleDataTable } from '../../components/SimpleDataTable';
 interface Consulta {
     id: number;
@@ -8,5 +8,5 @@ interface Consulta {
 }
 declare const meta: Meta<typeof SimpleDataTable<Consulta>>;
 export default meta;
-type Story = StoryObj<typeof SimpleDataTable<Consulta>>;
-export declare const CoresBonitas: Story;
+type Story = StoryObj<typeof meta.component>;
+export declare const Default: Story;

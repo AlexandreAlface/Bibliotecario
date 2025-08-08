@@ -1,5 +1,7 @@
 import React from 'react';
-import './Logo.css';
-declare const Logo: React.FC;
-export default Logo;
-export { Logo };
+import { BoxProps } from '@mui/material';
+export interface LogoProps extends BoxProps {
+    width?: string | number;
+    height?: string | number;
+}
+export declare const Logo: React.FC<LogoProps>;
