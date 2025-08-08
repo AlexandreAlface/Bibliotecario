@@ -1,5 +1,5 @@
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
-import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link, Card, Box, Stack, FormControl, FormLabel, FormGroup, FormControlLabel, Checkbox, RadioGroup, Radio, Avatar, Tooltip, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Badge, Menu, ListItem, MenuItem, InputLabel, Select, ListItemAvatar, LinearProgress, linearProgressClasses, Popper, ClickAwayListener, Paper, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, useTheme, CardMedia, CardContent, Rating } from '@mui/material';
+import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link, Card, Box, Stack, FormControl, FormLabel, FormGroup, FormControlLabel, Checkbox, RadioGroup, Radio, Avatar, Tooltip, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Badge, Menu, ListItem, MenuItem, InputLabel, Select, ListItemAvatar, LinearProgress, linearProgressClasses, Popper, ClickAwayListener, Paper, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, useTheme, CardMedia, CardContent, Rating, Collapse, Chip } from '@mui/material';
 import { shouldForwardProp, styled as styled$1 } from '@mui/system';
 import { createTheme, styled as styled$2 } from '@mui/material/styles';
 import '@fontsource/poppins/400.css';
@@ -18,6 +18,11 @@ import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import ClearIcon from '@mui/icons-material/Clear';
 import DoneIcon from '@mui/icons-material/Done';
+import Grid from '@mui/material/GridLegacy';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import CloseIcon from '@mui/icons-material/Close';
 
 const Styled$1 = styled(Button, {
     // Impede que props customizadas vão parar ao DOM
@@ -557,5 +562,201 @@ const BookCard = ({ variant = 'view', title, coverImage, startDate, endDate, rat
                 } }), jsxs(CardContent, { sx: { flexGrow: 1, display: 'flex', flexDirection: 'column', gap: 1 }, children: [jsx(Typography, { variant: "h6", children: title }), variant === 'view' && (jsxs(Fragment, { children: [startDate && endDate && (jsxs(Typography, { variant: "body2", children: ["In\u00EDcio: ", startDate, " \u2014 Conclu\u00EDdo: ", endDate] })), jsx(Box, { display: "flex", alignItems: "center", children: jsx(Rating, { value: rating, readOnly: true, size: "small" }) }), comment && (jsxs(Typography, { variant: "body2", sx: { fontStyle: 'italic' }, children: ["\u201C", comment, "\u201D"] }))] })), variant === 'edit' && (jsxs(Fragment, { children: [jsx(TextField, { label: "URL da imagem da capa", type: "url", value: currentCoverImage, onChange: e => setCurrentCoverImage(e.target.value), fullWidth: true }), jsx(Box, { display: "flex", alignItems: "center", children: jsx(Rating, { value: currentRating, onChange: (_, v) => setCurrentRating(v !== null && v !== void 0 ? v : 0) }) }), jsx(TextField, { label: "Coment\u00E1rio", multiline: true, minRows: 3, value: currentComment, onChange: e => setCurrentComment(e.target.value), fullWidth: true }), jsx(Box, { mt: "auto", textAlign: "center", children: jsx(Button, { variant: "contained", color: "primary", onClick: handleSave, children: "Guardar avalia\u00E7\u00E3o" }) })] })), variant === 'reserve' && (jsxs(Fragment, { children: [jsx(Box, { display: "flex", alignItems: "center", children: jsx(Rating, { value: rating, readOnly: true }) }), jsx(Box, { mt: "auto", textAlign: "center", children: jsx(Button, { variant: "contained", color: "primary", onClick: handleReserve, children: "Reservar" }) })] }))] })] }));
 };
 
-export { AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, BookCard, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NotificationBell, NumericField, PasswordField, PrimaryButton, QuizProgressBar, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
+// src/hooks/useAgendaFeed.ts
+function useAgendaFeed(feedUrl) {
+    const [items, setItems] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    useEffect(() => {
+        if (!feedUrl)
+            return;
+        setLoading(true);
+        fetch(feedUrl)
+            .then(res => res.text())
+            .then(xmlText => {
+            const dom = new window.DOMParser().parseFromString(xmlText, 'text/xml');
+            const rawItems = Array.from(dom.querySelectorAll('item'));
+            const parsed = rawItems.map(itemEl => {
+                const obj = {};
+                // extrai todos os campos simples
+                itemEl.childNodes.forEach(node => {
+                    var _a, _b;
+                    if (node.nodeType !== Node.ELEMENT_NODE)
+                        return;
+                    const el = node;
+                    const name = el.tagName;
+                    const text = (_b = (_a = el.textContent) === null || _a === void 0 ? void 0 : _a.trim()) !== null && _b !== void 0 ? _b : '';
+                    if (obj[name]) {
+                        if (Array.isArray(obj[name]))
+                            obj[name].push(text);
+                        else
+                            obj[name] = [obj[name], text];
+                    }
+                    else {
+                        obj[name] = text;
+                    }
+                });
+                // primeiro tenta o <enclosure url="…">
+                let thumb;
+                const enc = itemEl.querySelector('enclosure[url]');
+                if (enc === null || enc === void 0 ? void 0 : enc.getAttribute('url')) {
+                    thumb = enc.getAttribute('url').trim();
+                }
+                else {
+                    // fallback: procura <img> dentro da description
+                    const desc = obj['description'];
+                    if (desc) {
+                        const dd = new window.DOMParser().parseFromString(desc, 'text/html');
+                        const img = dd.querySelector('img');
+                        if (img === null || img === void 0 ? void 0 : img.src)
+                            thumb = img.src;
+                    }
+                }
+                return {
+                    title: obj['title'] || '',
+                    link: obj['link'] || '',
+                    description: obj['description'] || '',
+                    pubDate: obj['pubDate'] || '',
+                    author: obj['author'] || undefined,
+                    categories: (obj['category']
+                        ? Array.isArray(obj['category'])
+                            ? obj['category']
+                            : [obj['category']]
+                        : []),
+                    thumbnailUrl: thumb,
+                    ...obj
+                };
+            });
+            setItems(parsed);
+        })
+            .catch(err => setError(err))
+            .finally(() => setLoading(false));
+    }, [feedUrl]);
+    return { items, loading, error };
+}
+
+const AgendaFeed = ({ feedUrl, columns = 2, imageRatio = '16/9', // usar aspectRatio moderno
+contentPadding = 2, cardMaxWidth = '360px', actions }) => {
+    const theme = useTheme();
+    const { items, loading, error } = useAgendaFeed(feedUrl);
+    if (loading)
+        return jsx(Typography, { children: "Carregando eventos\u2026" });
+    if (error)
+        return jsxs(Typography, { color: "error", children: ["Erro: ", error.message] });
+    if (!(items === null || items === void 0 ? void 0 : items.length))
+        return jsx(Typography, { children: "Sem eventos." });
+    // função helper para decodificar HTML entities e extrair texto
+    const decodeHtml = (html) => {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        return doc.documentElement.textContent || '';
+    };
+    return (jsx(Grid, { container: true, spacing: 2, justifyContent: "center", children: items.map((item, i) => {
+            var _a;
+            // decodifica o description
+            const fullText = decodeHtml(item.description);
+            // tenta extrair Data:xxx e Local:yyy
+            const dataMatch = fullText.match(/Data:\s*([^|]+)/i);
+            const localMatch = fullText.match(/Local:\s*([^|]+)/i);
+            // resumo antes de qualquer “Data:”
+            const resumo = fullText.split(/Data:/i)[0].trim();
+            return (jsx(Grid, { item: true, xs: 12, sm: Math.floor(12 / columns), sx: { display: 'flex', justifyContent: 'center' }, children: jsxs(Paper, { elevation: 2, sx: {
+                        width: '100%',
+                        maxWidth: cardMaxWidth,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        borderRadius: 3,
+                        overflow: 'hidden',
+                        bgcolor: theme.palette.background.paper,
+                    }, children: [item.thumbnailUrl && (jsx(CardMedia, { component: "img", image: item.thumbnailUrl, alt: item.title, sx: {
+                                width: '100%',
+                                aspectRatio: imageRatio,
+                                objectFit: 'cover',
+                            } })), jsxs(Box, { sx: { p: contentPadding }, children: [jsx(Typography, { variant: "h6", component: "h3", gutterBottom: true, sx: { fontWeight: 600 }, children: item.title }), dataMatch && (jsxs(Box, { display: "flex", alignItems: "center", mb: 1, children: [jsx(AccessTimeIcon, { fontSize: "small", sx: { mr: 0.5, color: 'text.secondary' } }), jsx(Typography, { variant: "subtitle2", color: "text.secondary", children: dataMatch[1].trim() })] })), localMatch && (jsxs(Box, { display: "flex", alignItems: "center", mb: 1, children: [jsx(LocationOnIcon, { fontSize: "small", sx: { mr: 0.5, color: 'text.secondary' } }), jsx(Typography, { variant: "subtitle2", color: "text.secondary", children: localMatch[1].trim() })] })), jsx(Typography, { variant: "body2", sx: { mb: 2 }, children: resumo.length > 140 ? resumo.slice(0, 140) + '…' : resumo }), jsx(Box, { textAlign: "right", children: (_a = actions === null || actions === void 0 ? void 0 : actions(item)) !== null && _a !== void 0 ? _a : (jsx(Button, { variant: "contained", size: "small", href: item.link, target: "_blank", children: "Saber mais" })) })] })] }) }, i));
+        }) }));
+};
+
+const AgendaLargeCard = ({ title, pubDate, description, thumbnailUrl, link, width = '100%', imageRatio = '16/9', truncateLength = 200, }) => {
+    const [expanded, setExpanded] = useState(false);
+    const theme = useTheme();
+    // decodifica e limpa HTML
+    const decodeHtml = (html) => {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        return doc.documentElement.textContent || '';
+    };
+    const fullText = decodeHtml(description);
+    const displayText = expanded
+        ? fullText
+        : fullText.length > truncateLength
+            ? fullText.slice(0, truncateLength) + '…'
+            : fullText;
+    return (jsxs(Paper, { elevation: 4, sx: {
+            width,
+            borderRadius: 4,
+            overflow: 'hidden',
+            mx: 'auto',
+        }, children: [thumbnailUrl && (jsxs(Box, { position: "relative", children: [jsx(CardMedia, { component: "img", image: thumbnailUrl, alt: title, sx: {
+                            width: '100%',
+                            aspectRatio: imageRatio,
+                            objectFit: 'cover',
+                        } }), jsx(Box, { sx: {
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            width: '100%',
+                            bgcolor: 'rgba(0,0,0,0.4)',
+                            color: '#fff',
+                            p: 2,
+                        }, children: jsx(Typography, { variant: "h5", component: "h2", children: title }) })] })), jsxs(Box, { sx: { p: 3, bgcolor: theme.palette.background.paper }, children: [jsx(Typography, { variant: "subtitle1", color: "text.secondary", gutterBottom: true, children: new Date(pubDate).toLocaleDateString('pt-PT', {
+                            day: '2-digit', month: 'long', year: 'numeric'
+                        }) }), jsx(Collapse, { in: true, sx: { mb: 2 }, children: jsx(Typography, { variant: "body1", paragraph: true, children: displayText }) }), jsxs(Box, { textAlign: "right", children: [jsx(Button, { variant: "contained", onClick: () => setExpanded(e => !e), sx: { mr: 1 }, children: expanded ? 'Ver menos' : 'Saber mais' }), jsx(Button, { variant: "outlined", href: link, target: "_blank", children: "Ir para p\u00E1gina" })] })] })] }));
+};
+
+const FilterBar = ({ filters, selected, onChange, icons = {}, chipIcons = {} }) => {
+    const theme = useTheme();
+    const [anchorEl, setAnchorEl] = useState(null);
+    const [activeFilter, setActiveFilter] = useState(null);
+    const openMenu = (e, filterId) => {
+        setAnchorEl(e.currentTarget);
+        setActiveFilter(filterId);
+    };
+    const closeMenu = () => {
+        setAnchorEl(null);
+        setActiveFilter(null);
+    };
+    const handleOptionClick = (value) => {
+        if (!activeFilter)
+            return;
+        const curr = selected[activeFilter] || [];
+        const next = curr.includes(value)
+            ? curr.filter(v => v !== value)
+            : [...curr, value];
+        onChange(activeFilter, next);
+    };
+    const handleDeleteChip = (filterId, value) => {
+        const curr = selected[filterId] || [];
+        onChange(filterId, curr.filter(v => v !== value));
+    };
+    return (jsxs(Box, { children: [jsx(Box, { display: "flex", gap: 1, mb: 1, children: filters.map(f => (jsx(Button, { variant: "contained", size: "small", onClick: e => openMenu(e, f.id), startIcon: icons[f.id], endIcon: jsx(ArrowDropDownIcon, {}), sx: {
+                        backgroundColor: theme.palette.primary.main,
+                        '&:hover': { backgroundColor: theme.palette.primary.dark },
+                    }, children: f.label }, f.id))) }), jsx(Divider, { sx: { mb: 1 } }), jsx(Box, { display: "flex", gap: 1, flexWrap: "wrap", mb: 1, children: Object.entries(selected).flatMap(([filterId, vals]) => vals.map(val => {
+                    var _a;
+                    const def = filters.find(f => f.id === filterId);
+                    const label = ((_a = def.options.find(o => o.value === val)) === null || _a === void 0 ? void 0 : _a.label) || val;
+                    const key = `${filterId}-${val}`;
+                    // Extrai um único ReactElement ou undefined
+                    const chipIcon = chipIcons[filterId];
+                    return (jsx(Chip, { label: label, size: "small", onDelete: () => handleDeleteChip(filterId, val), deleteIcon: jsx(CloseIcon, {}), icon: chipIcon, sx: {
+                            backgroundColor: theme.palette.primary.light,
+                            color: theme.palette.primary.contrastText,
+                        } }, key));
+                })) }), jsx(Menu, { anchorEl: anchorEl, open: Boolean(anchorEl), onClose: closeMenu, children: activeFilter && filters
+                    .find(f => f.id === activeFilter)
+                    .options.map(opt => {
+                    const isSelected = (selected[activeFilter] || []).includes(opt.value);
+                    return (jsxs(MenuItem, { selected: isSelected, onClick: () => handleOptionClick(opt.value), children: [opt.label, isSelected && jsx(CloseIcon, { fontSize: "small", sx: { ml: 1 } })] }, opt.value));
+                }) })] }));
+};
+
+export { AgendaFeed, AgendaLargeCard, AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, BookCard, EmailField, FilterBar, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NotificationBell, NumericField, PasswordField, PrimaryButton, QuizProgressBar, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
 //# sourceMappingURL=index.js.map

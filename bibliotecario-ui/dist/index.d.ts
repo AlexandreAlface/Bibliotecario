@@ -3,7 +3,7 @@ import * as _mui_material from '@mui/material';
 import { ButtonProps, TextFieldProps, SxProps, Theme, LinkProps, CardProps, BoxProps, Card, IconButtonProps } from '@mui/material';
 import * as _mui_material_styles from '@mui/material/styles';
 import * as React from 'react';
-import React__default, { PropsWithChildren } from 'react';
+import React__default, { PropsWithChildren, ReactElement } from 'react';
 import * as _emotion_styled from '@emotion/styled';
 import * as _mui_system from '@mui/system';
 
@@ -298,5 +298,54 @@ interface BookCardProps {
 }
 declare const BookCard: React__default.FC<BookCardProps>;
 
-export { AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, BookCard, EmailField, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NotificationBell, NumericField, PasswordField, PrimaryButton, QuizProgressBar, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
-export type { Action, AvatarListItemProps, AvatarSelectProps, AvatarUploadProps, BookCardProps, BookCardVariant, ChildOption, DataColumn, LogoProps, MenuItem, NotificationBellProps, NotificationItem, Option, QuizProgressBarProps, SelectableOptionsProps, SidebarMenuProps, SimpleDataTableProps };
+interface AgendaItem {
+    title: string;
+    link: string;
+    description: string;
+    pubDate: string;
+    author?: string;
+    categories: string[];
+    thumbnailUrl?: string;
+    [key: string]: any;
+}
+
+interface AgendaFeedProps {
+    feedUrl: string;
+    columns?: number;
+    imageRatio?: string;
+    contentPadding?: number;
+    cardMaxWidth?: string | number;
+    actions?: (item: AgendaItem) => React__default.ReactNode;
+}
+declare const AgendaFeed: React__default.FC<AgendaFeedProps>;
+
+interface AgendaLargeCardProps extends AgendaItem {
+    /** largura do cartão (ex: '100%', '600px') */
+    width?: string | number;
+    /** proporção da área de imagem (ex: '16/9') */
+    imageRatio?: string;
+    /** número de caracteres antes de truncar */
+    truncateLength?: number;
+}
+declare const AgendaLargeCard: React__default.FC<AgendaLargeCardProps>;
+
+interface FilterOption {
+    value: string;
+    label: string;
+}
+interface FilterDefinition {
+    id: string;
+    label: string;
+    options: FilterOption[];
+}
+interface FilterBarProps {
+    filters: FilterDefinition[];
+    selected: Record<string, string[]>;
+    onChange: (filterId: string, values: string[]) => void;
+    icons?: Record<string, ReactElement>;
+    chipIcons?: Record<string, ReactElement>;
+}
+declare const FilterBar: React__default.FC<FilterBarProps>;
+
+export { AgendaFeed, AgendaLargeCard, AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, BookCard, EmailField, FilterBar, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NotificationBell, NumericField, PasswordField, PrimaryButton, QuizProgressBar, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
+export type { Action, AgendaFeedProps, AgendaLargeCardProps, AvatarListItemProps, AvatarSelectProps, AvatarUploadProps, BookCardProps, BookCardVariant, ChildOption, DataColumn, FilterBarProps, FilterDefinition, FilterOption, LogoProps, MenuItem, NotificationBellProps, NotificationItem, Option, QuizProgressBarProps, SelectableOptionsProps, SidebarMenuProps, SimpleDataTableProps };
