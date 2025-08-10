@@ -14,6 +14,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { AuthLayout } from '../../components/Layouts/AuthLayout';
+import { api } from '../../services/authservice';
 
 // Schema de validação
 const schema = z.object({
@@ -27,9 +28,16 @@ export function Login() {
     resolver: zodResolver(schema),
   });
 
-  const onSubmit = (data: FormData) => {
-    console.log('Login', data);
-  };
+  async function onSubmit(values: { email: string; password: string }) {
+    try {
+      await api('/auth/login', { method: 'POST', body: JSON.stringify(values) });
+      // TODO: redirecionar para o dashboard quando existir
+      window.location.href = '/'; 
+    } catch (e:any) {
+      // Exibe mensagem de erro no UI (snackbar/alert)
+      alert(e.message);
+    }
+  }
 
   return (
     <AuthLayout>

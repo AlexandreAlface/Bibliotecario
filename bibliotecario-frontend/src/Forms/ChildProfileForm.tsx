@@ -9,7 +9,7 @@ export interface ChildProfile {
   avatar?: string;
   firstName: string;
   lastName: string;
-  age: string;
+  birthDate: string;           // YYYY-MM-DD
   gender: 'M' | 'F' | 'O';
 }
 
@@ -24,7 +24,7 @@ const ChildProfileForm: React.FC<Props> = ({ onSave, editing }) => {
   const [data, setData] = useState<Omit<ChildProfile, 'id' | 'avatar'>>({
     firstName: '',
     lastName: '',
-    age: '',
+    birthDate: '',
     gender: 'M',
   });
 
@@ -35,7 +35,7 @@ const ChildProfileForm: React.FC<Props> = ({ onSave, editing }) => {
       setData({
         firstName: editing.firstName,
         lastName: editing.lastName,
-        age: editing.age,
+        birthDate: editing.birthDate ?? '',
         gender: editing.gender,
       });
     }
@@ -48,7 +48,7 @@ const ChildProfileForm: React.FC<Props> = ({ onSave, editing }) => {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const child: ChildProfile = {
-      id: editing ? editing.id : crypto.randomUUID(),
+      id: editing ? editing.id : (globalThis.crypto?.randomUUID?.() ?? `tmp_${Math.random().toString(36).slice(2)}`),
       avatar: avatar ?? undefined,
       ...data,
     };
@@ -56,7 +56,7 @@ const ChildProfileForm: React.FC<Props> = ({ onSave, editing }) => {
     /* reset apenas se for nova criança */
     if (!editing) {
       setAvatar(null);
-      setData({ firstName: '', lastName: '', age: '', gender: 'M' });
+      setData({ firstName: '', lastName: '', birthDate: '', gender: 'M' });
     }
   };
 
@@ -95,11 +95,11 @@ const ChildProfileForm: React.FC<Props> = ({ onSave, editing }) => {
           <TextField
             fullWidth
             size="small"
-            label="Idade"
-            type="number"
-            inputProps={{ min: 0, style: { MozAppearance: 'textfield' } }}
-            value={data.age}
-            onChange={handle('age')}
+            type="date"
+            label="Data de Nascimento"
+            value={data.birthDate}
+            onChange={handle('birthDate')}
+            InputLabelProps={{ shrink: true }}
             required
           />
         </Grid>
