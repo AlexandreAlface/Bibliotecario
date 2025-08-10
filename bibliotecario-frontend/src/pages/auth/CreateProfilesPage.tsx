@@ -17,7 +17,7 @@ import {
   type FamilySignupDraft,
   type RegisterPayload,
 } from '../../interfaces/auth';
-import { api } from '../../services/authservice';
+import { api } from '../../services/authService';
 
 import ChildProfileForm, { type ChildProfile } from '../../Forms/ChildProfileForm';
 
