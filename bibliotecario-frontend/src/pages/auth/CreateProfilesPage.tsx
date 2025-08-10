@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Divider } from '@mui/material';
 import {
   GradientBackground,
@@ -9,7 +9,36 @@ import {
 } from 'bibliotecario-ui';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+
+import { z } from 'zod';
+import {
+  ChildInputSchema,
+  RegisterPayloadSchema,
+  type FamilySignupDraft,
+  type RegisterPayload,
+} from '../../interfaces/auth';
+import { api } from '../../services/authService';
+
 import ChildProfileForm, { type ChildProfile } from '../../Forms/ChildProfileForm';
+
+// ---- Tipos internos (UI) e utilitários --------------------------------------
+type ChildInput = z.input<typeof ChildInputSchema>;        // input aceito pelo Zod (antes da coerção)
+type ChildUI = ChildInput & { id: string; avatar?: string };
+
+const genId = () =>
+  (globalThis.crypto?.randomUUID?.() ?? `tmp_${Math.random().toString(36).slice(2)}`);
+
+// calcula idade a partir de YYYY-MM-DD
+const calcAge = (birthDate?: string): number | null => {
+  if (!birthDate) return null;
+  const d = new Date(birthDate);
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const m = today.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+  return age < 0 ? null : age;
+};
 
 const steps = [
   {
@@ -32,20 +61,83 @@ const steps = [
   },
 ];
 
-const CreateProfilesPage: React.FC = () => {
-  const [children, setChildren] = useState<ChildProfile[]>([]);
-  const [editing, setEditing] = useState<ChildProfile | null>(null);
+// Converte do tipo do form (ChildProfile -> 'O') para o schema ('Outro')
+const profileToInput = (p: ChildProfile): ChildInput => ({
+  firstName: p.firstName,
+  lastName: p.lastName ?? '',                 // garantir string
+  age: undefined,                             // não usamos idade no payload (deriva da data)
+  birthDate: p.birthDate || undefined,        // '' -> undefined
+  gender: p.gender === 'O' ? 'Outro' : p.gender,
+});
 
-  /* guardar (novo ou editado) */
+// Converte do que guardas na lista (ChildUI -> 'Outro') para o tipo do form ('O')
+const uiToProfile = (c: ChildUI): ChildProfile => ({
+  id: c.id,
+  firstName: c.firstName,
+  lastName: c.lastName ?? '',
+  birthDate: c.birthDate ?? '',
+  gender: c.gender ? (c.gender === 'Outro' ? 'O' : c.gender) : 'O',
+  avatar: c.avatar,
+});
+
+const CreateProfilesPage: React.FC = () => {
+  const [children, setChildren] = useState<ChildUI[]>([]);
+  const [editing, setEditing] = useState<ChildProfile | null>(null); // o form espera ChildProfile
+
+  // Gate: sem passo 1 volta atrás
+  useEffect(() => {
+    const exists = localStorage.getItem('bf_signup_family');
+    if (!exists) window.location.href = '/criar-conta';
+  }, []);
+
+  // Guardar (novo/editar) vindo do ChildProfileForm — assinatura EXACTA do form
   const saveChild = (child: ChildProfile, isEdit: boolean) => {
-    setChildren((prev) =>
-      isEdit ? prev.map((c) => (c.id === child.id ? child : c)) : [...prev, child],
-    );
+    // Validar com Zod (usa o input antes da coerção)
+    const parsed = ChildInputSchema.safeParse(profileToInput(child));
+    if (!parsed.success) {
+      const msg = parsed.error.issues[0]?.message || 'Dados do perfil inválidos.';
+      alert(msg);
+      return;
+    }
+    const clean = parsed.data; // birthDate validada, gender normalizado
+
+    setChildren(prev => {
+      if (isEdit) {
+        const targetId = child.id ?? editing?.id ?? '';
+        return prev.map(c => (c.id === targetId ? { ...c, ...clean } : c));
+      }
+      return [...prev, { id: child.id ?? genId(), ...clean }];
+    });
     setEditing(null);
   };
 
   const removeChild = (id: string) =>
-    setChildren((prev) => prev.filter((c) => c.id !== id));
+    setChildren(prev => prev.filter(c => c.id !== id));
+
+  const canSubmit = useMemo(() => children.length > 0, [children.length]);
+
+  // Submeter conta: valida payload completo e envia
+  const handleCreateAccount = async () => {
+    try {
+      const family = JSON.parse(localStorage.getItem('bf_signup_family') || '{}') as FamilySignupDraft;
+
+      // Retira campos só de UI e valida tudo
+      const payload: RegisterPayload = RegisterPayloadSchema.parse({
+        ...family,
+        children: children.map(({ id, avatar, ...rest }) => rest),
+      });
+
+      await api('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      alert('Conta criada! Verifica o teu e-mail para confirmar.');
+      window.location.href = '/login';
+    } catch (e: any) {
+      alert(e.message || 'Ocorreu um erro ao criar a conta.');
+    }
+  };
 
   return (
     <GradientBackground sx={{ height: '100vh' }} display='flex' justifyContent={'center'}>
@@ -80,7 +172,11 @@ const CreateProfilesPage: React.FC = () => {
             Criar Perfil Criança
           </Typography>
 
-          <ChildProfileForm onSave={saveChild} editing={editing} />
+          {/* Mantém o teu componente e layout antigos */}
+          <ChildProfileForm
+            onSave={saveChild}                          // (child: ChildProfile, isEdit: boolean) => void
+            editing={editing}                           // ChildProfile | null
+          />
 
           <Divider sx={{ my: 3 }} />
 
@@ -95,29 +191,33 @@ const CreateProfilesPage: React.FC = () => {
             pr={1}
             sx={{ '&::-webkit-scrollbar': { width: 6 } }}
           >
-            {children.map((c) => (
-              <AvatarListItem
-                key={c.id}
-                avatarSrc={c.avatar}
-                label={`${c.firstName} ${c.lastName}, ${c.age} anos`}
-                actions={[
-                  {
-                    icon: <EditIcon fontSize="small" />,
-                    tooltip: 'Editar',
-                    onClick: () => setEditing(c),
-                  },
-                  {
-                    icon: <DeleteIcon fontSize="small" />,
-                    tooltip: 'Apagar',
-                    onClick: () => removeChild(c.id),
-                  },
-                ]}
-                sx={{ mb: 1 }}
-              />
-            ))}
+            {children.map((c) => {
+              const age = calcAge(c.birthDate);
+              const trailing = age != null ? `, ${age} anos` : '';
+              return (
+                <AvatarListItem
+                  key={c.id}
+                  avatarSrc={c.avatar}
+                  label={`${c.firstName} ${c.lastName ?? ''}${trailing}`}
+                  actions={[
+                    {
+                      icon: <EditIcon fontSize="small" />,
+                      tooltip: 'Editar',
+                      onClick: () => setEditing(uiToProfile(c)),   // converter para o tipo do form
+                    },
+                    {
+                      icon: <DeleteIcon fontSize="small" />,
+                      tooltip: 'Apagar',
+                      onClick: () => removeChild(c.id),
+                    },
+                  ]}
+                  sx={{ mb: 1 }}
+                />
+              );
+            })}
           </Box>
 
-          <PrimaryButton fullWidth disabled={!children.length}>
+          <PrimaryButton fullWidth disabled={!canSubmit} onClick={handleCreateAccount}>
             Criar Conta
           </PrimaryButton>
         </WhiteCard>
