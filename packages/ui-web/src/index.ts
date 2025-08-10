@@ -3,7 +3,7 @@ export * from './components/Buttons';
 export { BibliotecarioThemeProvider } from './ThemeProvider';
 export { theme } from './theme';
 
-import './fonts/fonts.ts';      
+import './fonts/fonts';      
 
 export * from './components/TextFields/index';
 export * from './components/Divider/index';

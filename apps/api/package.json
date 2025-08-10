@@ -1,5 +1,5 @@
 {
-  "name": "bibliotecario-api",
+  "name": "@bib/apps-api",
   "version": "1.0.0",
   "main": "index.js",
   "type": "module",
