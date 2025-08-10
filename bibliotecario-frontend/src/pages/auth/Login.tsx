@@ -14,7 +14,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { AuthLayout } from '../../components/Layouts/AuthLayout';
-import { api } from '../../services/authservice';
+import { api } from '../../services/authService';
 
 // Schema de validação
 const schema = z.object({
