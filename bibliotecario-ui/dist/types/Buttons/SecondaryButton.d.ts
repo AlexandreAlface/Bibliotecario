@@ -1,3 +1,6 @@
-export declare const SecondaryButton: import("@emotion/styled").StyledComponent<import("@mui/material").ButtonOwnProps & Omit<import("@mui/material").ButtonBaseOwnProps, "classes"> & import("@mui/material/OverridableComponent").CommonProps & Omit<Omit<import("react").DetailedHTMLProps<import("react").ButtonHTMLAttributes<HTMLButtonElement>, HTMLButtonElement>, "ref"> & {
-    ref?: ((instance: HTMLButtonElement | null) => void | import("react").DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES[keyof import("react").DO_NOT_USE_OR_YOU_WILL_BE_FIRED_CALLBACK_REF_RETURN_VALUES]) | import("react").RefObject<HTMLButtonElement> | null | undefined;
-}, "color" | "disableElevation" | "disabled" | "fullWidth" | "startIcon" | "endIcon" | "loading" | "loadingIndicator" | "className" | "style" | "classes" | "action" | "centerRipple" | "children" | "disableRipple" | "disableTouchRipple" | "focusRipple" | "focusVisibleClassName" | "LinkComponent" | "onFocusVisible" | "sx" | "tabIndex" | "TouchRippleProps" | "touchRippleRef" | "disableFocusRipple" | "href" | "loadingPosition" | "size" | "variant"> & import("@mui/system").MUIStyledCommonProps<import("@mui/material").Theme>, {}, {}>;
+import { type ButtonProps } from '@mui/material';
+import { SizeProps } from '../theme';
+interface SecondaryProps extends ButtonProps, SizeProps {
+}
+export declare function SecondaryButton(props: SecondaryProps): import("react/jsx-runtime").JSX.Element;
+export {};

@@ -11,5 +11,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": ["src/**/*", "src/types/style.d.ts","src/types/custom.d.ts"]
 }
