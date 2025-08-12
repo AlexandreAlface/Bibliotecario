@@ -1,14 +1,10 @@
 // src/pages/auth/CreateAccountPage.tsx
 import React from 'react';
 import { Box, Typography } from '@mui/material';
-import {
-  GradientBackground,
-  WhiteCard,
-  HowItWorksSection,
-  RouteLink,
-} from 'bibliotecario-ui';
+
 import SignUpForm from '../../Forms/SignUpForm';
 import type { FamilySignupDraft } from '../../interfaces/auth';
+import { GradientBackground, HowItWorksSection, RouteLink, WhiteCard } from '@bibliotecario/ui-web';
 
 const steps = [
   {
@@ -59,7 +55,7 @@ const CreateAccountPage: React.FC = () => {
             textAlign: 'center',
           }}
         >
-          <Typography paddingBottom="2em" variant="h4" component="h1" gutterBottom>
+          <Typography paddingBottom="15px" variant="h4" component="h1" gutterBottom>
             Como Funciona?
           </Typography>
           <HowItWorksSection steps={steps} />

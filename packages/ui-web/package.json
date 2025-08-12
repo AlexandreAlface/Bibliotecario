@@ -1,48 +1,37 @@
 {
-  "name": "@bib/ui-web",
-  "version": "1.0.1",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
+  "name": "@bibliotecario/ui-web",
+  "version": "0.1.0",
+  "private": false,
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
   "scripts": {
-    "build": "rollup -c",
-    "dev": "rollup -c -w",
-    "prepare": "npm run build",
-    "prepublishOnly": "npm run build",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build": "tsup src/index.ts --format cjs,esm --dts --sourcemap",
+    "clean": "rimraf dist"
   },
   "peerDependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@fontsource/poppins": "^5.2.6",
-    "@mui/material": "^7.3.1",
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
-  },
-  "dependencies": {
-    "@mui/icons-material": "^7.2.0",
-    "@mui/system": "^7.2.0",
-    "tslib": "^2.6.1"
+    "react": ">=18",
+    "react-dom": ">=18",
+    "@mui/material": "^7",
+    "@mui/system": "^7",
+    "@mui/icons-material": "^7",
+    "@emotion/react": "^11",
+    "@emotion/styled": "^11"
   },
   "devDependencies": {
-    "@rollup/plugin-typescript": "^12.1.4",
-    "@rollup/plugin-url": "^8.0.2",
-    "@storybook/addon-docs": "^9.1.0",
-    "@storybook/react-vite": "^9.1.0",
-    "@svgr/rollup": "^8.1.0",
-    "@types/react": "^18.2.14",
-    "postcss": "^8.5.6",
-    "postcss-import": "^16.1.1",
-    "rollup": "^4.3.2",
-    "rollup-plugin-dts": "^6.2.1",
-    "rollup-plugin-peer-deps-external": "^2.2.4",
-    "rollup-plugin-postcss": "^4.0.2",
-    "sass": "^1.89.2",
-    "storybook": "^9.1.0",
-    "typescript": "^5.2.2"
+    "tsup": "^8.0.0",
+    "rimraf": "^6.0.0",
+    "typescript": "~5.8.3",
+    "@types/react": "18.3.4",
+    "@types/react-dom": "18.3.0"
   }
 }

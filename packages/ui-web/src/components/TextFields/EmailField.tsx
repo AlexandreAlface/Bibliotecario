@@ -1,14 +1,21 @@
-// EmailField.tsx
-import { BaseTextField, type BaseProps } from './BaseTextField';
-import type { TextFieldProps } from '@mui/material';
+import { forwardRef } from 'react';
+import TextField, { TextFieldProps } from '@mui/material/TextField';
 
-export function EmailField(props: TextFieldProps & BaseProps) {
+type Props = Omit<TextFieldProps, 'type' | 'variant'> & {
+  inputRef?: React.Ref<HTMLInputElement>; // compat
+};
+
+export const EmailField = forwardRef<HTMLInputElement, Props>(function EmailField(
+  { inputRef, ...props },
+  ref
+) {
   return (
-    <BaseTextField
-      type="email"
-      label="E-mail ou telemóvel"
-      autoComplete="email"
+    <TextField
       {...props}
+      type="email"
+      variant="outlined"
+      fullWidth
+      inputRef={ref ?? inputRef}
     />
   );
-}
+});

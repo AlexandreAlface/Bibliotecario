@@ -1,18 +1,13 @@
 import Grid from '@mui/material/GridLegacy';
 import { Box } from '@mui/material';
-import {
-  BaseTextField,
-  EmailField,
-  PasswordField,
-  PrimaryButton,
-  SecondaryButton,
-} from 'bibliotecario-ui';
+
 
 import { z } from 'zod';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { FamilySignupDraftSchema, type FamilySignupDraft } from '../interfaces/auth';
+import { BaseTextField, EmailField, PasswordField, PrimaryButton, SecondaryButton } from '@bibliotecario/ui-web';
 
 export interface SignUpFormProps {
   onSubmit?: (data: FamilySignupDraft) => void; // <-- recebe draft tipado
@@ -118,15 +113,18 @@ export function SignUpForm({ onBack, onSubmit }: SignUpFormProps) {
           <Controller
             name="email"
             control={control}
-            render={({ field }) => (
-              <EmailField
-                {...field}
-                fullWidth
-                required
-                error={!!errors.email}
-                helperText={errors.email?.message}
-              />
-            )}
+            render={({ field, fieldState }) => {
+              const { ref, ...rest } = field;
+              return (
+                <EmailField
+                  {...rest}
+                  inputRef={ref}
+                  label="Email"
+                  error={!!fieldState.error}
+                  helperText={fieldState.error?.message}
+                />
+              );
+            }}
           />
         </Grid>
 
@@ -199,32 +197,36 @@ export function SignUpForm({ onBack, onSubmit }: SignUpFormProps) {
           <Controller
             name="password"
             control={control}
-            render={({ field }) => (
-              <PasswordField
-                {...field}
-                fullWidth
-                label="Palavra-Passe"
-                required
-                error={!!errors.password}
-                helperText={errors.password?.message}
-              />
-            )}
+            render={({ field, fieldState }) => {
+              const { ref, ...rest } = field;
+              return (
+                <PasswordField
+                  {...rest}
+                  inputRef={ref}
+                  label="Palavra-passe"
+                  error={!!fieldState.error}
+                  helperText={fieldState.error?.message}
+                />
+              );
+            }}
           />
         </Grid>
         <Grid item xs={12}>
           <Controller
-            name="confirmPassword"
+            name="password"
             control={control}
-            render={({ field }) => (
-              <PasswordField
-                {...field}
-                fullWidth
-                label="Confirmar palavra-passe"
-                required
-                error={!!errors.confirmPassword}
-                helperText={errors.confirmPassword?.message}
-              />
-            )}
+            render={({ field, fieldState }) => {
+              const { ref, ...rest } = field;
+              return (
+                <PasswordField
+                  {...rest}
+                  inputRef={ref}
+                  label="Palavra-passe"
+                  error={!!fieldState.error}
+                  helperText={fieldState.error?.message}
+                />
+              );
+            }}
           />
         </Grid>
 

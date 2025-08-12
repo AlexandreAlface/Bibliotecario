@@ -1,10 +1,10 @@
-export * from './components/Buttons';
 
 export { BibliotecarioThemeProvider } from './ThemeProvider';
 export { theme } from './theme';
 
-import './fonts/fonts';      
+import './fonts/fonts';    
 
+export * from './components/Buttons';
 export * from './components/TextFields/index';
 export * from './components/Divider/index';
 export * from './components/Link';

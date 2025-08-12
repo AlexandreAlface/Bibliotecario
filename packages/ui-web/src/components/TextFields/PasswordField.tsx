@@ -1,38 +1,39 @@
-// PasswordField.tsx
-import { useState } from 'react';
-import {
-  Visibility,
-  VisibilityOff,
-} from '@mui/icons-material';
-import { BaseProps, BaseTextField } from './BaseTextField';
-import { IconButton, InputAdornment, type TextFieldProps } from '@mui/material';
+// packages/ui-web/src/components/TextFields/PasswordField.tsx
+import { forwardRef, useState } from 'react';
+import TextField, { TextFieldProps } from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import IconButton from '@mui/material/IconButton';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
 
-export function PasswordField(props: TextFieldProps & BaseProps) {
+
+type Props = Omit<TextFieldProps, 'type' | 'variant'> & {
+  inputRef?: React.Ref<HTMLInputElement>;
+};
+
+export const PasswordField = forwardRef<HTMLInputElement, Props>(function PasswordField(
+  { InputProps, ...rest },
+  ref
+) {
   const [show, setShow] = useState(false);
 
   return (
-    <BaseTextField
+    <TextField
+      {...rest}
       type={show ? 'text' : 'password'}
-      label="Palavra-passe"
-      autoComplete="current-password"
+      variant="outlined"
+      fullWidth
+      inputRef={ref}
       InputProps={{
+        ...InputProps,
         endAdornment: (
           <InputAdornment position="end">
-            <IconButton
-              onClick={() => setShow((v) => !v)}
-              edge="end"
-              aria-label={show ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'}
-              size="small"
-            >
-              {show ? <VisibilityOff /> : <Visibility />}
+            <IconButton onClick={() => setShow(s => !s)} edge="end" aria-label="alternar visibilidade">
+              {show ? <VisibilityOff/> : <Visibility/>}
             </IconButton>
-            <span style={{ marginLeft: 4, fontSize: 14 }}>
-              {show ? 'Ocultar' : 'Mostrar'}
-            </span>
           </InputAdornment>
         ),
       }}
-      {...props}
     />
   );
-}
+});

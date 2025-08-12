@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Button, Stack, TextField } from '@mui/material';
 import Grid from '@mui/material/GridLegacy';
-import { AvatarUpload, SelectableOptions } from 'bibliotecario-ui';
+import { AvatarUpload, SelectableOptions } from '@bibliotecario/ui-web';
+
 
 /* ---------- Tipos ---------- */
 export interface ChildProfile {

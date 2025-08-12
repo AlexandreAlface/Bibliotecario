@@ -1,12 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Divider } from '@mui/material';
-import {
-  GradientBackground,
-  WhiteCard,
-  HowItWorksSection,
-  PrimaryButton,
-  AvatarListItem,
-} from 'bibliotecario-ui';
+
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 
@@ -20,6 +14,7 @@ import {
 import { api } from '../../services/authService';
 
 import ChildProfileForm, { type ChildProfile } from '../../Forms/ChildProfileForm';
+import { AvatarListItem, GradientBackground, HowItWorksSection, PrimaryButton, WhiteCard } from '@bibliotecario/ui-web';
 
 // ---- Tipos internos (UI) e utilitários --------------------------------------
 type ChildInput = z.input<typeof ChildInputSchema>;        // input aceito pelo Zod (antes da coerção)

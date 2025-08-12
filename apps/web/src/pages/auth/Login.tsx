@@ -1,20 +1,12 @@
 // src/pages/auth/Login.tsx
-import {
-  WhiteCard,
-  EmailField,
-  PasswordField,
-  PrimaryButton,
-  SecondaryButton,
-  SectionDivider,
-  RouteLink,
-  Logo
-} from 'bibliotecario-ui';
-import { Typography, Box } from '@mui/material';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+
 import { z } from 'zod';
 import { AuthLayout } from '../../components/Layouts/AuthLayout';
 import { api } from '../../services/authService';
+import { Box, Typography } from '@mui/material';
+import { EmailField, Logo, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard } from '@bibliotecario/ui-web';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
 // Schema de validação
 const schema = z.object({
@@ -73,29 +65,39 @@ export function Login() {
             <Controller
               name="email"
               control={control}
-              render={({ field, fieldState }) => (
-                <EmailField
-                  {...field}
-                  error={!!fieldState.error}
-                  helperText={fieldState.error?.message}
-                  fullWidth
-                  sx={{ mb: 2 }}
-                />
-              )}
+              render={({ field, fieldState }) => {
+                const { ref, ...rest } = field;
+                return (
+                  <EmailField
+                    {...rest}
+                    inputRef={ref}
+                    label="Email"
+                    fullWidth
+                    sx={{ mb: 2 }}
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message}
+                  />
+                );
+              }}
             />
 
             <Controller
               name="password"
               control={control}
-              render={({ field, fieldState }) => (
-                <PasswordField
-                  {...field}
-                  error={!!fieldState.error}
-                  helperText={fieldState.error?.message}
-                  fullWidth
-                  sx={{ mb: 3 }}
-                />
-              )}
+              render={({ field, fieldState }) => {
+                const { ref, ...rest } = field;
+                return (
+                  <PasswordField
+                    {...rest}
+                    inputRef={ref}
+                    label="Palavra-passe"
+                    fullWidth
+                    sx={{ mb: 3 }}
+                    error={!!fieldState.error}
+                    helperText={fieldState.error?.message}
+                  />
+                );
+              }}
             />
 
             <PrimaryButton

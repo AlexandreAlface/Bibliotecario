@@ -1,4 +1,5 @@
-import { GradientBackground } from 'bibliotecario-ui';
+
+import { GradientBackground } from '@bibliotecario/ui-web';
 import { Box } from '@mui/material';
 
 export function AuthLayout({ children }: { children: React.ReactNode }) {

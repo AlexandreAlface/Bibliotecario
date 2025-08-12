@@ -1,762 +1,1541 @@
-import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
-import { styled, Button, alpha, ThemeProvider, CssBaseline, TextField, InputAdornment, IconButton, Divider, Typography, Link, Card, Box, Stack, FormControl, FormLabel, FormGroup, FormControlLabel, Checkbox, RadioGroup, Radio, Avatar, Tooltip, Drawer, List, ListItemButton, ListItemIcon, ListItemText, Badge, Menu, ListItem, MenuItem, InputLabel, Select, ListItemAvatar, LinearProgress, linearProgressClasses, Popper, ClickAwayListener, Paper, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, useTheme, CardMedia, CardContent, Rating, Collapse, Chip } from '@mui/material';
-import { shouldForwardProp, styled as styled$1 } from '@mui/system';
-import { createTheme, styled as styled$2 } from '@mui/material/styles';
-import '@fontsource/poppins/400.css';
-import '@fontsource/poppins/600.css';
-import '@fontsource/poppins/700.css';
-import { useState, forwardRef, useRef, useEffect, useMemo } from 'react';
-import { VisibilityOff, Visibility } from '@mui/icons-material';
-import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
-import FilterAltIcon from '@mui/icons-material/FilterAlt';
-import ClearIcon from '@mui/icons-material/Clear';
-import DoneIcon from '@mui/icons-material/Done';
-import Grid from '@mui/material/GridLegacy';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import CloseIcon from '@mui/icons-material/Close';
+'use strict';
 
-const Styled$1 = styled(Button, {
-    // Impede que props customizadas vão parar ao DOM
-    shouldForwardProp: (prop) => shouldForwardProp(prop) && prop !== 'radius' && prop !== 'px',
-})(({ theme, radius = 4, px = 3 }) => ({
-    borderRadius: theme.spacing(radius),
-    paddingInline: theme.spacing(px),
-    textTransform: 'none',
-    fontWeight: 600,
-    boxShadow: 'none',
-    lineHeight: 1.5,
-    '&:hover': {
-        backgroundColor: alpha(theme.palette.primary.main, 0.9),
-        boxShadow: 'none',
-    },
-    '&:disabled': {
-        backgroundColor: theme.palette.action.disabledBackground,
-        color: theme.palette.action.disabled,
-    },
-    '&.Mui-focusVisible': {
-        outline: `2px solid ${alpha(theme.palette.primary.light, 0.8)}`,
-        outlineOffset: 2,
-    },
+var material = require('@mui/material');
+var styles = require('@mui/material/styles');
+var jsxRuntime = require('react/jsx-runtime');
+var system = require('@mui/system');
+var react = require('react');
+var TextField = require('@mui/material/TextField');
+var InputAdornment = require('@mui/material/InputAdornment');
+var IconButton = require('@mui/material/IconButton');
+var Visibility = require('@mui/icons-material/Visibility');
+var VisibilityOff = require('@mui/icons-material/VisibilityOff');
+var PhotoCameraIcon = require('@mui/icons-material/PhotoCamera');
+var EditIcon = require('@mui/icons-material/Edit');
+var DeleteIcon = require('@mui/icons-material/Delete');
+var ChevronLeftIcon = require('@mui/icons-material/ChevronLeft');
+var ChevronRightIcon = require('@mui/icons-material/ChevronRight');
+var NotificationsNoneIcon = require('@mui/icons-material/NotificationsNone');
+var DeleteOutlineIcon = require('@mui/icons-material/DeleteOutline');
+var PersonOutlineIcon = require('@mui/icons-material/PersonOutline');
+var FilterAltIcon = require('@mui/icons-material/FilterAlt');
+var ClearIcon = require('@mui/icons-material/Clear');
+var DoneIcon = require('@mui/icons-material/Done');
+var Grid = require('@mui/material/GridLegacy');
+var AccessTimeIcon = require('@mui/icons-material/AccessTime');
+var LocationOnIcon = require('@mui/icons-material/LocationOn');
+var ArrowDropDownIcon = require('@mui/icons-material/ArrowDropDown');
+var CloseIcon = require('@mui/icons-material/Close');
+
+function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
+
+var TextField__default = /*#__PURE__*/_interopDefault(TextField);
+var InputAdornment__default = /*#__PURE__*/_interopDefault(InputAdornment);
+var IconButton__default = /*#__PURE__*/_interopDefault(IconButton);
+var Visibility__default = /*#__PURE__*/_interopDefault(Visibility);
+var VisibilityOff__default = /*#__PURE__*/_interopDefault(VisibilityOff);
+var PhotoCameraIcon__default = /*#__PURE__*/_interopDefault(PhotoCameraIcon);
+var EditIcon__default = /*#__PURE__*/_interopDefault(EditIcon);
+var DeleteIcon__default = /*#__PURE__*/_interopDefault(DeleteIcon);
+var ChevronLeftIcon__default = /*#__PURE__*/_interopDefault(ChevronLeftIcon);
+var ChevronRightIcon__default = /*#__PURE__*/_interopDefault(ChevronRightIcon);
+var NotificationsNoneIcon__default = /*#__PURE__*/_interopDefault(NotificationsNoneIcon);
+var DeleteOutlineIcon__default = /*#__PURE__*/_interopDefault(DeleteOutlineIcon);
+var PersonOutlineIcon__default = /*#__PURE__*/_interopDefault(PersonOutlineIcon);
+var FilterAltIcon__default = /*#__PURE__*/_interopDefault(FilterAltIcon);
+var ClearIcon__default = /*#__PURE__*/_interopDefault(ClearIcon);
+var DoneIcon__default = /*#__PURE__*/_interopDefault(DoneIcon);
+var Grid__default = /*#__PURE__*/_interopDefault(Grid);
+var AccessTimeIcon__default = /*#__PURE__*/_interopDefault(AccessTimeIcon);
+var LocationOnIcon__default = /*#__PURE__*/_interopDefault(LocationOnIcon);
+var ArrowDropDownIcon__default = /*#__PURE__*/_interopDefault(ArrowDropDownIcon);
+var CloseIcon__default = /*#__PURE__*/_interopDefault(CloseIcon);
+
+// src/ThemeProvider.tsx
+var palette = {
+  primary: { main: "#05a79e", contrastText: "#ffffff" },
+  // verde
+  secondary: { main: "#f6941f", contrastText: "#ffffff" },
+  // roxo
+  // secondaryComplement:  { main: '#fab041', contrastText: '#ffffff' }, // roxo
+  background: {
+    default: "#fafafa",
+    paper: "#ffffff"
+  }
+};
+var theme = styles.createTheme({
+  palette,
+  typography: {
+    fontFamily: "Poppins, Arial, sans-serif",
+    fontWeightRegular: 400,
+    fontWeightMedium: 500,
+    fontWeightBold: 600,
+    button: { textTransform: "none", fontWeight: 500 }
+  },
+  shape: { borderRadius: 16 },
+  components: {
+    /* exemplo de override global */
+    MuiButton: {
+      styleOverrides: {
+        root: { borderRadius: 32, paddingInline: 24 }
+      },
+      defaultProps: {
+        disableElevation: true
+      }
+    }
+  }
+});
+function BibliotecarioThemeProvider({ children }) {
+  return /* @__PURE__ */ jsxRuntime.jsxs(material.ThemeProvider, { theme, children: [
+    /* @__PURE__ */ jsxRuntime.jsx(material.CssBaseline, {}),
+    children
+  ] });
+}
+var Styled = material.styled(material.Button, {
+  // Impede que props customizadas vão parar ao DOM
+  shouldForwardProp: (prop) => system.shouldForwardProp(prop) && prop !== "radius" && prop !== "px"
+})(({ theme: theme2, radius = 4, px = 3 }) => ({
+  borderRadius: theme2.spacing(radius),
+  paddingInline: theme2.spacing(px),
+  textTransform: "none",
+  fontWeight: 600,
+  boxShadow: "none",
+  lineHeight: 1.5,
+  "&:hover": {
+    backgroundColor: material.alpha(theme2.palette.primary.main, 0.9),
+    boxShadow: "none"
+  },
+  "&:disabled": {
+    backgroundColor: theme2.palette.action.disabledBackground,
+    color: theme2.palette.action.disabled
+  },
+  "&.Mui-focusVisible": {
+    outline: `2px solid ${material.alpha(theme2.palette.primary.light, 0.8)}`,
+    outlineOffset: 2
+  }
 }));
 function PrimaryButton(props) {
-    return (jsx(Styled$1, { variant: "contained", color: "primary", disableElevation: true, ...props }));
+  return /* @__PURE__ */ jsxRuntime.jsx(
+    Styled,
+    {
+      variant: "contained",
+      color: "primary",
+      disableElevation: true,
+      ...props
+    }
+  );
 }
-
-const Styled = styled(Button, {
-    shouldForwardProp: (prop) => shouldForwardProp(prop) && prop !== 'radius' && prop !== 'px',
-})(({ theme, radius = 4, px = 3 }) => ({
-    borderRadius: theme.spacing(radius),
-    paddingInline: theme.spacing(px),
-    textTransform: 'none',
-    fontWeight: 500,
-    backgroundColor: theme.palette.common.white,
-    color: theme.palette.primary.main,
-    border: `2px solid ${theme.palette.primary.main}`,
-    '&:hover': {
-        backgroundColor: theme.palette.primary.main,
-        color: theme.palette.common.white,
-        borderColor: theme.palette.primary.main,
-    },
-    '&:disabled': {
-        backgroundColor: theme.palette.action.disabledBackground,
-        color: theme.palette.action.disabled,
-        borderColor: theme.palette.action.disabledBackground,
-    },
+var Styled2 = material.styled(material.Button, {
+  shouldForwardProp: (prop) => system.shouldForwardProp(prop) && prop !== "radius" && prop !== "px"
+})(({ theme: theme2, radius = 4, px = 3 }) => ({
+  borderRadius: theme2.spacing(radius),
+  paddingInline: theme2.spacing(px),
+  textTransform: "none",
+  fontWeight: 500,
+  backgroundColor: theme2.palette.common.white,
+  color: theme2.palette.primary.main,
+  border: `2px solid ${theme2.palette.primary.main}`,
+  "&:hover": {
+    backgroundColor: theme2.palette.primary.main,
+    color: theme2.palette.common.white,
+    borderColor: theme2.palette.primary.main
+  },
+  "&:disabled": {
+    backgroundColor: theme2.palette.action.disabledBackground,
+    color: theme2.palette.action.disabled,
+    borderColor: theme2.palette.action.disabledBackground
+  }
 }));
 function SecondaryButton(props) {
-    return jsx(Styled, { variant: "outlined", ...props });
+  return /* @__PURE__ */ jsxRuntime.jsx(Styled2, { variant: "outlined", ...props });
 }
-
-// /* Primeira palete de cores */
-// const palette = {
-//   primary:{ main: '#8DC63F', contrastText: '#ffffff' }, // verde
-//   secondary:  { main: '#7D3F98', contrastText: '#ffffff' }, // roxo
-//   background: {
-//     default: '#fafafa',
-//     paper:   '#ffffff',
-//   },
-// };
-// /* palete de cores pedida 1 */
-// const palette = {
-//   primary:{ main: '#ef5b2a', contrastText: '#ffffff' }, // verde
-//   secondary:  { main: '#413f7f', contrastText: '#ffffff' }, // roxo
-//   // secondaryComplement:  { main: '#5758a7', contrastText: '#ffffff' }, // roxo
-//   background: {
-//     default: '#fafafa',
-//     paper:   '#ffffff',
-//   },
-// };
-// /* palete de cores pedida 2 */
-const palette = {
-    primary: { main: '#05a79e', contrastText: '#ffffff' }, // verde
-    secondary: { main: '#f6941f', contrastText: '#ffffff' }, // roxo
-    // secondaryComplement:  { main: '#fab041', contrastText: '#ffffff' }, // roxo
-    background: {
-        default: '#fafafa',
-        paper: '#ffffff',
-    },
-};
-const theme = createTheme({
-    palette,
-    typography: {
-        fontFamily: 'Poppins, Arial, sans-serif',
-        fontWeightRegular: 400,
-        fontWeightMedium: 500,
-        fontWeightBold: 600,
-        button: { textTransform: 'none', fontWeight: 500 },
-    },
-    shape: { borderRadius: 16 },
-    components: {
-        /* exemplo de override global */
-        MuiButton: {
-            styleOverrides: {
-                root: { borderRadius: 32, paddingInline: 24 },
-            },
-            defaultProps: {
-                disableElevation: true,
-            },
-        },
-    },
+var EmailField = react.forwardRef(function EmailField2({ inputRef, ...props }, ref) {
+  return /* @__PURE__ */ jsxRuntime.jsx(
+    TextField__default.default,
+    {
+      ...props,
+      type: "email",
+      variant: "outlined",
+      fullWidth: true,
+      inputRef: ref != null ? ref : inputRef
+    }
+  );
 });
-
-/**
- * BibliotecarioThemeProvider is a custom theme provider that applies the MUI theme
- * and CssBaseline to the application.
- *
- * @param {PropsWithChildren} props - The props containing children components.
- * @returns {JSX.Element} The ThemeProvider with the applied theme and CssBaseline.
- */
-function BibliotecarioThemeProvider({ children }) {
-    return (jsxs(ThemeProvider, { theme: theme, children: [jsx(CssBaseline, {}), children] }));
-}
-
-const BaseTextField = styled$1(TextField, {
-    shouldForwardProp: (prop) => shouldForwardProp(prop) && !['radius', 'px', 'py'].includes(prop),
-})(({ theme, radius = 3, px = 2, py = 1.5 }) => ({
-    '& .MuiOutlinedInput-root': {
-        borderRadius: theme.spacing(radius),
-        '& input': {
-            padding: theme.spacing(py, px),
-            fontSize: 
-            // pxToRem não está tipado em versões antigas, usa fallback
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            theme.typography.pxToRem
-                ? // @ts-expect-error – método não existe nos tipos antigos
-                    theme.typography.pxToRem(14)
-                : '0.875rem',
-            lineHeight: 1.25,
-        },
-        '& fieldset': { borderColor: theme.palette.grey[400] },
-        '&:hover fieldset': { borderColor: theme.palette.primary.main },
-        '&.Mui-focused fieldset': { borderColor: theme.palette.primary.main },
+var BaseTextField = system.styled(material.TextField, {
+  shouldForwardProp: (prop) => system.shouldForwardProp(prop) && !["radius", "px", "py"].includes(prop)
+})(
+  ({ theme: theme2, radius = 3, px = 2, py = 1.5 }) => ({
+    "& .MuiOutlinedInput-root": {
+      borderRadius: theme2.spacing(radius),
+      "& input": {
+        padding: theme2.spacing(py, px),
+        fontSize: (
+          // pxToRem não está tipado em versões antigas, usa fallback
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          theme2.typography.pxToRem ? (
+            // @ts-expect-error – método não existe nos tipos antigos
+            theme2.typography.pxToRem(14)
+          ) : "0.875rem"
+        ),
+        lineHeight: 1.25
+      },
+      "& fieldset": { borderColor: theme2.palette.grey[400] },
+      "&:hover fieldset": { borderColor: theme2.palette.primary.main },
+      "&.Mui-focused fieldset": { borderColor: theme2.palette.primary.main }
     },
-    '& .MuiInputLabel-root': {
-        fontSize: 
+    "& .MuiInputLabel-root": {
+      fontSize: (
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        theme.typography.pxToRem
-            ? // @ts-expect-error idem
-                theme.typography.pxToRem(14)
-            : '0.875rem',
-        lineHeight: 1.2,
+        theme2.typography.pxToRem ? (
+          // @ts-expect-error idem
+          theme2.typography.pxToRem(14)
+        ) : "0.875rem"
+      ),
+      lineHeight: 1.2
     },
-    '& .MuiInputLabel-shrink': {
-        transform: 'translate(14px, -6px) scale(0.85)',
-    },
-}));
-
-function EmailField(props) {
-    return (jsx(BaseTextField, { type: "email", label: "E-mail ou telem\u00F3vel", autoComplete: "email", ...props }));
-}
-
+    "& .MuiInputLabel-shrink": {
+      transform: "translate(14px, -6px) scale(0.85)"
+    }
+  })
+);
 function NumericField(props) {
-    return (jsx(BaseTextField, { label: "N\u00FAmero de telem\u00F3vel", type: "tel", inputProps: { inputMode: 'numeric', pattern: '[0-9]*' }, ...props }));
+  return /* @__PURE__ */ jsxRuntime.jsx(
+    BaseTextField,
+    {
+      label: "N\xFAmero de telem\xF3vel",
+      type: "tel",
+      inputProps: { inputMode: "numeric", pattern: "[0-9]*" },
+      ...props
+    }
+  );
 }
-
-function PasswordField(props) {
-    const [show, setShow] = useState(false);
-    return (jsx(BaseTextField, { type: show ? 'text' : 'password', label: "Palavra-passe", autoComplete: "current-password", InputProps: {
-            endAdornment: (jsxs(InputAdornment, { position: "end", children: [jsx(IconButton, { onClick: () => setShow((v) => !v), edge: "end", "aria-label": show ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe', size: "small", children: show ? jsx(VisibilityOff, {}) : jsx(Visibility, {}) }), jsx("span", { style: { marginLeft: 4, fontSize: 14 }, children: show ? 'Ocultar' : 'Mostrar' })] })),
-        }, ...props }));
-}
-
-function SectionDivider({ label, width = '100%', thickness = 1, spacingY = 3, sx, }) {
-    return (jsx(Divider, { textAlign: "center", sx: {
-            width,
-            my: spacingY,
-            borderBottomWidth: thickness,
-            marginBottom: '0em',
-            ...sx,
-        }, children: jsx(Typography, { variant: "body2", color: "text.secondary", fontWeight: 500, sx: { px: 1 }, children: label }) }));
-}
-
-const StyledLink = styled(Link, {
-    shouldForwardProp: (prop) => prop !== 'underlineThickness' && prop !== 'weight',
-})(({ theme, underlineThickness = 1, weight = 500 }) => ({
-    ...theme.typography.body2,
-    fontWeight: weight,
-    color: theme.palette.text.primary,
-    textDecoration: 'none',
-    position: 'relative',
-    display: 'inline-block',
-    '&::after': {
-        content: '""',
-        position: 'absolute',
-        left: 0,
-        bottom: 0,
-        width: '100%',
-        height: underlineThickness,
-        backgroundColor: 'currentColor',
-        transition: 'opacity .2s',
-        opacity: 1,
-    },
-    '&:hover::after': { opacity: 0.6 },
-    '&:focus-visible': {
-        outline: `2px solid ${theme.palette.primary.light}`,
-        outlineOffset: 2,
-    },
-}));
-/**
- * RouteLink – link estilizado com sublinhado custom.
- * Usa <a> por defeito mas aceita component={RouterLink} se precisares de routing.
- */
-const RouteLink = forwardRef(function RouteLink(props, ref) {
-    return jsx(StyledLink, { ref: ref, ...props });
+var PasswordField = react.forwardRef(function PasswordField2({ InputProps, ...rest }, ref) {
+  const [show, setShow] = react.useState(false);
+  return /* @__PURE__ */ jsxRuntime.jsx(
+    TextField__default.default,
+    {
+      ...rest,
+      type: show ? "text" : "password",
+      variant: "outlined",
+      fullWidth: true,
+      inputRef: ref,
+      InputProps: {
+        ...InputProps,
+        endAdornment: /* @__PURE__ */ jsxRuntime.jsx(InputAdornment__default.default, { position: "end", children: /* @__PURE__ */ jsxRuntime.jsx(IconButton__default.default, { onClick: () => setShow((s) => !s), edge: "end", "aria-label": "alternar visibilidade", children: show ? /* @__PURE__ */ jsxRuntime.jsx(VisibilityOff__default.default, {}) : /* @__PURE__ */ jsxRuntime.jsx(Visibility__default.default, {}) }) })
+      }
+    }
+  );
 });
-
-const StyledCard = styled(Card, {
-    shouldForwardProp: (prop) => shouldForwardProp(prop) && prop !== 'width' && prop !== 'height',
-})(({ theme, width, height }) => ({
-    borderRadius: theme.spacing(3), /* 24 px se spacing = 8 */
-    padding: theme.spacing(4), /* 32 px */
-    backgroundColor: theme.palette.common.white,
-    width,
-    height,
+function SectionDivider({
+  label,
+  width = "100%",
+  thickness = 1,
+  spacingY = 3,
+  sx
+}) {
+  return /* @__PURE__ */ jsxRuntime.jsx(
+    material.Divider,
+    {
+      textAlign: "center",
+      sx: {
+        width,
+        my: spacingY,
+        borderBottomWidth: thickness,
+        marginBottom: "0em",
+        ...sx
+      },
+      children: /* @__PURE__ */ jsxRuntime.jsx(
+        material.Typography,
+        {
+          variant: "body2",
+          color: "text.secondary",
+          fontWeight: 500,
+          sx: { px: 1 },
+          children: label
+        }
+      )
+    }
+  );
+}
+var StyledLink = material.styled(material.Link, {
+  shouldForwardProp: (prop) => prop !== "underlineThickness" && prop !== "weight"
+})(({ theme: theme2, underlineThickness = 1, weight = 500 }) => ({
+  ...theme2.typography.body2,
+  fontWeight: weight,
+  color: theme2.palette.text.primary,
+  textDecoration: "none",
+  position: "relative",
+  display: "inline-block",
+  "&::after": {
+    content: '""',
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    width: "100%",
+    height: underlineThickness,
+    backgroundColor: "currentColor",
+    transition: "opacity .2s",
+    opacity: 1
+  },
+  "&:hover::after": { opacity: 0.6 },
+  "&:focus-visible": {
+    outline: `2px solid ${theme2.palette.primary.light}`,
+    outlineOffset: 2
+  }
+}));
+var RouteLink = react.forwardRef(
+  function RouteLink2(props, ref) {
+    return /* @__PURE__ */ jsxRuntime.jsx(StyledLink, { ref, ...props });
+  }
+);
+var StyledCard = material.styled(material.Card, {
+  shouldForwardProp: (prop) => system.shouldForwardProp(prop) && prop !== "width" && prop !== "height"
+})(({ theme: theme2, width, height }) => ({
+  borderRadius: theme2.spacing(3),
+  /* 24 px se spacing = 8 */
+  padding: theme2.spacing(4),
+  /* 32 px */
+  backgroundColor: theme2.palette.common.white,
+  width,
+  height
 }));
 function WhiteCard(props) {
-    return jsx(StyledCard, { variant: "outlined", ...props });
+  return /* @__PURE__ */ jsxRuntime.jsx(StyledCard, { variant: "outlined", ...props });
 }
-
-const GradientBackground = styled$2(Box, {
-    shouldForwardProp: (prop) => prop !== 'from' && prop !== 'to' && prop !== 'angle',
-})(({ theme, from, to, angle = 135 }) => ({
-    minHeight: '100vh',
-    width: '100%',
-    background: `linear-gradient(${angle}deg, ${from !== null && from !== void 0 ? from : theme.palette.secondary.main} 0%, ${to !== null && to !== void 0 ? to : theme.palette.primary.main} 100%)`,
-    position: 'relative',
-    overflow: 'hidden',
+var GradientBackground = styles.styled(material.Box, {
+  shouldForwardProp: (prop) => prop !== "from" && prop !== "to" && prop !== "angle"
+})(({ theme: theme2, from, to, angle = 135 }) => ({
+  minHeight: "100vh",
+  width: "100%",
+  background: `linear-gradient(${angle}deg, ${from != null ? from : theme2.palette.secondary.main} 0%, ${to != null ? to : theme2.palette.primary.main} 100%)`,
+  position: "relative",
+  overflow: "hidden"
 }));
-
-const Circle = styled$1(Box, {
-    shouldForwardProp: (prop) => !['accentColor', 'circleSize', 'circleBorderWidth', 'circleBorderColor'].includes(prop),
-})(({ theme, accentColor, circleSize, circleBorderWidth, circleBorderColor }) => ({
-    position: 'absolute',
-    top: 0,
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: circleSize,
-    height: circleSize,
-    borderRadius: '50%',
-    backgroundColor: accentColor || theme.palette.primary.main,
-    color: theme.palette.getContrastText(accentColor || theme.palette.primary.main),
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontWeight: 700,
-    fontSize: circleSize * 0.35,
-    border: `${circleBorderWidth}px solid ${circleBorderColor}`,
-    boxSizing: 'border-box',
+var Circle = system.styled(material.Box, {
+  shouldForwardProp: (prop) => !["accentColor", "circleSize", "circleBorderWidth", "circleBorderColor"].includes(
+    prop
+  )
+})(({ theme: theme2, accentColor, circleSize, circleBorderWidth, circleBorderColor }) => ({
+  position: "absolute",
+  top: 0,
+  left: "50%",
+  transform: "translate(-50%, -50%)",
+  width: circleSize,
+  height: circleSize,
+  borderRadius: "50%",
+  backgroundColor: accentColor || theme2.palette.primary.main,
+  color: theme2.palette.getContrastText(accentColor || theme2.palette.primary.main),
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontWeight: 700,
+  fontSize: circleSize * 0.35,
+  border: `${circleBorderWidth}px solid ${circleBorderColor}`,
+  boxSizing: "border-box"
 }));
-const InfoStepCard = ({ step, title, description, accentColor, backgroundColor, circleSize = 88, circleBorderWidth = 6, circleBorderColor = '#fff', cardProps, }) => {
-    return (jsxs(Box, { position: "relative", textAlign: "center", mt: 2, width: "100%", children: [jsx(Circle, { accentColor: accentColor || '', circleSize: circleSize, circleBorderWidth: circleBorderWidth, circleBorderColor: circleBorderColor, marginTop: '1em', children: step }), jsxs(WhiteCard, { sx: {
-                    width: '100%', // ← garante 100% de largura
-                    pt: '3em',
-                    padding: '3em',
-                    pb: 3,
-                    px: 3,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'flex-start',
-                    border: 'none',
-                    marginTop: '2em',
-                    backgroundColor,
-                    ...cardProps === null || cardProps === void 0 ? void 0 : cardProps.sx,
-                }, children: [jsx(Typography, { variant: "h6", component: "h3", gutterBottom: true, children: title }), jsx(Typography, { variant: "body2", sx: { whiteSpace: 'pre-line' }, children: description })] })] }));
+var InfoStepCard = ({
+  step,
+  title,
+  description,
+  accentColor,
+  backgroundColor,
+  circleSize = 88,
+  circleBorderWidth = 6,
+  circleBorderColor = "#fff",
+  cardProps
+}) => {
+  return /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { position: "relative", textAlign: "center", mt: 2, width: "100%", children: [
+    /* @__PURE__ */ jsxRuntime.jsx(
+      Circle,
+      {
+        accentColor: accentColor || "",
+        circleSize,
+        circleBorderWidth,
+        circleBorderColor,
+        marginTop: "1em",
+        children: step
+      }
+    ),
+    /* @__PURE__ */ jsxRuntime.jsxs(
+      WhiteCard,
+      {
+        sx: {
+          width: "100%",
+          // ← garante 100% de largura
+          pt: "3em",
+          padding: "3em",
+          pb: 3,
+          px: 3,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "flex-start",
+          border: "none",
+          marginTop: "2em",
+          backgroundColor,
+          ...cardProps == null ? void 0 : cardProps.sx
+        },
+        children: [
+          /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "h6", component: "h3", gutterBottom: true, children: title }),
+          /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "body2", sx: { whiteSpace: "pre-line" }, children: description })
+        ]
+      }
+    )
+  ] });
 };
-
-const HowItWorksSection = ({ steps, orientation = 'vertical', spacing = 6, sx, }) => {
-    if (!(steps === null || steps === void 0 ? void 0 : steps.length))
-        return null;
-    return (jsx(Box, { width: "100%", children: jsx(Stack, { direction: orientation === 'horizontal' ? 'row' : 'column', spacing: spacing, alignItems: "stretch", justifyContent: "center", sx: sx, children: steps.map((step, idx) => {
-                var _a;
-                const mergedCardProps = {
-                    ...step.cardProps,
-                    sx: {
-                        ...(((_a = step.cardProps) === null || _a === void 0 ? void 0 : _a.sx) || {}),
-                        minHeight: 'auto',
-                    },
-                };
-                return (jsx(InfoStepCard, { ...step, cardProps: mergedCardProps }, idx));
-            }) }) }));
-};
-
-var logoUrl = "data:image/svg+xml,%3C%3Fxml%20version%3D%221.0%22%20encoding%3D%22UTF-8%22%3F%3E%3Csvg%20id%3D%22Camada_1%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20version%3D%221.1%22%20viewBox%3D%220%200%20841.89%20595.28%22%3E%20%20%20%20%3Cdefs%3E%20%20%20%20%3Cstyle%3E%20%20%20%20%20%20.st0%20%7B%20%20%20%20%20%20%20%20fill%3A%20%2300a19a%3B%20%20%20%20%20%20%7D%20%20%20%20%20%20.st1%20%7B%20%20%20%20%20%20%20%20fill%3A%20%23fff%3B%20%20%20%20%20%20%7D%20%20%20%20%20%20.st2%20%7B%20%20%20%20%20%20%20%20fill%3A%20%23f9b233%3B%20%20%20%20%20%20%7D%20%20%20%20%20%20.st3%20%7B%20%20%20%20%20%20%20%20fill%3A%20%23f39200%3B%20%20%20%20%20%20%7D%20%20%20%20%3C%2Fstyle%3E%20%20%3C%2Fdefs%3E%20%20%3Cg%3E%20%20%20%20%3Cg%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M199.9%2C366.72c-5.04%2C1.64-10.25%2C2.97-15.49%2C3.97-.93.18-1.55%2C1.08-1.37%2C2.01.16.82.88%2C1.4%2C1.69%2C1.4.11%2C0%2C.22-.01.32-.03%2C5.38-1.02%2C10.73-2.4%2C15.91-4.08.9-.29%2C1.4-1.26%2C1.1-2.17-.29-.9-1.26-1.4-2.17-1.1Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M243.69%2C341.07c-7.18%2C6.71-15.16%2C12.61-23.73%2C17.54-3.8%2C2.19-7.74%2C4.19-11.72%2C5.96-.87.39-1.26%2C1.4-.87%2C2.27.29.64.91%2C1.02%2C1.57%2C1.02.23%2C0%2C.47-.05.7-.15%2C4.08-1.82%2C8.13-3.88%2C12.03-6.12%2C8.8-5.06%2C17-11.12%2C24.37-18%2C.69-.65.73-1.74.08-2.43-.65-.69-1.74-.73-2.43-.08Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M215.11%2C354.95c-.41-.86-1.44-1.22-2.3-.8-14.44%2C6.95-30.01%2C10.92-46.26%2C11.8-.95.05-1.68.86-1.62%2C1.81.05.92.81%2C1.63%2C1.72%2C1.63.03%2C0%2C.06%2C0%2C.09%2C0%2C16.71-.9%2C32.72-4.99%2C47.57-12.13.86-.41%2C1.22-1.44.8-2.3Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M251.51%2C324.82c-8.27%2C9.38-17.86%2C17.39-28.51%2C23.82-.81.49-1.07%2C1.55-.58%2C2.36.32.54.89.83%2C1.47.83.3%2C0%2C.61-.08.89-.25%2C10.95-6.61%2C20.81-14.85%2C29.31-24.49.63-.71.56-1.8-.15-2.43-.71-.63-1.8-.56-2.43.15Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M188.24%2C357.55c-.21-.93-1.14-1.5-2.06-1.29-8.59%2C1.99-17.55%2C2.99-26.65%2C2.99-1.56%2C0-3.15-.03-4.85-.1-.94-.05-1.75.7-1.78%2C1.65-.04.95.7%2C1.75%2C1.65%2C1.78%2C1.75.07%2C3.38.1%2C4.98.1%2C9.36%2C0%2C18.58-1.04%2C27.42-3.08.93-.21%2C1.5-1.14%2C1.29-2.06Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M255.95%2C310.86c-.77-.56-1.84-.38-2.4.39-10.66%2C14.78-24.17%2C26.52-40.15%2C34.9-5.76%2C3.02-11.78%2C5.56-17.9%2C7.53-.9.29-1.4%2C1.26-1.11%2C2.17.24.73.91%2C1.19%2C1.64%2C1.19.18%2C0%2C.35-.03.53-.08%2C6.31-2.04%2C12.51-4.65%2C18.44-7.76%2C16.46-8.63%2C30.37-20.72%2C41.34-35.94.56-.77.38-1.85-.39-2.4Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M255.9%2C298.12c-.82-.48-1.87-.22-2.36.6-10.48%2C17.67-25.46%2C31.97-43.33%2C41.34-15.58%2C8.17-32.63%2C12.32-50.68%2C12.32-4.49%2C0-9.02-.27-13.48-.79-.95-.11-1.8.56-1.91%2C1.51-.11.94.56%2C1.8%2C1.51%2C1.91%2C4.59.54%2C9.26.82%2C13.88.82%2C18.61%2C0%2C36.2-4.28%2C52.28-12.71%2C18.43-9.67%2C33.89-24.42%2C44.69-42.64.48-.82.21-1.87-.6-2.36Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M138.07%2C232.83c.12%2C0%2C.25-.01.37-.04%2C3.28-.73%2C6.64-1.18%2C9.98-1.34.87-.04%2C1.57-.73%2C1.63-1.6.3-4.29%2C1.07-8.54%2C2.28-12.64.27-.91-.25-1.87-1.16-2.14-.91-.27-1.87.25-2.14%2C1.16-1.14%2C3.86-1.91%2C7.84-2.29%2C11.87-3.03.22-6.07.66-9.05%2C1.32-.93.21-1.51%2C1.12-1.31%2C2.05.18.8.89%2C1.35%2C1.68%2C1.35Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M208.61%2C337.01c21.3-11.18%2C37.89-29.05%2C47.98-51.68.39-.87%2C0-1.88-.87-2.27-.87-.39-1.88%2C0-2.27.87-9.77%2C21.92-25.83%2C39.22-46.44%2C50.03-14.59%2C7.65-30.56%2C11.53-47.49%2C11.53-5.33%2C0-10.72-.4-16.04-1.19-1.23-.18-2.51-.42-3.81-.71-.93-.21-1.85.38-2.05%2C1.3-.21.93.38%2C1.85%2C1.3%2C2.05%2C1.38.31%2C2.75.56%2C4.06.75%2C5.48.81%2C11.04%2C1.22%2C16.53%2C1.22%2C17.48%2C0%2C34-4.01%2C49.08-11.93Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M155.04%2C233.93s.04%2C0%2C.06%2C0c.92%2C0%2C1.69-.73%2C1.72-1.66.26-7.61%2C2.11-14.93%2C5.49-21.74.42-.85.07-1.88-.78-2.3-.85-.42-1.88-.07-2.3.78-3.6%2C7.26-5.57%2C15.05-5.85%2C23.15-.03.95.71%2C1.75%2C1.66%2C1.78Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M133.54%2C241.25c.19%2C0%2C.38-.03.56-.1%2C5.53-1.92%2C11.3-2.89%2C17.16-2.89.95%2C0%2C1.72-.77%2C1.72-1.72s-.77-1.72-1.72-1.72c-6.24%2C0-12.4%2C1.04-18.29%2C3.08-.9.31-1.37%2C1.29-1.06%2C2.19.25.71.91%2C1.16%2C1.62%2C1.16Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M159.52%2C342.06c16.36%2C0%2C31.8-3.75%2C45.89-11.14%2C24.58-12.9%2C42.86-36.2%2C50.52-64.21.38-1.38%2C1.53-4-.26-4.78-1-.43-2.11.17-2.35%2C1.16-6.94%2C28.3-24.99%2C51.91-49.5%2C64.78-13.59%2C7.13-28.49%2C10.74-44.29%2C10.74-4.96%2C0-10.02-.37-15.03-1.11-3.31-.49-6.54-1.32-9.6-2.47-.89-.33-1.88.11-2.22%2C1-.33.89.11%2C1.88%2C1%2C2.22%2C3.29%2C1.24%2C6.75%2C2.13%2C10.31%2C2.66%2C5.18.76%2C10.4%2C1.15%2C15.53%2C1.15Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M160.24%2C235.43c.02.93.79%2C1.68%2C1.72%2C1.68.02%2C0%2C.03%2C0%2C.05%2C0%2C.95-.02%2C1.7-.81%2C1.67-1.76-.27-10.54%2C3.11-20.97%2C9.53-29.36.58-.75.43-1.83-.32-2.41-.76-.58-1.83-.43-2.41.32-6.89%2C9.02-10.52%2C20.22-10.23%2C31.54Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M128.83%2C248.91c.4.94%2C1.49%2C1.3%2C2.34.88%2C6.34-3.08%2C13.1-4.64%2C20.1-4.64%2C2.28%2C0%2C4.57.17%2C6.8.5.94.14%2C1.81-.51%2C1.95-1.45.14-.94-.51-1.81-1.45-1.95-2.4-.35-4.85-.53-7.3-.53-7.49%2C0-14.73%2C1.66-21.51%2C4.94-.8.29-1.32%2C1.34-.93%2C2.26Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M159.52%2C335.18c15.23%2C0%2C29.59-3.48%2C42.69-10.35%2C29.36-15.41%2C48.29-45.8%2C50.65-81.31.06-.95-.65-1.77-1.6-1.83-.95-.06-1.77.65-1.83%2C1.6-2.28%2C34.3-20.53%2C63.65-48.82%2C78.49-12.6%2C6.61-26.43%2C9.96-41.09%2C9.96-4.64%2C0-9.36-.35-14.02-1.03-4.97-.74-9.65-2.36-13.92-4.81-.82-.47-1.87-.19-2.35.63-.47.82-.19%2C1.87.63%2C2.35%2C4.64%2C2.67%2C9.73%2C4.43%2C15.13%2C5.23%2C4.83.71%2C9.72%2C1.07%2C14.52%2C1.07Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M128.61%2C258.89c.33%2C0%2C.66-.09.95-.29%2C8.11-5.37%2C17.82-7.56%2C27.5-6.16.82.12%2C1.64.18%2C2.45.18%2C1.73%2C0%2C3.23-.31%2C4.35-.89%2C3.5-1.83%2C6.92-8.11%2C6.7-16.57-.31-12.25%2C4.95-23.75%2C14.45-31.57.73-.6.84-1.69.23-2.42-.6-.73-1.69-.84-2.42-.23-10.32%2C8.5-16.04%2C21-15.7%2C34.32.19%2C7.41-2.73%2C12.32-4.86%2C13.43-.36.19-1.19.5-2.75.5-.64%2C0-1.29-.05-1.95-.15-10.55-1.53-21.09.85-29.9%2C6.69-.79.52-1.01%2C1.59-.48%2C2.38.33.5.88.77%2C1.44.77Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M159.52%2C328.3c14.11%2C0%2C27.4-3.22%2C39.49-9.56%2C30.07-15.78%2C48.15-48.56%2C47.19-85.54-.03-1.12-.11-2.25-.25-3.48-.07-.83-.79-1.57-1.71-1.57s-1.72.77-1.72%2C1.72c0%2C.07%2C0%2C.13.01.2.13%2C1.14.21%2C2.19.24%2C3.21.93%2C35.67-16.45%2C67.25-45.35%2C82.41-11.6%2C6.08-24.35%2C9.17-37.9%2C9.17-4.33%2C0-8.71-.32-13.01-.97-6.26-.92-12.05-3.59-16.75-7.72-.71-.63-1.8-.56-2.43.16-.63.71-.56%2C1.8.16%2C2.43%2C5.2%2C4.56%2C11.6%2C7.52%2C18.51%2C8.53%2C4.47.67%2C9.02%2C1%2C13.52%2C1Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M128.1%2C267.97c.41%2C0%2C.83-.15%2C1.16-.45%2C6.08-5.56%2C13.89-8.62%2C22.01-8.62%2C1.61%2C0%2C3.22.12%2C4.79.35%2C1.13.17%2C2.3.25%2C3.45.25%2C2.89%2C0%2C5.43-.57%2C7.55-1.68%2C6.48-3.39%2C10.64-12.57%2C10.37-22.84-.35-13.71%2C8-26.28%2C20.78-31.29.88-.35%2C1.32-1.34.97-2.23-.35-.88-1.34-1.32-2.23-.97-14.12%2C5.53-23.35%2C19.43-22.97%2C34.58.24%2C8.99-3.19%2C16.9-8.54%2C19.7-1.62.85-3.62%2C1.29-5.95%2C1.29-.99%2C0-1.98-.07-2.95-.22-1.74-.26-3.52-.39-5.3-.39-8.98%2C0-17.62%2C3.38-24.33%2C9.52-.7.64-.75%2C1.73-.11%2C2.43.34.37.8.56%2C1.27.56Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M147.01%2C320.5c4.17.62%2C8.38.93%2C12.51.93%2C12.98%2C0%2C25.2-2.95%2C36.3-8.78%2C27.72-14.55%2C44.39-44.92%2C43.5-79.27-.21-7.98-3.5-15.33-9.24-20.65l-.24-.23-.05-.02c-2.54-2.31-5.42-4.13-8.58-5.41-.42-.17-.85-.33-1.28-.48l-.29-.14h-.13c-3.01-1.02-6.18-1.54-9.44-1.54-.23%2C0-.47%2C0-.75%2C0-16.11.42-28.88%2C13.88-28.47%2C29.99.31%2C11.73-4.49%2C21.92-12.22%2C25.98-2.05%2C1.08-4.4%2C1.74-6.97%2C1.98-.95.09-1.64.92-1.56%2C1.87.09.95.92%2C1.64%2C1.87%2C1.56%2C3.03-.28%2C5.81-1.07%2C8.26-2.36%2C8.88-4.66%2C14.4-16.08%2C14.06-29.11-.37-14.22%2C10.9-26.09%2C25.12-26.46.25%2C0%2C.45%2C0%2C.67%2C0%2C2.95%2C0%2C5.81.48%2C8.52%2C1.42%2C3.24%2C1.58%2C6.32%2C3.43%2C9.16%2C5.5%2C5.06%2C4.73%2C7.94%2C11.19%2C8.12%2C18.2.86%2C33.03-15.11%2C62.21-41.66%2C76.14-10.61%2C5.56-22.28%2C8.38-34.7%2C8.38-3.96%2C0-8-.3-12.01-.89-6.82-1.01-12.83-4.6-16.94-10.13-.36-.49-.71-1-1.03-1.5-.51-.8-1.58-1.03-2.38-.52-.8.51-1.03%2C1.58-.52%2C2.38.36.56.75%2C1.13%2C1.16%2C1.69%2C4.66%2C6.26%2C11.48%2C10.34%2C19.2%2C11.48Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M127.17%2C278.25c.29.18.61.27.93.27.57%2C0%2C1.12-.28%2C1.45-.79%2C4.74-7.38%2C13.07-11.96%2C21.72-11.96%2C1.28%2C0%2C2.55.09%2C3.78.28.94.14%2C1.81-.51%2C1.95-1.45.14-.94-.51-1.81-1.45-1.95-1.4-.21-2.84-.31-4.29-.31-9.96%2C0-19.16%2C5.06-24.62%2C13.54-.51.8-.28%2C1.86.52%2C2.38Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M171.85%2C266.96c-3.62%2C1.9-7.77%2C2.86-12.34%2C2.86-1.64%2C0-3.31-.12-4.96-.37-1.08-.16-2.19-.24-3.28-.24-11%2C0-20.5%2C8.21-22.1%2C19.1-.87%2C5.91.61%2C11.8%2C4.17%2C16.6%2C3.56%2C4.79%2C8.78%2C7.91%2C14.68%2C8.78%2C3.81.56%2C7.69.85%2C11.51.85%2C11.87%2C0%2C23-2.69%2C33.1-7.98%2C25.39-13.32%2C40.65-41.29%2C39.82-73-.32-12.21-10.14-21.78-22.36-21.78-.18%2C0-.36%2C0-.57%2C0-12.32.32-22.09%2C10.61-21.77%2C22.93.37%2C14.33-5.87%2C26.98-15.9%2C32.25ZM191.19%2C234.63c-.27-10.43%2C7.99-19.13%2C18.42-19.4.18%2C0%2C.33%2C0%2C.49%2C0%2C10.34%2C0%2C18.65%2C8.09%2C18.92%2C18.43.79%2C30.39-13.77%2C57.16-37.98%2C69.87-9.6%2C5.04-20.2%2C7.59-31.51%2C7.59-3.65%2C0-7.35-.27-11-.81-5-.74-9.41-3.38-12.42-7.43-3.01-4.06-4.27-9.04-3.53-14.04%2C1.36-9.21%2C9.4-16.16%2C18.7-16.16.92%2C0%2C1.86.07%2C2.78.2%2C1.82.27%2C3.66.4%2C5.46.4%2C5.13%2C0%2C9.82-1.1%2C13.94-3.26%2C11.18-5.87%2C18.15-19.76%2C17.74-35.38Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M153.54%2C276.26c-.75-.11-1.52-.17-2.27-.17-7.61%2C0-14.19%2C5.68-15.3%2C13.22-.6%2C4.09.42%2C8.17%2C2.89%2C11.49%2C2.47%2C3.32%2C6.08%2C5.48%2C10.16%2C6.08%2C3.48.51%2C7.02.78%2C10.5.78%2C10.74%2C0%2C20.8-2.42%2C29.91-7.2%2C4.89-2.57%2C9.44-5.78%2C13.53-9.57.7-.64.74-1.73.1-2.43-.64-.7-1.73-.74-2.43-.1-3.87%2C3.58-8.17%2C6.62-12.79%2C9.05-8.61%2C4.51-18.13%2C6.8-28.31%2C6.8-3.32%2C0-6.68-.25-10-.74-3.18-.47-5.99-2.15-7.9-4.73-1.92-2.58-2.72-5.75-2.25-8.94.86-5.86%2C5.98-10.28%2C11.9-10.28.59%2C0%2C1.18.04%2C1.77.13%2C2.15.32%2C4.33.48%2C6.47.48%2C6.25%2C0%2C12.02-1.36%2C17.13-4.05%2C13.49-7.08%2C21.89-23.42%2C21.42-41.65-.17-6.64%2C5.09-12.17%2C11.72-12.35.11%2C0%2C.21%2C0%2C.31%2C0%2C6.58%2C0%2C11.87%2C5.15%2C12.04%2C11.73.48%2C18.57-5.24%2C35.94-16.12%2C48.9-.61.73-.52%2C1.81.21%2C2.42.73.61%2C1.81.52%2C2.42-.21%2C11.42-13.6%2C17.43-31.79%2C16.92-51.2-.22-8.45-7.02-15.08-15.48-15.08-.13%2C0-.25%2C0-.39%2C0-8.53.22-15.29%2C7.34-15.07%2C15.87.44%2C16.93-7.24%2C32.05-19.58%2C38.52-4.62%2C2.42-9.84%2C3.65-15.54%2C3.65-1.97%2C0-3.98-.15-5.97-.44Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M178.24%2C279.15c-9.48%2C4.98-19.21%2C4.88-25.71%2C3.92-2.27-.34-4.54.23-6.39%2C1.6-1.84%2C1.37-3.04%2C3.38-3.38%2C5.65-.34%2C2.27.23%2C4.54%2C1.6%2C6.38%2C1.37%2C1.84%2C3.38%2C3.04%2C5.65%2C3.38%2C3.15.47%2C6.35.7%2C9.49.7%2C9.62%2C0%2C18.6-2.16%2C26.71-6.41%2C20.71-10.87%2C33.15-34.03%2C32.46-60.46-.12-4.73-4.08-8.5-8.82-8.37-4.74.12-8.5%2C4.08-8.37%2C8.82.51%2C19.53-8.62%2C37.11-23.26%2C44.79ZM204.94%2C234.27c-.07-2.84%2C2.18-5.22%2C5.02-5.29%2C2.86-.07%2C5.22%2C2.18%2C5.29%2C5.02.65%2C25.11-11.08%2C47.08-30.62%2C57.33-7.61%2C3.99-16.06%2C6.02-25.11%2C6.02-2.98%2C0-6.01-.22-8.99-.66-1.36-.2-2.57-.92-3.39-2.03-.82-1.11-1.16-2.47-.96-3.83.2-1.36.92-2.57%2C2.03-3.39.9-.67%2C1.96-1.02%2C3.06-1.02.25%2C0%2C.51.02.77.06%2C7%2C1.03%2C17.51%2C1.13%2C27.81-4.28%2C15.79-8.28%2C25.64-27.09%2C25.1-47.92Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M208.12%2C252.34c.13.03.26.04.38.04.79%2C0%2C1.49-.54%2C1.68-1.34%2C1.24-5.48%2C1.8-11.18%2C1.64-16.95-.02-.95-.81-1.68-1.76-1.67-.95.02-1.7.81-1.67%2C1.76.14%2C5.49-.38%2C10.91-1.56%2C16.1-.21.93.37%2C1.85%2C1.3%2C2.06Z%22%2F%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M151.53%2C289.87c-.94-.14-1.81.51-1.95%2C1.45-.14.94.51%2C1.81%2C1.45%2C1.95%2C2.48.37%2C5.35.63%2C8.49.63%2C6.98%2C0%2C15.28-1.3%2C23.52-5.62%2C10.74-5.64%2C19.35-15.53%2C24.24-27.84.35-.88-.08-1.88-.96-2.23-.88-.35-1.88.08-2.23.96-4.58%2C11.55-12.62%2C20.81-22.64%2C26.07-11.12%2C5.84-22.4%2C5.74-29.91%2C4.64Z%22%2F%3E%20%20%20%20%3C%2Fg%3E%20%20%20%20%3Cg%3E%20%20%20%20%20%20%3Cg%3E%20%20%20%20%20%20%20%20%3Cpath%20class%3D%22st2%22%20d%3D%22M169.8%2C359.7c-1.08.17-1.82%2C1.19-1.65%2C2.27.01.08%2C1.19%2C8.11-3.85%2C14.24-3.66%2C4.46-9.72%2C6.92-18.01%2C7.33-1.11-1.1-3.01-2.47-4.22-.66-1.8%2C2.68-6.25%2C10.77-4.59%2C11.95%2C1.13.79%2C5.15-4.16%2C7.65-7.47.25.11.52.18.81.18.03%2C0%2C.05%2C0%2C.08%2C0%2C9.71-.4%2C16.91-3.37%2C21.38-8.84%2C6.16-7.54%2C4.73-16.95%2C4.66-17.35-.17-1.08-1.19-1.82-2.27-1.64Z%22%2F%3E%20%20%20%20%20%20%20%20%3Cpath%20class%3D%22st2%22%20d%3D%22M244.74%2C386.46c-.37-1.5-8.28.05-12.08.89l-16.56-32.02c-.5-.97-1.7-1.35-2.68-.85-.97.5-1.36%2C1.7-.85%2C2.68l17.77%2C34.35c.35.68%2C1.05%2C1.07%2C1.76%2C1.07.17%2C0%2C.35-.03.52-.08.24.03.5.02.8-.06%2C3.13-.84%2C11.8-4%2C11.31-5.98Z%22%2F%3E%20%20%20%20%20%20%3C%2Fg%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st2%22%20d%3D%22M288.57%2C249.79c-1-.45-2.18%2C0-2.62%2C1l-1.22%2C2.72-.69-3.22c-.23-1.07-1.29-1.75-2.36-1.52-1.07.23-1.75%2C1.29-1.52%2C2.36l.97%2C4.52-1.1-.7c-.92-.59-2.15-.32-2.74.61-.59.92-.32%2C2.15.61%2C2.74l4.04%2C2.57c-3.26%2C24.21-14.39%2C36.67-33.11%2C37.01-1.1.02-1.97.92-1.95%2C2.02.02%2C1.08.9%2C1.95%2C1.98%2C1.95.01%2C0%2C.02%2C0%2C.04%2C0%2C14.62-.27%2C32.89-7.68%2C37.11-41.42l3.58-8.01c.45-1%2C0-2.18-1-2.62Z%22%2F%3E%20%20%20%20%20%20%3Cg%3E%20%20%20%20%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M155.36%2C310.77l-59.12-11.92s-3.16.18-5.17%2C6.36c-2.02%2C6.18-1.84%2C54.09-1.84%2C54.09l59.75%2C8.02.53-1.84%2C2.99.3%2C4.17-44.39s1.99-3.98-1.3-10.64Z%22%2F%3E%20%20%20%20%20%20%20%20%3Cpath%20class%3D%22st2%22%20d%3D%22M156.67%2C321.41s-.1-5.9-1.41-5.85c-1.31.05-2.46%2C4.06-2.46%2C4.06l-3.3%2C45.87%2C2.99.3%2C4.17-44.39Z%22%2F%3E%20%20%20%20%20%20%20%20%3Cpolygon%20class%3D%22st1%22%20points%3D%22155.39%20320.27%20152.8%20319.62%20149.62%20363.95%20151.36%20364.11%20155.39%20320.27%22%2F%3E%20%20%20%20%20%20%3C%2Fg%3E%20%20%20%20%20%20%3Cpath%20class%3D%22st2%22%20d%3D%22M135.14%2C301.85c-.39-1.02-1.54-1.54-2.56-1.15-11.02%2C4.18-23.89%2C15.37-22.77%2C44.9l-2.24%2C8.48c-.28%2C1.06.35%2C2.15%2C1.41%2C2.43.17.04.34.07.51.07.88%2C0%2C1.68-.59%2C1.92-1.48l.76-2.88%2C1.2%2C3.07c.31.78%2C1.06%2C1.26%2C1.85%2C1.26.24%2C0%2C.49-.04.72-.14%2C1.02-.4%2C1.52-1.55%2C1.12-2.57l-1.69-4.3%2C1.2.51c.26.11.52.16.78.16.77%2C0%2C1.5-.45%2C1.83-1.2.43-1.01-.03-2.17-1.04-2.61l-4.4-1.89c-.6-21.28%2C6.2-34.77%2C20.24-40.1%2C1.03-.39%2C1.54-1.53%2C1.15-2.56Z%22%2F%3E%20%20%20%20%3C%2Fg%3E%20%20%3C%2Fg%3E%20%20%3Cg%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M341.16%2C271.33c.18.14.34.26.48.35.14.09.3.19.48.3%2C3.23%2C1.51%2C4.99%2C4.04%2C5.28%2C7.59.07.97.12%2C1.93.13%2C2.88.02.95%2C0%2C1.91-.03%2C2.88%2C0%2C.86-.18%2C1.67-.54%2C2.42-.36.75-.77%2C1.49-1.24%2C2.21-1.15%2C1.61-2.49%2C2.96-4.01%2C4.04-1.53%2C1.08-3.29%2C1.78-5.3%2C2.1-.93.18-1.88.29-2.83.32-.95.04-1.91.05-2.88.05-1.79.04-3.6.04-5.41.03-1.81-.02-3.67-.04-5.57-.08-.5%2C0-1.01-.02-1.53-.05-.52-.04-1.05-.09-1.59-.16-.83-.07-1.41-.27-1.75-.59-.34-.32-.55-.95-.62-1.88-.04-.39-.05-.82-.03-1.27.02-.45%2C0-.89-.03-1.32-.4-4.38-.64-8.73-.73-13.05-.09-4.32-.12-8.66-.08-13%2C0-1.83-.02-3.64-.05-5.44-.04-1.79-.05-3.59-.05-5.38v-.92c0-.32.02-.65.05-.97.14-.72.38-1.21.7-1.48s.84-.4%2C1.56-.4c3.05.11%2C6.09.13%2C9.12.08%2C3.03-.05%2C6.04.1%2C9.02.46%2C4.02.54%2C6.92%2C2.03%2C8.69%2C4.47%2C1.78%2C2.44%2C2.31%2C5.62%2C1.59%2C9.53-.18.9-.49%2C1.79-.94%2C2.66-.45.88-.87%2C1.73-1.27%2C2.56-.07.18-.17.35-.3.51-.13.16-.24.35-.35.57ZM327.22%2C267.29c.79-.04%2C1.56-.06%2C2.32-.08s1.51-.1%2C2.26-.24c.75-.11%2C1.22-.43%2C1.4-.97.18-.54.07-1.11-.32-1.72-.18-.29-.39-.56-.65-.81-.25-.25-.54-.43-.86-.54-.72-.22-1.45-.3-2.18-.24-.74.05-1.46.12-2.18.19.04.83.07%2C1.57.11%2C2.23.04.67.07%2C1.39.11%2C2.18ZM327.6%2C283.98c.72%2C0%2C1.4.02%2C2.04.05.65.04%2C1.29.02%2C1.94-.05.72-.07%2C1.31-.27%2C1.78-.59.47-.32.73-.68.81-1.08.07-.5-.09-1.01-.48-1.53-.4-.52-.93-.91-1.62-1.16-.14-.07-.32-.11-.54-.11-.65-.07-1.29-.11-1.94-.11h-1.99v4.58Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M367.7%2C291.57c0%2C.47-.02.94-.05%2C1.43-.04.49-.09.94-.16%2C1.37-.18.72-.47%2C1.23-.86%2C1.53-.4.3-.95.46-1.67.46h-11.57c-1.26%2C0-2.09-.22-2.5-.65-.41-.43-.64-1.31-.67-2.64-.07-6.17-.08-12.19-.03-18.06.05-5.87-.03-11.74-.24-17.63-.04-.72-.06-1.42-.08-2.1-.02-.68-.03-1.38-.03-2.1.04-.93.22-1.55.56-1.86.34-.3.98-.46%2C1.91-.46%2C2.26%2C0%2C4.4%2C0%2C6.43-.03%2C2.03-.02%2C4.15-.03%2C6.38-.03%2C1%2C0%2C1.66.15%2C1.96.46.31.31.46.94.46%2C1.91-.07%2C6.57-.05%2C13.03.08%2C19.38.13%2C6.35.15%2C12.69.08%2C19Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M398.17%2C271.33c.18.14.34.26.48.35.14.09.3.19.48.3%2C3.23%2C1.51%2C4.99%2C4.04%2C5.28%2C7.59.07.97.12%2C1.93.13%2C2.88.02.95%2C0%2C1.91-.03%2C2.88%2C0%2C.86-.18%2C1.67-.54%2C2.42-.36.75-.77%2C1.49-1.24%2C2.21-1.15%2C1.61-2.49%2C2.96-4.01%2C4.04s-3.29%2C1.78-5.3%2C2.1c-.93.18-1.88.29-2.83.32-.95.04-1.91.05-2.88.05-1.79.04-3.6.04-5.41.03-1.81-.02-3.67-.04-5.57-.08-.5%2C0-1.01-.02-1.53-.05-.52-.04-1.05-.09-1.59-.16-.83-.07-1.41-.27-1.75-.59-.34-.32-.55-.95-.62-1.88-.04-.39-.05-.82-.03-1.27.02-.45%2C0-.89-.03-1.32-.4-4.38-.64-8.73-.73-13.05-.09-4.32-.12-8.66-.08-13%2C0-1.83-.02-3.64-.05-5.44-.04-1.79-.05-3.59-.05-5.38v-.92c0-.32.02-.65.05-.97.14-.72.38-1.21.7-1.48s.84-.4%2C1.56-.4c3.05.11%2C6.09.13%2C9.12.08%2C3.03-.05%2C6.04.1%2C9.02.46%2C4.02.54%2C6.92%2C2.03%2C8.69%2C4.47%2C1.78%2C2.44%2C2.31%2C5.62%2C1.59%2C9.53-.18.9-.49%2C1.79-.94%2C2.66s-.87%2C1.73-1.27%2C2.56c-.07.18-.17.35-.3.51-.13.16-.24.35-.35.57ZM384.22%2C267.29c.79-.04%2C1.56-.06%2C2.32-.08s1.51-.1%2C2.26-.24c.75-.11%2C1.22-.43%2C1.4-.97s.07-1.11-.32-1.72c-.18-.29-.39-.56-.65-.81-.25-.25-.54-.43-.86-.54-.72-.22-1.45-.3-2.18-.24-.74.05-1.46.12-2.18.19.04.83.07%2C1.57.11%2C2.23.04.67.07%2C1.39.11%2C2.18ZM384.6%2C283.98c.72%2C0%2C1.4.02%2C2.04.05.65.04%2C1.29.02%2C1.94-.05.72-.07%2C1.31-.27%2C1.78-.59.47-.32.73-.68.81-1.08.07-.5-.09-1.01-.48-1.53-.4-.52-.93-.91-1.62-1.16-.14-.07-.32-.11-.54-.11-.65-.07-1.29-.11-1.94-.11h-1.99v4.58Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M430.78%2C279.83h5.71c.82%2C0%2C1.41.17%2C1.75.51.34.34.55.92.62%2C1.75.07.39.11.79.11%2C1.18v6.11c0%2C1.63-.04%2C3.29-.11%2C4.98%2C0%2C.82-.16%2C1.39-.48%2C1.7-.32.31-.9.46-1.72.46h-13.16c-4.36%2C0-8.77-.04-13.21-.11-.18%2C0-.33.02-.46.05s-.28.05-.46.05c-.72-.07-1.23-.25-1.53-.54-.31-.29-.48-.79-.51-1.51-.07-2.04-.14-4.06-.22-6.06-.07-1.99-.11-4.01-.11-6.06-.07-3.3-.07-6.58%2C0-9.85.07-3.27.11-6.57.11-9.9%2C0-1.54-.04-3.09-.11-4.63-.07-1.54-.14-3.09-.22-4.63-.04-1.08.13-1.81.51-2.21.38-.39%2C1.08-.57%2C2.13-.54%2C2.26%2C0%2C4.54.01%2C6.84.03%2C2.3.02%2C4.59.03%2C6.89.03%2C1.04.04%2C1.75.24%2C2.13.62.38.38.56%2C1.1.56%2C2.18-.04%2C3.05-.07%2C6.07-.11%2C9.07-.04%2C3-.07%2C5.98-.11%2C8.96-.07%2C1.36-.09%2C2.75-.05%2C4.15.04%2C1.4.05%2C2.8.05%2C4.2h5.17Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M459.26%2C291.57c0%2C.47-.02.94-.05%2C1.43-.04.49-.09.94-.16%2C1.37-.18.72-.47%2C1.23-.86%2C1.53-.4.3-.95.46-1.67.46h-11.57c-1.26%2C0-2.09-.22-2.5-.65-.41-.43-.64-1.31-.67-2.64-.07-6.17-.08-12.19-.03-18.06.05-5.87-.03-11.74-.24-17.63-.04-.72-.06-1.42-.08-2.1s-.03-1.38-.03-2.1c.04-.93.22-1.55.56-1.86.34-.3.98-.46%2C1.91-.46%2C2.26%2C0%2C4.4%2C0%2C6.43-.03%2C2.03-.02%2C4.15-.03%2C6.38-.03%2C1%2C0%2C1.66.15%2C1.96.46s.46.94.46%2C1.91c-.07%2C6.57-.05%2C13.03.08%2C19.38.13%2C6.35.15%2C12.69.08%2C19Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M496.51%2C291.35c-1.04%2C1.87-2.37%2C3.16-3.98%2C3.88-1.61.72-3.39%2C1.13-5.33%2C1.24-2.37.18-4.76.22-7.16.13-2.4-.09-4.83-.1-7.27-.03-1.54.04-2.92-.29-4.12-.97-1.2-.68-2.23-1.57-3.09-2.66-.86-1.1-1.53-2.31-2.02-3.63-.48-1.33-.78-2.64-.89-3.93-.36-3.34-.54-6.65-.54-9.93s.09-6.59.27-9.93c.07-2.04.37-4%2C.89-5.87.52-1.86%2C1.46-3.62%2C2.83-5.27.68-.86%2C1.51-1.53%2C2.48-1.99.97-.47%2C1.99-.82%2C3.07-1.05%2C1.08-.23%2C2.17-.38%2C3.28-.46%2C1.11-.07%2C2.15-.14%2C3.12-.22%2C1.43-.11%2C2.85-.15%2C4.25-.13%2C1.4.02%2C2.83.03%2C4.31.03%2C1.58%2C0%2C3.03.25%2C4.36.75%2C1.33.5%2C2.48%2C1.21%2C3.44%2C2.13.97.91%2C1.74%2C2.03%2C2.32%2C3.34.57%2C1.31.92%2C2.75%2C1.02%2C4.33.29%2C4.05.48%2C7.98.59%2C11.76.11%2C3.79.02%2C7.69-.27%2C11.71-.07%2C1.26-.22%2C2.44-.43%2C3.55-.22%2C1.11-.59%2C2.19-1.13%2C3.23ZM484.13%2C267.29c-.14-1.26-.57-2.12-1.27-2.58-.7-.47-1.45-.62-2.26-.46-.81.16-1.53.6-2.18%2C1.32-.65.72-.97%2C1.61-.97%2C2.69.04%2C1.65.05%2C3.29.05%2C4.93s.02%2C3.31.05%2C5.03c0%2C1.76.35%2C3.02%2C1.05%2C3.8.7.77%2C1.46%2C1.14%2C2.29%2C1.1.83-.04%2C1.59-.44%2C2.29-1.21.7-.77%2C1.05-1.84%2C1.05-3.2.04-1.83.05-3.73.03-5.71-.02-1.97-.06-3.88-.13-5.71Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M528.59%2C272.68c.07%2C3.3.14%2C6.57.22%2C9.8.07%2C3.23.12%2C6.5.16%2C9.8%2C0%2C1.61-.32%2C2.74-.97%2C3.39-.65.65-1.78.97-3.39.97-3.09%2C0-6.15-.11-9.2-.32-.32%2C0-.64-.03-.94-.08-.3-.05-.62-.12-.94-.19-.61-.18-1.04-.42-1.29-.73-.25-.3-.38-.76-.38-1.37-.04-.5-.05-1.01-.03-1.53.02-.52.03-1.03.03-1.53v-23.47h-3.5c-.72%2C0-1.45.01-2.18.03s-1.5%2C0-2.29-.08c-.97-.14-1.7-.48-2.21-1-.5-.52-.79-1.3-.86-2.34-.07-1.69-.11-3.37-.11-5.06s.02-3.39.05-5.11c.04-1.22.33-2.07.89-2.56.56-.48%2C1.43-.71%2C2.61-.67%2C4.7.04%2C9.37.06%2C14.02.08s9.32.06%2C14.02.13c.5%2C0%2C1.02-.02%2C1.56-.05.54-.04%2C1.06-.07%2C1.56-.11.9-.07%2C1.61.09%2C2.15.48.54.4.84%2C1.02.92%2C1.88.11.57.14%2C1.18.11%2C1.8-.04.63-.05%2C1.25-.05%2C1.86-.04%2C1.26-.07%2C2.49-.11%2C3.69-.04%2C1.2-.11%2C2.39-.22%2C3.58-.11%2C1.04-.34%2C1.7-.7%2C1.96-.36.27-1.08.42-2.15.46-1.08.04-2.17.09-3.28.16-1.11.07-2.28.14-3.5.22v5.92Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M553.72%2C267.99c1.65.18%2C3.29.28%2C4.92.3%2C1.63.02%2C3.26.05%2C4.87.08.9.04%2C1.49.19%2C1.78.46.29.27.47.82.54%2C1.64.07%2C1.26.12%2C2.5.13%2C3.71.02%2C1.22.04%2C2.48.08%2C3.77%2C0%2C1.08-.52%2C1.69-1.56%2C1.83-.54.07-1.06.12-1.56.13-.5.02-1.02.03-1.56.03-1.26.07-2.49.09-3.69.05-1.2-.04-2.43-.05-3.69-.05v1.4c1.94.14%2C3.87.21%2C5.79.19%2C1.92-.02%2C3.85%2C0%2C5.79.03.72%2C0%2C1.43.02%2C2.15.05.72.04%2C1.42.09%2C2.1.16.9.11%2C1.56.38%2C1.99.81.43.43.65%2C1.08.65%2C1.94.04%2C3.12.04%2C6.24%2C0%2C9.37-.04%2C1.76-1%2C2.64-2.91%2C2.64h-24.6c-1.18%2C0-2.06-.27-2.64-.81-.57-.54-.95-1.38-1.13-2.53-.11-1.04-.21-2.08-.3-3.12-.09-1.04-.12-2.1-.08-3.18.07-5.13.13-10.24.19-15.34.05-5.09.12-10.23.19-15.39v-.56c0-.2.04-.4.11-.62.14-1.54.55-2.64%2C1.21-3.28.66-.65%2C1.78-1%2C3.36-1.08%2C2.33-.04%2C4.62-.04%2C6.86-.03%2C2.24.02%2C4.53%2C0%2C6.86-.03%2C1%2C0%2C2.04-.03%2C3.09-.08%2C1.06-.05%2C2.11-.08%2C3.15-.08.72%2C0%2C1.43.02%2C2.13.05.7.04%2C1.39.09%2C2.07.16.57.04%2C1%2C.22%2C1.27.54.27.32.46.68.56%2C1.08.11.29.17.61.19.97s.05.7.08%2C1.02v8.4c-.04%2C1.15-.27%2C1.96-.7%2C2.42-.43.47-1.24.7-2.42.7-4.41-.04-8.86-.14-13.35-.32h-1.94v2.58Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M574.79%2C269.07c.27-1.65.67-3.28%2C1.21-4.9.65-2.19%2C1.6-4.15%2C2.85-5.89%2C1.26-1.74%2C2.78-3.26%2C4.58-4.55%2C2.26-1.65%2C4.66-2.69%2C7.18-3.12%2C2.53-.43%2C4.98-.36%2C7.35.22%2C2.37.57%2C4.58%2C1.61%2C6.62%2C3.12%2C2.05%2C1.51%2C3.73%2C3.37%2C5.06%2C5.6.39.65.55%2C1.24.46%2C1.78s-.39%2C1.08-.89%2C1.61c-1.15%2C1.15-2.28%2C2.26-3.39%2C3.34-1.11%2C1.08-2.23%2C2.17-3.34%2C3.28-.57.5-1.02.73-1.35.67-.32-.05-.63-.44-.92-1.16-.72-1.69-1.92-2.92-3.61-3.71-1-.5-1.88-.62-2.61-.35-.74.27-1.35.74-1.83%2C1.43-.49.68-.87%2C1.47-1.16%2C2.37-.29.9-.48%2C1.71-.59%2C2.42-.14.93-.18%2C1.85-.11%2C2.75.07.9.14%2C1.81.22%2C2.75%2C0%2C.18%2C0%2C.33.03.46.02.13.04.28.08.46.39%2C1.94%2C1.24%2C3.17%2C2.53%2C3.69%2C1.29.52%2C2.76.26%2C4.41-.78.39-.29.78-.59%2C1.16-.92.38-.32.76-.65%2C1.16-.97.61-.54%2C1.12-.81%2C1.53-.81s.89.32%2C1.43.97c1.04%2C1.18%2C2.06%2C2.41%2C3.07%2C3.69%2C1%2C1.27%2C2.01%2C2.58%2C3.01%2C3.9.65.83.94%2C1.52.89%2C2.07-.05.56-.42%2C1.23-1.1%2C2.02-1.79%2C2.01-3.82%2C3.59-6.08%2C4.74-2.26%2C1.15-4.59%2C1.84-7%2C2.07-2.4.23-4.78%2C0-7.13-.73-2.35-.72-4.49-1.97-6.43-3.77-2.48-2.08-4.32-4.45-5.52-7.11-1.2-2.66-1.86-5.62-1.96-8.88-.04-.22-.05-.44-.05-.67s-.02-.49-.05-.78v-1.24c-.07-1.72.03-3.41.3-5.06Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M685.22%2C281.93c1.43.61%2C2.36%2C1.45%2C2.77%2C2.53.41%2C1.08.62%2C2.26.62%2C3.55%2C0%2C1.04.03%2C1.97.08%2C2.8.05.83.08%2C1.74.08%2C2.75-.04%2C1-.21%2C1.72-.51%2C2.15-.31.43-.92.66-1.86.7-3.26.11-6.6.11-10.01%2C0-.93-.04-1.67-.2-2.21-.48-.54-.29-.84-.9-.92-1.83-.11-1.04-.13-2.15-.08-3.34.05-1.18.04-2.3-.03-3.34%2C0-1.15-.26-1.92-.78-2.31-.52-.39-1.32-.47-2.4-.22.04.79.07%2C1.48.11%2C2.07.04.59.07%2C1.3.11%2C2.13.07%2C1.29.07%2C2.66%2C0%2C4.09-.07.9-.34%2C1.61-.81%2C2.13s-1.17.82-2.1.89c-1.51.11-3.01.17-4.49.19-1.49.02-3.01-.03-4.55-.13-.97-.04-1.66-.29-2.07-.75-.41-.47-.62-1.22-.62-2.26.07-4.63.11-9.13.11-13.51s.02-8.88.05-13.51v-12.11c0-1.08.22-1.85.67-2.32.45-.47%2C1.19-.72%2C2.23-.75%2C2.12-.11%2C4.2-.19%2C6.24-.24%2C2.05-.05%2C4.11-.12%2C6.19-.19h3.15c1.06%2C0%2C2.13.02%2C3.2.05%2C1.25%2C0%2C2.47.17%2C3.63.51%2C1.17.34%2C2.29.82%2C3.36%2C1.43%2C1%2C.61%2C1.81%2C1.33%2C2.42%2C2.15.61.83%2C1.13%2C1.72%2C1.56%2C2.69.5%2C1.15.92%2C2.58%2C1.27%2C4.31.34%2C1.72.56%2C3.51.67%2C5.36.11%2C1.85.09%2C3.62-.05%2C5.33-.14%2C1.71-.45%2C3.09-.92%2C4.17-.86%2C1.9-2.24%2C3.68-4.14%2C5.33ZM671.33%2C272.68c1.26.68%2C2.27.77%2C3.04.27.77-.5%2C1.18-1.49%2C1.21-2.96.04-.86.04-1.76%2C0-2.69-.04-.93-.13-1.87-.27-2.8-.29-1.94-1.42-2.71-3.39-2.31-.47.07-.81.21-1.02.4s-.31.55-.27%2C1.05c.11%2C1.51.22%2C3.01.35%2C4.52.13%2C1.51.24%2C3.01.35%2C4.52Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M710.57%2C291.57c0%2C.47-.02.94-.05%2C1.43-.04.49-.09.94-.16%2C1.37-.18.72-.47%2C1.23-.86%2C1.53-.4.3-.95.46-1.67.46h-11.57c-1.26%2C0-2.09-.22-2.5-.65-.41-.43-.64-1.31-.67-2.64-.07-6.17-.08-12.19-.03-18.06.05-5.87-.03-11.74-.24-17.63-.04-.72-.06-1.42-.08-2.1s-.03-1.38-.03-2.1c.04-.93.22-1.55.56-1.86.34-.3.98-.46%2C1.91-.46%2C2.26%2C0%2C4.4%2C0%2C6.43-.03%2C2.03-.02%2C4.15-.03%2C6.38-.03%2C1%2C0%2C1.66.15%2C1.96.46.31.31.46.94.46%2C1.91-.07%2C6.57-.05%2C13.03.08%2C19.38.13%2C6.35.15%2C12.69.08%2C19Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M747.82%2C291.35c-1.04%2C1.87-2.37%2C3.16-3.98%2C3.88-1.61.72-3.39%2C1.13-5.33%2C1.24-2.37.18-4.76.22-7.16.13-2.4-.09-4.83-.1-7.27-.03-1.54.04-2.92-.29-4.12-.97-1.2-.68-2.23-1.57-3.09-2.66-.86-1.1-1.53-2.31-2.02-3.63-.48-1.33-.78-2.64-.89-3.93-.36-3.34-.54-6.65-.54-9.93s.09-6.59.27-9.93c.07-2.04.37-4%2C.89-5.87.52-1.86%2C1.46-3.62%2C2.83-5.27.68-.86%2C1.51-1.53%2C2.48-1.99.97-.47%2C1.99-.82%2C3.07-1.05%2C1.08-.23%2C2.17-.38%2C3.28-.46%2C1.11-.07%2C2.15-.14%2C3.12-.22%2C1.43-.11%2C2.85-.15%2C4.25-.13%2C1.4.02%2C2.83.03%2C4.31.03%2C1.58%2C0%2C3.03.25%2C4.36.75%2C1.33.5%2C2.48%2C1.21%2C3.44%2C2.13.97.91%2C1.74%2C2.03%2C2.32%2C3.34.57%2C1.31.92%2C2.75%2C1.02%2C4.33.29%2C4.05.48%2C7.98.59%2C11.76.11%2C3.79.02%2C7.69-.27%2C11.71-.07%2C1.26-.22%2C2.44-.43%2C3.55-.22%2C1.11-.59%2C2.19-1.13%2C3.23ZM735.44%2C267.29c-.14-1.26-.57-2.12-1.27-2.58-.7-.47-1.45-.62-2.26-.46-.81.16-1.53.6-2.18%2C1.32-.65.72-.97%2C1.61-.97%2C2.69.04%2C1.65.05%2C3.29.05%2C4.93s.02%2C3.31.05%2C5.03c0%2C1.76.35%2C3.02%2C1.05%2C3.8.7.77%2C1.46%2C1.14%2C2.29%2C1.1.83-.04%2C1.59-.44%2C2.29-1.21.7-.77%2C1.05-1.84%2C1.05-3.2.04-1.83.05-3.73.03-5.71-.02-1.97-.06-3.88-.13-5.71Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M314.1%2C344.02c-.05-4.25-.12-8.45-.21-12.59-.1-4.14-.17-8.33-.21-12.59v-1.82c.19-1.45.57-2.44%2C1.16-2.98.59-.54%2C1.58-.81%2C2.98-.81h7.29c2.39%2C0%2C4.82.05%2C7.29.14%2C1.5.09%2C2.99.19%2C4.49.28%2C1.5.09%2C2.99.3%2C4.49.63%2C4.07.8%2C7.38%2C2.44%2C9.93%2C4.95%2C2.55%2C2.5%2C4.36%2C5.74%2C5.44%2C9.71.89%2C2.95%2C1.48%2C5.93%2C1.79%2C8.94.3%2C3.02.34%2C6.09.11%2C9.22-.19%2C2.1-.6%2C4.2-1.23%2C6.28-.63%2C2.08-1.44%2C4.1-2.42%2C6.07-1.96%2C3.37-4.34%2C6.14-7.12%2C8.31-2.78%2C2.17-6.09%2C3.71-9.92%2C4.59-2.39.56-4.82.84-7.29.84-2.1-.05-4.17-.07-6.21-.07h-6.21c-1.5%2C0-2.56-.3-3.19-.91-.63-.61-.95-1.73-.95-3.37-.05-4.3-.06-8.49-.04-12.56.02-4.07.04-8.16.04-12.27ZM333.88%2C354.68c1.4.33%2C2.43.2%2C3.09-.38.66-.59%2C1.12-1.32%2C1.4-2.21.09-.51.2-1.02.32-1.51.12-.49.18-.99.18-1.51%2C0-3.13-.07-6.29-.21-9.47-.05-.7-.12-1.4-.21-2.1-.09-.7-.26-1.43-.49-2.17-.38-1.26-.9-2.26-1.58-2.98-.68-.72-1.77-.9-3.26-.53.09%2C3.6.22%2C7.4.39%2C11.4.16%2C4%2C.29%2C7.82.38%2C11.47Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M378.91%2C336.03c2.15.23%2C4.29.36%2C6.42.39%2C2.13.02%2C4.24.06%2C6.35.11%2C1.17.05%2C1.94.24%2C2.31.6s.61%2C1.06.7%2C2.14c.09%2C1.64.15%2C3.25.18%2C4.84.02%2C1.59.06%2C3.23.11%2C4.91%2C0%2C1.4-.68%2C2.2-2.03%2C2.39-.7.09-1.38.15-2.03.17-.66.02-1.33.04-2.03.04-1.64.1-3.24.12-4.8.07-1.57-.05-3.17-.07-4.8-.07v1.82c2.53.19%2C5.04.27%2C7.54.25%2C2.5-.02%2C5.02-.01%2C7.54.04.93%2C0%2C1.87.02%2C2.81.07.93.05%2C1.85.12%2C2.74.21%2C1.17.14%2C2.03.49%2C2.6%2C1.05.56.56.84%2C1.4.84%2C2.52.05%2C4.07.05%2C8.14%2C0%2C12.2-.05%2C2.29-1.31%2C3.44-3.79%2C3.44h-32.05c-1.54%2C0-2.69-.35-3.44-1.05-.75-.7-1.24-1.8-1.47-3.3-.14-1.36-.27-2.71-.39-4.07-.12-1.36-.15-2.74-.11-4.14.09-6.69.18-13.35.25-19.99.07-6.64.15-13.33.25-20.06v-.74c0-.26.05-.53.14-.81.19-2.01.71-3.44%2C1.58-4.28.87-.84%2C2.33-1.31%2C4.38-1.4%2C3.04-.05%2C6.02-.06%2C8.94-.04%2C2.92.02%2C5.9.01%2C8.94-.04%2C1.31%2C0%2C2.65-.04%2C4.03-.11%2C1.38-.07%2C2.75-.11%2C4.1-.11.93%2C0%2C1.86.02%2C2.77.07.91.05%2C1.81.12%2C2.7.21.75.05%2C1.3.28%2C1.65.7.35.42.6.89.74%2C1.4.14.37.22.8.24%2C1.26.02.47.06.91.11%2C1.33v10.94c-.05%2C1.5-.35%2C2.55-.91%2C3.15-.56.61-1.61.91-3.16.91-5.75-.05-11.55-.19-17.39-.42h-2.52v3.37Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M454.02%2C341.5c2.1.05%2C4.18.06%2C6.24.04%2C2.06-.02%2C4.09.04%2C6.1.18.98.05%2C1.72.27%2C2.21.67s.76%2C1.06.81%2C2c.05%2C1.78.06%2C3.51.04%2C5.19s-.08%2C3.41-.18%2C5.19c0%2C.8-.3%2C1.39-.91%2C1.79-.61.4-1.31.6-2.1.6-2.01.09-4.13.15-6.35.18-2.22.02-4.38.04-6.49.04.09%2C2.34.15%2C4.5.18%2C6.49.02%2C1.99.01%2C3.99-.04%2C6%2C0%2C.61-.05%2C1.1-.14%2C1.47-.09.37-.25.68-.46.91-.21.23-.5.41-.88.53-.37.12-.87.2-1.47.25-1.08.1-2.15.14-3.23.14h-3.23c-1.22%2C0-2.42-.01-3.61-.04-1.19-.02-2.4-.06-3.61-.11-.84%2C0-1.44-.15-1.79-.46-.35-.3-.57-.9-.67-1.79-.05-.33-.07-.68-.07-1.05v-1.19c.05-6.17.08-12.32.11-18.45.02-6.12.04-12.27.04-18.45%2C0-1.82-.01-3.68-.04-5.58-.02-1.89-.04-3.73-.04-5.51.05-.75.09-1.53.14-2.35.05-.82.19-1.55.42-2.21.23-.65.6-1.2%2C1.09-1.65.49-.44%2C1.16-.69%2C2-.74%2C2.71-.14%2C5.52-.23%2C8.42-.28%2C2.9-.05%2C5.82-.06%2C8.77-.04%2C2.95.02%2C5.87.06%2C8.77.11%2C2.9.05%2C5.7.05%2C8.42%2C0%2C.61%2C0%2C1.09.14%2C1.44.42.35.28.62.66.81%2C1.12.19.47.29.99.32%2C1.58.02.59.04%2C1.18.04%2C1.79-.1%2C2.38-.13%2C4.76-.11%2C7.12.02%2C2.36-.06%2C4.73-.25%2C7.12-.05.98-.29%2C1.65-.74%2C2-.44.35-1.23.55-2.35.6-2.9.05-5.9.07-9.01.07s-5.97.02-8.59.07v6.24Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M497.08%2C361.56c-.24%2C1.36-.42%2C2.61-.56%2C3.75-.14%2C1.15-.33%2C2.33-.56%2C3.54-.09.51-.19.98-.28%2C1.4-.1.42-.26.82-.49%2C1.19-.42%2C1.17-1.36%2C1.75-2.81%2C1.75-2.71-.05-5.41-.07-8.1-.07h-8.03c-.98%2C0-1.75-.23-2.32-.7-.56-.47-.84-1.17-.84-2.1%2C0-1.12.05-2.22.14-3.3.09-1.08.26-2.13.49-3.16%2C1.26-6.08%2C2.54-12.07%2C3.82-17.99%2C1.29-5.91%2C2.58-11.84%2C3.89-17.78.37-1.68.83-3.31%2C1.37-4.87.54-1.57%2C1.06-3.14%2C1.58-4.73.61-1.78%2C1.41-3%2C2.42-3.68%2C1-.68%2C2.44-1.02%2C4.31-1.02%2C3.09%2C0%2C6.15.01%2C9.19.04%2C3.04.02%2C6.08-.01%2C9.12-.11%2C1.4-.05%2C2.51.23%2C3.33.84.82.61%2C1.48%2C1.45%2C2%2C2.53.23.42.41.86.53%2C1.33s.25.96.39%2C1.47c.93%2C3.74%2C1.83%2C7.45%2C2.7%2C11.12.86%2C3.67%2C1.72%2C7.38%2C2.56%2C11.12.84%2C3.65%2C1.6%2C7.24%2C2.28%2C10.77.68%2C3.53%2C1.37%2C7.07%2C2.07%2C10.62.19.89.38%2C1.74.6%2C2.56s.43%2C1.62.67%2C2.42c.09.33.16.66.21.98.05.33.07.66.07.98.05%2C1.5-.63%2C2.27-2.03%2C2.31h-.7c-2.43.05-4.84.11-7.22.18-2.38.07-4.82.15-7.29.25-1.17.05-2.01-.13-2.52-.53-.51-.4-.89-1.16-1.12-2.28-.24-1.12-.42-2.22-.56-3.3-.14-1.08-.28-2.13-.42-3.16-.09-.51-.16-.96-.21-1.33-.05-.37-.12-.72-.21-1.05h-7.43ZM500.59%2C330.97c-.56%2C3.04-1.06%2C6.04-1.51%2C9.01-.44%2C2.97-.76%2C6-.95%2C9.08h4.91c-.42-3.13-.84-6.18-1.26-9.15-.42-2.97-.82-5.95-1.19-8.94Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M575.01%2C348.37c-.75%2C2.81-1.5%2C5.63-2.24%2C8.49-.75%2C2.85-1.52%2C5.73-2.32%2C8.63-.19.61-.35%2C1.09-.49%2C1.44s-.32.61-.53.77-.51.27-.91.31c-.4.05-.92.07-1.58.07-1.36%2C0-2.71.01-4.07.04-1.36.02-2.74.01-4.14-.04-.98%2C0-1.65-.12-2-.35-.35-.23-.64-.84-.88-1.82-.37-1.12-.69-2.27-.95-3.44-.26-1.17-.53-2.34-.81-3.51-.42-1.49-.84-2.97-1.26-4.42-.42-1.45-.82-2.92-1.19-4.42-.14-.47-.44-.86-.91-1.19.09.66.18%2C1.33.25%2C2.03.07.7.1%2C1.4.1%2C2.1.09%2C2.81.16%2C5.59.21%2C8.35.05%2C2.76.07%2C5.54.07%2C8.35%2C0%2C.7-.05%2C1.28-.14%2C1.72-.09.44-.27.77-.53.98-.26.21-.61.35-1.05.42-.44.07-1.04.11-1.79.11-2.43-.09-4.85-.14-7.26-.14h-7.26c-.75%2C0-1.34-.04-1.79-.11-.45-.07-.8-.22-1.05-.45s-.43-.56-.53-.98c-.1-.42-.14-.98-.14-1.68.05-4.25.11-8.46.18-12.62.07-4.16.13-8.37.18-12.63.05-2.76.06-5.48.04-8.17-.02-2.69-.04-5.39-.04-8.1-.05-1.78-.11-3.56-.18-5.36-.07-1.8-.11-3.61-.11-5.44%2C0-1.26.23-2.1.7-2.52.47-.42%2C1.33-.65%2C2.6-.7%2C2.95-.09%2C5.86-.18%2C8.73-.25%2C2.88-.07%2C5.79-.15%2C8.73-.25.84%2C0%2C1.53.04%2C2.07.11.54.07.98.23%2C1.33.49.35.26.66.62.91%2C1.09.26.47.53%2C1.12.81%2C1.96.93%2C2.95%2C1.85%2C5.87%2C2.74%2C8.77.89%2C2.9%2C1.8%2C5.8%2C2.74%2C8.7.14.42.28.82.42%2C1.19s.33.84.56%2C1.4c.47-1.4.9-2.69%2C1.3-3.86.4-1.17.81-2.34%2C1.23-3.51.79-2.34%2C1.57-4.65%2C2.32-6.94.75-2.29%2C1.47-4.58%2C2.17-6.87.42-1.03.82-1.68%2C1.19-1.96.37-.28%2C1.1-.42%2C2.17-.42%2C3.46-.05%2C6.91-.07%2C10.35-.07s6.86-.02%2C10.28-.07c.98%2C0%2C1.74.2%2C2.28.6.54.4.92%2C1.11%2C1.16%2C2.14.09.47.16.95.21%2C1.44.05.49.09%2C1.02.14%2C1.58v13.82c0%2C4.54-.02%2C9.12-.07%2C13.75%2C0%2C2.95-.06%2C5.88-.17%2C8.8-.12%2C2.92-.25%2C5.86-.39%2C8.8-.05.8-.02%2C1.62.07%2C2.49.09.87.14%2C1.74.14%2C2.63%2C0%2C.8-.04%2C1.44-.11%2C1.93s-.25.87-.53%2C1.12c-.28.26-.67.42-1.16.49s-1.14.11-1.93.11c-1.4%2C0-2.82-.04-4.24-.11-1.43-.07-2.82-.11-4.17-.11-.8-.05-1.53-.05-2.21%2C0-.68.05-1.41.09-2.21.14-.94.09-1.68.12-2.25.07-.56-.05-.99-.2-1.3-.46-.3-.26-.51-.65-.63-1.19-.12-.54-.18-1.27-.18-2.21-.1-2.95-.17-5.87-.21-8.77-.05-2.9-.09-5.77-.14-8.63-.05-.65-.06-1.27-.04-1.86.02-.58.04-1.16.04-1.72-.09-.05-.21-.07-.35-.07Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M658.26%2C351.46h7.43c1.08%2C0%2C1.83.22%2C2.28.67.44.44.71%2C1.21.81%2C2.28.09.51.14%2C1.03.14%2C1.54v7.96c0%2C2.13-.05%2C4.29-.14%2C6.49%2C0%2C1.08-.21%2C1.81-.63%2C2.21-.42.4-1.17.6-2.24.6h-17.15c-5.68%2C0-11.42-.05-17.22-.14-.23%2C0-.43.02-.6.07s-.36.07-.6.07c-.94-.09-1.6-.33-2-.7-.4-.37-.62-1.03-.67-1.96-.1-2.66-.19-5.3-.28-7.89-.1-2.59-.14-5.22-.14-7.89-.1-4.3-.1-8.58%2C0-12.83.09-4.25.14-8.56.14-12.9%2C0-2.01-.05-4.02-.14-6.03-.1-2.01-.19-4.02-.28-6.03-.05-1.4.18-2.36.67-2.88.49-.51%2C1.41-.75%2C2.77-.7%2C2.95%2C0%2C5.91.01%2C8.91.04%2C2.99.02%2C5.98.04%2C8.98.04%2C1.35.05%2C2.28.32%2C2.77.81.49.49.74%2C1.44.74%2C2.84-.05%2C3.97-.09%2C7.91-.14%2C11.82-.05%2C3.9-.09%2C7.8-.14%2C11.68-.09%2C1.78-.12%2C3.58-.07%2C5.4.05%2C1.82.07%2C3.65.07%2C5.47h6.73Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M695.36%2C366.75c0%2C.61-.02%2C1.23-.07%2C1.86-.05.63-.12%2C1.23-.21%2C1.79-.23.94-.61%2C1.6-1.12%2C2-.51.4-1.24.6-2.17.6h-15.08c-1.64%2C0-2.72-.28-3.26-.84-.54-.56-.83-1.71-.88-3.44-.1-8.04-.11-15.89-.04-23.53.07-7.65-.04-15.3-.32-22.97-.05-.93-.08-1.85-.11-2.74-.02-.89-.04-1.8-.04-2.74.05-1.22.29-2.02.74-2.42.44-.4%2C1.27-.6%2C2.49-.6%2C2.95%2C0%2C5.74-.01%2C8.38-.04%2C2.64-.02%2C5.41-.04%2C8.31-.04%2C1.31%2C0%2C2.16.2%2C2.56.6.4.4.6%2C1.23.6%2C2.49-.09%2C8.56-.06%2C16.97.11%2C25.25.16%2C8.28.2%2C16.53.11%2C24.76Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M722.93%2C361.56c-.24%2C1.36-.42%2C2.61-.56%2C3.75-.14%2C1.15-.33%2C2.33-.56%2C3.54-.09.51-.19.98-.28%2C1.4-.1.42-.26.82-.49%2C1.19-.42%2C1.17-1.36%2C1.75-2.81%2C1.75-2.71-.05-5.41-.07-8.1-.07h-8.03c-.98%2C0-1.75-.23-2.32-.7-.56-.47-.84-1.17-.84-2.1%2C0-1.12.05-2.22.14-3.3.09-1.08.26-2.13.49-3.16%2C1.26-6.08%2C2.54-12.07%2C3.82-17.99%2C1.29-5.91%2C2.58-11.84%2C3.89-17.78.37-1.68.83-3.31%2C1.37-4.87.54-1.57%2C1.06-3.14%2C1.58-4.73.61-1.78%2C1.41-3%2C2.42-3.68%2C1-.68%2C2.44-1.02%2C4.31-1.02%2C3.09%2C0%2C6.15.01%2C9.19.04%2C3.04.02%2C6.08-.01%2C9.12-.11%2C1.4-.05%2C2.51.23%2C3.33.84.82.61%2C1.48%2C1.45%2C2%2C2.53.23.42.41.86.53%2C1.33s.25.96.39%2C1.47c.93%2C3.74%2C1.83%2C7.45%2C2.7%2C11.12.86%2C3.67%2C1.72%2C7.38%2C2.56%2C11.12.84%2C3.65%2C1.6%2C7.24%2C2.28%2C10.77.68%2C3.53%2C1.37%2C7.07%2C2.07%2C10.62.19.89.38%2C1.74.6%2C2.56s.43%2C1.62.67%2C2.42c.09.33.16.66.21.98.05.33.07.66.07.98.05%2C1.5-.63%2C2.27-2.03%2C2.31h-.7c-2.43.05-4.84.11-7.22.18-2.38.07-4.82.15-7.29.25-1.17.05-2.01-.13-2.52-.53-.51-.4-.89-1.16-1.12-2.28-.24-1.12-.42-2.22-.56-3.3-.14-1.08-.28-2.13-.42-3.16-.09-.51-.16-.96-.21-1.33-.05-.37-.12-.72-.21-1.05h-7.43ZM726.43%2C330.97c-.56%2C3.04-1.06%2C6.04-1.51%2C9.01-.44%2C2.97-.76%2C6-.95%2C9.08h4.91c-.42-3.13-.84-6.18-1.26-9.15-.42-2.97-.82-5.95-1.19-8.94Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st3%22%20d%3D%22M653.3%2C293.67c-.04-.25-.09-.5-.16-.75-.18-.61-.35-1.23-.51-1.86-.16-.63-.31-1.28-.46-1.96-.54-2.73-1.07-5.44-1.59-8.15-.52-2.71-1.1-5.46-1.75-8.26-.65-2.87-1.3-5.71-1.97-8.53-.66-2.82-1.35-5.66-2.07-8.53-.11-.39-.21-.77-.3-1.13-.09-.36-.22-.7-.4-1.02-.39-.82-.91-1.47-1.53-1.94-.63-.47-1.48-.68-2.56-.65-.85.03-1.69.02-2.54.03.3-.18.59-.36.87-.55.54-.38%2C1.09-.78%2C1.54-1.27.68-.75%2C1.28-1.56%2C1.8-2.43.82-1.37%2C1.52-2.81%2C2.16-4.27.15-.33.29-.67.43-1%2C.21-.33.16-.57-.13-.71-.27-.28-.63-.38-1.07-.29-.67%2C0-1.33.08-1.98.24-.85.14-1.67.35-2.49.63-1.82.59-3.65%2C1.29-5.31%2C2.26-.44.27-.87.54-1.31.81-.61.37-1.11.85-1.51%2C1.43-.37.89-.77%2C1.77-1.19%2C2.63-.42.86-.86%2C1.73-1.36%2C2.57-.66%2C0-1.31%2C0-1.97%2C0-1.43%2C0-2.54.26-3.31.78-.77.52-1.39%2C1.46-1.86%2C2.83-.39%2C1.22-.8%2C2.43-1.21%2C3.63-.41%2C1.2-.76%2C2.45-1.05%2C3.74-1%2C4.56-2%2C9.1-2.99%2C13.64-.99%2C4.54-1.96%2C9.14-2.93%2C13.81-.18.79-.31%2C1.6-.38%2C2.42-.07.83-.11%2C1.67-.11%2C2.53%2C0%2C.72.22%2C1.26.65%2C1.61.43.36%2C1.02.54%2C1.78.54h6.16c2.06%2C0%2C4.13.02%2C6.22.05%2C1.11%2C0%2C1.83-.45%2C2.15-1.35.18-.29.3-.59.38-.92.07-.32.14-.68.22-1.08.18-.93.32-1.84.43-2.72.11-.88.25-1.84.43-2.88h5.71c.07.25.13.52.16.81.04.29.09.63.16%2C1.02.11.79.21%2C1.6.32%2C2.42.11.83.25%2C1.67.43%2C2.53s.47%2C1.45.86%2C1.75c.39.31%2C1.04.44%2C1.94.4%2C1.9-.07%2C3.77-.13%2C5.6-.19%2C1.83-.05%2C3.68-.1%2C5.54-.13h.54c1.08-.04%2C1.6-.63%2C1.56-1.78%2C0-.25-.02-.5-.05-.75ZM631.34%2C278c.14-2.37.39-4.69.73-6.97.34-2.28.73-4.58%2C1.16-6.92.29%2C2.3.59%2C4.58.92%2C6.86.32%2C2.28.65%2C4.62.97%2C7.02h-3.77Z%22%2F%3E%20%20%20%20%3Cpath%20class%3D%22st0%22%20d%3D%22M626.96%2C301.67c-.41-.43-.95-.57-1.6-.44-1%2C0-1.99.12-2.97.35-1.27.21-2.51.53-3.73.94-2.73.89-5.48%2C1.94-7.97%2C3.39-.66.4-1.31.81-1.97%2C1.21-.91.56-1.67%2C1.27-2.27%2C2.14-.37.89-.77%2C1.77-1.19%2C2.63-.29.6-.6%2C1.21-.92%2C1.81-.27%2C0-.52%2C0-.8%2C0-1.22%2C0-2.05.2-2.49.6-.45.4-.69%2C1.21-.74%2C2.42%2C0%2C.94.01%2C1.85.04%2C2.74.02.89.06%2C1.8.11%2C2.74.28%2C7.67.39%2C15.33.32%2C22.97-.07%2C7.65-.06%2C15.49.04%2C23.53.05%2C1.73.34%2C2.88.88%2C3.44.54.56%2C1.62.84%2C3.26.84h15.08c.93%2C0%2C1.66-.2%2C2.17-.6.51-.4.89-1.06%2C1.12-2%2C.09-.56.16-1.16.21-1.79.05-.63.07-1.25.07-1.86.09-8.23.06-16.48-.11-24.76-.16-8.28-.2-16.69-.11-25.25%2C0-1.26-.2-2.09-.6-2.49-.4-.4-1.25-.6-2.56-.6-.6%2C0-1.16%2C0-1.75%2C0%2C.68-.38%2C1.34-.78%2C1.98-1.23.58-.41%2C1.16-.86%2C1.69-1.33.12-.1.23-.21.33-.33.78-.85%2C1.48-1.77%2C2.07-2.76.82-1.37%2C1.52-2.81%2C2.16-4.27.15-.33.29-.67.43-1%2C.31-.5.24-.85-.2-1.06Z%22%2F%3E%20%20%3C%2Fg%3E%3C%2Fsvg%3E";
-
-const Logo = ({ width = '120px', height = 'auto', sx, ...boxProps }) => (jsx(Box, { component: "img", src: logoUrl, alt: "Log\u00F3tipo", sx: [
-        { display: 'block', width, height },
-        ...(Array.isArray(sx) ? sx : [sx]),
-    ], ...boxProps }));
-
-const SelectableOptions = ({ label, options, value, onChange, variant = 'checkbox', row = false, sx, }) => {
-    const isCheckbox = variant === 'checkbox';
-    const handleChange = (optionValue) => (_, checked) => {
-        if (isCheckbox) {
-            const newValue = Array.isArray(value) ? [...value] : [];
-            checked
-                ? newValue.push(optionValue)
-                : newValue.splice(newValue.indexOf(optionValue), 1);
-            onChange(newValue);
-        }
-        else {
-            onChange(optionValue);
-        }
-    };
-    return (jsxs(FormControl, { component: "fieldset", sx: sx, children: [label && jsx(FormLabel, { component: "legend", children: label }), isCheckbox ? (jsx(FormGroup, { row: row, children: options.map(({ value: v, label: l }) => (jsx(FormControlLabel, { control: jsx(Checkbox, { checked: Array.isArray(value) && value.includes(v), onChange: handleChange(v) }), label: l }, v))) })) : (jsx(RadioGroup, { row: row, value: value, onChange: (_, val) => onChange(val), children: options.map(({ value: v, label: l }) => (jsx(FormControlLabel, { value: v, control: jsx(Radio, {}), label: l }, v))) }))] }));
-};
-
-const AvatarUpload = ({ value, onChange, size = 128, showIcon = true, placeholder, sx, }) => {
-    const inputRef = useRef(null);
-    const [url, setUrl] = useState(value !== null && value !== void 0 ? value : null);
-    /* sincroniza valor controlado */
-    useEffect(() => {
-        value !== undefined && setUrl(value);
-    }, [value]);
-    /* liberta blob URL quando o componente desmonta */
-    useEffect(() => {
-        return () => {
-            url && url.startsWith('blob:') && URL.revokeObjectURL(url);
+var InfoStepCard_default = InfoStepCard;
+var HowItWorksSection = ({
+  steps,
+  orientation = "vertical",
+  spacing = 6,
+  sx
+}) => {
+  if (!(steps == null ? void 0 : steps.length)) return null;
+  return /* @__PURE__ */ jsxRuntime.jsx(material.Box, { width: "100%", children: /* @__PURE__ */ jsxRuntime.jsx(
+    material.Stack,
+    {
+      direction: orientation === "horizontal" ? "row" : "column",
+      spacing,
+      alignItems: "stretch",
+      justifyContent: "center",
+      sx,
+      children: steps.map((step, idx) => {
+        var _a;
+        const mergedCardProps = {
+          ...step.cardProps,
+          sx: {
+            ...((_a = step.cardProps) == null ? void 0 : _a.sx) || {},
+            minHeight: "auto"
+          }
         };
-    }, [url]);
-    const handleFile = (e) => {
-        var _a;
-        const file = (_a = e.target.files) === null || _a === void 0 ? void 0 : _a[0];
-        if (!file)
-            return;
-        const newUrl = URL.createObjectURL(file);
-        setUrl(newUrl);
-        onChange === null || onChange === void 0 ? void 0 : onChange(file, newUrl);
+        return /* @__PURE__ */ jsxRuntime.jsx(
+          InfoStepCard_default,
+          {
+            ...step,
+            cardProps: mergedCardProps
+          },
+          idx
+        );
+      })
+    }
+  ) });
+};
+
+// src/components/Logo/LogoBiblio.svg
+var LogoBiblio_default = "./LogoBiblio-OW4T5D4X.svg";
+var Logo = ({
+  width = "120px",
+  height = "auto",
+  sx,
+  ...boxProps
+}) => /* @__PURE__ */ jsxRuntime.jsx(
+  material.Box,
+  {
+    component: "img",
+    src: LogoBiblio_default,
+    alt: "Log\xF3tipo",
+    sx: [
+      { display: "block", width, height },
+      ...Array.isArray(sx) ? sx : [sx]
+    ],
+    ...boxProps
+  }
+);
+var SelectableOptions = ({
+  label,
+  options,
+  value,
+  onChange,
+  variant = "checkbox",
+  row = false,
+  sx
+}) => {
+  const isCheckbox = variant === "checkbox";
+  const handleChange = (optionValue) => (_, checked) => {
+    if (isCheckbox) {
+      const newValue = Array.isArray(value) ? [...value] : [];
+      checked ? newValue.push(optionValue) : newValue.splice(newValue.indexOf(optionValue), 1);
+      onChange(newValue);
+    } else {
+      onChange(optionValue);
+    }
+  };
+  return /* @__PURE__ */ jsxRuntime.jsxs(material.FormControl, { component: "fieldset", sx, children: [
+    label && /* @__PURE__ */ jsxRuntime.jsx(material.FormLabel, { component: "legend", children: label }),
+    isCheckbox ? /* @__PURE__ */ jsxRuntime.jsx(material.FormGroup, { row, children: options.map(({ value: v, label: l }) => /* @__PURE__ */ jsxRuntime.jsx(
+      material.FormControlLabel,
+      {
+        control: /* @__PURE__ */ jsxRuntime.jsx(
+          material.Checkbox,
+          {
+            checked: Array.isArray(value) && value.includes(v),
+            onChange: handleChange(v)
+          }
+        ),
+        label: l
+      },
+      v
+    )) }) : /* @__PURE__ */ jsxRuntime.jsx(material.RadioGroup, { row, value, onChange: (_, val) => onChange(val), children: options.map(({ value: v, label: l }) => /* @__PURE__ */ jsxRuntime.jsx(
+      material.FormControlLabel,
+      {
+        value: v,
+        control: /* @__PURE__ */ jsxRuntime.jsx(material.Radio, {}),
+        label: l
+      },
+      v
+    )) })
+  ] });
+};
+var AvatarUpload = ({
+  value,
+  onChange,
+  size = 128,
+  showIcon = true,
+  placeholder,
+  sx
+}) => {
+  const inputRef = react.useRef(null);
+  const [url, setUrl] = react.useState(value != null ? value : null);
+  react.useEffect(() => {
+    value !== void 0 && setUrl(value);
+  }, [value]);
+  react.useEffect(() => {
+    return () => {
+      url && url.startsWith("blob:") && URL.revokeObjectURL(url);
     };
-    return (jsxs(Box, { position: "relative", width: size, height: size, sx: sx, children: [jsx(Avatar, { src: url !== null && url !== void 0 ? url : undefined, sx: { width: size, height: size, fontSize: size * 0.4 }, children: placeholder !== null && placeholder !== void 0 ? placeholder : '•' }), showIcon && (jsx(IconButton, { size: "small", sx: {
-                    position: 'absolute',
-                    bottom: 8,
-                    right: 8,
-                    bgcolor: 'background.paper',
-                    boxShadow: 1,
-                    '&:hover': { bgcolor: 'background.paper' },
-                }, onClick: () => { var _a; return (_a = inputRef.current) === null || _a === void 0 ? void 0 : _a.click(); }, children: jsx(PhotoCameraIcon, { fontSize: "small" }) })), jsx("input", { ref: inputRef, type: "file", accept: "image/*", hidden: true, onChange: handleFile })] }));
-};
-
-const AvatarListItem = ({ avatarSrc, label, actions = [
-    { icon: jsx(EditIcon, {}), tooltip: 'Editar' },
-    { icon: jsx(DeleteIcon, {}), tooltip: 'Remover' },
-], avatarSize = 48, sx, }) => (jsxs(Box, { display: "flex", alignItems: "center", gap: 2, sx: sx, children: [jsx(Avatar, { src: avatarSrc, sx: { width: avatarSize, height: avatarSize, flexShrink: 0 } }), jsx(Typography, { variant: "body1", sx: { flexGrow: 1 }, children: label }), actions.map(({ icon, tooltip, onClick, disabled }, idx) => tooltip ? (jsx(Tooltip, { title: tooltip, children: jsx("span", { children: jsx(IconButton, { onClick: onClick, disabled: disabled, size: "small", color: "inherit", children: icon }) }) }, idx)) : (jsx(IconButton, { onClick: onClick, disabled: disabled, size: "small", color: "inherit", children: icon }, idx)))] }));
-
-const Handle = styled(IconButton)({
-    position: 'fixed',
-    transform: 'translate(-50%, -50%)',
-    width: 36,
-    height: 36,
-    borderRadius: '50%',
-    background: '#fff',
-    border: '1px solid #E0E0E0',
-    boxShadow: '0 2px 6px rgba(0,0,0,.15)',
-    zIndex: 1301,
-    '&:hover': { background: '#fff' },
-});
-const getTop = (v) => {
-    if (typeof v === 'number')
-        return v;
-    if (v === 'top')
-        return 40; // 40 px do topo
-    if (v === 'bottom')
-        return 'calc(100% - 40px)'; // 40 px do fundo
-    return '50%'; // center (default)
-};
-const SidebarToggle = ({ open, openWidth, closedWidth, onToggle, vertical = 'center', }) => (jsx(Handle, { onClick: onToggle, sx: {
-        left: open ? openWidth : closedWidth,
-        top: getTop(vertical),
-    }, children: open ? jsx(ChevronLeftIcon, { fontSize: "small" }) : jsx(ChevronRightIcon, { fontSize: "small" }) }));
-
-/* ---------- Constantes ---------- */
-const OPEN = 260;
-const CLOSED = 64;
-const selectedSX = {
-    bgcolor: '#EEF3FF',
-    '& .MuiListItemIcon-root, & .MuiListItemText-primary': {
-        color: 'primary.main',
-        fontWeight: 600,
-    },
-};
-/* ---------- Componente ---------- */
-const SidebarMenu = ({ items, footerItems, open: controlled, onToggle, toggleVertical = 'center', sx, }) => {
-    const [internal, setInternal] = useState(true);
-    const open = controlled !== null && controlled !== void 0 ? controlled : internal;
-    const toggle = () => (onToggle ? onToggle(!open) : setInternal(!open));
-    const render = (arr) => arr.map(({ label, icon, selected, ...rest }) => (jsx(Tooltip, { title: !open ? label : '', placement: "right", arrow: true, disableInteractive: true, children: jsxs(ListItemButton, { sx: {
-                my: 0.5,
-                borderRadius: 1,
-                px: open ? 2 : 0, // sem “padding” lateral quando fechado
-                justifyContent: open ? 'flex-start' : 'center',
-                ...(selected && selectedSX),
-            }, ...rest, children: [jsx(ListItemIcon, { sx: {
-                        minWidth: 0,
-                        mr: open ? 2 : '0',
-                        justifyContent: 'center',
-                    }, children: icon }), open && jsx(ListItemText, { primary: label })] }) }, label)));
-    return (jsxs(Fragment, { children: [jsxs(Drawer, { variant: "permanent", PaperProps: {
-                    sx: {
-                        width: open ? OPEN : CLOSED,
-                        overflowX: 'clip', // evita barra horizontal
-                        borderRadius: '0 8px 8px 0',
-                        boxShadow: '0 4px 24px rgba(0,0,0,.08)',
-                        transition: (t) => t.transitions.create('width', {
-                            duration: t.transitions.duration.shorter,
-                        }),
-                        display: 'flex',
-                        flexDirection: 'column',
-                        ...sx,
-                    },
-                }, children: [jsxs(Stack, { position: "relative", alignItems: "center", spacing: 1, mt: 3, mb: 2, children: [jsx(Box, { component: "img", src: "https://placehold.co/40", width: 40, height: 40, borderRadius: "50%" }), open && (jsxs(Fragment, { children: [jsx(Typography, { fontWeight: 700, fontSize: 14, children: "Alexandre Brissos" }), jsx(Typography, { variant: "caption", color: "text.secondary", children: "TUTOR" }), jsx(Divider, { sx: { width: '100%', mt: 1 } })] }))] }), jsx(List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(items) }), !!(footerItems === null || footerItems === void 0 ? void 0 : footerItems.length) && (jsx(Box, { mt: "auto", pb: 2, children: jsx(List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(footerItems) }) }))] }), jsx(SidebarToggle, { open: open, openWidth: OPEN, closedWidth: CLOSED, vertical: toggleVertical, onToggle: toggle })] }));
-};
-
-const NotificationBell = ({ items, onSelect, onRemove, onClearAll, showZero = false, ...iconButtonProps }) => {
-    const [anchor, setAnchor] = useState(null);
-    const open = Boolean(anchor);
-    const unread = items.filter((i) => !i.lida).length;
-    return (jsxs(Fragment, { children: [jsx(Tooltip, { title: "Notifica\u00E7\u00F5es", children: jsx(IconButton, { ...iconButtonProps, onClick: (e) => setAnchor(e.currentTarget), size: "large", children: jsx(Badge, { color: "error", badgeContent: unread, invisible: !showZero && unread === 0, children: jsx(NotificationsNoneIcon, {}) }) }) }), jsxs(Menu, { anchorEl: anchor, open: open, onClose: () => setAnchor(null), PaperProps: { sx: { width: 300, maxHeight: 360, p: 0 } }, children: [jsx(Box, { px: 2, py: 1.5, children: jsx(Typography, { fontWeight: 600, children: "Notifica\u00E7\u00F5es" }) }), jsx(Divider, {}), items.length === 0 ? (jsx(Box, { p: 3, textAlign: "center", children: jsx(Typography, { variant: "body2", color: "text.secondary", children: "Sem notifica\u00E7\u00F5es." }) })) : (jsx(List, { dense: true, disablePadding: true, children: items.map((n) => (jsx(ListItem, { alignItems: "flex-start", secondaryAction: onRemove && (jsx(IconButton, { edge: "end", size: "small", onClick: () => onRemove(n.id), children: jsx(DeleteOutlineIcon, { fontSize: "small" }) })), sx: {
-                                bgcolor: n.lida ? 'background.paper' : 'action.hover',
-                                cursor: 'pointer',
-                                '&:hover': { bgcolor: 'action.selected' },
-                            }, onClick: () => {
-                                onSelect === null || onSelect === void 0 ? void 0 : onSelect(n);
-                                setAnchor(null);
-                            }, children: jsx(ListItemText, { primary: jsx(Typography, { variant: "body2", fontWeight: n.lida ? 400 : 600, children: n.titulo }), secondary: n.mensagem && (jsx(Typography, { variant: "caption", color: "text.secondary", noWrap: true, children: n.mensagem })) }) }, n.id))) })), !!items.length && (jsxs(Fragment, { children: [jsx(Divider, {}), jsx(MenuItem, { onClick: () => onClearAll === null || onClearAll === void 0 ? void 0 : onClearAll(), children: jsx(Typography, { variant: "body2", textAlign: "center", width: "100%", children: "Limpar todas" }) })] }))] })] }));
-};
-
-const AvatarSelect = ({ label, options, value, onChange, disabled = false, placeholderAvatar, minWidth, }) => {
-    const current = options.find((o) => o.id === value);
-    /* devolve só o id */
-    const handle = (e) => onChange(e.target.value);
-    const Placeholder = (jsxs(Box, { display: "flex", alignItems: "center", gap: 1, color: "text.secondary", children: [jsx(Avatar, { sx: { width: 24, height: 24, bgcolor: '#E0E0E0' }, children: placeholderAvatar !== null && placeholderAvatar !== void 0 ? placeholderAvatar : jsx(PersonOutlineIcon, { fontSize: "small" }) }), label] }));
-    return (jsxs(FormControl, { fullWidth: true, variant: "standard", disabled: disabled, sx: { minWidth }, children: [jsx(InputLabel, { shrink: true, children: label }), jsx(Select, { value: value, onChange: handle, renderValue: () => value && current ? (jsxs(Box, { display: "flex", alignItems: "center", gap: 1, children: [jsx(Avatar, { src: current.avatar, sx: { width: 24, height: 24 }, children: current.nome[0] }), current.nome] })) : (Placeholder), children: options.map((o) => (jsx(MenuItem, { value: o.id, children: jsxs(ListItem, { disableGutters: true, children: [jsx(ListItemAvatar, { sx: { minWidth: 32 }, children: jsx(Avatar, { src: o.avatar, sx: { width: 32, height: 32, marginRight: '1em' }, children: o.nome[0] }) }), jsx(ListItemText, { primary: o.nome })] }) }, o.id))) })] }));
-};
-
-/**
- * Barra de progresso animada para o Quiz.
- */
-const QuizProgressBar = ({ passo, total, mostrarTexto = true, }) => {
-    /* evita divisões por zero */
-    const pct = useMemo(() => (total > 0 ? (passo / total) * 100 : 0), [passo, total]);
-    return (jsxs(Box, { children: [mostrarTexto && (jsxs(Typography, { variant: "caption", mb: 0.5, display: "block", children: [Math.round(pct), "% conclu\u00EDdo"] })), jsx(LinearProgress, { variant: "determinate", value: pct, sx: {
-                    height: 8,
-                    borderRadius: 4,
-                    [`&.${linearProgressClasses.colorPrimary}`]: {
-                        bgcolor: '#E4E4E4',
-                    },
-                    [`& .${linearProgressClasses.bar}`]: {
-                        borderRadius: 4,
-                        /* animação suave */
-                        transition: 'transform .4s ease-out',
-                        bgcolor: 'primary.main',
-                    },
-                } })] }));
-};
-
-function ColumnFilterPopper({ open, anchorEl, values, selected, onClose, onApply, }) {
-    const [query, setQuery] = useState('');
-    const [local, setLocal] = useState(new Set(selected));
-    useEffect(() => {
-        if (open)
-            setLocal(new Set(selected));
-    }, [open, selected]);
-    const list = useMemo(() => values.filter((v) => String(v !== null && v !== void 0 ? v : '')
-        .toLowerCase()
-        .includes(query.toLowerCase())), [values, query]);
-    const toggle = (v) => {
-        const next = new Set(local);
-        next.has(v) ? next.delete(v) : next.add(v);
-        setLocal(next);
-    };
-    return (jsx(Popper, { open: open, anchorEl: anchorEl, placement: "bottom-start", children: jsx(ClickAwayListener, { onClickAway: onClose, children: jsxs(Box, { bgcolor: "#fff", borderRadius: 1, boxShadow: 3, p: 2, maxHeight: 300, overflow: "auto", minWidth: 220, children: [jsxs(Stack, { direction: "row", justifyContent: "space-between", alignItems: "center", mb: 1, children: [jsx(Typography, { variant: "subtitle2", children: "Filtrar" }), jsx(IconButton, { size: "small", onClick: () => setLocal(new Set()), children: jsx(ClearIcon, { fontSize: "inherit" }) })] }), jsx(TextField, { size: "small", placeholder: "Pesquisar\u2026", fullWidth: true, value: query, onChange: (e) => setQuery(e.target.value), sx: { mb: 1 } }), list.map((v) => (jsxs(MenuItem, { onClick: () => toggle(v), children: [jsx(Checkbox, { size: "small", checked: local.has(v), sx: { mr: 1 } }), String(v !== null && v !== void 0 ? v : '—')] }, String(v)))), jsx(Box, { textAlign: "right", mt: 1, children: jsx(IconButton, { size: "small", color: "primary", onClick: () => (onApply(local), onClose()), children: jsx(DoneIcon, { fontSize: "inherit" }) }) })] }) }) }));
-}
-
-function SimpleDataTable({ columns, rows, rowsPerPageOptions = [5, 10, 25], sx, }) {
+  }, [url]);
+  const handleFile = (e) => {
     var _a;
-    /* paginação */
-    const [page, setPage] = useState(0);
-    const [perPage, setPerPage] = useState(rowsPerPageOptions[0]);
-    /* filtros */
-    const [filters, setFilters] = useState({});
-    const [anchor, setAnchor] = useState(null);
-    const [colFilter, setColFilter] = useState(null);
-    /* aplica filtros activos */
-    const filteredRows = rows.filter((r) => columns.every((c) => {
-        var _a;
-        const active = filters[c.label];
-        if (!(active === null || active === void 0 ? void 0 : active.size))
-            return true;
-        const val = c.field ? r[c.field] : (_a = c.render) === null || _a === void 0 ? void 0 : _a.call(c, r);
-        return active.has(val);
-    }));
-    /* paginação calculada */
-    const slice = filteredRows.slice(page * perPage, page * perPage + perPage);
-    /* open popper */
-    const openFilter = (el, col) => {
-        setAnchor(el);
-        setColFilter(col);
-    };
-    /* valores únicos da coluna */
-    const colValues = colFilter
-        ? [...new Set(rows.map((r) => (colFilter.field ? r[colFilter.field] : colFilter.render(r))))]
-        : [];
-    return (jsxs(Paper, { sx: { width: '100%', overflow: 'hidden', ...sx }, children: [jsx(TableContainer, { children: jsxs(Table, { children: [jsx(TableHead, { children: jsx(TableRow, { children: columns.map((c) => {
-                                    var _a;
-                                    return (jsx(TableCell, { align: c.align, sx: { width: c.width, fontWeight: 700, ...c.sx }, children: jsxs(Stack, { direction: "row", spacing: 0.5, alignItems: "center", sx: { cursor: c.filterable ? 'pointer' : 'default' }, onClick: c.filterable
-                                                ? (e) => openFilter(e.currentTarget, c)
-                                                : undefined, children: [c.label, c.filterable && (jsx(FilterAltIcon, { fontSize: "small", color: ((_a = filters[c.label]) === null || _a === void 0 ? void 0 : _a.size) ? 'primary' : 'inherit' }))] }) }, c.label));
-                                }) }) }), jsx(TableBody, { children: slice.map((row, i) => (jsx(TableRow, { children: columns.map((c) => (jsx(TableCell, { align: c.align, children: c.render ? c.render(row) : row[c.field] }, String(c.label)))) }, i))) })] }) }), jsx(TablePagination, { component: "div", rowsPerPageOptions: rowsPerPageOptions, count: filteredRows.length, rowsPerPage: perPage, page: page, onPageChange: (_, p) => setPage(p), onRowsPerPageChange: (e) => {
-                    setPerPage(parseInt(e.target.value, 10));
-                    setPage(0);
-                }, labelRowsPerPage: "Items por p\u00E1gina:" }), colFilter && (jsx(ColumnFilterPopper, { open: true, anchorEl: anchor, values: colValues, selected: (_a = filters[colFilter.label]) !== null && _a !== void 0 ? _a : new Set(), onClose: () => setColFilter(null), onApply: (set) => setFilters({ ...filters, [colFilter.label]: set }) }))] }));
-}
-
-const BookCard = ({ variant = 'view', title, coverImage, startDate, endDate, rating = 0, comment = '', onSave, onReserve, }) => {
-    const theme = useTheme();
-    const [currentCoverImage, setCurrentCoverImage] = useState(coverImage);
-    useEffect(() => {
-        setCurrentCoverImage(coverImage);
-    }, [coverImage]);
-    const [currentRating, setCurrentRating] = useState(rating);
-    const [currentComment, setCurrentComment] = useState(comment);
-    const handleSave = () => onSave === null || onSave === void 0 ? void 0 : onSave(currentRating, currentComment, currentCoverImage);
-    const handleReserve = () => onReserve === null || onReserve === void 0 ? void 0 : onReserve();
-    return (jsxs(Card, { sx: {
-            width: 300,
-            borderRadius: 2,
-            bgcolor: theme.palette.secondary.light,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-        }, children: [jsx(CardMedia, { image: currentCoverImage, title: title, sx: {
-                    pt: '150%',
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                } }), jsxs(CardContent, { sx: { flexGrow: 1, display: 'flex', flexDirection: 'column', gap: 1 }, children: [jsx(Typography, { variant: "h6", children: title }), variant === 'view' && (jsxs(Fragment, { children: [startDate && endDate && (jsxs(Typography, { variant: "body2", children: ["In\u00EDcio: ", startDate, " \u2014 Conclu\u00EDdo: ", endDate] })), jsx(Box, { display: "flex", alignItems: "center", children: jsx(Rating, { value: rating, readOnly: true, size: "small" }) }), comment && (jsxs(Typography, { variant: "body2", sx: { fontStyle: 'italic' }, children: ["\u201C", comment, "\u201D"] }))] })), variant === 'edit' && (jsxs(Fragment, { children: [jsx(TextField, { label: "URL da imagem da capa", type: "url", value: currentCoverImage, onChange: e => setCurrentCoverImage(e.target.value), fullWidth: true }), jsx(Box, { display: "flex", alignItems: "center", children: jsx(Rating, { value: currentRating, onChange: (_, v) => setCurrentRating(v !== null && v !== void 0 ? v : 0) }) }), jsx(TextField, { label: "Coment\u00E1rio", multiline: true, minRows: 3, value: currentComment, onChange: e => setCurrentComment(e.target.value), fullWidth: true }), jsx(Box, { mt: "auto", textAlign: "center", children: jsx(Button, { variant: "contained", color: "primary", onClick: handleSave, children: "Guardar avalia\u00E7\u00E3o" }) })] })), variant === 'reserve' && (jsxs(Fragment, { children: [jsx(Box, { display: "flex", alignItems: "center", children: jsx(Rating, { value: rating, readOnly: true }) }), jsx(Box, { mt: "auto", textAlign: "center", children: jsx(Button, { variant: "contained", color: "primary", onClick: handleReserve, children: "Reservar" }) })] }))] })] }));
+    const file = (_a = e.target.files) == null ? void 0 : _a[0];
+    if (!file) return;
+    const newUrl = URL.createObjectURL(file);
+    setUrl(newUrl);
+    onChange == null ? void 0 : onChange(file, newUrl);
+  };
+  return /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { position: "relative", width: size, height: size, sx, children: [
+    /* @__PURE__ */ jsxRuntime.jsx(
+      material.Avatar,
+      {
+        src: url != null ? url : void 0,
+        sx: { width: size, height: size, fontSize: size * 0.4 },
+        children: placeholder != null ? placeholder : "\u2022"
+      }
+    ),
+    showIcon && /* @__PURE__ */ jsxRuntime.jsx(
+      material.IconButton,
+      {
+        size: "small",
+        sx: {
+          position: "absolute",
+          bottom: 8,
+          right: 8,
+          bgcolor: "background.paper",
+          boxShadow: 1,
+          "&:hover": { bgcolor: "background.paper" }
+        },
+        onClick: () => {
+          var _a;
+          return (_a = inputRef.current) == null ? void 0 : _a.click();
+        },
+        children: /* @__PURE__ */ jsxRuntime.jsx(PhotoCameraIcon__default.default, { fontSize: "small" })
+      }
+    ),
+    /* @__PURE__ */ jsxRuntime.jsx(
+      "input",
+      {
+        ref: inputRef,
+        type: "file",
+        accept: "image/*",
+        hidden: true,
+        onChange: handleFile
+      }
+    )
+  ] });
 };
-
-// src/hooks/useAgendaFeed.ts
-function useAgendaFeed(feedUrl) {
-    const [items, setItems] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    useEffect(() => {
-        if (!feedUrl)
-            return;
-        setLoading(true);
-        fetch(feedUrl)
-            .then(res => res.text())
-            .then(xmlText => {
-            const dom = new window.DOMParser().parseFromString(xmlText, 'text/xml');
-            const rawItems = Array.from(dom.querySelectorAll('item'));
-            const parsed = rawItems.map(itemEl => {
-                const obj = {};
-                // extrai todos os campos simples
-                itemEl.childNodes.forEach(node => {
-                    var _a, _b;
-                    if (node.nodeType !== Node.ELEMENT_NODE)
-                        return;
-                    const el = node;
-                    const name = el.tagName;
-                    const text = (_b = (_a = el.textContent) === null || _a === void 0 ? void 0 : _a.trim()) !== null && _b !== void 0 ? _b : '';
-                    if (obj[name]) {
-                        if (Array.isArray(obj[name]))
-                            obj[name].push(text);
-                        else
-                            obj[name] = [obj[name], text];
-                    }
-                    else {
-                        obj[name] = text;
-                    }
-                });
-                // primeiro tenta o <enclosure url="…">
-                let thumb;
-                const enc = itemEl.querySelector('enclosure[url]');
-                if (enc === null || enc === void 0 ? void 0 : enc.getAttribute('url')) {
-                    thumb = enc.getAttribute('url').trim();
-                }
-                else {
-                    // fallback: procura <img> dentro da description
-                    const desc = obj['description'];
-                    if (desc) {
-                        const dd = new window.DOMParser().parseFromString(desc, 'text/html');
-                        const img = dd.querySelector('img');
-                        if (img === null || img === void 0 ? void 0 : img.src)
-                            thumb = img.src;
-                    }
-                }
-                return {
-                    title: obj['title'] || '',
-                    link: obj['link'] || '',
-                    description: obj['description'] || '',
-                    pubDate: obj['pubDate'] || '',
-                    author: obj['author'] || undefined,
-                    categories: (obj['category']
-                        ? Array.isArray(obj['category'])
-                            ? obj['category']
-                            : [obj['category']]
-                        : []),
-                    thumbnailUrl: thumb,
-                    ...obj
-                };
-            });
-            setItems(parsed);
-        })
-            .catch(err => setError(err))
-            .finally(() => setLoading(false));
-    }, [feedUrl]);
-    return { items, loading, error };
-}
-
-const AgendaFeed = ({ feedUrl, columns = 2, imageRatio = '16/9', // usar aspectRatio moderno
-contentPadding = 2, cardMaxWidth = '360px', actions }) => {
-    const theme = useTheme();
-    const { items, loading, error } = useAgendaFeed(feedUrl);
-    if (loading)
-        return jsx(Typography, { children: "Carregando eventos\u2026" });
-    if (error)
-        return jsxs(Typography, { color: "error", children: ["Erro: ", error.message] });
-    if (!(items === null || items === void 0 ? void 0 : items.length))
-        return jsx(Typography, { children: "Sem eventos." });
-    // função helper para decodificar HTML entities e extrair texto
-    const decodeHtml = (html) => {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        return doc.documentElement.textContent || '';
-    };
-    return (jsx(Grid, { container: true, spacing: 2, justifyContent: "center", children: items.map((item, i) => {
-            var _a;
-            // decodifica o description
-            const fullText = decodeHtml(item.description);
-            // tenta extrair Data:xxx e Local:yyy
-            const dataMatch = fullText.match(/Data:\s*([^|]+)/i);
-            const localMatch = fullText.match(/Local:\s*([^|]+)/i);
-            // resumo antes de qualquer “Data:”
-            const resumo = fullText.split(/Data:/i)[0].trim();
-            return (jsx(Grid, { item: true, xs: 12, sm: Math.floor(12 / columns), sx: { display: 'flex', justifyContent: 'center' }, children: jsxs(Paper, { elevation: 2, sx: {
-                        width: '100%',
-                        maxWidth: cardMaxWidth,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        borderRadius: 3,
-                        overflow: 'hidden',
-                        bgcolor: theme.palette.background.paper,
-                    }, children: [item.thumbnailUrl && (jsx(CardMedia, { component: "img", image: item.thumbnailUrl, alt: item.title, sx: {
-                                width: '100%',
-                                aspectRatio: imageRatio,
-                                objectFit: 'cover',
-                            } })), jsxs(Box, { sx: { p: contentPadding }, children: [jsx(Typography, { variant: "h6", component: "h3", gutterBottom: true, sx: { fontWeight: 600 }, children: item.title }), dataMatch && (jsxs(Box, { display: "flex", alignItems: "center", mb: 1, children: [jsx(AccessTimeIcon, { fontSize: "small", sx: { mr: 0.5, color: 'text.secondary' } }), jsx(Typography, { variant: "subtitle2", color: "text.secondary", children: dataMatch[1].trim() })] })), localMatch && (jsxs(Box, { display: "flex", alignItems: "center", mb: 1, children: [jsx(LocationOnIcon, { fontSize: "small", sx: { mr: 0.5, color: 'text.secondary' } }), jsx(Typography, { variant: "subtitle2", color: "text.secondary", children: localMatch[1].trim() })] })), jsx(Typography, { variant: "body2", sx: { mb: 2 }, children: resumo.length > 140 ? resumo.slice(0, 140) + '…' : resumo }), jsx(Box, { textAlign: "right", children: (_a = actions === null || actions === void 0 ? void 0 : actions(item)) !== null && _a !== void 0 ? _a : (jsx(Button, { variant: "contained", size: "small", href: item.link, target: "_blank", children: "Saber mais" })) })] })] }) }, i));
-        }) }));
+var AvatarListItem = ({
+  avatarSrc,
+  label,
+  actions = [
+    { icon: /* @__PURE__ */ jsxRuntime.jsx(EditIcon__default.default, {}), tooltip: "Editar" },
+    { icon: /* @__PURE__ */ jsxRuntime.jsx(DeleteIcon__default.default, {}), tooltip: "Remover" }
+  ],
+  avatarSize = 48,
+  sx
+}) => /* @__PURE__ */ jsxRuntime.jsxs(
+  material.Box,
+  {
+    display: "flex",
+    alignItems: "center",
+    gap: 2,
+    sx,
+    children: [
+      /* @__PURE__ */ jsxRuntime.jsx(
+        material.Avatar,
+        {
+          src: avatarSrc,
+          sx: { width: avatarSize, height: avatarSize, flexShrink: 0 }
+        }
+      ),
+      /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "body1", sx: { flexGrow: 1 }, children: label }),
+      actions.map(
+        ({ icon, tooltip, onClick, disabled }, idx) => tooltip ? /* @__PURE__ */ jsxRuntime.jsx(material.Tooltip, { title: tooltip, children: /* @__PURE__ */ jsxRuntime.jsx("span", { children: /* @__PURE__ */ jsxRuntime.jsx(
+          material.IconButton,
+          {
+            onClick,
+            disabled,
+            size: "small",
+            color: "inherit",
+            children: icon
+          }
+        ) }) }, idx) : /* @__PURE__ */ jsxRuntime.jsx(
+          material.IconButton,
+          {
+            onClick,
+            disabled,
+            size: "small",
+            color: "inherit",
+            children: icon
+          },
+          idx
+        )
+      )
+    ]
+  }
+);
+var Handle = material.styled(material.IconButton)({
+  position: "fixed",
+  transform: "translate(-50%, -50%)",
+  width: 36,
+  height: 36,
+  borderRadius: "50%",
+  background: "#fff",
+  border: "1px solid #E0E0E0",
+  boxShadow: "0 2px 6px rgba(0,0,0,.15)",
+  zIndex: 1301,
+  "&:hover": { background: "#fff" }
+});
+var getTop = (v) => {
+  if (typeof v === "number") return v;
+  if (v === "top") return 40;
+  if (v === "bottom") return "calc(100% - 40px)";
+  return "50%";
 };
-
-const AgendaLargeCard = ({ title, pubDate, description, thumbnailUrl, link, width = '100%', imageRatio = '16/9', truncateLength = 200, }) => {
-    const [expanded, setExpanded] = useState(false);
-    const theme = useTheme();
-    // decodifica e limpa HTML
-    const decodeHtml = (html) => {
-        const doc = new DOMParser().parseFromString(html, 'text/html');
-        return doc.documentElement.textContent || '';
-    };
-    const fullText = decodeHtml(description);
-    const displayText = expanded
-        ? fullText
-        : fullText.length > truncateLength
-            ? fullText.slice(0, truncateLength) + '…'
-            : fullText;
-    return (jsxs(Paper, { elevation: 4, sx: {
-            width,
+var SidebarToggle = ({
+  open,
+  openWidth,
+  closedWidth,
+  onToggle,
+  vertical = "center"
+}) => /* @__PURE__ */ jsxRuntime.jsx(
+  Handle,
+  {
+    onClick: onToggle,
+    sx: {
+      left: open ? openWidth : closedWidth,
+      top: getTop(vertical)
+    },
+    children: open ? /* @__PURE__ */ jsxRuntime.jsx(ChevronLeftIcon__default.default, { fontSize: "small" }) : /* @__PURE__ */ jsxRuntime.jsx(ChevronRightIcon__default.default, { fontSize: "small" })
+  }
+);
+var OPEN = 260;
+var CLOSED = 64;
+var selectedSX = {
+  bgcolor: "#EEF3FF",
+  "& .MuiListItemIcon-root, & .MuiListItemText-primary": {
+    color: "primary.main",
+    fontWeight: 600
+  }
+};
+var SidebarMenu = ({
+  items,
+  footerItems,
+  open: controlled,
+  onToggle,
+  toggleVertical = "center",
+  sx
+}) => {
+  const [internal, setInternal] = react.useState(true);
+  const open = controlled != null ? controlled : internal;
+  const toggle = () => onToggle ? onToggle(!open) : setInternal(!open);
+  const render = (arr) => arr.map(({ label, icon, selected, ...rest }) => /* @__PURE__ */ jsxRuntime.jsx(
+    material.Tooltip,
+    {
+      title: !open ? label : "",
+      placement: "right",
+      arrow: true,
+      disableInteractive: true,
+      children: /* @__PURE__ */ jsxRuntime.jsxs(
+        material.ListItemButton,
+        {
+          sx: {
+            my: 0.5,
+            borderRadius: 1,
+            px: open ? 2 : 0,
+            // sem “padding” lateral quando fechado
+            justifyContent: open ? "flex-start" : "center",
+            ...selected && selectedSX
+          },
+          ...rest,
+          children: [
+            /* @__PURE__ */ jsxRuntime.jsx(
+              material.ListItemIcon,
+              {
+                sx: {
+                  minWidth: 0,
+                  mr: open ? 2 : "0",
+                  justifyContent: "center"
+                },
+                children: icon
+              }
+            ),
+            open && /* @__PURE__ */ jsxRuntime.jsx(material.ListItemText, { primary: label })
+          ]
+        }
+      )
+    },
+    label
+  ));
+  return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+    /* @__PURE__ */ jsxRuntime.jsxs(
+      material.Drawer,
+      {
+        variant: "permanent",
+        PaperProps: {
+          sx: {
+            width: open ? OPEN : CLOSED,
+            overflowX: "clip",
+            // evita barra horizontal
+            borderRadius: "0 8px 8px 0",
+            boxShadow: "0 4px 24px rgba(0,0,0,.08)",
+            transition: (t) => t.transitions.create("width", {
+              duration: t.transitions.duration.shorter
+            }),
+            display: "flex",
+            flexDirection: "column",
+            ...sx
+          }
+        },
+        children: [
+          /* @__PURE__ */ jsxRuntime.jsxs(material.Stack, { position: "relative", alignItems: "center", spacing: 1, mt: 3, mb: 2, children: [
+            /* @__PURE__ */ jsxRuntime.jsx(
+              material.Box,
+              {
+                component: "img",
+                src: "https://placehold.co/40",
+                width: 40,
+                height: 40,
+                borderRadius: "50%"
+              }
+            ),
+            open && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+              /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { fontWeight: 700, fontSize: 14, children: "Alexandre Brissos" }),
+              /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "caption", color: "text.secondary", children: "TUTOR" }),
+              /* @__PURE__ */ jsxRuntime.jsx(material.Divider, { sx: { width: "100%", mt: 1 } })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntime.jsx(material.List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(items) }),
+          !!(footerItems == null ? void 0 : footerItems.length) && /* @__PURE__ */ jsxRuntime.jsx(material.Box, { mt: "auto", pb: 2, children: /* @__PURE__ */ jsxRuntime.jsx(material.List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(footerItems) }) })
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsxRuntime.jsx(
+      SidebarToggle,
+      {
+        open,
+        openWidth: OPEN,
+        closedWidth: CLOSED,
+        vertical: toggleVertical,
+        onToggle: toggle
+      }
+    )
+  ] });
+};
+var NotificationBell = ({
+  items,
+  onSelect,
+  onRemove,
+  onClearAll,
+  showZero = false,
+  ...iconButtonProps
+}) => {
+  const [anchor, setAnchor] = react.useState(null);
+  const open = Boolean(anchor);
+  const unread = items.filter((i) => !i.lida).length;
+  return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+    /* @__PURE__ */ jsxRuntime.jsx(material.Tooltip, { title: "Notifica\xE7\xF5es", children: /* @__PURE__ */ jsxRuntime.jsx(
+      material.IconButton,
+      {
+        ...iconButtonProps,
+        onClick: (e) => setAnchor(e.currentTarget),
+        size: "large",
+        children: /* @__PURE__ */ jsxRuntime.jsx(
+          material.Badge,
+          {
+            color: "error",
+            badgeContent: unread,
+            invisible: !showZero && unread === 0,
+            children: /* @__PURE__ */ jsxRuntime.jsx(NotificationsNoneIcon__default.default, {})
+          }
+        )
+      }
+    ) }),
+    /* @__PURE__ */ jsxRuntime.jsxs(
+      material.Menu,
+      {
+        anchorEl: anchor,
+        open,
+        onClose: () => setAnchor(null),
+        PaperProps: { sx: { width: 300, maxHeight: 360, p: 0 } },
+        children: [
+          /* @__PURE__ */ jsxRuntime.jsx(material.Box, { px: 2, py: 1.5, children: /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { fontWeight: 600, children: "Notifica\xE7\xF5es" }) }),
+          /* @__PURE__ */ jsxRuntime.jsx(material.Divider, {}),
+          items.length === 0 ? /* @__PURE__ */ jsxRuntime.jsx(material.Box, { p: 3, textAlign: "center", children: /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "body2", color: "text.secondary", children: "Sem notifica\xE7\xF5es." }) }) : /* @__PURE__ */ jsxRuntime.jsx(material.List, { dense: true, disablePadding: true, children: items.map((n) => /* @__PURE__ */ jsxRuntime.jsx(
+            material.ListItem,
+            {
+              alignItems: "flex-start",
+              secondaryAction: onRemove && /* @__PURE__ */ jsxRuntime.jsx(
+                material.IconButton,
+                {
+                  edge: "end",
+                  size: "small",
+                  onClick: () => onRemove(n.id),
+                  children: /* @__PURE__ */ jsxRuntime.jsx(DeleteOutlineIcon__default.default, { fontSize: "small" })
+                }
+              ),
+              sx: {
+                bgcolor: n.lida ? "background.paper" : "action.hover",
+                cursor: "pointer",
+                "&:hover": { bgcolor: "action.selected" }
+              },
+              onClick: () => {
+                onSelect == null ? void 0 : onSelect(n);
+                setAnchor(null);
+              },
+              children: /* @__PURE__ */ jsxRuntime.jsx(
+                material.ListItemText,
+                {
+                  primary: /* @__PURE__ */ jsxRuntime.jsx(
+                    material.Typography,
+                    {
+                      variant: "body2",
+                      fontWeight: n.lida ? 400 : 600,
+                      children: n.titulo
+                    }
+                  ),
+                  secondary: n.mensagem && /* @__PURE__ */ jsxRuntime.jsx(
+                    material.Typography,
+                    {
+                      variant: "caption",
+                      color: "text.secondary",
+                      noWrap: true,
+                      children: n.mensagem
+                    }
+                  )
+                }
+              )
+            },
+            n.id
+          )) }),
+          !!items.length && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntime.jsx(material.Divider, {}),
+            /* @__PURE__ */ jsxRuntime.jsx(material.MenuItem, { onClick: () => onClearAll == null ? void 0 : onClearAll(), children: /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "body2", textAlign: "center", width: "100%", children: "Limpar todas" }) })
+          ] })
+        ]
+      }
+    )
+  ] });
+};
+var AvatarSelect = ({
+  label,
+  options,
+  value,
+  onChange,
+  disabled = false,
+  placeholderAvatar,
+  minWidth
+}) => {
+  const current = options.find((o) => o.id === value);
+  const handle = (e) => onChange(e.target.value);
+  const Placeholder = /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { display: "flex", alignItems: "center", gap: 1, color: "text.secondary", children: [
+    /* @__PURE__ */ jsxRuntime.jsx(material.Avatar, { sx: { width: 24, height: 24, bgcolor: "#E0E0E0" }, children: placeholderAvatar != null ? placeholderAvatar : /* @__PURE__ */ jsxRuntime.jsx(PersonOutlineIcon__default.default, { fontSize: "small" }) }),
+    label
+  ] });
+  return /* @__PURE__ */ jsxRuntime.jsxs(
+    material.FormControl,
+    {
+      fullWidth: true,
+      variant: "standard",
+      disabled,
+      sx: { minWidth },
+      children: [
+        /* @__PURE__ */ jsxRuntime.jsx(material.InputLabel, { shrink: true, children: label }),
+        /* @__PURE__ */ jsxRuntime.jsx(
+          material.Select,
+          {
+            value,
+            onChange: handle,
+            renderValue: () => value && current ? /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { display: "flex", alignItems: "center", gap: 1, children: [
+              /* @__PURE__ */ jsxRuntime.jsx(material.Avatar, { src: current.avatar, sx: { width: 24, height: 24 }, children: current.nome[0] }),
+              current.nome
+            ] }) : Placeholder,
+            children: options.map((o) => /* @__PURE__ */ jsxRuntime.jsx(material.MenuItem, { value: o.id, children: /* @__PURE__ */ jsxRuntime.jsxs(material.ListItem, { disableGutters: true, children: [
+              /* @__PURE__ */ jsxRuntime.jsx(material.ListItemAvatar, { sx: { minWidth: 32 }, children: /* @__PURE__ */ jsxRuntime.jsx(material.Avatar, { src: o.avatar, sx: { width: 32, height: 32, marginRight: "1em" }, children: o.nome[0] }) }),
+              /* @__PURE__ */ jsxRuntime.jsx(material.ListItemText, { primary: o.nome })
+            ] }) }, o.id))
+          }
+        )
+      ]
+    }
+  );
+};
+var QuizProgressBar = ({
+  passo,
+  total,
+  mostrarTexto = true
+}) => {
+  const pct = react.useMemo(() => total > 0 ? passo / total * 100 : 0, [passo, total]);
+  return /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { children: [
+    mostrarTexto && /* @__PURE__ */ jsxRuntime.jsxs(material.Typography, { variant: "caption", mb: 0.5, display: "block", children: [
+      Math.round(pct),
+      "% conclu\xEDdo"
+    ] }),
+    /* @__PURE__ */ jsxRuntime.jsx(
+      material.LinearProgress,
+      {
+        variant: "determinate",
+        value: pct,
+        sx: {
+          height: 8,
+          borderRadius: 4,
+          [`&.${material.linearProgressClasses.colorPrimary}`]: {
+            bgcolor: "#E4E4E4"
+          },
+          [`& .${material.linearProgressClasses.bar}`]: {
             borderRadius: 4,
-            overflow: 'hidden',
-            mx: 'auto',
-        }, children: [thumbnailUrl && (jsxs(Box, { position: "relative", children: [jsx(CardMedia, { component: "img", image: thumbnailUrl, alt: title, sx: {
-                            width: '100%',
-                            aspectRatio: imageRatio,
-                            objectFit: 'cover',
-                        } }), jsx(Box, { sx: {
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            width: '100%',
-                            bgcolor: 'rgba(0,0,0,0.4)',
-                            color: '#fff',
-                            p: 2,
-                        }, children: jsx(Typography, { variant: "h5", component: "h2", children: title }) })] })), jsxs(Box, { sx: { p: 3, bgcolor: theme.palette.background.paper }, children: [jsx(Typography, { variant: "subtitle1", color: "text.secondary", gutterBottom: true, children: new Date(pubDate).toLocaleDateString('pt-PT', {
-                            day: '2-digit', month: 'long', year: 'numeric'
-                        }) }), jsx(Collapse, { in: true, sx: { mb: 2 }, children: jsx(Typography, { variant: "body1", paragraph: true, children: displayText }) }), jsxs(Box, { textAlign: "right", children: [jsx(Button, { variant: "contained", onClick: () => setExpanded(e => !e), sx: { mr: 1 }, children: expanded ? 'Ver menos' : 'Saber mais' }), jsx(Button, { variant: "outlined", href: link, target: "_blank", children: "Ir para p\u00E1gina" })] })] })] }));
+            /* animação suave */
+            transition: "transform .4s ease-out",
+            bgcolor: "primary.main"
+          }
+        }
+      }
+    )
+  ] });
+};
+function ColumnFilterPopper({
+  open,
+  anchorEl,
+  values,
+  selected,
+  onClose,
+  onApply
+}) {
+  const [query, setQuery] = react.useState("");
+  const [local, setLocal] = react.useState(new Set(selected));
+  react.useEffect(() => {
+    if (open) setLocal(new Set(selected));
+  }, [open, selected]);
+  const list = react.useMemo(
+    () => values.filter(
+      (v) => String(v != null ? v : "").toLowerCase().includes(query.toLowerCase())
+    ),
+    [values, query]
+  );
+  const toggle = (v) => {
+    const next = new Set(local);
+    next.has(v) ? next.delete(v) : next.add(v);
+    setLocal(next);
+  };
+  return /* @__PURE__ */ jsxRuntime.jsx(material.Popper, { open, anchorEl, placement: "bottom-start", children: /* @__PURE__ */ jsxRuntime.jsx(material.ClickAwayListener, { onClickAway: onClose, children: /* @__PURE__ */ jsxRuntime.jsxs(
+    material.Box,
+    {
+      bgcolor: "#fff",
+      borderRadius: 1,
+      boxShadow: 3,
+      p: 2,
+      maxHeight: 300,
+      overflow: "auto",
+      minWidth: 220,
+      children: [
+        /* @__PURE__ */ jsxRuntime.jsxs(material.Stack, { direction: "row", justifyContent: "space-between", alignItems: "center", mb: 1, children: [
+          /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "subtitle2", children: "Filtrar" }),
+          /* @__PURE__ */ jsxRuntime.jsx(material.IconButton, { size: "small", onClick: () => setLocal(/* @__PURE__ */ new Set()), children: /* @__PURE__ */ jsxRuntime.jsx(ClearIcon__default.default, { fontSize: "inherit" }) })
+        ] }),
+        /* @__PURE__ */ jsxRuntime.jsx(
+          material.TextField,
+          {
+            size: "small",
+            placeholder: "Pesquisar\u2026",
+            fullWidth: true,
+            value: query,
+            onChange: (e) => setQuery(e.target.value),
+            sx: { mb: 1 }
+          }
+        ),
+        list.map((v) => /* @__PURE__ */ jsxRuntime.jsxs(material.MenuItem, { onClick: () => toggle(v), children: [
+          /* @__PURE__ */ jsxRuntime.jsx(material.Checkbox, { size: "small", checked: local.has(v), sx: { mr: 1 } }),
+          String(v != null ? v : "\u2014")
+        ] }, String(v))),
+        /* @__PURE__ */ jsxRuntime.jsx(material.Box, { textAlign: "right", mt: 1, children: /* @__PURE__ */ jsxRuntime.jsx(material.IconButton, { size: "small", color: "primary", onClick: () => (onApply(local), onClose()), children: /* @__PURE__ */ jsxRuntime.jsx(DoneIcon__default.default, { fontSize: "inherit" }) }) })
+      ]
+    }
+  ) }) });
+}
+function SimpleDataTable({
+  columns,
+  rows,
+  rowsPerPageOptions = [5, 10, 25],
+  sx
+}) {
+  var _a;
+  const [page, setPage] = react.useState(0);
+  const [perPage, setPerPage] = react.useState(rowsPerPageOptions[0]);
+  const [filters, setFilters] = react.useState({});
+  const [anchor, setAnchor] = react.useState(null);
+  const [colFilter, setColFilter] = react.useState(null);
+  const filteredRows = rows.filter(
+    (r) => columns.every((c) => {
+      var _a2;
+      const active = filters[c.label];
+      if (!(active == null ? void 0 : active.size)) return true;
+      const val = c.field ? r[c.field] : (_a2 = c.render) == null ? void 0 : _a2.call(c, r);
+      return active.has(val);
+    })
+  );
+  const slice = filteredRows.slice(page * perPage, page * perPage + perPage);
+  const openFilter = (el, col) => {
+    setAnchor(el);
+    setColFilter(col);
+  };
+  const colValues = colFilter ? [...new Set(rows.map((r) => colFilter.field ? r[colFilter.field] : colFilter.render(r)))] : [];
+  return /* @__PURE__ */ jsxRuntime.jsxs(material.Paper, { sx: { width: "100%", overflow: "hidden", ...sx }, children: [
+    /* @__PURE__ */ jsxRuntime.jsx(material.TableContainer, { children: /* @__PURE__ */ jsxRuntime.jsxs(material.Table, { children: [
+      /* @__PURE__ */ jsxRuntime.jsx(material.TableHead, { children: /* @__PURE__ */ jsxRuntime.jsx(material.TableRow, { children: columns.map((c) => {
+        var _a2;
+        return /* @__PURE__ */ jsxRuntime.jsx(
+          material.TableCell,
+          {
+            align: c.align,
+            sx: { width: c.width, fontWeight: 700, ...c.sx },
+            children: /* @__PURE__ */ jsxRuntime.jsxs(
+              material.Stack,
+              {
+                direction: "row",
+                spacing: 0.5,
+                alignItems: "center",
+                sx: { cursor: c.filterable ? "pointer" : "default" },
+                onClick: c.filterable ? (e) => openFilter(e.currentTarget, c) : void 0,
+                children: [
+                  c.label,
+                  c.filterable && /* @__PURE__ */ jsxRuntime.jsx(
+                    FilterAltIcon__default.default,
+                    {
+                      fontSize: "small",
+                      color: ((_a2 = filters[c.label]) == null ? void 0 : _a2.size) ? "primary" : "inherit"
+                    }
+                  )
+                ]
+              }
+            )
+          },
+          c.label
+        );
+      }) }) }),
+      /* @__PURE__ */ jsxRuntime.jsx(material.TableBody, { children: slice.map((row, i) => /* @__PURE__ */ jsxRuntime.jsx(material.TableRow, { children: columns.map((c) => /* @__PURE__ */ jsxRuntime.jsx(material.TableCell, { align: c.align, children: c.render ? c.render(row) : row[c.field] }, String(c.label))) }, i)) })
+    ] }) }),
+    /* @__PURE__ */ jsxRuntime.jsx(
+      material.TablePagination,
+      {
+        component: "div",
+        rowsPerPageOptions,
+        count: filteredRows.length,
+        rowsPerPage: perPage,
+        page,
+        onPageChange: (_, p) => setPage(p),
+        onRowsPerPageChange: (e) => {
+          setPerPage(parseInt(e.target.value, 10));
+          setPage(0);
+        },
+        labelRowsPerPage: "Items por p\xE1gina:"
+      }
+    ),
+    colFilter && /* @__PURE__ */ jsxRuntime.jsx(
+      ColumnFilterPopper,
+      {
+        open: true,
+        anchorEl: anchor,
+        values: colValues,
+        selected: (_a = filters[colFilter.label]) != null ? _a : /* @__PURE__ */ new Set(),
+        onClose: () => setColFilter(null),
+        onApply: (set) => setFilters({ ...filters, [colFilter.label]: set })
+      }
+    )
+  ] });
+}
+var BookCard = ({
+  variant = "view",
+  title,
+  coverImage,
+  startDate,
+  endDate,
+  rating = 0,
+  comment = "",
+  onSave,
+  onReserve
+}) => {
+  const theme2 = material.useTheme();
+  const [currentCoverImage, setCurrentCoverImage] = react.useState(coverImage);
+  react.useEffect(() => {
+    setCurrentCoverImage(coverImage);
+  }, [coverImage]);
+  const [currentRating, setCurrentRating] = react.useState(rating);
+  const [currentComment, setCurrentComment] = react.useState(comment);
+  const handleSave = () => onSave == null ? void 0 : onSave(currentRating, currentComment, currentCoverImage);
+  const handleReserve = () => onReserve == null ? void 0 : onReserve();
+  return /* @__PURE__ */ jsxRuntime.jsxs(
+    material.Card,
+    {
+      sx: {
+        width: 300,
+        borderRadius: 2,
+        bgcolor: theme2.palette.secondary.light,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden"
+      },
+      children: [
+        /* @__PURE__ */ jsxRuntime.jsx(
+          material.CardMedia,
+          {
+            image: currentCoverImage,
+            title,
+            sx: {
+              pt: "150%",
+              backgroundSize: "cover",
+              backgroundPosition: "center"
+            }
+          }
+        ),
+        /* @__PURE__ */ jsxRuntime.jsxs(material.CardContent, { sx: { flexGrow: 1, display: "flex", flexDirection: "column", gap: 1 }, children: [
+          /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "h6", children: title }),
+          variant === "view" && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+            startDate && endDate && /* @__PURE__ */ jsxRuntime.jsxs(material.Typography, { variant: "body2", children: [
+              "In\xEDcio: ",
+              startDate,
+              " \u2014 Conclu\xEDdo: ",
+              endDate
+            ] }),
+            /* @__PURE__ */ jsxRuntime.jsx(material.Box, { display: "flex", alignItems: "center", children: /* @__PURE__ */ jsxRuntime.jsx(material.Rating, { value: rating, readOnly: true, size: "small" }) }),
+            comment && /* @__PURE__ */ jsxRuntime.jsxs(material.Typography, { variant: "body2", sx: { fontStyle: "italic" }, children: [
+              "\u201C",
+              comment,
+              "\u201D"
+            ] })
+          ] }),
+          variant === "edit" && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntime.jsx(
+              material.TextField,
+              {
+                label: "URL da imagem da capa",
+                type: "url",
+                value: currentCoverImage,
+                onChange: (e) => setCurrentCoverImage(e.target.value),
+                fullWidth: true
+              }
+            ),
+            /* @__PURE__ */ jsxRuntime.jsx(material.Box, { display: "flex", alignItems: "center", children: /* @__PURE__ */ jsxRuntime.jsx(
+              material.Rating,
+              {
+                value: currentRating,
+                onChange: (_, v) => setCurrentRating(v != null ? v : 0)
+              }
+            ) }),
+            /* @__PURE__ */ jsxRuntime.jsx(
+              material.TextField,
+              {
+                label: "Coment\xE1rio",
+                multiline: true,
+                minRows: 3,
+                value: currentComment,
+                onChange: (e) => setCurrentComment(e.target.value),
+                fullWidth: true
+              }
+            ),
+            /* @__PURE__ */ jsxRuntime.jsx(material.Box, { mt: "auto", textAlign: "center", children: /* @__PURE__ */ jsxRuntime.jsx(material.Button, { variant: "contained", color: "primary", onClick: handleSave, children: "Guardar avalia\xE7\xE3o" }) })
+          ] }),
+          variant === "reserve" && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntime.jsx(material.Box, { display: "flex", alignItems: "center", children: /* @__PURE__ */ jsxRuntime.jsx(material.Rating, { value: rating, readOnly: true }) }),
+            /* @__PURE__ */ jsxRuntime.jsx(material.Box, { mt: "auto", textAlign: "center", children: /* @__PURE__ */ jsxRuntime.jsx(material.Button, { variant: "contained", color: "primary", onClick: handleReserve, children: "Reservar" }) })
+          ] })
+        ] })
+      ]
+    }
+  );
+};
+function useAgendaFeed(feedUrl) {
+  const [items, setItems] = react.useState(null);
+  const [loading, setLoading] = react.useState(true);
+  const [error, setError] = react.useState(null);
+  react.useEffect(() => {
+    if (!feedUrl) return;
+    setLoading(true);
+    fetch(feedUrl).then((res) => res.text()).then((xmlText) => {
+      const dom = new window.DOMParser().parseFromString(xmlText, "text/xml");
+      const rawItems = Array.from(dom.querySelectorAll("item"));
+      const parsed = rawItems.map((itemEl) => {
+        const obj = {};
+        itemEl.childNodes.forEach((node) => {
+          var _a, _b;
+          if (node.nodeType !== Node.ELEMENT_NODE) return;
+          const el = node;
+          const name = el.tagName;
+          const text = (_b = (_a = el.textContent) == null ? void 0 : _a.trim()) != null ? _b : "";
+          if (obj[name]) {
+            if (Array.isArray(obj[name])) obj[name].push(text);
+            else obj[name] = [obj[name], text];
+          } else {
+            obj[name] = text;
+          }
+        });
+        let thumb;
+        const enc = itemEl.querySelector("enclosure[url]");
+        if (enc == null ? void 0 : enc.getAttribute("url")) {
+          thumb = enc.getAttribute("url").trim();
+        } else {
+          const desc = obj["description"];
+          if (desc) {
+            const dd = new window.DOMParser().parseFromString(desc, "text/html");
+            const img = dd.querySelector("img");
+            if (img == null ? void 0 : img.src) thumb = img.src;
+          }
+        }
+        return {
+          title: obj["title"] || "",
+          link: obj["link"] || "",
+          description: obj["description"] || "",
+          pubDate: obj["pubDate"] || "",
+          author: obj["author"] || void 0,
+          categories: obj["category"] ? Array.isArray(obj["category"]) ? obj["category"] : [obj["category"]] : [],
+          thumbnailUrl: thumb,
+          ...obj
+        };
+      });
+      setItems(parsed);
+    }).catch((err) => setError(err)).finally(() => setLoading(false));
+  }, [feedUrl]);
+  return { items, loading, error };
+}
+var AgendaFeed = ({
+  feedUrl,
+  columns = 2,
+  imageRatio = "16/9",
+  // usar aspectRatio moderno
+  contentPadding = 2,
+  cardMaxWidth = "360px",
+  actions
+}) => {
+  const theme2 = material.useTheme();
+  const { items, loading, error } = useAgendaFeed(feedUrl);
+  if (loading) return /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { children: "Carregando eventos\u2026" });
+  if (error) return /* @__PURE__ */ jsxRuntime.jsxs(material.Typography, { color: "error", children: [
+    "Erro: ",
+    error.message
+  ] });
+  if (!(items == null ? void 0 : items.length)) return /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { children: "Sem eventos." });
+  const decodeHtml = (html) => {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return doc.documentElement.textContent || "";
+  };
+  return /* @__PURE__ */ jsxRuntime.jsx(Grid__default.default, { container: true, spacing: 2, justifyContent: "center", children: items.map((item, i) => {
+    var _a;
+    const fullText = decodeHtml(item.description);
+    const dataMatch = fullText.match(/Data:\s*([^|]+)/i);
+    const localMatch = fullText.match(/Local:\s*([^|]+)/i);
+    const resumo = fullText.split(/Data:/i)[0].trim();
+    return /* @__PURE__ */ jsxRuntime.jsx(
+      Grid__default.default,
+      {
+        item: true,
+        xs: 12,
+        sm: Math.floor(12 / columns),
+        sx: { display: "flex", justifyContent: "center" },
+        children: /* @__PURE__ */ jsxRuntime.jsxs(
+          material.Paper,
+          {
+            elevation: 2,
+            sx: {
+              width: "100%",
+              maxWidth: cardMaxWidth,
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 3,
+              overflow: "hidden",
+              bgcolor: theme2.palette.background.paper
+            },
+            children: [
+              item.thumbnailUrl && /* @__PURE__ */ jsxRuntime.jsx(
+                material.CardMedia,
+                {
+                  component: "img",
+                  image: item.thumbnailUrl,
+                  alt: item.title,
+                  sx: {
+                    width: "100%",
+                    aspectRatio: imageRatio,
+                    objectFit: "cover"
+                  }
+                }
+              ),
+              /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { sx: { p: contentPadding }, children: [
+                /* @__PURE__ */ jsxRuntime.jsx(
+                  material.Typography,
+                  {
+                    variant: "h6",
+                    component: "h3",
+                    gutterBottom: true,
+                    sx: { fontWeight: 600 },
+                    children: item.title
+                  }
+                ),
+                dataMatch && /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { display: "flex", alignItems: "center", mb: 1, children: [
+                  /* @__PURE__ */ jsxRuntime.jsx(AccessTimeIcon__default.default, { fontSize: "small", sx: { mr: 0.5, color: "text.secondary" } }),
+                  /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "subtitle2", color: "text.secondary", children: dataMatch[1].trim() })
+                ] }),
+                localMatch && /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { display: "flex", alignItems: "center", mb: 1, children: [
+                  /* @__PURE__ */ jsxRuntime.jsx(LocationOnIcon__default.default, { fontSize: "small", sx: { mr: 0.5, color: "text.secondary" } }),
+                  /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "subtitle2", color: "text.secondary", children: localMatch[1].trim() })
+                ] }),
+                /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "body2", sx: { mb: 2 }, children: resumo.length > 140 ? resumo.slice(0, 140) + "\u2026" : resumo }),
+                /* @__PURE__ */ jsxRuntime.jsx(material.Box, { textAlign: "right", children: (_a = actions == null ? void 0 : actions(item)) != null ? _a : /* @__PURE__ */ jsxRuntime.jsx(
+                  material.Button,
+                  {
+                    variant: "contained",
+                    size: "small",
+                    href: item.link,
+                    target: "_blank",
+                    children: "Saber mais"
+                  }
+                ) })
+              ] })
+            ]
+          }
+        )
+      },
+      i
+    );
+  }) });
+};
+var AgendaLargeCard = ({
+  title,
+  pubDate,
+  description,
+  thumbnailUrl,
+  link,
+  width = "100%",
+  imageRatio = "16/9",
+  truncateLength = 200
+}) => {
+  const [expanded, setExpanded] = react.useState(false);
+  const theme2 = material.useTheme();
+  const decodeHtml = (html) => {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return doc.documentElement.textContent || "";
+  };
+  const fullText = decodeHtml(description);
+  const displayText = expanded ? fullText : fullText.length > truncateLength ? fullText.slice(0, truncateLength) + "\u2026" : fullText;
+  return /* @__PURE__ */ jsxRuntime.jsxs(
+    material.Paper,
+    {
+      elevation: 4,
+      sx: {
+        width,
+        borderRadius: 4,
+        overflow: "hidden",
+        mx: "auto"
+      },
+      children: [
+        thumbnailUrl && /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { position: "relative", children: [
+          /* @__PURE__ */ jsxRuntime.jsx(
+            material.CardMedia,
+            {
+              component: "img",
+              image: thumbnailUrl,
+              alt: title,
+              sx: {
+                width: "100%",
+                aspectRatio: imageRatio,
+                objectFit: "cover"
+              }
+            }
+          ),
+          /* @__PURE__ */ jsxRuntime.jsx(
+            material.Box,
+            {
+              sx: {
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                width: "100%",
+                bgcolor: "rgba(0,0,0,0.4)",
+                color: "#fff",
+                p: 2
+              },
+              children: /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "h5", component: "h2", children: title })
+            }
+          )
+        ] }),
+        /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { sx: { p: 3, bgcolor: theme2.palette.background.paper }, children: [
+          /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "subtitle1", color: "text.secondary", gutterBottom: true, children: new Date(pubDate).toLocaleDateString("pt-PT", {
+            day: "2-digit",
+            month: "long",
+            year: "numeric"
+          }) }),
+          /* @__PURE__ */ jsxRuntime.jsx(material.Collapse, { in: true, sx: { mb: 2 }, children: /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "body1", paragraph: true, children: displayText }) }),
+          /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { textAlign: "right", children: [
+            /* @__PURE__ */ jsxRuntime.jsx(
+              material.Button,
+              {
+                variant: "contained",
+                onClick: () => setExpanded((e) => !e),
+                sx: { mr: 1 },
+                children: expanded ? "Ver menos" : "Saber mais"
+              }
+            ),
+            /* @__PURE__ */ jsxRuntime.jsx(
+              material.Button,
+              {
+                variant: "outlined",
+                href: link,
+                target: "_blank",
+                children: "Ir para p\xE1gina"
+              }
+            )
+          ] })
+        ] })
+      ]
+    }
+  );
+};
+var FilterBar = ({
+  filters,
+  selected,
+  onChange,
+  icons = {},
+  chipIcons = {}
+}) => {
+  const theme2 = material.useTheme();
+  const [anchorEl, setAnchorEl] = react.useState(null);
+  const [activeFilter, setActiveFilter] = react.useState(null);
+  const openMenu = (e, filterId) => {
+    setAnchorEl(e.currentTarget);
+    setActiveFilter(filterId);
+  };
+  const closeMenu = () => {
+    setAnchorEl(null);
+    setActiveFilter(null);
+  };
+  const handleOptionClick = (value) => {
+    if (!activeFilter) return;
+    const curr = selected[activeFilter] || [];
+    const next = curr.includes(value) ? curr.filter((v) => v !== value) : [...curr, value];
+    onChange(activeFilter, next);
+  };
+  const handleDeleteChip = (filterId, value) => {
+    const curr = selected[filterId] || [];
+    onChange(filterId, curr.filter((v) => v !== value));
+  };
+  return /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { children: [
+    /* @__PURE__ */ jsxRuntime.jsx(material.Box, { display: "flex", gap: 1, mb: 1, children: filters.map((f) => /* @__PURE__ */ jsxRuntime.jsx(
+      material.Button,
+      {
+        variant: "contained",
+        size: "small",
+        onClick: (e) => openMenu(e, f.id),
+        startIcon: icons[f.id],
+        endIcon: /* @__PURE__ */ jsxRuntime.jsx(ArrowDropDownIcon__default.default, {}),
+        sx: {
+          backgroundColor: theme2.palette.primary.main,
+          "&:hover": { backgroundColor: theme2.palette.primary.dark }
+        },
+        children: f.label
+      },
+      f.id
+    )) }),
+    /* @__PURE__ */ jsxRuntime.jsx(material.Divider, { sx: { mb: 1 } }),
+    /* @__PURE__ */ jsxRuntime.jsx(material.Box, { display: "flex", gap: 1, flexWrap: "wrap", mb: 1, children: Object.entries(selected).flatMap(
+      ([filterId, vals]) => vals.map((val) => {
+        var _a;
+        const def = filters.find((f) => f.id === filterId);
+        const label = ((_a = def.options.find((o) => o.value === val)) == null ? void 0 : _a.label) || val;
+        const key = `${filterId}-${val}`;
+        const chipIcon = chipIcons[filterId];
+        return /* @__PURE__ */ jsxRuntime.jsx(
+          material.Chip,
+          {
+            label,
+            size: "small",
+            onDelete: () => handleDeleteChip(filterId, val),
+            deleteIcon: /* @__PURE__ */ jsxRuntime.jsx(CloseIcon__default.default, {}),
+            icon: chipIcon,
+            sx: {
+              backgroundColor: theme2.palette.primary.light,
+              color: theme2.palette.primary.contrastText
+            }
+          },
+          key
+        );
+      })
+    ) }),
+    /* @__PURE__ */ jsxRuntime.jsx(
+      material.Menu,
+      {
+        anchorEl,
+        open: Boolean(anchorEl),
+        onClose: closeMenu,
+        children: activeFilter && filters.find((f) => f.id === activeFilter).options.map((opt) => {
+          const isSelected = (selected[activeFilter] || []).includes(opt.value);
+          return /* @__PURE__ */ jsxRuntime.jsxs(
+            material.MenuItem,
+            {
+              selected: isSelected,
+              onClick: () => handleOptionClick(opt.value),
+              children: [
+                opt.label,
+                isSelected && /* @__PURE__ */ jsxRuntime.jsx(CloseIcon__default.default, { fontSize: "small", sx: { ml: 1 } })
+              ]
+            },
+            opt.value
+          );
+        })
+      }
+    )
+  ] });
 };
 
-const FilterBar = ({ filters, selected, onChange, icons = {}, chipIcons = {} }) => {
-    const theme = useTheme();
-    const [anchorEl, setAnchorEl] = useState(null);
-    const [activeFilter, setActiveFilter] = useState(null);
-    const openMenu = (e, filterId) => {
-        setAnchorEl(e.currentTarget);
-        setActiveFilter(filterId);
-    };
-    const closeMenu = () => {
-        setAnchorEl(null);
-        setActiveFilter(null);
-    };
-    const handleOptionClick = (value) => {
-        if (!activeFilter)
-            return;
-        const curr = selected[activeFilter] || [];
-        const next = curr.includes(value)
-            ? curr.filter(v => v !== value)
-            : [...curr, value];
-        onChange(activeFilter, next);
-    };
-    const handleDeleteChip = (filterId, value) => {
-        const curr = selected[filterId] || [];
-        onChange(filterId, curr.filter(v => v !== value));
-    };
-    return (jsxs(Box, { children: [jsx(Box, { display: "flex", gap: 1, mb: 1, children: filters.map(f => (jsx(Button, { variant: "contained", size: "small", onClick: e => openMenu(e, f.id), startIcon: icons[f.id], endIcon: jsx(ArrowDropDownIcon, {}), sx: {
-                        backgroundColor: theme.palette.primary.main,
-                        '&:hover': { backgroundColor: theme.palette.primary.dark },
-                    }, children: f.label }, f.id))) }), jsx(Divider, { sx: { mb: 1 } }), jsx(Box, { display: "flex", gap: 1, flexWrap: "wrap", mb: 1, children: Object.entries(selected).flatMap(([filterId, vals]) => vals.map(val => {
-                    var _a;
-                    const def = filters.find(f => f.id === filterId);
-                    const label = ((_a = def.options.find(o => o.value === val)) === null || _a === void 0 ? void 0 : _a.label) || val;
-                    const key = `${filterId}-${val}`;
-                    // Extrai um único ReactElement ou undefined
-                    const chipIcon = chipIcons[filterId];
-                    return (jsx(Chip, { label: label, size: "small", onDelete: () => handleDeleteChip(filterId, val), deleteIcon: jsx(CloseIcon, {}), icon: chipIcon, sx: {
-                            backgroundColor: theme.palette.primary.light,
-                            color: theme.palette.primary.contrastText,
-                        } }, key));
-                })) }), jsx(Menu, { anchorEl: anchorEl, open: Boolean(anchorEl), onClose: closeMenu, children: activeFilter && filters
-                    .find(f => f.id === activeFilter)
-                    .options.map(opt => {
-                    const isSelected = (selected[activeFilter] || []).includes(opt.value);
-                    return (jsxs(MenuItem, { selected: isSelected, onClick: () => handleOptionClick(opt.value), children: [opt.label, isSelected && jsx(CloseIcon, { fontSize: "small", sx: { ml: 1 } })] }, opt.value));
-                }) })] }));
-};
-
-export { AgendaFeed, AgendaLargeCard, AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, BookCard, EmailField, FilterBar, GradientBackground, HowItWorksSection, InfoStepCard, Logo, NotificationBell, NumericField, PasswordField, PrimaryButton, QuizProgressBar, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
+exports.AgendaFeed = AgendaFeed;
+exports.AgendaLargeCard = AgendaLargeCard;
+exports.AvatarListItem = AvatarListItem;
+exports.AvatarSelect = AvatarSelect;
+exports.AvatarUpload = AvatarUpload;
+exports.BaseTextField = BaseTextField;
+exports.BibliotecarioThemeProvider = BibliotecarioThemeProvider;
+exports.BookCard = BookCard;
+exports.EmailField = EmailField;
+exports.FilterBar = FilterBar;
+exports.GradientBackground = GradientBackground;
+exports.HowItWorksSection = HowItWorksSection;
+exports.InfoStepCard = InfoStepCard_default;
+exports.Logo = Logo;
+exports.NotificationBell = NotificationBell;
+exports.NumericField = NumericField;
+exports.PasswordField = PasswordField;
+exports.PrimaryButton = PrimaryButton;
+exports.QuizProgressBar = QuizProgressBar;
+exports.RouteLink = RouteLink;
+exports.SecondaryButton = SecondaryButton;
+exports.SectionDivider = SectionDivider;
+exports.SelectableOptions = SelectableOptions;
+exports.SidebarMenu = SidebarMenu;
+exports.SimpleDataTable = SimpleDataTable;
+exports.WhiteCard = WhiteCard;
+exports.theme = theme;
+//# sourceMappingURL=index.js.map
 //# sourceMappingURL=index.js.map
