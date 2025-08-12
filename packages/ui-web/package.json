@@ -1,0 +1,37 @@
+{
+  "name": "@bibliotecario/ui-web",
+  "version": "0.1.0",
+  "private": false,
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --sourcemap",
+    "clean": "rimraf dist"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "@mui/material": "^7",
+    "@mui/system": "^7",
+    "@mui/icons-material": "^7",
+    "@emotion/react": "^11",
+    "@emotion/styled": "^11"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "rimraf": "^6.0.0",
+    "typescript": "~5.8.3",
+    "@types/react": "18.3.4",
+    "@types/react-dom": "18.3.0"
+  }
+}
