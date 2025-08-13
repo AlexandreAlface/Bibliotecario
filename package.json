@@ -12,15 +12,7 @@
     "build:ui-web": "npm -w @bibliotecario/ui-web run build",
     "watch:ui-web": "npm -w @bibliotecario/ui-web run watch",
     "build:ui-mobile": "npm -w @bibliotecario/ui-mobile run build",
-    "watch:ui-mobile": "npm -w @bibliotecario/ui-mobile run watch",
-    "storybook": "storybook dev -p 6006 -c packages/ui-web/.storybook",
-    "build-storybook": "storybook build -c packages/ui-web/.storybook -o packages/ui-web/storybook-static"
-  },
-  "overrides": {
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "@types/react": "18.3.4",
-    "@types/react-dom": "18.3.0"
+    "watch:ui-mobile": "npm -w @bibliotecario/ui-mobile run watch"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "^8.6.14",

@@ -18,9 +18,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --sourcemap",
-    "clean": "rimraf dist",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "clean": "rimraf dist"
   },
   "peerDependencies": {
     "@emotion/react": "^11",
@@ -32,18 +30,12 @@
     "react-dom": ">=18"
   },
   "devDependencies": {
-    "@storybook/addon-essentials": "^8.6.14",
-    "@storybook/addon-interactions": "^8.6.14",
-    "@storybook/blocks": "^8.6.14",
-    "@storybook/react": "^8.6.14",
-    "@storybook/react-vite": "^8.6.14",
-    "@storybook/test": "^8.6.14",
     "@types/react": "18.3.4",
     "@types/react-dom": "18.3.0",
     "rimraf": "^6.0.0",
-    "storybook": "^8.6.14",
     "tsup": "^8.0.0",
     "typescript": "~5.8.3",
     "vite": "^5.4.19"
-  }
+  },
+  "overrides": {}
 }

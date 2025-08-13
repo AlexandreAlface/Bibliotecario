@@ -2,21 +2,48 @@
   "name": "@bibliotecario/ui-mobile",
   "version": "0.1.0",
   "private": true,
+  "react-native": "src/index.ts",
   "main": "src/index.ts",
   "types": "src/index.ts",
-  "files": ["src"],
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "watch": "tsc -p tsconfig.build.json -w"
+  },
   "dependencies": {
     "@bibliotecario/tokens": "file:../tokens"
   },
   "peerDependencies": {
-    "react": ">=18 <19",
-    "react-native": ">=0.75 <0.81",
+    "expo-font": "*",
+    "react": ">=18 <20",
+    "react-native": ">=0.76 <0.80",
     "react-native-paper": "^5",
-    "expo-font": "*"
+    "react-native-reanimated": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "react-native-paper": {
+      "optional": true
+    },
+    "react-native-reanimated": {
+      "optional": true
+    },
+    "expo-font": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
-    "@types/react": "^18.2.67",
-    "@types/node": "^20.11.0"
-  }
+    "@types/node": "^20.11.0",
+    "rimraf": "^6.0.0",
+    "typescript": "^5.4.0"
+  },
+  "overrides": {}
 }
