@@ -12,16 +12,15 @@
     "build:ui-web": "npm -w @bibliotecario/ui-web run build",
     "watch:ui-web": "npm -w @bibliotecario/ui-web run watch",
     "build:ui-mobile": "npm -w @bibliotecario/ui-mobile run build",
-    "watch:ui-mobile": "npm -w @bibliotecario/ui-mobile run watch"
+    "watch:ui-mobile": "npm -w @bibliotecario/ui-mobile run watch",
+    "dev:gallery": "npm -w @bibliotecario/ui-gallery run dev",
+    "build:gallery": "npm -w @bibliotecario/ui-gallery run build"
   },
   "devDependencies": {
-    "@storybook/addon-essentials": "^8.6.14",
-    "@storybook/addon-interactions": "^8.6.14",
-    "@storybook/blocks": "^8.6.14",
-    "@storybook/react": "^8.6.14",
-    "@storybook/react-vite": "^8.6.14",
-    "@storybook/test": "^8.6.14",
-    "storybook": "^8.6.14",
     "vite": "^5.4.19"
+  },
+    "overrides": {
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
   }
 }
