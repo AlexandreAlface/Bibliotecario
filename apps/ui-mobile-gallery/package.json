@@ -11,12 +11,10 @@
   },
   "dependencies": {
     "expo": "~53.0.20",
+    "react-native": "0.79.5",
+    "react": "19.0.0",
     "@expo-google-fonts/poppins": "^0.4.0",
     "@bibliotecario/ui-mobile": "file:../../packages/ui-mobile"
-  },
-  "peerDependencies": {
-    "react-native": "0.79.5",
-     "react": "19.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",

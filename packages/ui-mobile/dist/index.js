@@ -4,4 +4,5 @@ export * from "./components/Buttons/Buttons";
 export * from "./components/TextField/TextField";
 export * from "./components/LinkText/LinkText";
 export * from "./components/AvatarItem/AvatarItem";
+export { default as RadioOptionGroup } from "./components/Inputs/RadioInlineGroup";
 //# sourceMappingURL=index.js.map
