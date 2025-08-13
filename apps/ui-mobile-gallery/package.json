@@ -1,0 +1,27 @@
+{
+  "name": "@bibliotecario/ui-mobile-gallery",
+  "private": true,
+  "version": "0.0.1",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start -c",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "clean": "rimraf node_modules package-lock.json"
+  },
+  "dependencies": {
+    "expo": "~53.0.20",
+    "@expo-google-fonts/poppins": "^0.4.0",
+    "@bibliotecario/ui-mobile": "file:../../packages/ui-mobile"
+  },
+  "peerDependencies": {
+    "react-native": "0.79.5",
+     "react": "19.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "babel-plugin-module-resolver": "^5.0.0",
+    "rimraf": "^6.0.0",
+    "typescript": "^5.5.0"
+  }
+}

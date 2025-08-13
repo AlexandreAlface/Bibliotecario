@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022"
+    ],
+    "module": "ESNext",
+    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    "noEmit": true,
+    "paths": {
+      "@bibliotecario/ui-mobile": [
+        "../../packages/ui-mobile/dist"
+      ],
+      "@bibliotecario/ui-mobile/*": [
+        "../../packages/ui-mobile/dist/*"
+      ]
+    }
+  },
+  "include": [
+    "./**/*.ts",
+    "./**/*.tsx",
+    "./**/*.js"
+  ],
+  "extends": "expo/tsconfig.base"
+}
