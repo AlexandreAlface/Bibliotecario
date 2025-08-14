@@ -1,8 +1,13 @@
 export * from "./theme/ThemeProvider";
 export * from "./theme/theme";
 export * from "./components/Buttons/Buttons";
+export { default as TextIconButton } from "./components/Buttons/TextIconButton";
 export * from "./components/TextField/TextField";
 export * from "./components/LinkText/LinkText";
 export * from "./components/AvatarItem/AvatarItem";
 export { default as RadioOptionGroup } from "./components/Inputs/RadioInlineGroup";
+export { default as DividerText } from "./components/Divider/DividerText";
+export { default as AvatarPicture } from "./components/Avatars/AvatarPicture";
+export { default as AvatarUpload } from "./components/Avatars/AvatarUpload";
+export { default as IconTabBar } from "./components/Navigation/IconTabBar";
 //# sourceMappingURL=index.js.map

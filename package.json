@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:mobile": "",
+    "dev:mobile": "npm -w apps/mobile run dev",
     "dev:mobile:tunnel": "npm -w apps/mobile run start:tunnel",
     "dev:web": "npm -w @bibliotecario/apps-web run dev",
     "build:ui-web": "npm -w @bibliotecario/ui-web run build",
