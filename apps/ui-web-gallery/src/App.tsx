@@ -26,6 +26,8 @@ import {
   SidebarMenu,
   SimpleDataTable,
   WhiteCard,
+  Paginator,
+  QuizQuestion
 } from "@bibliotecario/ui-web";
 
 export default function App() {
@@ -35,12 +37,24 @@ export default function App() {
   const [idade, setIdade] = useState<number | "">("");
   const [avatarId, setAvatarId] = useState<string>("");
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>();
-  const [selectValores, setSelectValores] = useState<(string | number)[]>(["aventura"]);
+  const [selectValores, setSelectValores] = useState<(string | number)[]>([
+    "aventura",
+  ]);
   const [radioValor, setRadioValor] = useState<string | number>("m");
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [notifs, setNotifs] = useState([
-    { id: "1", titulo: "Consulta confirmada", mensagem: "Quinta, 18:00", lida: false },
-    { id: "2", titulo: "Novo evento", mensagem: "Hora do Conto - Sábado", lida: false },
+    {
+      id: "1",
+      titulo: "Consulta confirmada",
+      mensagem: "Quinta, 18:00",
+      lida: false,
+    },
+    {
+      id: "2",
+      titulo: "Novo evento",
+      mensagem: "Hora do Conto - Sábado",
+      lida: false,
+    },
   ]);
 
   const filtros = [
@@ -79,9 +93,21 @@ export default function App() {
   ];
 
   const passos = [
-    { step: 1, title: "Perfil", description: "Define a idade e interesses da criança." },
-    { step: 2, title: "Sugestões", description: "Recebe livros do PNL à medida." },
-    { step: 3, title: "Ler & Avaliar", description: "Ganha selos e pontos ao ler." },
+    {
+      step: 1,
+      title: "Perfil",
+      description: "Define a idade e interesses da criança.",
+    },
+    {
+      step: 2,
+      title: "Sugestões",
+      description: "Recebe livros do PNL à medida.",
+    },
+    {
+      step: 3,
+      title: "Ler & Avaliar",
+      description: "Ganha selos e pontos ao ler.",
+    },
   ];
 
   const agendaItem = {
@@ -96,7 +122,13 @@ export default function App() {
   return (
     <BibliotecarioThemeProvider>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 20px" }}>
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: 16,
+          }}
+        >
           <Logo width={160} />
         </div>
         <h1 style={{ textAlign: "center", margin: "8px 0 24px" }}>
@@ -105,6 +137,17 @@ export default function App() {
 
         <GradientBackground style={{ borderRadius: 16, padding: 24 }}>
           <div style={{ display: "grid", gap: 24 }}>
+            <WhiteCard width="100%">
+              <div style={{ display: "grid", gap: 12, placeItems: "center" }}>
+                <QuizQuestion pergunta={"sou umapergunta"} opcoes={[]} ></QuizQuestion>
+              </div>
+            </WhiteCard>
+
+                <WhiteCard width="100%">
+              <div style={{ display: "grid", gap: 12, placeItems: "center" }}>
+                <Paginator count={10}></Paginator>
+              </div>
+            </WhiteCard>
 
             {/* Botões, link e notificações */}
             <WhiteCard width="100%">
@@ -118,14 +161,20 @@ export default function App() {
                   padding: 12,
                 }}
               >
-                <PrimaryButton onClick={() => setClicks((c) => c + 1)}>Primário (+1)</PrimaryButton>
-                <SecondaryButton onClick={() => setClicks(0)}>Reset</SecondaryButton>
+                <PrimaryButton onClick={() => setClicks((c) => c + 1)}>
+                  Primário (+1)
+                </PrimaryButton>
+                <SecondaryButton onClick={() => setClicks(0)}>
+                  Reset
+                </SecondaryButton>
                 <span style={{ fontWeight: 600 }}>Cliques: {clicks}</span>
                 <RouteLink href="#exemplo">Um link de rota</RouteLink>
                 <NotificationBell
                   items={notifs}
                   onSelect={(item) => console.log("selecionado", item)}
-                  onRemove={(id) => setNotifs((ns) => ns.filter((n) => n.id !== id))}
+                  onRemove={(id) =>
+                    setNotifs((ns) => ns.filter((n) => n.id !== id))
+                  }
                   onClearAll={() => setNotifs([])}
                 />
               </div>
@@ -162,7 +211,10 @@ export default function App() {
                     setIdade(v === "" ? "" : Number(v));
                   }}
                 />
-                <BaseTextField label="Texto livre" placeholder="Escreve algo..." />
+                <BaseTextField
+                  label="Texto livre"
+                  placeholder="Escreve algo..."
+                />
               </div>
             </WhiteCard>
 
@@ -178,7 +230,10 @@ export default function App() {
                   padding: 12,
                 }}
               >
-                <AvatarUpload value={avatarUrl} onChange={(_, url) => setAvatarUrl(url || undefined)} />
+                <AvatarUpload
+                  value={avatarUrl}
+                  onChange={(_, url) => setAvatarUrl(url || undefined)}
+                />
                 <AvatarSelect
                   label="Selecionar criança"
                   options={[
@@ -213,7 +268,9 @@ export default function App() {
                 <FilterBar
                   filters={filtros}
                   selected={selecionados}
-                  onChange={(id, values) => setSelecionados((prev) => ({ ...prev, [id]: values }))}
+                  onChange={(id, values) =>
+                    setSelecionados((prev) => ({ ...prev, [id]: values }))
+                  }
                 />
                 <SelectableOptions
                   label="Temas (checkbox)"
@@ -268,7 +325,9 @@ export default function App() {
                   coverImage="https://covers.openlibrary.org/b/id/9251996-L.jpg"
                   rating={4}
                   comment="Muito divertido"
-                  onSave={(r, c) => alert(`Guardado: rating=${r}, comentário=${c}`)}
+                  onSave={(r, c) =>
+                    alert(`Guardado: rating=${r}, comentário=${c}`)
+                  }
                 />
               </div>
             </WhiteCard>
@@ -278,7 +337,11 @@ export default function App() {
               <div style={{ display: "grid", gap: 12, placeItems: "center" }}>
                 <QuizProgressBar passo={2} total={5} mostrarTexto />
                 <HowItWorksSection orientation="horizontal" steps={passos} />
-                <InfoStepCard step={1} title="Criar Perfil" description="Adiciona as crianças e preferências." />
+                <InfoStepCard
+                  step={1}
+                  title="Criar Perfil"
+                  description="Adiciona as crianças e preferências."
+                />
               </div>
             </WhiteCard>
 
@@ -292,7 +355,12 @@ export default function App() {
             {/* Agenda (cartão grande + feed via proxy) */}
             <WhiteCard width="100%">
               <div style={{ display: "grid", gap: 16, placeItems: "center" }}>
-                <AgendaLargeCard {...agendaItem} width="100%" imageRatio="16/9" truncateLength={120} />
+                <AgendaLargeCard
+                  {...agendaItem}
+                  width="100%"
+                  imageRatio="16/9"
+                  truncateLength={120}
+                />
                 <AgendaFeed feedUrl="/rss/eventos" />
               </div>
             </WhiteCard>
@@ -318,7 +386,6 @@ export default function App() {
                 />
               </div>
             </WhiteCard>
-
           </div>
         </GradientBackground>
       </div>

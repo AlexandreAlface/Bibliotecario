@@ -1,4 +1,4 @@
-import { styled, Button, alpha, TextField as TextField$1, Link, Card, Box, IconButton as IconButton$1, ThemeProvider, CssBaseline, Divider, Typography, Stack, FormControl, FormLabel, FormGroup, FormControlLabel, Checkbox, RadioGroup, Radio, Avatar, Tooltip, Drawer, List, Badge, Menu, ListItem, ListItemText, MenuItem, InputLabel, Select, ListItemAvatar, LinearProgress, linearProgressClasses, Paper, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, useTheme, CardMedia, CardContent, Rating, Collapse, Chip, ListItemButton, ListItemIcon, Popper, ClickAwayListener } from '@mui/material';
+import { styled, Button, alpha, TextField as TextField$1, Link, Card, Box, IconButton as IconButton$1, ThemeProvider, CssBaseline, Divider, Typography, Stack, FormControl, FormLabel, FormGroup, FormControlLabel, Checkbox, RadioGroup, Radio, Avatar, Tooltip, Drawer, List, Badge, Menu, ListItem, ListItemText, MenuItem, InputLabel, Select, ListItemAvatar, LinearProgress, linearProgressClasses, Paper, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, useTheme, CardMedia, CardContent, Rating, Collapse, Chip, Pagination, CardActionArea, InputAdornment as InputAdornment$1, ListItemButton, ListItemIcon, Popper, ClickAwayListener } from '@mui/material';
 import { createTheme, styled as styled$2 } from '@mui/material/styles';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
 import { shouldForwardProp, styled as styled$1 } from '@mui/system';
@@ -24,6 +24,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import CloseIcon from '@mui/icons-material/Close';
+import SearchIcon from '@mui/icons-material/Search';
 
 // src/ThemeProvider.tsx
 var palette = {
@@ -1483,7 +1484,139 @@ var FilterBar = ({
     )
   ] });
 };
+var Paginator = ({
+  count,
+  page,
+  onChange,
+  siblingCount = 1,
+  boundaryCount = 1,
+  showFirstButton = false,
+  showLastButton = false,
+  muiProps = {}
+}) => /* @__PURE__ */ jsx(Stack, { alignItems: "center", sx: { my: 2 }, children: /* @__PURE__ */ jsx(
+  Pagination,
+  {
+    count,
+    page,
+    onChange,
+    siblingCount,
+    boundaryCount,
+    showFirstButton,
+    showLastButton,
+    color: "primary",
+    ...muiProps
+  }
+) });
+var QuizQuestion = ({
+  pergunta,
+  opcoes,
+  valor,
+  onChange,
+  topoIcon,
+  sx
+}) => /* @__PURE__ */ jsxs(Box, { textAlign: "center", sx, children: [
+  /* @__PURE__ */ jsx(
+    Box,
+    {
+      position: "relative",
+      bgcolor: "rgba(122,68,189,0.08)",
+      color: "primary.dark",
+      px: 4,
+      py: 3,
+      borderRadius: 2,
+      mb: 4,
+      children: /* @__PURE__ */ jsx(Typography, { variant: "h6", fontWeight: 600, children: pergunta })
+    }
+  ),
+  /* @__PURE__ */ jsx(Grid, { container: true, spacing: 4, justifyContent: "center", children: opcoes.map((o) => {
+    const selected = o.value === valor;
+    return /* @__PURE__ */ jsx(Grid, { item: true, children: /* @__PURE__ */ jsx(
+      Card,
+      {
+        elevation: 0,
+        sx: {
+          width: 120,
+          height: 120,
+          borderRadius: 2,
+          bgcolor: selected ? "primary.main" : "rgba(122,68,189,0.08)",
+          color: selected ? "#fff" : "primary.dark",
+          transition: "all .25s"
+        },
+        children: /* @__PURE__ */ jsx(
+          CardActionArea,
+          {
+            sx: {
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              px: 2
+            },
+            onClick: () => onChange == null ? void 0 : onChange(o.value),
+            children: /* @__PURE__ */ jsx(
+              Typography,
+              {
+                variant: "h6",
+                fontWeight: 600,
+                textAlign: "center",
+                sx: { userSelect: "none" },
+                children: o.label
+              }
+            )
+          }
+        )
+      }
+    ) }, o.value);
+  }) })
+] });
+var SearchBar = ({
+  value,
+  onChange,
+  onSearch,
+  placeholder = "Pesquisar\u2026",
+  textFieldProps
+}) => {
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && onSearch) {
+      onSearch(value);
+    }
+  };
+  return /* @__PURE__ */ jsx(
+    TextField$1,
+    {
+      value,
+      onChange: (e) => onChange(e.target.value),
+      placeholder,
+      onKeyPress: handleKeyPress,
+      variant: "outlined",
+      size: "small",
+      fullWidth: true,
+      InputProps: {
+        startAdornment: /* @__PURE__ */ jsx(InputAdornment$1, { position: "start", children: /* @__PURE__ */ jsx(
+          IconButton$1,
+          {
+            size: "small",
+            onClick: () => onSearch == null ? void 0 : onSearch(value),
+            edge: "start",
+            children: /* @__PURE__ */ jsx(SearchIcon, { fontSize: "small" })
+          }
+        ) }),
+        endAdornment: value ? /* @__PURE__ */ jsx(InputAdornment$1, { position: "end", children: /* @__PURE__ */ jsx(
+          IconButton$1,
+          {
+            size: "small",
+            onClick: () => onChange(""),
+            edge: "end",
+            children: /* @__PURE__ */ jsx(ClearIcon, { fontSize: "small" })
+          }
+        ) }) : null
+      },
+      ...textFieldProps
+    }
+  );
+};
 
-export { AgendaFeed, AgendaLargeCard, AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, BookCard, EmailField, FilterBar, GradientBackground, HowItWorksSection, InfoStepCard_default as InfoStepCard, Logo, NotificationBell, NumericField, PasswordField, PrimaryButton, QuizProgressBar, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
+export { AgendaFeed, AgendaLargeCard, AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, BookCard, EmailField, FilterBar, GradientBackground, HowItWorksSection, InfoStepCard_default as InfoStepCard, Logo, NotificationBell, NumericField, Paginator, PasswordField, PrimaryButton, QuizProgressBar, QuizQuestion, RouteLink, SearchBar, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
 //# sourceMappingURL=index.mjs.map
 //# sourceMappingURL=index.mjs.map

@@ -1,0 +1,22 @@
+import * as React from "react";
+import { ViewStyle, ImageSourcePropType } from "react-native";
+import type { MD3Elevation } from "react-native-paper/lib/typescript/types";
+export type FlexibleCardProps = {
+    title?: string;
+    subtitle?: string;
+    children?: React.ReactNode;
+    header?: React.ReactNode;
+    footer?: React.ReactNode;
+    images?: (string | ImageSourcePropType)[];
+    carouselHeight?: number;
+    carouselGap?: number;
+    imageRadius?: number;
+    backgroundColor?: string;
+    elevation?: MD3Elevation;
+    padding?: number;
+    style?: ViewStyle;
+    onPress?: () => void;
+    accessibilityLabel?: string;
+};
+declare const FlexibleCard: React.FC<FlexibleCardProps>;
+export default FlexibleCard;

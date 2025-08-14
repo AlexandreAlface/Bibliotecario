@@ -26,6 +26,7 @@ var AccessTimeIcon = require('@mui/icons-material/AccessTime');
 var LocationOnIcon = require('@mui/icons-material/LocationOn');
 var ArrowDropDownIcon = require('@mui/icons-material/ArrowDropDown');
 var CloseIcon = require('@mui/icons-material/Close');
+var SearchIcon = require('@mui/icons-material/Search');
 
 function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
 
@@ -50,6 +51,7 @@ var AccessTimeIcon__default = /*#__PURE__*/_interopDefault(AccessTimeIcon);
 var LocationOnIcon__default = /*#__PURE__*/_interopDefault(LocationOnIcon);
 var ArrowDropDownIcon__default = /*#__PURE__*/_interopDefault(ArrowDropDownIcon);
 var CloseIcon__default = /*#__PURE__*/_interopDefault(CloseIcon);
+var SearchIcon__default = /*#__PURE__*/_interopDefault(SearchIcon);
 
 // src/ThemeProvider.tsx
 var palette = {
@@ -1509,6 +1511,138 @@ var FilterBar = ({
     )
   ] });
 };
+var Paginator = ({
+  count,
+  page,
+  onChange,
+  siblingCount = 1,
+  boundaryCount = 1,
+  showFirstButton = false,
+  showLastButton = false,
+  muiProps = {}
+}) => /* @__PURE__ */ jsxRuntime.jsx(material.Stack, { alignItems: "center", sx: { my: 2 }, children: /* @__PURE__ */ jsxRuntime.jsx(
+  material.Pagination,
+  {
+    count,
+    page,
+    onChange,
+    siblingCount,
+    boundaryCount,
+    showFirstButton,
+    showLastButton,
+    color: "primary",
+    ...muiProps
+  }
+) });
+var QuizQuestion = ({
+  pergunta,
+  opcoes,
+  valor,
+  onChange,
+  topoIcon,
+  sx
+}) => /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { textAlign: "center", sx, children: [
+  /* @__PURE__ */ jsxRuntime.jsx(
+    material.Box,
+    {
+      position: "relative",
+      bgcolor: "rgba(122,68,189,0.08)",
+      color: "primary.dark",
+      px: 4,
+      py: 3,
+      borderRadius: 2,
+      mb: 4,
+      children: /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "h6", fontWeight: 600, children: pergunta })
+    }
+  ),
+  /* @__PURE__ */ jsxRuntime.jsx(Grid__default.default, { container: true, spacing: 4, justifyContent: "center", children: opcoes.map((o) => {
+    const selected = o.value === valor;
+    return /* @__PURE__ */ jsxRuntime.jsx(Grid__default.default, { item: true, children: /* @__PURE__ */ jsxRuntime.jsx(
+      material.Card,
+      {
+        elevation: 0,
+        sx: {
+          width: 120,
+          height: 120,
+          borderRadius: 2,
+          bgcolor: selected ? "primary.main" : "rgba(122,68,189,0.08)",
+          color: selected ? "#fff" : "primary.dark",
+          transition: "all .25s"
+        },
+        children: /* @__PURE__ */ jsxRuntime.jsx(
+          material.CardActionArea,
+          {
+            sx: {
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              px: 2
+            },
+            onClick: () => onChange == null ? void 0 : onChange(o.value),
+            children: /* @__PURE__ */ jsxRuntime.jsx(
+              material.Typography,
+              {
+                variant: "h6",
+                fontWeight: 600,
+                textAlign: "center",
+                sx: { userSelect: "none" },
+                children: o.label
+              }
+            )
+          }
+        )
+      }
+    ) }, o.value);
+  }) })
+] });
+var SearchBar = ({
+  value,
+  onChange,
+  onSearch,
+  placeholder = "Pesquisar\u2026",
+  textFieldProps
+}) => {
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && onSearch) {
+      onSearch(value);
+    }
+  };
+  return /* @__PURE__ */ jsxRuntime.jsx(
+    material.TextField,
+    {
+      value,
+      onChange: (e) => onChange(e.target.value),
+      placeholder,
+      onKeyPress: handleKeyPress,
+      variant: "outlined",
+      size: "small",
+      fullWidth: true,
+      InputProps: {
+        startAdornment: /* @__PURE__ */ jsxRuntime.jsx(material.InputAdornment, { position: "start", children: /* @__PURE__ */ jsxRuntime.jsx(
+          material.IconButton,
+          {
+            size: "small",
+            onClick: () => onSearch == null ? void 0 : onSearch(value),
+            edge: "start",
+            children: /* @__PURE__ */ jsxRuntime.jsx(SearchIcon__default.default, { fontSize: "small" })
+          }
+        ) }),
+        endAdornment: value ? /* @__PURE__ */ jsxRuntime.jsx(material.InputAdornment, { position: "end", children: /* @__PURE__ */ jsxRuntime.jsx(
+          material.IconButton,
+          {
+            size: "small",
+            onClick: () => onChange(""),
+            edge: "end",
+            children: /* @__PURE__ */ jsxRuntime.jsx(ClearIcon__default.default, { fontSize: "small" })
+          }
+        ) }) : null
+      },
+      ...textFieldProps
+    }
+  );
+};
 
 exports.AgendaFeed = AgendaFeed;
 exports.AgendaLargeCard = AgendaLargeCard;
@@ -1526,10 +1660,13 @@ exports.InfoStepCard = InfoStepCard_default;
 exports.Logo = Logo;
 exports.NotificationBell = NotificationBell;
 exports.NumericField = NumericField;
+exports.Paginator = Paginator;
 exports.PasswordField = PasswordField;
 exports.PrimaryButton = PrimaryButton;
 exports.QuizProgressBar = QuizProgressBar;
+exports.QuizQuestion = QuizQuestion;
 exports.RouteLink = RouteLink;
+exports.SearchBar = SearchBar;
 exports.SecondaryButton = SecondaryButton;
 exports.SectionDivider = SectionDivider;
 exports.SelectableOptions = SelectableOptions;

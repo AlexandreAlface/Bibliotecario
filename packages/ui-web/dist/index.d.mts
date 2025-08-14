@@ -3,7 +3,7 @@ import * as React$1 from 'react';
 import React__default, { PropsWithChildren, ReactElement } from 'react';
 import * as _mui_material_styles from '@mui/material/styles';
 import * as _mui_material from '@mui/material';
-import { ButtonProps, TextFieldProps as TextFieldProps$1, SxProps, Theme, LinkProps, CardProps, BoxProps, Card, IconButtonProps } from '@mui/material';
+import { ButtonProps, TextFieldProps as TextFieldProps$1, SxProps, Theme, LinkProps, CardProps, BoxProps, Card, IconButtonProps, PaginationProps } from '@mui/material';
 import { TextFieldProps } from '@mui/material/TextField';
 import * as _emotion_styled from '@emotion/styled';
 import * as _mui_system from '@mui/system';
@@ -352,4 +352,69 @@ interface FilterBarProps {
 }
 declare const FilterBar: React__default.FC<FilterBarProps>;
 
-export { type Action, AgendaFeed, type AgendaFeedProps, AgendaLargeCard, type AgendaLargeCardProps, AvatarListItem, type AvatarListItemProps, AvatarSelect, type AvatarSelectProps, AvatarUpload, type AvatarUploadProps, BaseTextField, BibliotecarioThemeProvider, BookCard, type BookCardProps, type BookCardVariant, type ChildOption, type DataColumn, EmailField, FilterBar, type FilterBarProps, type FilterDefinition, type FilterOption, GradientBackground, HowItWorksSection, InfoStepCard, Logo, type LogoProps, type MenuItem, NotificationBell, type NotificationBellProps, type NotificationItem, NumericField, type Option, PasswordField, PrimaryButton, QuizProgressBar, type QuizProgressBarProps, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, type SelectableOptionsProps, SidebarMenu, type SidebarMenuProps, SimpleDataTable, type SimpleDataTableProps, WhiteCard, theme };
+interface PaginatorProps {
+    /**
+     * Número total de páginas
+     */
+    count: number;
+    /**
+     * Página actual (1-based)
+     * Se não fornecido, o componente será uncontrolled
+     */
+    page?: number;
+    /**
+     * Callback quando o utilizador muda de página
+     */
+    onChange?: (event: React__default.ChangeEvent<unknown>, page: number) => void;
+    /**
+     * Número de páginas a mostrar ao lado da página actual
+     * @default 1
+     */
+    siblingCount?: number;
+    /**
+     * Número de páginas de fronteira a mostrar (início/fim)
+     * @default 1
+     */
+    boundaryCount?: number;
+    /**
+     * Mostrar botões “Primeiro” e “Último”
+     * @default false
+     */
+    showFirstButton?: boolean;
+    showLastButton?: boolean;
+    /**
+     * Props extras para o <Pagination> do MUI
+     */
+    muiProps?: Omit<PaginationProps, 'count' | 'page' | 'onChange' | 'siblingCount' | 'boundaryCount' | 'showFirstButton' | 'showLastButton'>;
+}
+declare const Paginator: React__default.FC<PaginatorProps>;
+
+interface QuizOption {
+    label: string;
+    value: string | number;
+}
+interface QuizQuestionProps {
+    pergunta: string;
+    opcoes: QuizOption[];
+    valor?: QuizOption['value'];
+    onChange?: (valor: QuizOption['value']) => void;
+    topoIcon?: React__default.ReactNode;
+    sx?: SxProps<Theme>;
+}
+declare const QuizQuestion: React__default.FC<QuizQuestionProps>;
+
+interface SearchBarProps {
+    /** Valor actual do input */
+    value: string;
+    /** Chamado sempre que o valor muda */
+    onChange: (newValue: string) => void;
+    /** Chamado quando o utilizador pressiona Enter ou clica em pesquisar */
+    onSearch?: (value: string) => void;
+    /** Placeholder do input */
+    placeholder?: string;
+    /** Props extra para o TextField */
+    textFieldProps?: Omit<TextFieldProps$1, 'value' | 'onChange' | 'placeholder'>;
+}
+declare const SearchBar: React__default.FC<SearchBarProps>;
+
+export { type Action, AgendaFeed, type AgendaFeedProps, AgendaLargeCard, type AgendaLargeCardProps, AvatarListItem, type AvatarListItemProps, AvatarSelect, type AvatarSelectProps, AvatarUpload, type AvatarUploadProps, BaseTextField, BibliotecarioThemeProvider, BookCard, type BookCardProps, type BookCardVariant, type ChildOption, type DataColumn, EmailField, FilterBar, type FilterBarProps, type FilterDefinition, type FilterOption, GradientBackground, HowItWorksSection, InfoStepCard, Logo, type LogoProps, type MenuItem, NotificationBell, type NotificationBellProps, type NotificationItem, NumericField, type Option, Paginator, type PaginatorProps, PasswordField, PrimaryButton, type QuizOption, QuizProgressBar, type QuizProgressBarProps, QuizQuestion, type QuizQuestionProps, RouteLink, SearchBar, type SearchBarProps, SecondaryButton, SectionDivider, SelectableOptions, type SelectableOptionsProps, SidebarMenu, type SidebarMenuProps, SimpleDataTable, type SimpleDataTableProps, WhiteCard, theme };
