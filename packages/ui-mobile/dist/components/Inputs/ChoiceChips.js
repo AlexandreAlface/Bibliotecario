@@ -61,4 +61,4 @@ const styles = StyleSheet.create({
     },
 });
 export default ChoiceChips;
-//# sourceMappingURL=choiceChips.js.map
+//# sourceMappingURL=ChoiceChips.js.map

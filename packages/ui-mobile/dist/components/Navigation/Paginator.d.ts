@@ -7,21 +7,21 @@ export interface PaginatorProps {
     totalPages: number;
     /** Callback ao mudar de página */
     onPageChange: (nextPage: number) => void;
-    /** Vizinhos ao redor da atual (default 1) */
+    /** Vizinhos ao redor da atual */
     siblingCount?: number;
-    /** Itens fixos nas pontas (default 1) */
+    /** Itens fixos nas pontas (1 mantém 1 e último sempre visíveis) */
     boundaryCount?: number;
-    /** Mostrar setas (default true) */
+    /** Mostrar setas anterior/seguinte */
     showArrows?: boolean;
     /** Estilo do container */
     style?: ViewStyle;
-    /** Diâmetro do círculo ativo */
+    /** Diâmetro do círculo ativo (o slot visual do número) */
     activeSize?: number;
-    /** Tamanho do hit-area de todos os itens (largura/altura) */
+    /** Largura/altura do “hit area” de cada item (todos iguais) */
     hitSize?: number;
     /** Espaço horizontal entre itens */
     gap?: number;
-    /** "minimal" = círculo no ativo, números soltos */
+    /** Variante: "minimal" (círculo no ativo) ou "boxed" */
     variant?: "minimal" | "boxed";
     accessibilityLabel?: string;
 }

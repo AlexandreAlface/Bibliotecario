@@ -6,7 +6,20 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:mobile": "npm -w apps/mobile run dev",
+
+    "dev":   "nodemon -r dotenv/config src/index.js",
+    "start": "node -r dotenv/config src/index.js",
+    
+    "seed:api": "npm -w apps/api run seed",
+    "seed:api:csv": "npm -w apps/api run seed:csv",
+    "seed:api:badges": "npm -w apps/api run seed:badges",
+
+    "prisma:generate": "npm -w apps/api run prisma:generate",
+    "prisma:push": "npm -w apps/api run prisma:push",
+    "prisma:migrate": "npm -w apps/api run prisma:migrate",
+    "prisma:studio": "npm -sw apps/api run prisma:studio -- --port 5556",
+
+    "dev:mobile": "npm -w apps/mobile run start",
     "dev:mobile:tunnel": "npm -w apps/mobile run start:tunnel",
     "dev:web": "npm -w @bibliotecario/apps-web run dev",
     "build:ui-web": "npm -w @bibliotecario/ui-web run build",

@@ -5,10 +5,16 @@ import eventsRouter from './routes/events.js';
 import booksRouter  from './routes/books.js';
 import badgesRouter from './routes/badges.js';
 import authRouter   from './routes/auth.js';
+import 'dotenv/config';
 
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+
+if (!process.env.DATABASE_URL) {
+  console.error('DATABASE_URL não carregada. Verifica apps/api/.env');
+  process.exit(1);
+}
 
 const ORIGINS = [
   'http://localhost:5173',

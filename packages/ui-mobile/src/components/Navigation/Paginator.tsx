@@ -1,12 +1,11 @@
-import React, { useMemo } from "react";
-import { View, StyleSheet, ScrollView, ViewStyle } from "react-native";
+import React, { useMemo, useRef } from "react";
+import { View, StyleSheet, FlatList, ViewStyle, ListRenderItemInfo } from "react-native";
 import { Text, TouchableRipple, useTheme } from "react-native-paper";
 
-type PageToken =
-  | { type: "num"; n: number }
-  | { type: "dots"; id: "left" | "right" }
-  | { type: "prev" }
-  | { type: "next" };
+type TokenNum = { type: "num"; n: number };
+type TokenDots = { type: "dots"; id: "left" | "right" };
+type TokenArrow = { type: "prev" | "next" };
+type Token = TokenNum | TokenDots | TokenArrow;
 
 export interface PaginatorProps {
   /** Página atual (1-based) */
@@ -16,46 +15,44 @@ export interface PaginatorProps {
   /** Callback ao mudar de página */
   onPageChange: (nextPage: number) => void;
 
-  /** Vizinhos ao redor da atual (default 1) */
-  siblingCount?: number;
-  /** Itens fixos nas pontas (default 1) */
-  boundaryCount?: number;
-
-  /** Mostrar setas (default true) */
-  showArrows?: boolean;
+  /** Vizinhos ao redor da atual */
+  siblingCount?: number; // default 1
+  /** Itens fixos nas pontas (1 mantém 1 e último sempre visíveis) */
+  boundaryCount?: number; // default 1
+  /** Mostrar setas anterior/seguinte */
+  showArrows?: boolean; // default true
 
   /** Estilo do container */
   style?: ViewStyle;
 
-  /** Diâmetro do círculo ativo */
-  activeSize?: number;
-  /** Tamanho do hit-area de todos os itens (largura/altura) */
-  hitSize?: number;
+  /** Diâmetro do círculo ativo (o slot visual do número) */
+  activeSize?: number;  // default 28
+  /** Largura/altura do “hit area” de cada item (todos iguais) */
+  hitSize?: number;     // default 36
   /** Espaço horizontal entre itens */
-  gap?: number;
+  gap?: number;         // default 16
 
-  /** "minimal" = círculo no ativo, números soltos */
+  /** Variante: "minimal" (círculo no ativo) ou "boxed" */
   variant?: "minimal" | "boxed";
 
   accessibilityLabel?: string;
 }
 
-const clamp = (n: number, min: number, max: number) =>
-  Math.min(Math.max(n, min), max);
+const clamp = (n: number, min: number, max: number) => Math.min(Math.max(n, min), max);
 
 function range(start: number, end: number): number[] {
   if (end < start) return [];
   return Array.from({ length: end - start + 1 }, (_, i) => start + i);
 }
 
-/** Gera a sequência com reticências e setas, com ids estáveis para os dots */
+/** Gera tokens com ids estáveis para as reticências */
 function buildTokens(
   page: number,
   total: number,
   sibling: number,
   boundary: number,
   withArrows: boolean
-): PageToken[] {
+): Token[] {
   const first = 1;
   const last = total;
 
@@ -67,7 +64,7 @@ function buildTokens(
 
   const body = range(left, right);
 
-  const tokens: PageToken[] = [];
+  const tokens: Token[] = [];
   if (withArrows) tokens.push({ type: "prev" });
 
   start.forEach((n) => tokens.push({ type: "num", n }));
@@ -86,32 +83,24 @@ function buildTokens(
   return tokens;
 }
 
-const Hit: React.FC<{
-  onPress?: () => void;
-  disabled?: boolean;
-  size: number;
-  a11yLabel?: string;
+const Slot: React.FC<{
+  width: number;
+  height: number;
+  marginRight: number;
   children: React.ReactNode;
-}> = ({ onPress, disabled, size, a11yLabel, children }) => {
+}> = ({ width, height, marginRight, children }) => {
   return (
-    <TouchableRipple
-      onPress={onPress}
-      disabled={disabled}
-      borderless
+    <View
       style={{
-        width: size,
-        height: size,
+        width,
+        height,
+        marginRight,
         alignItems: "center",
         justifyContent: "center",
       }}
-      accessibilityRole="button"
-      accessibilityLabel={a11yLabel}
-      accessibilityState={{ disabled }}
     >
-      <View style={{ alignItems: "center", justifyContent: "center" }}>
-        {children}
-      </View>
-    </TouchableRipple>
+      {children}
+    </View>
   );
 };
 
@@ -124,21 +113,27 @@ const Paginator: React.FC<PaginatorProps> = ({
   showArrows = true,
   style,
   activeSize = 28,
-  hitSize = 34,
+  hitSize = 36,
   gap = 16,
   variant = "minimal",
   accessibilityLabel = "Paginação",
 }) => {
   const theme = useTheme();
-
   const safePage = clamp(page, 1, Math.max(totalPages, 1));
+
   const disabledPrev = safePage <= 1;
   const disabledNext = safePage >= totalPages;
 
-  const tokens = useMemo(
+  const data = useMemo(
     () => buildTokens(safePage, totalPages, siblingCount, boundaryCount, showArrows),
     [safePage, totalPages, siblingCount, boundaryCount, showArrows]
   );
+
+  const keyExtractor = (item: Token) => {
+    if (item.type === "num") return `n-${item.n}`;
+    if (item.type === "dots") return `dots-${item.id}`;
+    return item.type; // "prev" | "next"
+  };
 
   const go = (p: number) => {
     const next = clamp(p, 1, totalPages);
@@ -150,22 +145,24 @@ const Paginator: React.FC<PaginatorProps> = ({
 
     if (variant === "minimal") {
       return (
-        <Hit
-          key={`n-${n}`}
+        <TouchableRipple
           onPress={() => go(n)}
-          size={hitSize}
-          a11yLabel={`Página ${n}${active ? " (ativa)" : ""}`}
+          borderless
+          style={{ width: hitSize, height: hitSize, alignItems: "center", justifyContent: "center" }}
+          accessibilityRole="button"
+          accessibilityLabel={`Página ${n}${active ? " (ativa)" : ""}`}
         >
-          <View
-            style={{
-              width: activeSize,
-              height: activeSize,
-              borderRadius: activeSize / 2,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: active ? theme.colors.primary : "transparent",
-            }}
-          >
+          <View style={{ width: activeSize, height: activeSize, alignItems: "center", justifyContent: "center" }}>
+            {/* Círculo de fundo absoluto – não mexe layout */}
+            <View
+              style={[
+                StyleSheet.absoluteFillObject,
+                {
+                  borderRadius: activeSize / 2,
+                  backgroundColor: active ? theme.colors.primary : "transparent",
+                },
+              ]}
+            />
             <Text
               style={{
                 color: active ? theme.colors.onPrimary : theme.colors.onSurface,
@@ -175,17 +172,18 @@ const Paginator: React.FC<PaginatorProps> = ({
               {n}
             </Text>
           </View>
-        </Hit>
+        </TouchableRipple>
       );
     }
 
     // variante "boxed"
     return (
-      <Hit
-        key={`n-${n}`}
+      <TouchableRipple
         onPress={() => go(n)}
-        size={hitSize}
-        a11yLabel={`Página ${n}${active ? " (ativa)" : ""}`}
+        borderless
+        style={{ width: hitSize, height: hitSize, alignItems: "center", justifyContent: "center" }}
+        accessibilityRole="button"
+        accessibilityLabel={`Página ${n}${active ? " (ativa)" : ""}`}
       >
         <View
           style={{
@@ -200,25 +198,18 @@ const Paginator: React.FC<PaginatorProps> = ({
             backgroundColor: active ? theme.colors.secondaryContainer : "transparent",
           }}
         >
-          <Text
-            style={{
-              color: active ? theme.colors.primary : theme.colors.onSurface,
-              fontWeight: "700",
-            }}
-          >
+          <Text style={{ color: active ? theme.colors.primary : theme.colors.onSurface, fontWeight: "700" }}>
             {n}
           </Text>
         </View>
-      </Hit>
+      </TouchableRipple>
     );
   };
 
-  const renderDots = (id: "left" | "right") => (
+  const renderDots = () => (
     <View
-      key={`dots-${id}`}
+      accessible={false}
       style={{ width: hitSize, height: hitSize, alignItems: "center", justifyContent: "center" }}
-      accessibilityElementsHidden
-      importantForAccessibility="no"
     >
       <Text style={{ color: theme.colors.onSurfaceVariant, fontWeight: "700" }}>…</Text>
     </View>
@@ -227,69 +218,70 @@ const Paginator: React.FC<PaginatorProps> = ({
   const renderArrow = (type: "prev" | "next") => {
     const isPrev = type === "prev";
     const disabled = isPrev ? disabledPrev : disabledNext;
-    const label = isPrev ? "Anterior" : "Seguinte";
     const target = isPrev ? safePage - 1 : safePage + 1;
 
     return (
-      <Hit
-        key={type} // <- chave estável
+      <TouchableRipple
         onPress={() => go(target)}
-        size={hitSize}
-        a11yLabel={label}
         disabled={disabled}
+        borderless
+        style={{ width: hitSize, height: hitSize, alignItems: "center", justifyContent: "center" }}
+        accessibilityRole="button"
+        accessibilityLabel={isPrev ? "Anterior" : "Seguinte"}
+        accessibilityState={{ disabled }}
       >
         <Text style={{ color: theme.colors.onSurface, fontSize: 18, opacity: disabled ? 0.35 : 1 }}>
           {isPrev ? "‹" : "›"}
         </Text>
-      </Hit>
+      </TouchableRipple>
     );
   };
 
-  // Envolve cada token num wrapper com marginRight = gap (exceto o último)
-  const items = tokens.map((t, idx) => {
-    const isLast = idx === tokens.length - 1;
-    let node: React.ReactNode;
+  const itemWidth = hitSize + gap; // slot previsível
 
-    switch (t.type) {
-      case "num":
-        node = renderNumber(t.n);
-        break;
-      case "dots":
-        node = renderDots(t.id);
-        break;
-      case "prev":
-        node = renderArrow("prev");
-        break;
-      case "next":
-        node = renderArrow("next");
-        break;
-    }
+  const renderItem = ({ item, index }: ListRenderItemInfo<Token>) => {
+    const isLast = index === data.length - 1;
 
     return (
-      <View key={`wrap-${(t as any).n ?? t.type ?? t}`} style={{ marginRight: isLast ? 0 : gap }}>
-        {node}
-      </View>
+      <Slot width={isLast ? hitSize : itemWidth} height={hitSize} marginRight={isLast ? 0 : 0}>
+        {item.type === "num"
+          ? renderNumber(item.n)
+          : item.type === "dots"
+          ? renderDots()
+          : renderArrow(item.type)}
+      </Slot>
     );
-  });
+  };
+
+  // FlatList evita “pulos” de layout do ScrollView e mantém reuso de células
+  const listRef = useRef<FlatList<Token>>(null);
 
   return (
-    <ScrollView
+    <FlatList
+      ref={listRef}
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
       style={style}
-      accessibilityLabel={accessibilityLabel}
+      contentContainerStyle={styles.row}
+      data={data}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
+      // todos os itens têm o mesmo layout (opcionalmente otimiza scroll)
+      getItemLayout={(_, index) => ({
+        length: itemWidth,
+        offset: itemWidth * index,
+        index,
+      })}
+      accessible
       accessibilityRole="adjustable"
+      accessibilityLabel={accessibilityLabel}
       accessibilityHint="Deslize para ver mais páginas ou toque para navegar"
-    >
-      {items}
-    </ScrollView>
+    />
   );
 };
 
 const styles = StyleSheet.create({
   row: {
-    flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 6,
   },
