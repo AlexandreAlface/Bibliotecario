@@ -7,7 +7,15 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "skipLibCheck": true,
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@bibliotecario/ui-mobile": [
+        "../../packages/ui-mobile/dist"
+      ],
+      "@bibliotecario/ui-mobile/*": [
+        "../../packages/ui-mobile/dist/*"
+      ]
+    }
   },
   "include": ["**/*.ts", "**/*.tsx"]
 }

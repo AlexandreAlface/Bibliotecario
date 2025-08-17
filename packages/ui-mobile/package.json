@@ -14,7 +14,8 @@
     "watch": "tsc -p tsconfig.build.json -w"
   },
   "dependencies": {
-    "@bibliotecario/tokens": "file:../tokens"
+    "@bibliotecario/tokens": "file:../tokens",
+    "expo-linear-gradient": "^14.1.5"
   },
   "peerDependencies": {
     "expo-font": "*",

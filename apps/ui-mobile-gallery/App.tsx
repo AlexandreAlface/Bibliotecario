@@ -28,6 +28,9 @@ import {
   InlineCheckOption,
   SelectedMap,
   FilterConfig,
+  DateTimeField,
+  TimeSlot,
+  generateTimeSlots,
 } from "@bibliotecario/ui-mobile";
 import { Text as PaperText } from "react-native-paper";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
@@ -42,6 +45,14 @@ import ChoiceChips from "@bibliotecario/ui-mobile/components/Inputs/ChoiceChips"
 import InlineCheckList from "@bibliotecario/ui-mobile/components/Inputs/InlineCheckList";
 import FilterBarAdvanced from "@bibliotecario/ui-mobile/components/Filters/FilterBarAdvanced";
 import Paginator from "@bibliotecario/ui-mobile/components/Navigation/Paginator";
+
+import "react-native-reanimated";
+import { registerTranslation, pt } from "react-native-paper-dates";
+
+registerTranslation("pt", pt);
+
+// alias para pt-PT (se passares "pt-PT" nos componentes)
+registerTranslation("pt-PT", { ...pt });
 
 export default function App() {
   return (
@@ -215,6 +226,17 @@ function MainApp() {
 
   const [page, setPage] = useState(1);
 
+  const [d, setD] = React.useState<Date | null>(null);
+
+  const [booking, setBooking] = React.useState<Date | null>(null);
+  const [start, setStart] = React.useState<Date | null>(null);
+  const [due, setDue] = React.useState<Date | null>(null);
+
+  const slots = React.useMemo(
+    () => generateTimeSlots("09:00", "18:00", 30, ["12:00", "15:30"]),
+    []
+  );
+
   return (
     <SafeAreaView style={styles.safe}>
       <ThemeProvider dark={dark}>
@@ -230,6 +252,42 @@ function MainApp() {
               <Text style={styles.header}>
                 @bibliotecario/ui-mobile — Gallery
               </Text>
+
+              <Section title="DateTimeField">
+                {/* // 1) Slots bonitos (hora obrigatória) */}
+                <DateTimeField
+                  label="Marcação"
+                  value={booking}
+                  onChange={setBooking}
+                  withTime
+                  timeSlots={slots}
+                />
+                {/* // 2) Sem slots: iOS usa picker nativo, Android usa modal do
+                Paper */}
+                <DateTimeField
+                  label="Início"
+                  value={start}
+                  onChange={setStart}
+                  withTime
+                  iosNativeTimePicker
+                />
+                {/* // 3) Hora opcional com slots (se cancelar, fica só a data) */}
+                <DateTimeField
+                  label="Entrega"
+                  value={due}
+                  onChange={setDue}
+                  withOptionalTime
+                  timeSlots={slots}
+                />
+              </Section>
+
+              <Section title="TextField">
+                <TextField label="Email" variant="email" />
+
+                <TextField label="Telemóvel" variant="number" />
+
+                <TextField label="Palavra-passe" variant="password" />
+              </Section>
 
               <Section title="Paginação">
                 <Paginator

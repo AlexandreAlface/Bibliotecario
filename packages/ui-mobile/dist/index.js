@@ -23,4 +23,6 @@ export * from "./components/Inputs/ChoiceChips";
 export * from "./components/Inputs/InlineCheckList";
 export * from "./components/Filters/FilterBarAdvanced";
 export * from "./components/Navigation/Paginator";
+export * from "./components/DateTimeField/DateTimeField";
+export * from "./components/Background/Background";
 //# sourceMappingURL=index.js.map

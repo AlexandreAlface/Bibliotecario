@@ -12,11 +12,13 @@
   "dependencies": {
     "@bibliotecario/ui-mobile": "file:../../packages/ui-mobile",
     "@expo-google-fonts/poppins": "^0.4.0",
+    "@react-native-community/datetimepicker": "8.4.1",
     "expo": "~53.0.20",
     "expo-image-picker": "~16.1.4",
     "react": "19.0.0",
     "react-native": "0.79.5",
-    "react-native-gesture-handler": "^2.28.0"
+    "react-native-gesture-handler": "^2.28.0",
+    "react-native-paper-dates": "^0.22.49"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
