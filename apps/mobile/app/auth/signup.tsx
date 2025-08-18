@@ -14,7 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Text, IconButton, useTheme } from "react-native-paper";
 
 import { Background, PrimaryButton, TextField } from "@bibliotecario/ui-mobile";
-import { FamilySignupDraft } from "services/auth";
+import { FamilySignupDraft } from "src/services/auth";
 
 // ----- validação -----
 const schema = z

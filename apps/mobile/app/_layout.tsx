@@ -1,15 +1,16 @@
 // app/_layout.tsx
-import { Stack } from "expo-router";
-import * as React from "react";
-import "react-native-reanimated";
+import { Stack } from 'expo-router';
+import * as React from 'react';
+import 'react-native-reanimated';
 import {
   useFonts,
   Poppins_400Regular,
   Poppins_500Medium,
   Poppins_600SemiBold,
-} from "@expo-google-fonts/poppins";
-import { ThemeProvider } from "@bibliotecario/ui-mobile";
-import { AuthProvider } from "src/contexts/AuthContext";
+} from '@expo-google-fonts/poppins';
+import { ThemeProvider } from '@bibliotecario/ui-mobile';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AuthProvider } from 'src/contexts/AuthContext';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -21,9 +22,11 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }} />
-      </AuthProvider>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </AuthProvider>
+      </SafeAreaProvider>
     </ThemeProvider>
   );
 }

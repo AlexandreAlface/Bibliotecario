@@ -13,7 +13,7 @@ import {
   RadioOptionGroup, // ← usa o teu componente do UI Mobile
 } from "@bibliotecario/ui-mobile";
 
-import { authApi, ChildInput, FamilySignupDraft } from "services/auth";
+import { authApi, ChildInput, FamilySignupDraft } from "src/services/auth";
 import { registerTranslation, pt } from "react-native-paper-dates";
 
 registerTranslation("pt", pt);

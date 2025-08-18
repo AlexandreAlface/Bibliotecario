@@ -20,11 +20,10 @@ import {
   SecondaryButton,
   TextField,
 } from "@bibliotecario/ui-mobile";
-import { authApi } from "services/auth";
+import { authApi } from "src/services/auth";
 
 import { useAuth } from "src/contexts/AuthContext";
 
-const { login } = useAuth();
 
 const schema = z.object({
   email: z
@@ -40,6 +39,8 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function Login() {
+const { login } = useAuth();
+
   const router = useRouter();
   const theme = useTheme();
   const [showPass, setShowPass] = React.useState(false);
