@@ -1,5 +1,12 @@
 import React from "react";
-import { View, StyleSheet, ViewStyle, AccessibilityRole, Pressable, Platform } from "react-native";
+import {
+  View,
+  StyleSheet,
+  ViewStyle,
+  AccessibilityRole,
+  Pressable,
+  Platform,
+} from "react-native";
 import {
   Text,
   useTheme,
@@ -37,6 +44,8 @@ export type RadioOptionGroupProps = {
   testID?: string;
   accessibilityLabel?: string;
   style?: ViewStyle;
+
+  textColor?: string;
 };
 
 export const RadioOptionGroup: React.FC<RadioOptionGroupProps> = ({
@@ -55,6 +64,7 @@ export const RadioOptionGroup: React.FC<RadioOptionGroupProps> = ({
   testID,
   accessibilityLabel,
   style,
+  textColor,
 }) => {
   const theme = useTheme();
 
@@ -116,7 +126,11 @@ export const RadioOptionGroup: React.FC<RadioOptionGroupProps> = ({
     <Wrapper
       style={[
         styles.wrapper,
-        elevated && { borderRadius: theme.roundness, padding: 12, elevation: 1 },
+        elevated && {
+          borderRadius: theme.roundness,
+          padding: 12,
+          elevation: 1,
+        },
         style,
       ]}
       testID={testID}
@@ -129,7 +143,7 @@ export const RadioOptionGroup: React.FC<RadioOptionGroupProps> = ({
           variant="titleSmall"
           style={[
             styles.label,
-            { color: theme.colors.onSurface },
+            { color: textColor ?? theme.colors.onPrimary }, // <- usa branco se não for passado outro
             errorText ? { color: theme.colors.error } : null,
           ]}
           accessibilityLabel={label + (required ? " (obrigatório)" : "")}
@@ -140,7 +154,12 @@ export const RadioOptionGroup: React.FC<RadioOptionGroupProps> = ({
       )}
 
       {loading ? (
-        <View style={[styles.loader, orientation === "horizontal" && { alignSelf: "flex-start" }]}>
+        <View
+          style={[
+            styles.loader,
+            orientation === "horizontal" && { alignSelf: "flex-start" },
+          ]}
+        >
           <ActivityIndicator accessibilityLabel="A carregar opções" />
         </View>
       ) : (
@@ -161,7 +180,9 @@ export const RadioOptionGroup: React.FC<RadioOptionGroupProps> = ({
                 onPress={() => !isDisabled && onChange?.(opt.value)}
                 style={[
                   styles.option,
-                  orientation === "horizontal" ? styles.optionRow : styles.optionColumn,
+                  orientation === "horizontal"
+                    ? styles.optionRow
+                    : styles.optionColumn,
                 ]}
                 accessibilityRole="radio"
                 accessibilityLabel={opt.accessibilityLabel ?? opt.label}
@@ -172,7 +193,11 @@ export const RadioOptionGroup: React.FC<RadioOptionGroupProps> = ({
                 {renderIndicator(checked, isDisabled)}
                 <Text
                   variant="titleSmall"
-                  style={[styles.optionLabel, isDisabled && { opacity: 0.5 }]}
+                  style={[
+                    styles.optionLabel,
+                    isDisabled && { opacity: 0.5 },
+                    { color: textColor ?? theme.colors.onPrimary }, // <- aplica branco
+                  ]}
                 >
                   {opt.label}
                 </Text>

@@ -25,8 +25,6 @@ import Animated, {
   useAnimatedStyle,
 } from "react-native-reanimated";
 
-import { MaterialCommunityIcons as MIcon } from "@expo/vector-icons";
-
 /** slot tipo agenda */
 export type TimeSlot = { time: string; label?: string; disabled?: boolean };
 
@@ -35,14 +33,10 @@ export type DateTimeFieldProps = {
   value: Date | null;
   onChange: (date: Date | null) => void;
 
-  /** Hora obrigatória: abre sempre após escolher a data */
   withTime?: boolean;
-  /** Hora opcional: abre, mas se cancelar fica só a data */
   withOptionalTime?: boolean;
 
-  /** Se passares, mostra grelha de horários em vez do TimePicker */
   timeSlots?: TimeSlot[];
-  /** iOS: usar picker nativo (sem slots) */
   iosNativeTimePicker?: boolean;
 
   minimumDate?: Date;
@@ -85,7 +79,6 @@ export function DateTimeField({
   const [openNativeTime, setOpenNativeTime] = React.useState(false);
   const [openSlots, setOpenSlots] = React.useState(false);
 
-  /** guarda a data escolhida até o utilizador confirmar a hora */
   const [pendingDate, setPendingDate] = React.useState<Date | null>(null);
   const [selectedSlot, setSelectedSlot] = React.useState<string | null>(null);
 
@@ -116,19 +109,28 @@ export function DateTimeField({
     locale,
   ]);
 
-  function onConfirmDate({ date }: { date: Date }) {
+  // === FIX: aceitar confirm sem data e não rebentar ===
+  function onConfirmDate(params?: { date?: Date }) {
     setOpenDate(false);
-    const onlyDate = startOfDay(date);
+
+    const confirmed = params?.date;
+    if (!confirmed) {
+      // Não escolheu nada: não mexemos no valor atual.
+      // Se quisermos forçar hora obrigatória apenas quando há data, saímos aqui.
+      setPendingDate(null);
+      setSelectedSlot(null);
+      return;
+    }
+
+    const onlyDate = startOfDay(confirmed);
     setPendingDate(onlyDate);
 
-    // 1) slots → abre grelha
     if (timeSlots && (withTime || withOptionalTime)) {
       setSelectedSlot(null);
       setTimeout(() => setOpenSlots(true), 30);
       return;
     }
 
-    // 2) iOS: picker nativo (sem slots)
     if (
       (withTime || withOptionalTime) &&
       iosNativeTimePicker &&
@@ -138,7 +140,6 @@ export function DateTimeField({
       return;
     }
 
-    // 3) modal do Paper
     if (withTime || withOptionalTime) {
       setTimeout(() => setOpenTime(true), 30);
     } else {
@@ -146,7 +147,10 @@ export function DateTimeField({
     }
   }
 
-  /* ---------- TimePicker (fallback) ---------- */
+  function onDismissDate() {
+    setOpenDate(false);
+  }
+
   function onConfirmTime({
     hours,
     minutes,
@@ -155,21 +159,22 @@ export function DateTimeField({
     minutes: number;
   }) {
     setOpenTime(false);
-    const base = pendingDate ?? value ?? startOfDay(new Date());
+    const base = pendingDate ?? value ?? startOfDay(new Date()); // nunca trabalhar com undefined
     const next = new Date(base);
     next.setHours(hours, minutes, 0, 0);
     setPendingDate(null);
     onChange(next);
   }
+
   function onDismissTime() {
     setOpenTime(false);
+    // se só tinha escolhido data (hora opcional), mantém apenas a data
     if ((withTime || withOptionalTime) && pendingDate) onChange(pendingDate);
     setPendingDate(null);
   }
 
-  /* ---------- iOS: picker nativo ---------- */
   function onNativeCancel() {
-    if (pendingDate) onChange(pendingDate); // fica só a data
+    if (pendingDate) onChange(pendingDate);
     setPendingDate(null);
     setOpenNativeTime(false);
   }
@@ -179,12 +184,12 @@ export function DateTimeField({
     setOpenNativeTime(false);
   }
 
-  /* ---------- Slots (grelha) ---------- */
   function confirmSlot() {
     if (!pendingDate || !selectedSlot) {
       setOpenSlots(false);
-      if (withTime && pendingDate) onChange(pendingDate); // obrigatório mas não escolheu
+      if (withTime && pendingDate) onChange(pendingDate);
       setPendingDate(null);
+      setSelectedSlot(null);
       return;
     }
     const [h, m] = selectedSlot.split(":").map(Number);
@@ -197,7 +202,7 @@ export function DateTimeField({
   }
   function cancelSlot() {
     setOpenSlots(false);
-    if (pendingDate) onChange(pendingDate); // opcional → só a data
+    if (pendingDate) onChange(pendingDate);
     setSelectedSlot(null);
     setPendingDate(null);
   }
@@ -273,20 +278,19 @@ export function DateTimeField({
         locale={locale}
         mode="single"
         visible={openDate}
-        onDismiss={() => setOpenDate(false)}
+        onDismiss={onDismissDate}
         date={value ?? undefined}
-        onConfirm={onConfirmDate}
+        onConfirm={onConfirmDate} // ← seguro a undefined
         validRange={{ startDate: minimumDate, endDate: maximumDate }}
         saveLabel="OK"
         label={label ?? "Selecionar data"}
       />
 
-      {/* Slots: fundo neutro, grid com scroll e espaçamento estável */}
+      {/* Slots */}
       <Portal>
         <Dialog
           visible={openSlots}
           onDismiss={cancelSlot}
-          /* sem overflow hidden: iOS renderiza melhor */
           style={{ backgroundColor: theme.colors.surface }}
         >
           <Dialog.Title style={{ textAlign: "center" }}>
@@ -327,7 +331,6 @@ export function DateTimeField({
             <Button
               mode="contained"
               onPress={confirmSlot}
-              /* mantém dentro do cartão em telas pequenas */
               style={{ alignSelf: "flex-end" }}
               contentStyle={{ paddingHorizontal: 16 }}
               compact
@@ -342,7 +345,7 @@ export function DateTimeField({
         </Dialog>
       </Portal>
 
-      {/* TimePicker fallback (Paper) */}
+      {/* TimePicker (fallback) */}
       {!timeSlots && (withTime || withOptionalTime) && !iosNativeTimePicker && (
         <TimePickerModal
           visible={openTime}
@@ -357,7 +360,7 @@ export function DateTimeField({
         />
       )}
 
-      {/* iOS: picker nativo (sem slots) */}
+      {/* iOS nativo */}
       {(withTime || withOptionalTime) &&
         iosNativeTimePicker &&
         Platform.OS === "ios" &&
@@ -382,7 +385,7 @@ export function DateTimeField({
                     const base = pendingDate ?? value ?? startOfDay(new Date());
                     const next = new Date(base);
                     next.setHours(dt.getHours(), dt.getMinutes(), 0, 0);
-                    setPendingDate(next); // aplicamos no OK
+                    setPendingDate(next);
                   }}
                 />
               </Dialog.Content>
@@ -399,7 +402,7 @@ export function DateTimeField({
   );
 }
 
-/* ---- Chip de slot sem “salto” ao selecionar ---- */
+/* ---- Chip e utils (inalterado) ---- */
 function SlotChip({
   label,
   disabled,
@@ -416,17 +419,7 @@ function SlotChip({
   const aStyle = useAnimatedStyle(() => ({
     transform: [{ scale: withTiming(scale.value, { duration: 90 }) }],
   }));
-
-  const ICON_SIZE = 18;
-  const IconSpacer = () => <View style={{ width: ICON_SIZE }} />;
-
-  const renderIcon = disabled
-    ? () => <MIcon name="lock" size={ICON_SIZE} color={theme.colors.outline} />
-    : active
-    ? () => (
-        <MIcon name="check" size={ICON_SIZE} color={theme.colors.onPrimary} />
-      )
-    : () => <IconSpacer />;
+  const IconSpacer = () => <View style={{ width: 20 }} />;
 
   return (
     <Animated.View style={[aStyle]}>
@@ -440,10 +433,9 @@ function SlotChip({
           onPress?.();
           setTimeout(() => (scale.value = 1), 70);
         }}
-        icon={renderIcon}
+        icon={disabled ? "lock" : active ? "check" : () => <IconSpacer />}
         style={[
           styles.chip,
-          styles.chipBox, // 👈 altura/alinhamento aqui (em vez de contentStyle)
           {
             borderColor: theme.colors.outlineVariant,
             backgroundColor: active
@@ -467,14 +459,12 @@ function SlotChip({
   );
 }
 
-/* ---- utils ---- */
 function startOfDay(d: Date) {
   const n = new Date(d);
   n.setHours(0, 0, 0, 0);
   return n;
 }
 
-/** Cria slots automaticamente: "09:00" → "18:00" a cada `stepMinutes` */
 export function generateTimeSlots(
   startHHmm: string,
   endHHmm: string,
@@ -486,10 +476,8 @@ export function generateTimeSlots(
     return h * 60 + m;
   };
   const pad = (n: number) => n.toString().padStart(2, "0");
-
   const start = toMin(startHHmm);
   const end = toMin(endHHmm);
-
   const out: TimeSlot[] = [];
   for (let t = start; t <= end; t += stepMinutes) {
     const h = Math.floor(t / 60);
@@ -501,16 +489,11 @@ export function generateTimeSlots(
 }
 
 const CHIP_HEIGHT = 36;
-
 const styles = StyleSheet.create({
   fullWidth: { alignSelf: "stretch" },
   input: { backgroundColor: "#fff" },
   helper: { marginTop: 6, marginLeft: 12 },
-
-  // dialog content
   scrollContent: { paddingHorizontal: 4 },
-
-  // grelha de chips: sem “saltar” do cartão
   chipsWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -519,18 +502,8 @@ const styles = StyleSheet.create({
     columnGap: 10,
     paddingHorizontal: 4,
   },
-  chip: {
-    borderRadius: 18,
-    minWidth: 84,
-    margin: 0,
-  },
-  chipBox: {
-    height: CHIP_HEIGHT,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  chip: { borderRadius: 18, minWidth: 84, margin: 0, color: "#000" },
   chipText: { textAlign: "center", fontSize: 14, paddingHorizontal: 2 },
-
   actions: {
     justifyContent: "flex-end",
     paddingHorizontal: 12,
@@ -538,5 +511,4 @@ const styles = StyleSheet.create({
     marginRight: 42,
   },
 });
-
 export default DateTimeField;

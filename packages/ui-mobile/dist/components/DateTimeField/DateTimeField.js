@@ -6,7 +6,6 @@ import { Text, TextInput, useTheme, Portal, Dialog, Button, Chip, Surface, } fro
 import { DatePickerModal, TimePickerModal } from "react-native-paper-dates";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Animated, { useSharedValue, withTiming, useAnimatedStyle, } from "react-native-reanimated";
-import { MaterialCommunityIcons as MIcon } from "@expo/vector-icons";
 export function DateTimeField({ label, value, onChange, withTime = false, withOptionalTime = false, timeSlots, iosNativeTimePicker = false, minimumDate, maximumDate, error, helperText, fullWidth = true, style, use24Hour = true, locale = "pt", readOnly = true, disabled, }) {
     var _a, _b;
     const theme = useTheme();
@@ -14,7 +13,6 @@ export function DateTimeField({ label, value, onChange, withTime = false, withOp
     const [openTime, setOpenTime] = React.useState(false);
     const [openNativeTime, setOpenNativeTime] = React.useState(false);
     const [openSlots, setOpenSlots] = React.useState(false);
-    /** guarda a data escolhida até o utilizador confirmar a hora */
     const [pendingDate, setPendingDate] = React.useState(null);
     const [selectedSlot, setSelectedSlot] = React.useState(null);
     const timeChosen = !!value && (value.getHours() !== 0 || value.getMinutes() !== 0);
@@ -42,24 +40,30 @@ export function DateTimeField({ label, value, onChange, withTime = false, withOp
         use24Hour,
         locale,
     ]);
-    function onConfirmDate({ date }) {
+    // === FIX: aceitar confirm sem data e não rebentar ===
+    function onConfirmDate(params) {
         setOpenDate(false);
-        const onlyDate = startOfDay(date);
+        const confirmed = params === null || params === void 0 ? void 0 : params.date;
+        if (!confirmed) {
+            // Não escolheu nada: não mexemos no valor atual.
+            // Se quisermos forçar hora obrigatória apenas quando há data, saímos aqui.
+            setPendingDate(null);
+            setSelectedSlot(null);
+            return;
+        }
+        const onlyDate = startOfDay(confirmed);
         setPendingDate(onlyDate);
-        // 1) slots → abre grelha
         if (timeSlots && (withTime || withOptionalTime)) {
             setSelectedSlot(null);
             setTimeout(() => setOpenSlots(true), 30);
             return;
         }
-        // 2) iOS: picker nativo (sem slots)
         if ((withTime || withOptionalTime) &&
             iosNativeTimePicker &&
             Platform.OS === "ios") {
             setTimeout(() => setOpenNativeTime(true), 30);
             return;
         }
-        // 3) modal do Paper
         if (withTime || withOptionalTime) {
             setTimeout(() => setOpenTime(true), 30);
         }
@@ -67,11 +71,13 @@ export function DateTimeField({ label, value, onChange, withTime = false, withOp
             onChange(onlyDate);
         }
     }
-    /* ---------- TimePicker (fallback) ---------- */
+    function onDismissDate() {
+        setOpenDate(false);
+    }
     function onConfirmTime({ hours, minutes, }) {
         var _a;
         setOpenTime(false);
-        const base = (_a = pendingDate !== null && pendingDate !== void 0 ? pendingDate : value) !== null && _a !== void 0 ? _a : startOfDay(new Date());
+        const base = (_a = pendingDate !== null && pendingDate !== void 0 ? pendingDate : value) !== null && _a !== void 0 ? _a : startOfDay(new Date()); // nunca trabalhar com undefined
         const next = new Date(base);
         next.setHours(hours, minutes, 0, 0);
         setPendingDate(null);
@@ -79,14 +85,14 @@ export function DateTimeField({ label, value, onChange, withTime = false, withOp
     }
     function onDismissTime() {
         setOpenTime(false);
+        // se só tinha escolhido data (hora opcional), mantém apenas a data
         if ((withTime || withOptionalTime) && pendingDate)
             onChange(pendingDate);
         setPendingDate(null);
     }
-    /* ---------- iOS: picker nativo ---------- */
     function onNativeCancel() {
         if (pendingDate)
-            onChange(pendingDate); // fica só a data
+            onChange(pendingDate);
         setPendingDate(null);
         setOpenNativeTime(false);
     }
@@ -96,13 +102,13 @@ export function DateTimeField({ label, value, onChange, withTime = false, withOp
         setPendingDate(null);
         setOpenNativeTime(false);
     }
-    /* ---------- Slots (grelha) ---------- */
     function confirmSlot() {
         if (!pendingDate || !selectedSlot) {
             setOpenSlots(false);
             if (withTime && pendingDate)
-                onChange(pendingDate); // obrigatório mas não escolheu
+                onChange(pendingDate);
             setPendingDate(null);
+            setSelectedSlot(null);
             return;
         }
         const [h, m] = selectedSlot.split(":").map(Number);
@@ -116,7 +122,7 @@ export function DateTimeField({ label, value, onChange, withTime = false, withOp
     function cancelSlot() {
         setOpenSlots(false);
         if (pendingDate)
-            onChange(pendingDate); // opcional → só a data
+            onChange(pendingDate);
         setSelectedSlot(null);
         setPendingDate(null);
     }
@@ -138,18 +144,14 @@ export function DateTimeField({ label, value, onChange, withTime = false, withOp
                     error
                         ? { color: theme.colors.error }
                         : { color: theme.colors.outline },
-                ], children: helperText })), _jsx(DatePickerModal, { locale: locale, mode: "single", visible: openDate, onDismiss: () => setOpenDate(false), date: value !== null && value !== void 0 ? value : undefined, onConfirm: onConfirmDate, validRange: { startDate: minimumDate, endDate: maximumDate }, saveLabel: "OK", label: label !== null && label !== void 0 ? label : "Selecionar data" }), _jsx(Portal, { children: _jsxs(Dialog, { visible: openSlots, onDismiss: cancelSlot, 
-                    /* sem overflow hidden: iOS renderiza melhor */
-                    style: { backgroundColor: theme.colors.surface }, children: [_jsx(Dialog.Title, { style: { textAlign: "center" }, children: "Selecionar hora" }), _jsx(Dialog.Content, { children: _jsx(Surface, { elevation: 0, style: {
+                ], children: helperText })), _jsx(DatePickerModal, { locale: locale, mode: "single", visible: openDate, onDismiss: onDismissDate, date: value !== null && value !== void 0 ? value : undefined, onConfirm: onConfirmDate, validRange: { startDate: minimumDate, endDate: maximumDate }, saveLabel: "OK", label: label !== null && label !== void 0 ? label : "Selecionar data" }), _jsx(Portal, { children: _jsxs(Dialog, { visible: openSlots, onDismiss: cancelSlot, style: { backgroundColor: theme.colors.surface }, children: [_jsx(Dialog.Title, { style: { textAlign: "center" }, children: "Selecionar hora" }), _jsx(Dialog.Content, { children: _jsx(Surface, { elevation: 0, style: {
                                     paddingVertical: 4,
                                     backgroundColor: theme.colors.surface,
                                 }, children: _jsx(ScrollView, { style: { maxHeight: 360 }, contentContainerStyle: styles.scrollContent, showsVerticalScrollIndicator: false, children: _jsx(View, { style: styles.chipsWrap, children: (timeSlots !== null && timeSlots !== void 0 ? timeSlots : []).map((s) => {
                                             var _a;
                                             const active = selectedSlot === s.time;
                                             return (_jsx(SlotChip, { label: (_a = s.label) !== null && _a !== void 0 ? _a : s.time, disabled: !!s.disabled, active: active, onPress: () => !s.disabled && setSelectedSlot(s.time) }, s.time));
-                                        }) }) }) }) }), _jsxs(Dialog.Actions, { style: styles.actions, children: [_jsx(Button, { onPress: cancelSlot, children: "Cancelar" }), _jsx(Button, { mode: "contained", onPress: confirmSlot, 
-                                    /* mantém dentro do cartão em telas pequenas */
-                                    style: { alignSelf: "flex-end" }, contentStyle: { paddingHorizontal: 16 }, compact: true, disabled: !selectedSlot ||
+                                        }) }) }) }) }), _jsxs(Dialog.Actions, { style: styles.actions, children: [_jsx(Button, { onPress: cancelSlot, children: "Cancelar" }), _jsx(Button, { mode: "contained", onPress: confirmSlot, style: { alignSelf: "flex-end" }, contentStyle: { paddingHorizontal: 16 }, compact: true, disabled: !selectedSlot ||
                                         !!((_a = timeSlots === null || timeSlots === void 0 ? void 0 : timeSlots.find((t) => t.time === selectedSlot)) === null || _a === void 0 ? void 0 : _a.disabled), children: "OK" })] })] }) }), !timeSlots && (withTime || withOptionalTime) && !iosNativeTimePicker && (_jsx(TimePickerModal, { visible: openTime, onDismiss: onDismissTime, onConfirm: onConfirmTime, hours: initialHours, minutes: initialMinutes, use24HourClock: use24Hour, label: "Selecionar hora", cancelLabel: "Cancelar", confirmLabel: "OK" })), (withTime || withOptionalTime) &&
                 iosNativeTimePicker &&
                 Platform.OS === "ios" &&
@@ -160,30 +162,23 @@ export function DateTimeField({ label, value, onChange, withTime = false, withOp
                                     const base = (_a = pendingDate !== null && pendingDate !== void 0 ? pendingDate : value) !== null && _a !== void 0 ? _a : startOfDay(new Date());
                                     const next = new Date(base);
                                     next.setHours(dt.getHours(), dt.getMinutes(), 0, 0);
-                                    setPendingDate(next); // aplicamos no OK
+                                    setPendingDate(next);
                                 } }) }), _jsxs(Dialog.Actions, { style: styles.actions, children: [_jsx(Button, { onPress: onNativeCancel, children: "Cancelar" }), _jsx(Button, { mode: "contained", onPress: onNativeConfirm, children: "OK" })] })] }) }))] }));
 }
-/* ---- Chip de slot sem “salto” ao selecionar ---- */
+/* ---- Chip e utils (inalterado) ---- */
 function SlotChip({ label, disabled, active, onPress, }) {
     const theme = useTheme();
     const scale = useSharedValue(1);
     const aStyle = useAnimatedStyle(() => ({
         transform: [{ scale: withTiming(scale.value, { duration: 90 }) }],
     }));
-    const ICON_SIZE = 18;
-    const IconSpacer = () => _jsx(View, { style: { width: ICON_SIZE } });
-    const renderIcon = disabled
-        ? () => _jsx(MIcon, { name: "lock", size: ICON_SIZE, color: theme.colors.outline })
-        : active
-            ? () => (_jsx(MIcon, { name: "check", size: ICON_SIZE, color: theme.colors.onPrimary }))
-            : () => _jsx(IconSpacer, {});
+    const IconSpacer = () => _jsx(View, { style: { width: 20 } });
     return (_jsx(Animated.View, { style: [aStyle], children: _jsx(Chip, { compact: true, mode: "outlined", disabled: disabled, selected: active, onPress: () => {
                 scale.value = 1.04;
                 onPress === null || onPress === void 0 ? void 0 : onPress();
                 setTimeout(() => (scale.value = 1), 70);
-            }, icon: renderIcon, style: [
+            }, icon: disabled ? "lock" : active ? "check" : () => _jsx(IconSpacer, {}), style: [
                 styles.chip,
-                styles.chipBox, // 👈 altura/alinhamento aqui (em vez de contentStyle)
                 {
                     borderColor: theme.colors.outlineVariant,
                     backgroundColor: active
@@ -200,13 +195,11 @@ function SlotChip({ label, disabled, active, onPress, }) {
                 },
             ], children: label }) }));
 }
-/* ---- utils ---- */
 function startOfDay(d) {
     const n = new Date(d);
     n.setHours(0, 0, 0, 0);
     return n;
 }
-/** Cria slots automaticamente: "09:00" → "18:00" a cada `stepMinutes` */
 export function generateTimeSlots(startHHmm, endHHmm, stepMinutes, disabledTimes = []) {
     const toMin = (hhmm) => {
         const [h, m] = hhmm.split(":").map(Number);
@@ -229,9 +222,7 @@ const styles = StyleSheet.create({
     fullWidth: { alignSelf: "stretch" },
     input: { backgroundColor: "#fff" },
     helper: { marginTop: 6, marginLeft: 12 },
-    // dialog content
     scrollContent: { paddingHorizontal: 4 },
-    // grelha de chips: sem “saltar” do cartão
     chipsWrap: {
         flexDirection: "row",
         flexWrap: "wrap",
@@ -240,16 +231,7 @@ const styles = StyleSheet.create({
         columnGap: 10,
         paddingHorizontal: 4,
     },
-    chip: {
-        borderRadius: 18,
-        minWidth: 84,
-        margin: 0,
-    },
-    chipBox: {
-        height: CHIP_HEIGHT,
-        alignItems: "center",
-        justifyContent: "center",
-    },
+    chip: { borderRadius: 18, minWidth: 84, margin: 0, color: "#000" },
     chipText: { textAlign: "center", fontSize: 14, paddingHorizontal: 2 },
     actions: {
         justifyContent: "flex-end",

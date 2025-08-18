@@ -27,6 +27,7 @@ export type RadioOptionGroupProps = {
     testID?: string;
     accessibilityLabel?: string;
     style?: ViewStyle;
+    textColor?: string;
 };
 export declare const RadioOptionGroup: React.FC<RadioOptionGroupProps>;
 export default RadioOptionGroup;
