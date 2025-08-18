@@ -22,6 +22,10 @@ import {
 } from "@bibliotecario/ui-mobile";
 import { authApi } from "services/auth";
 
+import { useAuth } from "src/contexts/AuthContext";
+
+const { login } = useAuth();
+
 const schema = z.object({
   email: z
     .string()
@@ -46,12 +50,12 @@ export default function Login() {
     mode: "onTouched",
   });
 
-  async function onSubmit(values: FormData) {
+  async function onSubmit(values: { email: string; password: string }) {
     try {
-      await authApi.login(values.email, values.password);
-      router.replace("/"); // TODO: trocar pelo dashboard
+      await login(values.email, values.password);
+      router.replace("/(tabs)");
     } catch (e: any) {
-      Alert.alert("Erro ao entrar", e?.message ?? "Tenta novamente.");
+      Alert.alert("Falha no login", e?.message || "Tenta novamente.");
     }
   }
 
