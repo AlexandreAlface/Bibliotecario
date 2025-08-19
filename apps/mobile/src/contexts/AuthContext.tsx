@@ -1,64 +1,74 @@
-import * as React from 'react';
+// src/contexts/AuthContext.tsx
+import React from 'react';
 import { authApi } from 'src/services/auth';
-import { childModeApi } from 'src/services/childMode';
 
-export type Me = {
+type ChildLite = { id: number; name: string; avatarUrl?: string | null };
+type UserShape = {
   id: number;
   fullName: string;
   email: string;
-  roles?: string[];
-  userRoles?: any[]; // compat
-  children?: { id: number; name: string; avatarUrl?: string | null }[];
-  actingChild?: { id: number; name: string } | null;
+  roles: string[];
+  children?: ChildLite[];
+  actingChild?: ChildLite | null;
 };
 
 type Ctx = {
-  user: Me | null;
-  refresh: () => Promise<void>;
+  user: UserShape | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refresh: () => Promise<void>;
   actAsChild: (childId: number) => Promise<void>;
   clearChild: () => Promise<void>;
 };
 
-const AuthContext = React.createContext<Ctx>(null as any);
-export const useAuth = () => React.useContext(AuthContext);
+const AuthContext = React.createContext<Ctx | null>(null);
 
-export function AuthProvider({ children }: React.PropsWithChildren) {
-  const [user, setUser] = React.useState<Me | null>(null);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = React.useState<UserShape | null>(null);
+  const [ready, setReady] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
     try {
       const me = await authApi.me();
       setUser(me);
-    } catch { setUser(null); }
+    } catch {
+      setUser(null);
+    } finally {
+      setReady(true);
+    }
   }, []);
-
-  const login = React.useCallback(async (email: string, password: string) => {
-    await authApi.login(email, password);
-    await refresh();
-  }, [refresh]);
-
-  const logout = React.useCallback(async () => {
-    await authApi.logout();
-    setUser(null);
-  }, []);
-
-  const actAsChild = React.useCallback(async (childId: number) => {
-    await childModeApi.actAs(childId);
-    await refresh();
-  }, [refresh]);
-
-  const clearChild = React.useCallback(async () => {
-    await childModeApi.clear();
-    await refresh();
-  }, [refresh]);
 
   React.useEffect(() => { refresh(); }, [refresh]);
 
+  async function login(email: string, password: string) {
+    await authApi.login(email, password);
+    await refresh(); // ← carrega roles + children + actingChild
+  }
+
+  async function logout() {
+    await authApi.logout();
+    setUser(null);
+  }
+
+  async function actAsChild(childId: number) {
+    await authApi.actAsChild(childId);
+    await refresh();
+  }
+
+  async function clearChild() {
+    await authApi.clearActingChild();
+    await refresh();
+  }
+
   return (
-    <AuthContext.Provider value={{ user, refresh, login, logout, actAsChild, clearChild }}>
+    <AuthContext.Provider value={{ user, login, logout, refresh, actAsChild, clearChild }}>
       {children}
     </AuthContext.Provider>
   );
 }
+
+export const useAuth = () => {
+  const ctx = React.useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
+};

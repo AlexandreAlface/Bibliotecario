@@ -15,11 +15,12 @@
   },
   "dependencies": {
     "@bibliotecario/tokens": "file:../tokens",
-    "expo-linear-gradient": "^14.1.5"
+    "expo-linear-gradient": "^14.1.5",
+    "react-dom": "^19.1.1"
   },
   "peerDependencies": {
     "expo-font": "*",
-    "react": ">=18 <20",
+    "react": "^19.1.1",
     "react-native": ">=0.76 <0.80",
     "react-native-paper": "^5",
     "react-native-reanimated": ">=3"

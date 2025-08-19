@@ -1,66 +1,51 @@
-// src/pages/auth/Login.tsx
+import { z } from "zod";
+import { AuthLayout } from "../../components/Layouts/AuthLayout";
+import { Box, Typography } from "@mui/material";
+import {
+  EmailField, Logo, PasswordField, PrimaryButton,
+  RouteLink, SecondaryButton, SectionDivider, WhiteCard,
+} from "@bibliotecario/ui-web";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useAuth } from "@/contexts/AuthContext";
 
-import { z } from 'zod';
-import { AuthLayout } from '../../components/Layouts/AuthLayout';
-import { api } from '../../services/authService';
-import { Box, Typography } from '@mui/material';
-import { EmailField, Logo, PasswordField, PrimaryButton, RouteLink, SecondaryButton, SectionDivider, WhiteCard } from '@bibliotecario/ui-web';
-import { Controller, useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-
-// Schema de validação
 const schema = z.object({
-  email:    z.string().min(1, 'Obrigatório').email('Formato inválido'),
-  password: z.string().min(6, 'Mínimo 6 caracteres'),
+  email: z.string().min(1, "Obrigatório").email("Formato inválido"),
+  password: z.string().min(6, "Mínimo 6 caracteres"),
 });
 type FormData = z.infer<typeof schema>;
 
-export function Login() {
+export default function Login() {
+  const { login } = useAuth();
   const { control, handleSubmit, formState } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: { email: "", password: "" },
   });
 
-  async function onSubmit(values: { email: string; password: string }) {
+  async function onSubmit(values: FormData) {
     try {
-      await api('/auth/login', { method: 'POST', body: JSON.stringify(values) });
-      // TODO: redirecionar para o dashboard quando existir
-      window.location.href = '/'; 
-    } catch (e:any) {
-      // Exibe mensagem de erro no UI (snackbar/alert)
-      alert(e.message);
+      await login(values.email, values.password); // seta user via /auth/me
+      window.location.href = "/";                 // cai no index com sessão
+    } catch (e: any) {
+      alert(e?.response?.data?.error || e?.message || "Falha no login.");
     }
   }
 
+  const compactInputSX = {
+    "& .MuiInputBase-root": { height: 40 },
+    "& .MuiInputBase-input": { py: 0.75 },
+  };
+
   return (
     <AuthLayout>
-      {/* Wrapper para centrar tudo e limitar largura */}
-      <Box
-        sx={{
-          width:         '100%',
-          maxWidth:      520,    // cartão mais estreito
-          mx:            'auto', 
-          px:            2,
-          pt:            4,
-        }}
-      >
-        {/* Cartão branco */}
-        <WhiteCard
-          width="100%"
-          sx={{
-            py: 3,            // menos padding vertical
-            px: 2,
-          }}
-        >
-          {/* Logo no topo do cartão */}
-        <Box textAlign="center" justifyContent="center" display={'flex'}>
-          <Logo width="300px" />
-        </Box>
+      <Box sx={{ width: "100%", maxWidth: 520, mx: "auto", px: 2, pt: 4 }}>
+        <WhiteCard width="100%" sx={{ py: 3, px: 2 }}>
+          <Box textAlign="center" display="flex" justifyContent="center">
+            <Logo width="300px" />
+          </Box>
 
-          <Typography variant="h5" textAlign="center" mb={2}>
-            Entrar
-          </Typography>
+          <Typography variant="h5" textAlign="center" mb={2}>Entrar</Typography>
 
-          {/* Formulário */}
           <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
             <Controller
               name="email"
@@ -73,7 +58,8 @@ export function Login() {
                     inputRef={ref}
                     label="Email"
                     fullWidth
-                    sx={{ mb: 2 }}
+                    size="small"
+                    sx={{ mb: 2, ...compactInputSX }}
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
                   />
@@ -92,7 +78,8 @@ export function Login() {
                     inputRef={ref}
                     label="Palavra-passe"
                     fullWidth
-                    sx={{ mb: 3 }}
+                    size="small"
+                    sx={{ mb: 3, ...compactInputSX }}
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
                   />
@@ -100,31 +87,18 @@ export function Login() {
               }}
             />
 
-            <PrimaryButton
-              type="submit"
-              fullWidth
-              disabled={formState.isSubmitting}
-              sx={{ mb: 3 }}
-            >
+            <PrimaryButton type="submit" fullWidth disabled={formState.isSubmitting} sx={{ mb: 3 }}>
               Entrar
             </PrimaryButton>
           </Box>
 
-          {/* Links de ajuda */}
           <Box display="flex" justifyContent="space-between" mb={3}>
-            <RouteLink href="#" weight={400}>
-              Problemas ao entrar?
-            </RouteLink>
-            <RouteLink href="#" weight={400}>
-              Esqueceste-te da palavra-passe?
-            </RouteLink>
+            <RouteLink href="#" weight={400}>Problemas ao entrar?</RouteLink>
+            <RouteLink href="#" weight={400}>Esqueceste-te da palavra-passe?</RouteLink>
           </Box>
 
-          {/* Divisor e botão de criar conta */}
           <SectionDivider label="Novo por aqui?" sx={{ mb: 2 }} />
-          <SecondaryButton fullWidth href="/criar-conta">
-            Criar conta
-          </SecondaryButton>
+          <SecondaryButton fullWidth href="/criar-conta">Criar conta</SecondaryButton>
         </WhiteCard>
       </Box>
     </AuthLayout>

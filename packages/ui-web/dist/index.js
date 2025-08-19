@@ -653,49 +653,26 @@ var SidebarMenu = ({
   open: controlled,
   onToggle,
   toggleVertical = "center",
-  sx
+  sx,
+  children,
+  headerTitle,
+  headerSubtitle,
+  headerAvatarUrl
 }) => {
   const [internal, setInternal] = react.useState(true);
   const open = controlled != null ? controlled : internal;
   const toggle = () => onToggle ? onToggle(!open) : setInternal(!open);
-  const render = (arr) => arr.map(({ label, icon, selected, ...rest }) => /* @__PURE__ */ jsxRuntime.jsx(
-    material.Tooltip,
+  const render = (arr) => arr.map(({ label, icon, selected, ...rest }) => /* @__PURE__ */ jsxRuntime.jsx(material.Tooltip, { title: !open ? label : "", placement: "right", arrow: true, disableInteractive: true, children: /* @__PURE__ */ jsxRuntime.jsxs(
+    material.ListItemButton,
     {
-      title: !open ? label : "",
-      placement: "right",
-      arrow: true,
-      disableInteractive: true,
-      children: /* @__PURE__ */ jsxRuntime.jsxs(
-        material.ListItemButton,
-        {
-          sx: {
-            my: 0.5,
-            borderRadius: 1,
-            px: open ? 2 : 0,
-            // sem “padding” lateral quando fechado
-            justifyContent: open ? "flex-start" : "center",
-            ...selected && selectedSX
-          },
-          ...rest,
-          children: [
-            /* @__PURE__ */ jsxRuntime.jsx(
-              material.ListItemIcon,
-              {
-                sx: {
-                  minWidth: 0,
-                  mr: open ? 2 : "0",
-                  justifyContent: "center"
-                },
-                children: icon
-              }
-            ),
-            open && /* @__PURE__ */ jsxRuntime.jsx(material.ListItemText, { primary: label })
-          ]
-        }
-      )
-    },
-    label
-  ));
+      sx: { my: 0.5, borderRadius: 1, px: open ? 2 : 0, justifyContent: open ? "flex-start" : "center", ...selected && selectedSX },
+      ...rest,
+      children: [
+        /* @__PURE__ */ jsxRuntime.jsx(material.ListItemIcon, { sx: { minWidth: 0, mr: open ? 2 : 0, justifyContent: "center" }, children: icon }),
+        open && /* @__PURE__ */ jsxRuntime.jsx(material.ListItemText, { primary: label })
+      ]
+    }
+  ) }, label));
   return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
     /* @__PURE__ */ jsxRuntime.jsxs(
       material.Drawer,
@@ -705,50 +682,35 @@ var SidebarMenu = ({
           sx: {
             width: open ? OPEN : CLOSED,
             overflowX: "clip",
-            // evita barra horizontal
             borderRadius: "0 8px 8px 0",
             boxShadow: "0 4px 24px rgba(0,0,0,.08)",
-            transition: (t) => t.transitions.create("width", {
-              duration: t.transitions.duration.shorter
-            }),
+            bgcolor: "background.paper",
+            backgroundImage: "none",
+            transition: (t) => t.transitions.create("width", { duration: t.transitions.duration.shorter }),
             display: "flex",
             flexDirection: "column",
             ...sx
           }
         },
         children: [
-          /* @__PURE__ */ jsxRuntime.jsxs(material.Stack, { position: "relative", alignItems: "center", spacing: 1, mt: 3, mb: 2, children: [
-            /* @__PURE__ */ jsxRuntime.jsx(
-              material.Box,
-              {
-                component: "img",
-                src: "https://placehold.co/40",
-                width: 40,
-                height: 40,
-                borderRadius: "50%"
-              }
-            ),
+          /* @__PURE__ */ jsxRuntime.jsxs(material.Stack, { alignItems: "center", spacing: 1, mt: 3, mb: open ? 2 : 1, px: open ? 2 : 0, children: [
+            /* @__PURE__ */ jsxRuntime.jsx(material.Avatar, { src: headerAvatarUrl, sx: { width: 40, height: 40 } }),
             open && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
-              /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { fontWeight: 700, fontSize: 14, children: "Alexandre Brissos" }),
-              /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "caption", color: "text.secondary", children: "TUTOR" }),
+              !!headerTitle && /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { fontWeight: 700, fontSize: 14, textAlign: "center", children: headerTitle }),
+              !!headerSubtitle && /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "caption", color: "text.secondary", children: headerSubtitle }),
               /* @__PURE__ */ jsxRuntime.jsx(material.Divider, { sx: { width: "100%", mt: 1 } })
             ] })
+          ] }),
+          open && children && /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { px: 2, pb: 1, children: [
+            children,
+            /* @__PURE__ */ jsxRuntime.jsx(material.Divider, { sx: { width: "100%", mt: 1 } })
           ] }),
           /* @__PURE__ */ jsxRuntime.jsx(material.List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(items) }),
           !!(footerItems == null ? void 0 : footerItems.length) && /* @__PURE__ */ jsxRuntime.jsx(material.Box, { mt: "auto", pb: 2, children: /* @__PURE__ */ jsxRuntime.jsx(material.List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(footerItems) }) })
         ]
       }
     ),
-    /* @__PURE__ */ jsxRuntime.jsx(
-      SidebarToggle,
-      {
-        open,
-        openWidth: OPEN,
-        closedWidth: CLOSED,
-        vertical: toggleVertical,
-        onToggle: toggle
-      }
-    )
+    /* @__PURE__ */ jsxRuntime.jsx(SidebarToggle, { open, openWidth: OPEN, closedWidth: CLOSED, vertical: toggleVertical, onToggle: toggle })
   ] });
 };
 var NotificationBell = ({

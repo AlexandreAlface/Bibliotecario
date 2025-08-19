@@ -626,49 +626,26 @@ var SidebarMenu = ({
   open: controlled,
   onToggle,
   toggleVertical = "center",
-  sx
+  sx,
+  children,
+  headerTitle,
+  headerSubtitle,
+  headerAvatarUrl
 }) => {
   const [internal, setInternal] = useState(true);
   const open = controlled != null ? controlled : internal;
   const toggle = () => onToggle ? onToggle(!open) : setInternal(!open);
-  const render = (arr) => arr.map(({ label, icon, selected, ...rest }) => /* @__PURE__ */ jsx(
-    Tooltip,
+  const render = (arr) => arr.map(({ label, icon, selected, ...rest }) => /* @__PURE__ */ jsx(Tooltip, { title: !open ? label : "", placement: "right", arrow: true, disableInteractive: true, children: /* @__PURE__ */ jsxs(
+    ListItemButton,
     {
-      title: !open ? label : "",
-      placement: "right",
-      arrow: true,
-      disableInteractive: true,
-      children: /* @__PURE__ */ jsxs(
-        ListItemButton,
-        {
-          sx: {
-            my: 0.5,
-            borderRadius: 1,
-            px: open ? 2 : 0,
-            // sem “padding” lateral quando fechado
-            justifyContent: open ? "flex-start" : "center",
-            ...selected && selectedSX
-          },
-          ...rest,
-          children: [
-            /* @__PURE__ */ jsx(
-              ListItemIcon,
-              {
-                sx: {
-                  minWidth: 0,
-                  mr: open ? 2 : "0",
-                  justifyContent: "center"
-                },
-                children: icon
-              }
-            ),
-            open && /* @__PURE__ */ jsx(ListItemText, { primary: label })
-          ]
-        }
-      )
-    },
-    label
-  ));
+      sx: { my: 0.5, borderRadius: 1, px: open ? 2 : 0, justifyContent: open ? "flex-start" : "center", ...selected && selectedSX },
+      ...rest,
+      children: [
+        /* @__PURE__ */ jsx(ListItemIcon, { sx: { minWidth: 0, mr: open ? 2 : 0, justifyContent: "center" }, children: icon }),
+        open && /* @__PURE__ */ jsx(ListItemText, { primary: label })
+      ]
+    }
+  ) }, label));
   return /* @__PURE__ */ jsxs(Fragment, { children: [
     /* @__PURE__ */ jsxs(
       Drawer,
@@ -678,50 +655,35 @@ var SidebarMenu = ({
           sx: {
             width: open ? OPEN : CLOSED,
             overflowX: "clip",
-            // evita barra horizontal
             borderRadius: "0 8px 8px 0",
             boxShadow: "0 4px 24px rgba(0,0,0,.08)",
-            transition: (t) => t.transitions.create("width", {
-              duration: t.transitions.duration.shorter
-            }),
+            bgcolor: "background.paper",
+            backgroundImage: "none",
+            transition: (t) => t.transitions.create("width", { duration: t.transitions.duration.shorter }),
             display: "flex",
             flexDirection: "column",
             ...sx
           }
         },
         children: [
-          /* @__PURE__ */ jsxs(Stack, { position: "relative", alignItems: "center", spacing: 1, mt: 3, mb: 2, children: [
-            /* @__PURE__ */ jsx(
-              Box,
-              {
-                component: "img",
-                src: "https://placehold.co/40",
-                width: 40,
-                height: 40,
-                borderRadius: "50%"
-              }
-            ),
+          /* @__PURE__ */ jsxs(Stack, { alignItems: "center", spacing: 1, mt: 3, mb: open ? 2 : 1, px: open ? 2 : 0, children: [
+            /* @__PURE__ */ jsx(Avatar, { src: headerAvatarUrl, sx: { width: 40, height: 40 } }),
             open && /* @__PURE__ */ jsxs(Fragment, { children: [
-              /* @__PURE__ */ jsx(Typography, { fontWeight: 700, fontSize: 14, children: "Alexandre Brissos" }),
-              /* @__PURE__ */ jsx(Typography, { variant: "caption", color: "text.secondary", children: "TUTOR" }),
+              !!headerTitle && /* @__PURE__ */ jsx(Typography, { fontWeight: 700, fontSize: 14, textAlign: "center", children: headerTitle }),
+              !!headerSubtitle && /* @__PURE__ */ jsx(Typography, { variant: "caption", color: "text.secondary", children: headerSubtitle }),
               /* @__PURE__ */ jsx(Divider, { sx: { width: "100%", mt: 1 } })
             ] })
+          ] }),
+          open && children && /* @__PURE__ */ jsxs(Box, { px: 2, pb: 1, children: [
+            children,
+            /* @__PURE__ */ jsx(Divider, { sx: { width: "100%", mt: 1 } })
           ] }),
           /* @__PURE__ */ jsx(List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(items) }),
           !!(footerItems == null ? void 0 : footerItems.length) && /* @__PURE__ */ jsx(Box, { mt: "auto", pb: 2, children: /* @__PURE__ */ jsx(List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(footerItems) }) })
         ]
       }
     ),
-    /* @__PURE__ */ jsx(
-      SidebarToggle,
-      {
-        open,
-        openWidth: OPEN,
-        closedWidth: CLOSED,
-        vertical: toggleVertical,
-        onToggle: toggle
-      }
-    )
+    /* @__PURE__ */ jsx(SidebarToggle, { open, openWidth: OPEN, closedWidth: CLOSED, vertical: toggleVertical, onToggle: toggle })
   ] });
 };
 var NotificationBell = ({

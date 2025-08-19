@@ -1,187 +1,140 @@
 // app/(tabs)/_layout.tsx
 import * as React from "react";
-import { View, Pressable, StyleSheet } from "react-native";
+import { View, TouchableOpacity } from "react-native";
 import { Tabs } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "react-native-paper";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useAuth } from "src/contexts/AuthContext";
 
-export const TABBAR_HEIGHT = 70;
+export const TABBAR_HEIGHT = 64;
 
-function getIconName(routeName: string): string {
-  switch (routeName) {
-    case "index":
-      return "home";
-    case "agenda":
-      return "calendar";
-    case "consultas":
-      return "calendar-clock";
-    case "sugestoes":
-      return "star";
-    case "conquistas":
-      return "trophy";
-    case "pedidos":
-      return "email";
-    case "familias":
-      return "account-multiple";
-    case "feed":
-      return "rss";
-    case "perfil":
-      return "account";
-    default:
-      return "circle";
-  }
-}
-
+/* ---- helpers ---- */
 function extractRoles(u: any): string[] {
   if (!u) return [];
   if (Array.isArray(u.roles) && u.roles.length) return u.roles as string[];
   if (Array.isArray(u.userRoles)) {
-    return u.userRoles.map((ur: any) => ur?.role?.name).filter(Boolean) as string[];
+    return u.userRoles.map((ur: any) => ur?.role?.name).filter(Boolean);
   }
   return [];
 }
 
-function allowedRoutesByUser(user: any): Set<string> {
-  const base = ['index', 'feed', 'perfil'];
-  const roles = extractRoles(user);
-  const primary = user?.actingChild ? 'CRIANÇA' : (roles[0] ?? 'FAMÍLIA');
+type RouteName =
+  | "index"
+  | "agenda"
+  | "conquistas"
+  | "consultas"
+  | "familias"
+  | "feed"
+  | "sugestoes";
 
-  if (primary === 'FAMÍLIA')       return new Set([...base, 'agenda', 'consultas']);
-  if (primary === 'CRIANÇA')       return new Set([...base, 'sugestoes', 'conquistas']);
-  if (primary === 'BIBLIOTECÁRIO') return new Set([...base, 'pedidos', 'familias']);
-  if (primary === 'ADMIN')         return new Set(base);
-  return new Set(base);
-}
+/** Ícones: ativo usa “filled”, inativo (quando existe) usa “outline” */
+const ICONS: Record<
+  RouteName,
+  { active: React.ComponentProps<typeof Icon>["name"]; inactive: React.ComponentProps<typeof Icon>["name"] }
+> = {
+  index:      { active: "home-variant",           inactive: "home-variant-outline" },
+  agenda:     { active: "calendar-month",         inactive: "calendar-month-outline" },
+  conquistas: { active: "trophy-award",           inactive: "trophy-outline" },
+  consultas:  { active: "calendar-clock",         inactive: "calendar-clock-outline" },
+  familias:   { active: "account-group",          inactive: "account-group-outline" },
+  feed:       { active: "rss",                    inactive: "rss" }, // sem outline
+  sugestoes:  { active: "book-open-page-variant", inactive: "book-open-outline" },
+};
 
-// TabBar com ícones-only + filtra rotas por role
-function IconOnlyTabBar({ state, descriptors, navigation }: any) {
+const MENU_FAMILIA: RouteName[] = [
+  "index",
+  "agenda",
+  "conquistas",
+  "consultas",
+  "familias",
+  "feed",
+  "sugestoes",
+];
+const MENU_CRIANCA: RouteName[] = ["index", "sugestoes", "conquistas", "agenda"];
+
+/* ---- Custom TabBar 100% compatível iOS/Android (usa navigation.navigate) ---- */
+function MyTabBar(props: BottomTabBarProps) {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const role = user?.roles?.[0] ?? "FAMÍLIA";
-  const allowed = allowedRoutesByUser(role);
 
-  // lista de rotas visíveis (apenas as permitidas)
-  const visibleRoutes = state.routes.filter((r: any) => allowed.has(r.name));
+  const roles = React.useMemo(() => extractRoles(user), [user]);
+  const role = user?.actingChild ? "CRIANÇA" : roles[0] ?? "FAMÍLIA";
+  const visible = role === "CRIANÇA" ? MENU_CRIANCA : MENU_FAMILIA;
 
-  // se a rota ativa não é permitida, força ir para 'index'
-  React.useEffect(() => {
-    const current = state.routes[state.index]?.name;
-    if (current && !allowed.has(current)) navigation.navigate("index");
-  }, [state.index, role]);
+  // filtra só as rotas que queremos MESMO mostrar no tab bar
+  const items = props.state.routes.filter((r) =>
+    (visible as string[]).includes(r.name)
+  );
 
   return (
-    <SafeAreaView
-      edges={["bottom"]}
-      style={[
-        styles.wrap,
-        {
-          backgroundColor: theme.colors.surface,
-          borderTopColor: theme.colors.outlineVariant,
-        },
-      ]}
+    <View
+      style={{
+        flexDirection: "row",
+        height: TABBAR_HEIGHT + insets.bottom,
+        paddingBottom: Math.max(insets.bottom, 8),
+        paddingTop: 8,
+        backgroundColor: theme.colors.surface,
+        elevation: 8,
+      }}
     >
-      <View style={styles.row}>
-        {visibleRoutes.map((route: any) => {
-          const index = state.routes.findIndex((r: any) => r.key === route.key);
-          const isFocused = state.index === index;
-          const { options } = descriptors[route.key];
-          const iconName = getIconName(route.name);
-          const label = options.title ?? route.name;
+      {items.map((route, index) => {
+        const isFocused = props.state.index === props.state.routes.findIndex((r) => r.key === route.key);
+        const name = route.name as RouteName;
+        const iconPair = ICONS[name];
+        if (!iconPair) return null;
 
-          return (
-            <Pressable
-              key={route.key}
-              onPress={() => {
-                const e = navigation.emit({
-                  type: "tabPress",
-                  target: route.key,
-                  canPreventDefault: true,
-                });
-                if (!isFocused && !e.defaultPrevented)
-                  navigation.navigate(route.name);
-              }}
-              onLongPress={() =>
-                navigation.emit({ type: "tabLongPress", target: route.key })
-              }
-              accessibilityRole="button"
-              accessibilityLabel={label}
-              accessibilityState={isFocused ? { selected: true } : {}}
-              style={styles.item}
-            >
-              <View
-                style={[
-                  styles.iconWrap,
-                  isFocused && {
-                    backgroundColor: theme.colors.secondaryContainer,
-                  },
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name={iconName as any}
-                  size={26}
-                  color={
-                    isFocused
-                      ? theme.colors.primary
-                      : theme.colors.onSurfaceVariant
-                  }
-                />
-              </View>
-              <View
-                style={[
-                  styles.dot,
-                  {
-                    backgroundColor: isFocused
-                      ? theme.colors.primary
-                      : "transparent",
-                  },
-                ]}
-              />
-            </Pressable>
-          );
-        })}
-      </View>
-    </SafeAreaView>
+        const iconName = isFocused ? iconPair.active : iconPair.inactive;
+        const color = isFocused ? theme.colors.primary : theme.colors.onSurfaceVariant;
+
+        const onPress = () => {
+          const event = props.navigation.emit({
+            type: "tabPress",
+            target: route.key,
+            canPreventDefault: true,
+          });
+          if (!isFocused && !event.defaultPrevented) {
+            props.navigation.navigate(route.name);
+          }
+        };
+
+        const onLongPress = () => {
+          props.navigation.emit({ type: "tabLongPress", target: route.key });
+        };
+
+        return (
+          <TouchableOpacity
+            key={route.key}
+            accessibilityRole="button"
+            accessibilityState={isFocused ? { selected: true } : {}}
+            onPress={onPress}
+            onLongPress={onLongPress}
+            activeOpacity={0.6}              // funciona no iOS
+            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+            hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+          >
+            <Icon name={iconName} size={24} color={color} />
+          </TouchableOpacity>
+        );
+      })}
+    </View>
   );
 }
 
+/* ---- Tabs layout ---- */
 export default function TabsLayout() {
-  // NOTA: filhos diretos **apenas** <Tabs.Screen />, sem fragments/arrays/condicionais
   return (
-    <Tabs
-      screenOptions={{ headerShown: false, tabBarStyle: { display: "none" } }}
-      tabBar={(props) => <IconOnlyTabBar {...props} />}
-    >
-      <Tabs.Screen name="index" options={{ title: "Início" }} />
-      <Tabs.Screen name="agenda" options={{ title: "Agenda" }} />
-      <Tabs.Screen name="consultas" options={{ title: "Consultas" }} />
-      <Tabs.Screen name="sugestoes" options={{ title: "Sugestões" }} />
-      <Tabs.Screen name="conquistas" options={{ title: "Conquistas" }} />
-      <Tabs.Screen name="pedidos" options={{ title: "Pedidos" }} />
-      <Tabs.Screen name="familias" options={{ title: "Famílias" }} />
-      <Tabs.Screen name="feed" options={{ title: "Feed" }} />
-      <Tabs.Screen name="perfil" options={{ title: "Perfil" }} />
+    <Tabs tabBar={(p) => <MyTabBar {...p} />} screenOptions={{ headerShown: false }}>
+      {/* Regista todas as screens que podes usar; o TabBar só mostra as do MENU_* */}
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="agenda" />
+      <Tabs.Screen name="conquistas" />
+      <Tabs.Screen name="consultas" />
+      <Tabs.Screen name="familias" />
+      <Tabs.Screen name="feed" />
+      <Tabs.Screen name="sugestoes" />
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  row: {
-    height: TABBAR_HEIGHT,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingHorizontal: 6,
-  },
-  item: { flex: 1, alignItems: "center", gap: 6 },
-  iconWrap: { padding: 10, borderRadius: 14 },
-  dot: { width: 6, height: 6, borderRadius: 3 },
-});

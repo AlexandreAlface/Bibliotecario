@@ -217,6 +217,12 @@ interface SidebarMenuProps {
     onToggle?: (open: boolean) => void;
     toggleVertical?: VerticalPos;
     sx?: SxProps<Theme>;
+    /** conteúdo custom colocado logo abaixo do header */
+    children?: React__default.ReactNode;
+    /** header dinâmico */
+    headerTitle?: string;
+    headerSubtitle?: string;
+    headerAvatarUrl?: string;
 }
 declare const SidebarMenu: React__default.FC<SidebarMenuProps>;
 

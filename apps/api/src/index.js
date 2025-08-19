@@ -35,7 +35,7 @@ app.use(cors(corsOptions)); // <-- isto já trata os preflight OPTIONS também
 app.use("/api", eventsRouter);
 app.use("/api", booksRouter);
 app.use("/api", badgesRouter);
-app.use('/api', authRouter);
+app.use('/api/auth', authRouter);
 app.use('/api', authChildRouter);
 app.use("/api/consultations", consultationsRouter);
 

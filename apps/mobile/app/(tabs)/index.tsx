@@ -2,6 +2,8 @@ import * as React from "react";
 import { View, ScrollView, Image, Pressable } from "react-native";
 import { Text, useTheme } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
@@ -14,12 +16,11 @@ import {
   getProximosEventos,
 } from "src/services/events";
 import { BookLite, getLeiturasAtuais, getSugestoes } from "src/services/books";
-
 import { TABBAR_HEIGHT } from "./_layout";
 
 const PLACEHOLDER = "https://picsum.photos/seed/placeholder/800/600";
 
-// ------- helpers -------
+/* ---------------- helpers ---------------- */
 function extractRoles(u: any): string[] {
   if (!u) return [];
   if (Array.isArray(u.roles) && u.roles.length) return u.roles as string[];
@@ -44,9 +45,6 @@ function Section({
           fontWeight: "700",
           marginBottom: 10,
           color: theme.colors.onSurface,
-          textShadowColor: "transparent",
-          textShadowOffset: { width: 0, height: 0 },
-          textShadowRadius: 0,
         }}
       >
         {title}
@@ -56,7 +54,7 @@ function Section({
   );
 }
 
-/** Tile de categoria com imagem e overlay (estilo “Aaptiv”) */
+/** Tile simples com overlay */
 function CategoryTile({
   title,
   subtitle,
@@ -86,7 +84,6 @@ function CategoryTile({
         resizeMode="cover"
         style={{ width: "100%", height: "100%" }}
       />
-      {/* overlay gradiente simples sem deps: um véu escuro no fundo */}
       <View
         style={{
           position: "absolute",
@@ -192,19 +189,85 @@ function ProgramCard({
   );
 }
 
+/** Banner “a atuar como criança” — compacto e bonito */
+function ActingChildBanner({
+  name,
+  onClear,
+}: {
+  name: string;
+  onClear: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <View
+      style={{
+        padding: 10,
+        borderRadius: 14,
+        backgroundColor: theme.colors.secondaryContainer,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+      }}
+    >
+      <View
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: theme.colors.primaryContainer,
+        }}
+      >
+        <Icon
+          name="account-child-circle"
+          size={22}
+          color={theme.colors.primary}
+        />
+      </View>
+
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 12, opacity: 0.8 }}>A atuar como</Text>
+        <Text style={{ fontWeight: "800" }}>{name}</Text>
+      </View>
+
+      <Pressable
+        onPress={onClear}
+        style={{
+          paddingHorizontal: 12,
+          height: 32,
+          borderRadius: 999,
+          backgroundColor: theme.colors.primary,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Text style={{ color: theme.colors.onPrimary, fontWeight: "700" }}>
+          Modo família
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/* ---------------- page ---------------- */
 export default function Landing() {
   const theme = useTheme();
+  const router = useRouter();
   const { user, clearChild } = useAuth();
   const insets = useSafeAreaInsets();
 
   const firstName = user?.fullName?.split(" ")[0] ?? "Leitor";
 
-  // roles podem vir como user.roles: string[] OU user.userRoles: [{role: {name}}]
   const roles = React.useMemo(() => extractRoles(user), [user]);
-  // se estiver a atuar como criança, força "CRIANÇA"
-  const role = user?.actingChild ? "CRIANÇA" : (roles[0] ?? "FAMÍLIA");
+  const role = user?.actingChild ? "CRIANÇA" : roles[0] ?? "FAMÍLIA";
 
-  console.log("Rendering Landing with roles:", roles, "actingChild:", user?.actingChild?.name);
+  console.log(
+    "Rendering Landing with roles:",
+    roles,
+    "actingChild:",
+    user?.actingChild?.name
+  );
 
   const [consultas, setConsultas] = React.useState<EventLite[] | null>(null);
   const [eventos, setEventos] = React.useState<EventLite[] | null>(null);
@@ -255,7 +318,7 @@ export default function Landing() {
     })();
   }, [role]);
 
-  // estilos compactos para botões (aplicados nos FlexibleCard do fim)
+  // botões compactos
   const btnStyle = {
     height: 36,
     borderRadius: 10,
@@ -267,6 +330,11 @@ export default function Landing() {
     letterSpacing: 0.2,
   } as const;
 
+  const canActAsChild =
+    !user?.actingChild &&
+    Array.isArray(user?.children) &&
+    user!.children!.length > 0;
+
   return (
     <Background>
       <ScrollView
@@ -277,37 +345,20 @@ export default function Landing() {
           gap: 18,
         }}
       >
+        {/* Banner de “a atuar como criança” */}
         {user?.actingChild && (
-          <View
-            style={{
-              padding: 10,
-              borderRadius: 12,
-              marginBottom: 10,
-              backgroundColor: theme.colors.secondaryContainer,
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <Text>
-              Ativo como{" "}
-              <Text style={{ fontWeight: "800" }}>{user.actingChild.name}</Text>
-            </Text>
-            <PrimaryButton compact onPress={clearChild}>
-              Modo família
-            </PrimaryButton>
-          </View>
+          <ActingChildBanner
+            name={user.actingChild.name}
+            onClear={clearChild}
+          />
         )}
 
-        {/* Header simples */}
+        {/* Header */}
         <View>
           <Text
             variant="titleLarge"
             style={{
               color: theme.colors.onSurface,
-              textShadowColor: "transparent",
-              textShadowOffset: { width: 0, height: 0 },
-              textShadowRadius: 0,
               fontWeight: "800",
             }}
           >
@@ -315,7 +366,7 @@ export default function Landing() {
           </Text>
         </View>
 
-        {/* Grelha de categorias */}
+        {/* Explorar */}
         <Section title="Explorar">
           <View
             style={{
@@ -325,6 +376,16 @@ export default function Landing() {
               flexWrap: "wrap",
             }}
           >
+            {/* family -> escolher criança */}
+            {canActAsChild && (
+              <CategoryTile
+                title="Entrar como criança"
+                subtitle="Escolher perfil"
+                imageUrl={PLACEHOLDER}
+                onPress={() => router.push("/choose-child")}
+              />
+            )}
+
             <CategoryTile
               title="Consultas"
               subtitle={
@@ -337,6 +398,7 @@ export default function Landing() {
               imageUrl={PLACEHOLDER}
               onPress={() => {}}
             />
+
             <CategoryTile
               title={eventos?.[0]?.title || "Eventos"}
               subtitle={`${eventos?.[0]?.date || ""}${
@@ -345,6 +407,7 @@ export default function Landing() {
               imageUrl={eventos?.[0]?.imageUrl || PLACEHOLDER}
               onPress={() => {}}
             />
+
             <CategoryTile
               title={role === "CRIANÇA" ? "Sugestões" : "Leituras atuais"}
               subtitle={
@@ -359,28 +422,10 @@ export default function Landing() {
               }
               onPress={() => {}}
             />
-            <CategoryTile
-              title={
-                role === "CRIANÇA"
-                  ? sugestoes?.[1]?.title || "Ver mais"
-                  : leituras?.[1]?.title || "Ver mais"
-              }
-              subtitle={
-                role === "CRIANÇA"
-                  ? undefined
-                  : leituras?.[1]?.date || undefined
-              }
-              imageUrl={
-                role === "CRIANÇA"
-                  ? sugestoes?.[1]?.coverUrl || PLACEHOLDER
-                  : leituras?.[1]?.coverUrl || PLACEHOLDER
-              }
-              onPress={() => {}}
-            />
           </View>
         </Section>
 
-        {/* Programas / Para ti */}
+        {/* Para ti */}
         <Section title="Para ti">
           <View style={{ gap: 12 }}>
             <ProgramCard
@@ -414,7 +459,7 @@ export default function Landing() {
           </View>
         </Section>
 
-        {/* Blocos finais (reutiliza FlexibleCard com botões compactos) */}
+        {/* Blocos finais */}
         <Section title="Conquistas Recentes">
           <FlexibleCard
             title="Primeira Leitura"

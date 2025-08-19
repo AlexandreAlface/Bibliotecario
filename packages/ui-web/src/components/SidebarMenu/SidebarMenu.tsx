@@ -1,23 +1,11 @@
-// src/components/SidebarMenu/SidebarMenu.tsx
+// packages/ui-web/src/components/SidebarMenu/SidebarMenu.tsx
 import React, { useState } from 'react';
 import {
-  Box,
-  Drawer,
-  Divider,
-  List,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Stack,
-  Tooltip,
-  Typography,
-  SxProps,
-  Theme,
+  Box, Drawer, Divider, List, ListItemButton, ListItemIcon, ListItemText,
+  Stack, Tooltip, Typography, SxProps, Theme, Avatar
 } from '@mui/material';
 import { SidebarToggle, VerticalPos } from './SidebarToggle';
 
-
-/* ---------- Tipos ---------- */
 export interface MenuItem {
   label: string;
   icon: React.ReactNode;
@@ -33,9 +21,15 @@ export interface SidebarMenuProps {
   onToggle?: (open: boolean) => void;
   toggleVertical?: VerticalPos;
   sx?: SxProps<Theme>;
+  /** conteúdo custom colocado logo abaixo do header */
+  children?: React.ReactNode;
+
+  /** header dinâmico */
+  headerTitle?: string;
+  headerSubtitle?: string;
+  headerAvatarUrl?: string;
 }
 
-/* ---------- Constantes ---------- */
 const OPEN = 260;
 const CLOSED = 64;
 
@@ -47,51 +41,27 @@ const selectedSX = {
   },
 };
 
-/* ---------- Componente ---------- */
 export const SidebarMenu: React.FC<SidebarMenuProps> = ({
-  items,
-  footerItems,
-  open: controlled,
-  onToggle,
-  toggleVertical = 'center',
-  sx,
+  items, footerItems, open: controlled, onToggle, toggleVertical = 'center',
+  sx, children, headerTitle, headerSubtitle, headerAvatarUrl,
 }) => {
   const [internal, setInternal] = useState(true);
   const open = controlled ?? internal;
   const toggle = () => (onToggle ? onToggle(!open) : setInternal(!open));
 
-  const render = (arr: MenuItem[]) =>
-    arr.map(({ label, icon, selected, ...rest }) => (
-      <Tooltip
-        key={label}
-        title={!open ? label : ''}
-        placement="right"
-        arrow
-        disableInteractive
+  const render = (arr: MenuItem[]) => arr.map(({ label, icon, selected, ...rest }) => (
+    <Tooltip key={label} title={!open ? label : ''} placement="right" arrow disableInteractive>
+      <ListItemButton
+        sx={{ my: .5, borderRadius: 1, px: open ? 2 : 0, justifyContent: open ? 'flex-start' : 'center', ...(selected && selectedSX) }}
+        {...rest}
       >
-        <ListItemButton
-          sx={{
-            my: 0.5,
-            borderRadius: 1,
-            px: open ? 2 : 0,            // sem “padding” lateral quando fechado
-            justifyContent: open ? 'flex-start' : 'center',
-            ...(selected && selectedSX),
-            }}
-          {...rest}
-        >
-          <ListItemIcon
-            sx={{
-              minWidth: 0,
-              mr: open ? 2 : '0',
-              justifyContent: 'center',
-            }}
-          >
-            {icon}
-          </ListItemIcon>
-          {open && <ListItemText primary={label} />}
-        </ListItemButton>
-      </Tooltip>
-    ));
+        <ListItemIcon sx={{ minWidth: 0, mr: open ? 2 : 0, justifyContent: 'center' }}>
+          {icon}
+        </ListItemIcon>
+        {open && <ListItemText primary={label} />}
+      </ListItemButton>
+    </Tooltip>
+  ));
 
   return (
     <>
@@ -100,47 +70,43 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
         PaperProps={{
           sx: {
             width: open ? OPEN : CLOSED,
-            overflowX: 'clip', // evita barra horizontal
+            overflowX: 'clip',
             borderRadius: '0 8px 8px 0',
             boxShadow: '0 4px 24px rgba(0,0,0,.08)',
-            transition: (t) =>
-              t.transitions.create('width', {
-                duration: t.transitions.duration.shorter,
-              }),
+            bgcolor: 'background.paper',
+            backgroundImage: 'none',
+            transition: (t) => t.transitions.create('width', { duration: t.transitions.duration.shorter }),
             display: 'flex',
             flexDirection: 'column',
             ...sx,
           },
         }}
       >
-        {/* ---------- Header ---------- */}
-        <Stack position="relative" alignItems="center" spacing={1} mt={3} mb={2}>
-          <Box
-            component="img"
-            src="https://placehold.co/40"
-            width={40}
-            height={40}
-            borderRadius="50%"
-          />
+        {/* Header dinâmico */}
+        <Stack alignItems="center" spacing={1} mt={3} mb={open ? 2 : 1} px={open ? 2 : 0}>
+          <Avatar src={headerAvatarUrl} sx={{ width: 40, height: 40 }} />
           {open && (
             <>
-              <Typography fontWeight={700} fontSize={14}>
-                Alexandre Brissos
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                TUTOR
-              </Typography>
+              {!!headerTitle && <Typography fontWeight={700} fontSize={14} textAlign="center">{headerTitle}</Typography>}
+              {!!headerSubtitle && <Typography variant="caption" color="text.secondary">{headerSubtitle}</Typography>}
               <Divider sx={{ width: '100%', mt: 1 }} />
             </>
           )}
         </Stack>
 
-        {/* ---------- Itens ---------- */}
+        {/* Children imediatamente a seguir ao header */}
+        {open && children && (
+          <Box px={2} pb={1}>
+            {children}
+            <Divider sx={{ width: '100%', mt: 1 }} />
+          </Box>
+        )}
+
+        {/* Items */}
         <List disablePadding sx={{ px: open ? 1 : 0 }}>
           {render(items)}
         </List>
 
-        {/* ---------- Rodapé ---------- */}
         {!!footerItems?.length && (
           <Box mt="auto" pb={2}>
             <List disablePadding sx={{ px: open ? 1 : 0 }}>
@@ -150,14 +116,7 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
         )}
       </Drawer>
 
-      {/* ---------- Handle ---------- */}
-      <SidebarToggle
-        open={open}
-        openWidth={OPEN}
-        closedWidth={CLOSED}
-        vertical={toggleVertical}
-        onToggle={toggle}
-      />
+      <SidebarToggle open={open} openWidth={OPEN} closedWidth={CLOSED} vertical={toggleVertical} onToggle={toggle} />
     </>
   );
 };
