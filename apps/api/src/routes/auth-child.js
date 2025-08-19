@@ -1,4 +1,3 @@
-// apps/api/src/routes/auth-child.js
 import { Router } from 'express';
 import { prisma } from '../prisma.js';
 import { requireAuth } from './auth.js';
@@ -27,10 +26,7 @@ router.post('/auth/act-as-child', requireAuth, async (req, res, next) => {
     const { childId } = req.body;
     const link = await prisma.childFamily.findUnique({
       where: {
-        childId_familyId: {
-          childId: Number(childId),
-          familyId: Number(req.user.sub),
-        },
+        childId_familyId: { childId: Number(childId), familyId: Number(req.user.sub) },
       },
     });
     if (!link) return res.status(403).json({ error: 'Child não pertence à tua família' });

@@ -5,11 +5,11 @@ import jwt from 'jsonwebtoken';
 
 const router = Router();
 
-const COOKIE_NAME = process.env.COOKIE_NAME || 'bf_access';
+const COOKIE_NAME  = process.env.COOKIE_NAME  || 'bf_access';
 const ACTING_COOKIE = process.env.ACTING_COOKIE || 'bf_acting';
 const isProd = process.env.NODE_ENV === 'production';
 
-// ---------------- helpers cookies ----------------
+// ---------- helpers cookies ----------
 function setAuthCookie(res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
@@ -40,19 +40,19 @@ function signToken(payload) {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '7d' });
 }
 
-// --------------- middleware JWT ------------------
+// ---------- middleware JWT ----------
 export function requireAuth(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: 'Não autenticado' });
   try {
     req.user = jwt.verify(token, process.env.JWT_SECRET); // { sub, roles, iat, exp }
-    return next();
+    next();
   } catch {
     return res.status(401).json({ error: 'Sessão inválida' });
   }
 }
 
-// --------------- REGISTER ------------------------
+// ---------- REGISTER ----------
 router.post('/register', async (req, res, next) => {
   try {
     const {
@@ -60,9 +60,8 @@ router.post('/register', async (req, res, next) => {
       children = [],
     } = req.body;
 
-    if (!fullName || !email || !password) {
+    if (!fullName || !email || !password)
       return res.status(400).json({ error: 'Campos obrigatórios em falta' });
-    }
 
     const exists = await prisma.user.findUnique({ where: { email } });
     if (exists) return res.status(409).json({ error: 'E-mail já registado' });
@@ -70,9 +69,7 @@ router.post('/register', async (req, res, next) => {
     const passwordHash = await bcrypt.hash(String(password), 12);
 
     const role = await prisma.role.upsert({
-      where: { name: 'FAMÍLIA' },
-      update: {},
-      create: { name: 'FAMÍLIA' },
+      where: { name: 'FAMÍLIA' }, update: {}, create: { name: 'FAMÍLIA' },
     });
 
     const user = await prisma.user.create({
@@ -101,13 +98,12 @@ router.post('/register', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// --------------- LOGIN ---------------------------
+// ---------- LOGIN ----------
 router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password) {
+    if (!email || !password)
       return res.status(400).json({ error: 'Credenciais em falta' });
-    }
 
     const user = await prisma.user.findUnique({
       where: { email },
@@ -122,14 +118,12 @@ router.post('/login', async (req, res, next) => {
     const token = signToken({ sub: user.id, roles });
 
     setAuthCookie(res, token);
-    clearActingCookie(res); // ao entrar, limpas o modo criança
-    return res.json({
-      user: { id: user.id, fullName: user.fullName, email: user.email, roles },
-    });
+    clearActingCookie(res); // ao entrar, limpa modo criança
+    res.json({ user: { id: user.id, fullName: user.fullName, email: user.email, roles } });
   } catch (err) { next(err); }
 });
 
-// --------------- ME (sempre roles: string[]) -----
+// ---------- ME (usa req.user.sub + cookie acting) ----------
 router.get('/auth/me', requireAuth, async (req, res, next) => {
   try {
     const userId = Number(req.user.sub);
@@ -148,32 +142,24 @@ router.get('/auth/me', requireAuth, async (req, res, next) => {
     const roles = u.userRoles.map(ur => ur.role.name);
     const children = u.children.map(c => ({ id: c.childId, name: c.child.name, avatarUrl: null }));
 
-    // validar actingChild (se existir cookie)
     if (!Number.isNaN(actingChildId)) {
-      const belongs = children.find(c => c.id === actingChildId);
-      if (belongs) {
+      const child = children.find(c => c.id === actingChildId);
+      if (child) {
         return res.json({
           id: u.id, fullName: u.fullName, email: u.email,
-          roles: ['CRIANÇA'],
-          actingChild: belongs,
-          children,
+          roles: ['CRIANÇA'], actingChild: child, children,
         });
       }
-      // se o cookie for inválido, limpa-o
+      // cookie inválido -> limpa
       clearActingCookie(res);
     }
 
-    return res.json({
-      id: u.id, fullName: u.fullName, email: u.email,
-      roles,
-      children,
-      actingChild: null,
-    });
+    res.json({ id: u.id, fullName: u.fullName, email: u.email, roles, children, actingChild: null });
   } catch (e) { next(e); }
 });
 
-// --------------- LOGOUT --------------------------
-router.post('/logout', (req, res) => {
+// ---------- LOGOUT ----------
+router.post('/logout', (_req, res) => {
   clearAuthCookie(res);
   clearActingCookie(res);
   res.status(204).end();
