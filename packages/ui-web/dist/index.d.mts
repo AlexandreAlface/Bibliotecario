@@ -217,9 +217,7 @@ interface SidebarMenuProps {
     onToggle?: (open: boolean) => void;
     toggleVertical?: VerticalPos;
     sx?: SxProps<Theme>;
-    /** conteúdo custom colocado logo abaixo do header */
     children?: React__default.ReactNode;
-    /** header dinâmico */
     headerTitle?: string;
     headerSubtitle?: string;
     headerAvatarUrl?: string;
@@ -247,23 +245,20 @@ interface NotificationBellProps extends Omit<IconButtonProps, 'onSelect'> {
 }
 declare const NotificationBell: React__default.FC<NotificationBellProps>;
 
-interface ChildOption {
+type AvatarOption = {
     id: string;
     nome: string;
     avatar?: string;
-}
+};
 interface AvatarSelectProps {
-    label: string;
-    options: ChildOption[];
-    value: string | '';
-    onChange: (id: string) => void;
-    disabled?: boolean;
-    /** ReactNode para o avatar de placeholder (default ícone pessoa) */
-    placeholderAvatar?: React__default.ReactNode;
-    /** Largura mínima, útil em <Stack spacing> */
-    minWidth?: number | string;
+    label?: string;
+    options: AvatarOption[];
+    value?: string;
+    onChange?: (id: string) => void;
+    minWidth?: number;
+    sx?: SxProps<Theme>;
 }
-declare const AvatarSelect: React__default.FC<AvatarSelectProps>;
+declare const AvatarSelect: React$1.FC<AvatarSelectProps>;
 
 interface QuizProgressBarProps {
     /** Passo actual (1-based) */
@@ -423,4 +418,4 @@ interface SearchBarProps {
 }
 declare const SearchBar: React__default.FC<SearchBarProps>;
 
-export { type Action, AgendaFeed, type AgendaFeedProps, AgendaLargeCard, type AgendaLargeCardProps, AvatarListItem, type AvatarListItemProps, AvatarSelect, type AvatarSelectProps, AvatarUpload, type AvatarUploadProps, BaseTextField, BibliotecarioThemeProvider, BookCard, type BookCardProps, type BookCardVariant, type ChildOption, type DataColumn, EmailField, FilterBar, type FilterBarProps, type FilterDefinition, type FilterOption, GradientBackground, HowItWorksSection, InfoStepCard, Logo, type LogoProps, type MenuItem, NotificationBell, type NotificationBellProps, type NotificationItem, NumericField, type Option, Paginator, type PaginatorProps, PasswordField, PrimaryButton, type QuizOption, QuizProgressBar, type QuizProgressBarProps, QuizQuestion, type QuizQuestionProps, RouteLink, SearchBar, type SearchBarProps, SecondaryButton, SectionDivider, SelectableOptions, type SelectableOptionsProps, SidebarMenu, type SidebarMenuProps, SimpleDataTable, type SimpleDataTableProps, WhiteCard, theme };
+export { type Action, AgendaFeed, type AgendaFeedProps, AgendaLargeCard, type AgendaLargeCardProps, AvatarListItem, type AvatarListItemProps, type AvatarOption, AvatarSelect, type AvatarSelectProps, AvatarUpload, type AvatarUploadProps, BaseTextField, BibliotecarioThemeProvider, BookCard, type BookCardProps, type BookCardVariant, type DataColumn, EmailField, FilterBar, type FilterBarProps, type FilterDefinition, type FilterOption, GradientBackground, HowItWorksSection, InfoStepCard, Logo, type LogoProps, type MenuItem, NotificationBell, type NotificationBellProps, type NotificationItem, NumericField, type Option, Paginator, type PaginatorProps, PasswordField, PrimaryButton, type QuizOption, QuizProgressBar, type QuizProgressBarProps, QuizQuestion, type QuizQuestionProps, RouteLink, SearchBar, type SearchBarProps, SecondaryButton, SectionDivider, SelectableOptions, type SelectableOptionsProps, SidebarMenu, type SidebarMenuProps, SimpleDataTable, type SimpleDataTableProps, WhiteCard, theme };

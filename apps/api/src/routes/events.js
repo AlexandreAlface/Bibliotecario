@@ -1,8 +1,10 @@
+// apps/api/src/routes/events.js
 import { Router } from "express";
 import { prisma } from "../prisma.js";
 
 const router = Router();
 
+// (opcional) endpoint "completo" – deixa como está
 router.get("/events", async (_, res) => {
   const events = await prisma.culturalEvent.findMany({
     orderBy: { startDate: "asc" },
@@ -12,15 +14,13 @@ router.get("/events", async (_, res) => {
 
 /**
  * GET /api/events?type=evento&limit=3
- * type=evento (CulturalEvent) — default
- * (Se um dia quiseres expor "consultas" via /events?type=consulta, podes delegar para Consultation aqui)
  */
 router.get("/", async (req, res, next) => {
   try {
     const type = String(req.query.type || "evento");
     const limit = Number(req.query.limit ?? 10);
 
-    if (type !== "evento") return res.json([]); // apenas culturais por agora
+    if (type !== "evento") return res.json([]);
 
     const events = await prisma.culturalEvent.findMany({
       orderBy: { startDate: "asc" },
@@ -31,6 +31,8 @@ router.get("/", async (req, res, next) => {
         startDate: true,
         endDate: true,
         location: true,
+        category: true, // 👈 necessário para o filtro "Biblioteca"
+        imageUrl: true, // 👈 útil p/ cartaz
       },
     });
 
@@ -38,12 +40,14 @@ router.get("/", async (req, res, next) => {
       events.map((e) => ({
         id: e.id,
         title: e.title,
-        date: e.startDate.toLocaleDateString("pt-PT"),
-        time: e.startDate.toLocaleTimeString("pt-PT", {
+        date: e.startDate?.toLocaleDateString("pt-PT"),
+        time: e.startDate?.toLocaleTimeString("pt-PT", {
           hour: "2-digit",
           minute: "2-digit",
         }),
         location: e.location ?? undefined,
+        category: e.category ?? undefined,
+        imageUrl: e.imageUrl ?? null,
       }))
     );
   } catch (err) {

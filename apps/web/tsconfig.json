@@ -7,7 +7,9 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@bibliotecario/ui-web": ["../../packages/ui-web/src"],
+      "@bibliotecario/ui-web/*": ["../../packages/ui-web/src/*"]
     }
   }
 }

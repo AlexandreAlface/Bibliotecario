@@ -7,11 +7,22 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+      "@bibliotecario/ui-web": path.resolve(
+        __dirname,
+        "../../packages/ui-web/src"
+      ),
     },
-    dedupe: ["@emotion/react", "@emotion/styled"],
+    dedupe: ["react", "react-dom", "@emotion/react", "@emotion/styled"],
     preserveSymlinks: true,
   },
   server: {
-    fs: { allow: [path.resolve(__dirname, "../../")] },
+    fs: {
+      allow: [
+        "..",
+        path.resolve(__dirname, "../../"),
+        path.resolve(__dirname, "../../packages/ui-web"),
+        path.resolve(__dirname, "../../node_modules"),
+      ],
+    },
   },
 });
