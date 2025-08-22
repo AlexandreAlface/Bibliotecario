@@ -5,9 +5,11 @@
     { "path": "./tsconfig.node.json" }
   ],
   "compilerOptions": {
-    "baseUrl": "src",
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["*"]
+      "@/*": ["src/*"],
+      "@bibliotecario/ui-web": ["../../packages/ui-web/src"],
+      "@bibliotecario/ui-web/*": ["../../packages/ui-web/src/*"]
     }
   }
 }

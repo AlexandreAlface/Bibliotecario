@@ -1,20 +1,39 @@
 {
   "name": "bibliotecario",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
-   "scripts": {
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+
+    "dev":   "nodemon -r dotenv/config src/index.js",
+    "start": "node -r dotenv/config src/index.js",
+    
+    "seed:api": "npm -w apps/api run seed",
+    "seed:api:csv": "npm -w apps/api run seed:csv",
+    "seed:api:badges": "npm -w apps/api run seed:badges",
+
+    "prisma:generate": "npm -w apps/api run prisma:generate",
+    "prisma:push": "npm -w apps/api run prisma:push",
+    "prisma:migrate": "npm -w apps/api run prisma:migrate",
+    "prisma:studio": "npm -sw apps/api run prisma:studio -- --port 5556",
+
     "dev:mobile": "npm -w apps/mobile run start",
     "dev:mobile:tunnel": "npm -w apps/mobile run start:tunnel",
     "dev:web": "npm -w @bibliotecario/apps-web run dev",
     "build:ui-web": "npm -w @bibliotecario/ui-web run build",
     "watch:ui-web": "npm -w @bibliotecario/ui-web run watch",
     "build:ui-mobile": "npm -w @bibliotecario/ui-mobile run build",
-    "watch:ui-mobile": "npm -w @bibliotecario/ui-mobile run watch"
+    "watch:ui-mobile": "npm -w @bibliotecario/ui-mobile run watch",
+    "dev:gallery": "npm -w @bibliotecario/ui-gallery run dev",
+    "build:gallery": "npm -w @bibliotecario/ui-gallery run build",
+    "dev:ui-mobile:gallery": "npm -w @bibliotecario/ui-mobile-gallery run start"
   },
-  "overrides": {
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "@types/react": "18.3.4",
-    "@types/react-dom": "18.3.0"
+  "devDependencies": {
+    "vite": "^5.4.19"
+  },
+    "overrides": {
+    
   }
 }

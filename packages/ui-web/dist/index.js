@@ -4,7 +4,7 @@ var material = require('@mui/material');
 var styles = require('@mui/material/styles');
 var jsxRuntime = require('react/jsx-runtime');
 var system = require('@mui/system');
-var react = require('react');
+var React4 = require('react');
 var TextField = require('@mui/material/TextField');
 var InputAdornment = require('@mui/material/InputAdornment');
 var IconButton = require('@mui/material/IconButton');
@@ -17,7 +17,6 @@ var ChevronLeftIcon = require('@mui/icons-material/ChevronLeft');
 var ChevronRightIcon = require('@mui/icons-material/ChevronRight');
 var NotificationsNoneIcon = require('@mui/icons-material/NotificationsNone');
 var DeleteOutlineIcon = require('@mui/icons-material/DeleteOutline');
-var PersonOutlineIcon = require('@mui/icons-material/PersonOutline');
 var FilterAltIcon = require('@mui/icons-material/FilterAlt');
 var ClearIcon = require('@mui/icons-material/Clear');
 var DoneIcon = require('@mui/icons-material/Done');
@@ -26,9 +25,29 @@ var AccessTimeIcon = require('@mui/icons-material/AccessTime');
 var LocationOnIcon = require('@mui/icons-material/LocationOn');
 var ArrowDropDownIcon = require('@mui/icons-material/ArrowDropDown');
 var CloseIcon = require('@mui/icons-material/Close');
+var SearchIcon = require('@mui/icons-material/Search');
 
 function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
 
+function _interopNamespace(e) {
+  if (e && e.__esModule) return e;
+  var n = Object.create(null);
+  if (e) {
+    Object.keys(e).forEach(function (k) {
+      if (k !== 'default') {
+        var d = Object.getOwnPropertyDescriptor(e, k);
+        Object.defineProperty(n, k, d.get ? d : {
+          enumerable: true,
+          get: function () { return e[k]; }
+        });
+      }
+    });
+  }
+  n.default = e;
+  return Object.freeze(n);
+}
+
+var React4__namespace = /*#__PURE__*/_interopNamespace(React4);
 var TextField__default = /*#__PURE__*/_interopDefault(TextField);
 var InputAdornment__default = /*#__PURE__*/_interopDefault(InputAdornment);
 var IconButton__default = /*#__PURE__*/_interopDefault(IconButton);
@@ -41,7 +60,6 @@ var ChevronLeftIcon__default = /*#__PURE__*/_interopDefault(ChevronLeftIcon);
 var ChevronRightIcon__default = /*#__PURE__*/_interopDefault(ChevronRightIcon);
 var NotificationsNoneIcon__default = /*#__PURE__*/_interopDefault(NotificationsNoneIcon);
 var DeleteOutlineIcon__default = /*#__PURE__*/_interopDefault(DeleteOutlineIcon);
-var PersonOutlineIcon__default = /*#__PURE__*/_interopDefault(PersonOutlineIcon);
 var FilterAltIcon__default = /*#__PURE__*/_interopDefault(FilterAltIcon);
 var ClearIcon__default = /*#__PURE__*/_interopDefault(ClearIcon);
 var DoneIcon__default = /*#__PURE__*/_interopDefault(DoneIcon);
@@ -50,6 +68,7 @@ var AccessTimeIcon__default = /*#__PURE__*/_interopDefault(AccessTimeIcon);
 var LocationOnIcon__default = /*#__PURE__*/_interopDefault(LocationOnIcon);
 var ArrowDropDownIcon__default = /*#__PURE__*/_interopDefault(ArrowDropDownIcon);
 var CloseIcon__default = /*#__PURE__*/_interopDefault(CloseIcon);
+var SearchIcon__default = /*#__PURE__*/_interopDefault(SearchIcon);
 
 // src/ThemeProvider.tsx
 var palette = {
@@ -149,7 +168,7 @@ var Styled2 = material.styled(material.Button, {
 function SecondaryButton(props) {
   return /* @__PURE__ */ jsxRuntime.jsx(Styled2, { variant: "outlined", ...props });
 }
-var EmailField = react.forwardRef(function EmailField2({ inputRef, ...props }, ref) {
+var EmailField = React4.forwardRef(function EmailField2({ inputRef, ...props }, ref) {
   return /* @__PURE__ */ jsxRuntime.jsx(
     TextField__default.default,
     {
@@ -209,8 +228,8 @@ function NumericField(props) {
     }
   );
 }
-var PasswordField = react.forwardRef(function PasswordField2({ InputProps, ...rest }, ref) {
-  const [show, setShow] = react.useState(false);
+var PasswordField = React4.forwardRef(function PasswordField2({ InputProps, ...rest }, ref) {
+  const [show, setShow] = React4.useState(false);
   return /* @__PURE__ */ jsxRuntime.jsx(
     TextField__default.default,
     {
@@ -283,7 +302,7 @@ var StyledLink = material.styled(material.Link, {
     outlineOffset: 2
   }
 }));
-var RouteLink = react.forwardRef(
+var RouteLink = React4.forwardRef(
   function RouteLink2(props, ref) {
     return /* @__PURE__ */ jsxRuntime.jsx(StyledLink, { ref, ...props });
   }
@@ -493,12 +512,12 @@ var AvatarUpload = ({
   placeholder,
   sx
 }) => {
-  const inputRef = react.useRef(null);
-  const [url, setUrl] = react.useState(value != null ? value : null);
-  react.useEffect(() => {
+  const inputRef = React4.useRef(null);
+  const [url, setUrl] = React4.useState(value != null ? value : null);
+  React4.useEffect(() => {
     value !== void 0 && setUrl(value);
   }, [value]);
-  react.useEffect(() => {
+  React4.useEffect(() => {
     return () => {
       url && url.startsWith("blob:") && URL.revokeObjectURL(url);
     };
@@ -651,9 +670,13 @@ var SidebarMenu = ({
   open: controlled,
   onToggle,
   toggleVertical = "center",
-  sx
+  sx,
+  children,
+  headerTitle,
+  headerSubtitle,
+  headerAvatarUrl
 }) => {
-  const [internal, setInternal] = react.useState(true);
+  const [internal, setInternal] = React4.useState(true);
   const open = controlled != null ? controlled : internal;
   const toggle = () => onToggle ? onToggle(!open) : setInternal(!open);
   const render = (arr) => arr.map(({ label, icon, selected, ...rest }) => /* @__PURE__ */ jsxRuntime.jsx(
@@ -670,7 +693,6 @@ var SidebarMenu = ({
             my: 0.5,
             borderRadius: 1,
             px: open ? 2 : 0,
-            // sem “padding” lateral quando fechado
             justifyContent: open ? "flex-start" : "center",
             ...selected && selectedSX
           },
@@ -679,11 +701,7 @@ var SidebarMenu = ({
             /* @__PURE__ */ jsxRuntime.jsx(
               material.ListItemIcon,
               {
-                sx: {
-                  minWidth: 0,
-                  mr: open ? 2 : "0",
-                  justifyContent: "center"
-                },
+                sx: { minWidth: 0, mr: open ? 2 : 0, justifyContent: "center" },
                 children: icon
               }
             ),
@@ -703,9 +721,10 @@ var SidebarMenu = ({
           sx: {
             width: open ? OPEN : CLOSED,
             overflowX: "clip",
-            // evita barra horizontal
             borderRadius: "0 8px 8px 0",
             boxShadow: "0 4px 24px rgba(0,0,0,.08)",
+            bgcolor: "background.paper",
+            backgroundImage: "none",
             transition: (t) => t.transitions.create("width", {
               duration: t.transitions.duration.shorter
             }),
@@ -715,24 +734,26 @@ var SidebarMenu = ({
           }
         },
         children: [
-          /* @__PURE__ */ jsxRuntime.jsxs(material.Stack, { position: "relative", alignItems: "center", spacing: 1, mt: 3, mb: 2, children: [
-            /* @__PURE__ */ jsxRuntime.jsx(
-              material.Box,
-              {
-                component: "img",
-                src: "https://placehold.co/40",
-                width: 40,
-                height: 40,
-                borderRadius: "50%"
-              }
-            ),
-            open && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
-              /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { fontWeight: 700, fontSize: 14, children: "Alexandre Brissos" }),
-              /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "caption", color: "text.secondary", children: "TUTOR" }),
-              /* @__PURE__ */ jsxRuntime.jsx(material.Divider, { sx: { width: "100%", mt: 1 } })
-            ] })
-          ] }),
+          (headerTitle || headerSubtitle) && /* @__PURE__ */ jsxRuntime.jsxs(
+            material.Stack,
+            {
+              alignItems: "center",
+              spacing: 1,
+              mt: 3,
+              mb: open ? 2 : 1,
+              px: open ? 2 : 0,
+              children: [
+                /* @__PURE__ */ jsxRuntime.jsx(material.Avatar, { src: headerAvatarUrl, sx: { width: 40, height: 40 } }),
+                open && /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
+                  headerTitle && /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { fontWeight: 700, fontSize: 14, textAlign: "center", children: headerTitle }),
+                  headerSubtitle && /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "caption", color: "text.secondary", children: headerSubtitle }),
+                  /* @__PURE__ */ jsxRuntime.jsx(material.Divider, { sx: { width: "100%", mt: 1 } })
+                ] })
+              ]
+            }
+          ),
           /* @__PURE__ */ jsxRuntime.jsx(material.List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(items) }),
+          children && /* @__PURE__ */ jsxRuntime.jsx(material.Box, { mt: 2, px: open ? 2 : 0, sx: { flexShrink: 0, width: "100%" }, children }),
           !!(footerItems == null ? void 0 : footerItems.length) && /* @__PURE__ */ jsxRuntime.jsx(material.Box, { mt: "auto", pb: 2, children: /* @__PURE__ */ jsxRuntime.jsx(material.List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(footerItems) }) })
         ]
       }
@@ -757,7 +778,7 @@ var NotificationBell = ({
   showZero = false,
   ...iconButtonProps
 }) => {
-  const [anchor, setAnchor] = react.useState(null);
+  const [anchor, setAnchor] = React4.useState(null);
   const open = Boolean(anchor);
   const unread = items.filter((i) => !i.lida).length;
   return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
@@ -849,50 +870,47 @@ var AvatarSelect = ({
   options,
   value,
   onChange,
-  disabled = false,
-  placeholderAvatar,
-  minWidth
+  minWidth = 200,
+  sx
 }) => {
-  const current = options.find((o) => o.id === value);
-  const handle = (e) => onChange(e.target.value);
-  const Placeholder = /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { display: "flex", alignItems: "center", gap: 1, color: "text.secondary", children: [
-    /* @__PURE__ */ jsxRuntime.jsx(material.Avatar, { sx: { width: 24, height: 24, bgcolor: "#E0E0E0" }, children: placeholderAvatar != null ? placeholderAvatar : /* @__PURE__ */ jsxRuntime.jsx(PersonOutlineIcon__default.default, { fontSize: "small" }) }),
-    label
+  const labelId = React4__namespace.useId();
+  options.find((o) => String(o.id) === String(value));
+  return /* @__PURE__ */ jsxRuntime.jsxs(material.FormControl, { size: "small", sx: { minWidth, ...sx }, children: [
+    label && /* @__PURE__ */ jsxRuntime.jsx(material.InputLabel, { id: labelId, children: label }),
+    /* @__PURE__ */ jsxRuntime.jsx(
+      material.Select,
+      {
+        labelId: label ? labelId : void 0,
+        label,
+        value: value != null ? value : "",
+        onChange: (e) => onChange == null ? void 0 : onChange(String(e.target.value)),
+        renderValue: (selectedId) => {
+          var _a, _b;
+          const opt = options.find((o) => String(o.id) === String(selectedId));
+          if (!opt) return "";
+          return /* @__PURE__ */ jsxRuntime.jsxs(material.Stack, { direction: "row", spacing: 1, alignItems: "center", children: [
+            /* @__PURE__ */ jsxRuntime.jsx(material.Avatar, { sx: { width: 24, height: 24 }, src: opt.avatar, children: (_b = (_a = opt.nome) == null ? void 0 : _a[0]) == null ? void 0 : _b.toUpperCase() }),
+            /* @__PURE__ */ jsxRuntime.jsx("span", { children: opt.nome })
+          ] });
+        },
+        MenuProps: { disablePortal: true },
+        children: options.map((o) => {
+          var _a, _b;
+          return /* @__PURE__ */ jsxRuntime.jsxs(material.MenuItem, { value: o.id, children: [
+            /* @__PURE__ */ jsxRuntime.jsx(material.ListItemIcon, { sx: { minWidth: 32 }, children: /* @__PURE__ */ jsxRuntime.jsx(material.Avatar, { sx: { width: 24, height: 24 }, src: o.avatar, children: (_b = (_a = o.nome) == null ? void 0 : _a[0]) == null ? void 0 : _b.toUpperCase() }) }),
+            /* @__PURE__ */ jsxRuntime.jsx(material.ListItemText, { primary: o.nome })
+          ] }, o.id);
+        })
+      }
+    )
   ] });
-  return /* @__PURE__ */ jsxRuntime.jsxs(
-    material.FormControl,
-    {
-      fullWidth: true,
-      variant: "standard",
-      disabled,
-      sx: { minWidth },
-      children: [
-        /* @__PURE__ */ jsxRuntime.jsx(material.InputLabel, { shrink: true, children: label }),
-        /* @__PURE__ */ jsxRuntime.jsx(
-          material.Select,
-          {
-            value,
-            onChange: handle,
-            renderValue: () => value && current ? /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { display: "flex", alignItems: "center", gap: 1, children: [
-              /* @__PURE__ */ jsxRuntime.jsx(material.Avatar, { src: current.avatar, sx: { width: 24, height: 24 }, children: current.nome[0] }),
-              current.nome
-            ] }) : Placeholder,
-            children: options.map((o) => /* @__PURE__ */ jsxRuntime.jsx(material.MenuItem, { value: o.id, children: /* @__PURE__ */ jsxRuntime.jsxs(material.ListItem, { disableGutters: true, children: [
-              /* @__PURE__ */ jsxRuntime.jsx(material.ListItemAvatar, { sx: { minWidth: 32 }, children: /* @__PURE__ */ jsxRuntime.jsx(material.Avatar, { src: o.avatar, sx: { width: 32, height: 32, marginRight: "1em" }, children: o.nome[0] }) }),
-              /* @__PURE__ */ jsxRuntime.jsx(material.ListItemText, { primary: o.nome })
-            ] }) }, o.id))
-          }
-        )
-      ]
-    }
-  );
 };
 var QuizProgressBar = ({
   passo,
   total,
   mostrarTexto = true
 }) => {
-  const pct = react.useMemo(() => total > 0 ? passo / total * 100 : 0, [passo, total]);
+  const pct = React4.useMemo(() => total > 0 ? passo / total * 100 : 0, [passo, total]);
   return /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { children: [
     mostrarTexto && /* @__PURE__ */ jsxRuntime.jsxs(material.Typography, { variant: "caption", mb: 0.5, display: "block", children: [
       Math.round(pct),
@@ -928,12 +946,12 @@ function ColumnFilterPopper({
   onClose,
   onApply
 }) {
-  const [query, setQuery] = react.useState("");
-  const [local, setLocal] = react.useState(new Set(selected));
-  react.useEffect(() => {
+  const [query, setQuery] = React4.useState("");
+  const [local, setLocal] = React4.useState(new Set(selected));
+  React4.useEffect(() => {
     if (open) setLocal(new Set(selected));
   }, [open, selected]);
-  const list = react.useMemo(
+  const list = React4.useMemo(
     () => values.filter(
       (v) => String(v != null ? v : "").toLowerCase().includes(query.toLowerCase())
     ),
@@ -986,11 +1004,11 @@ function SimpleDataTable({
   sx
 }) {
   var _a;
-  const [page, setPage] = react.useState(0);
-  const [perPage, setPerPage] = react.useState(rowsPerPageOptions[0]);
-  const [filters, setFilters] = react.useState({});
-  const [anchor, setAnchor] = react.useState(null);
-  const [colFilter, setColFilter] = react.useState(null);
+  const [page, setPage] = React4.useState(0);
+  const [perPage, setPerPage] = React4.useState(rowsPerPageOptions[0]);
+  const [filters, setFilters] = React4.useState({});
+  const [anchor, setAnchor] = React4.useState(null);
+  const [colFilter, setColFilter] = React4.useState(null);
   const filteredRows = rows.filter(
     (r) => columns.every((c) => {
       var _a2;
@@ -1082,12 +1100,12 @@ var BookCard = ({
   onReserve
 }) => {
   const theme2 = material.useTheme();
-  const [currentCoverImage, setCurrentCoverImage] = react.useState(coverImage);
-  react.useEffect(() => {
+  const [currentCoverImage, setCurrentCoverImage] = React4.useState(coverImage);
+  React4.useEffect(() => {
     setCurrentCoverImage(coverImage);
   }, [coverImage]);
-  const [currentRating, setCurrentRating] = react.useState(rating);
-  const [currentComment, setCurrentComment] = react.useState(comment);
+  const [currentRating, setCurrentRating] = React4.useState(rating);
+  const [currentComment, setCurrentComment] = React4.useState(comment);
   const handleSave = () => onSave == null ? void 0 : onSave(currentRating, currentComment, currentCoverImage);
   const handleReserve = () => onReserve == null ? void 0 : onReserve();
   return /* @__PURE__ */ jsxRuntime.jsxs(
@@ -1171,10 +1189,10 @@ var BookCard = ({
   );
 };
 function useAgendaFeed(feedUrl) {
-  const [items, setItems] = react.useState(null);
-  const [loading, setLoading] = react.useState(true);
-  const [error, setError] = react.useState(null);
-  react.useEffect(() => {
+  const [items, setItems] = React4.useState(null);
+  const [loading, setLoading] = React4.useState(true);
+  const [error, setError] = React4.useState(null);
+  React4.useEffect(() => {
     if (!feedUrl) return;
     setLoading(true);
     fetch(feedUrl).then((res) => res.text()).then((xmlText) => {
@@ -1333,7 +1351,7 @@ var AgendaLargeCard = ({
   imageRatio = "16/9",
   truncateLength = 200
 }) => {
-  const [expanded, setExpanded] = react.useState(false);
+  const [expanded, setExpanded] = React4.useState(false);
   const theme2 = material.useTheme();
   const decodeHtml = (html) => {
     const doc = new DOMParser().parseFromString(html, "text/html");
@@ -1422,8 +1440,8 @@ var FilterBar = ({
   chipIcons = {}
 }) => {
   const theme2 = material.useTheme();
-  const [anchorEl, setAnchorEl] = react.useState(null);
-  const [activeFilter, setActiveFilter] = react.useState(null);
+  const [anchorEl, setAnchorEl] = React4.useState(null);
+  const [activeFilter, setActiveFilter] = React4.useState(null);
   const openMenu = (e, filterId) => {
     setAnchorEl(e.currentTarget);
     setActiveFilter(filterId);
@@ -1509,6 +1527,138 @@ var FilterBar = ({
     )
   ] });
 };
+var Paginator = ({
+  count,
+  page,
+  onChange,
+  siblingCount = 1,
+  boundaryCount = 1,
+  showFirstButton = false,
+  showLastButton = false,
+  muiProps = {}
+}) => /* @__PURE__ */ jsxRuntime.jsx(material.Stack, { alignItems: "center", sx: { my: 2 }, children: /* @__PURE__ */ jsxRuntime.jsx(
+  material.Pagination,
+  {
+    count,
+    page,
+    onChange,
+    siblingCount,
+    boundaryCount,
+    showFirstButton,
+    showLastButton,
+    color: "primary",
+    ...muiProps
+  }
+) });
+var QuizQuestion = ({
+  pergunta,
+  opcoes,
+  valor,
+  onChange,
+  topoIcon,
+  sx
+}) => /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { textAlign: "center", sx, children: [
+  /* @__PURE__ */ jsxRuntime.jsx(
+    material.Box,
+    {
+      position: "relative",
+      bgcolor: "rgba(122,68,189,0.08)",
+      color: "primary.dark",
+      px: 4,
+      py: 3,
+      borderRadius: 2,
+      mb: 4,
+      children: /* @__PURE__ */ jsxRuntime.jsx(material.Typography, { variant: "h6", fontWeight: 600, children: pergunta })
+    }
+  ),
+  /* @__PURE__ */ jsxRuntime.jsx(Grid__default.default, { container: true, spacing: 4, justifyContent: "center", children: opcoes.map((o) => {
+    const selected = o.value === valor;
+    return /* @__PURE__ */ jsxRuntime.jsx(Grid__default.default, { item: true, children: /* @__PURE__ */ jsxRuntime.jsx(
+      material.Card,
+      {
+        elevation: 0,
+        sx: {
+          width: 120,
+          height: 120,
+          borderRadius: 2,
+          bgcolor: selected ? "primary.main" : "rgba(122,68,189,0.08)",
+          color: selected ? "#fff" : "primary.dark",
+          transition: "all .25s"
+        },
+        children: /* @__PURE__ */ jsxRuntime.jsx(
+          material.CardActionArea,
+          {
+            sx: {
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              px: 2
+            },
+            onClick: () => onChange == null ? void 0 : onChange(o.value),
+            children: /* @__PURE__ */ jsxRuntime.jsx(
+              material.Typography,
+              {
+                variant: "h6",
+                fontWeight: 600,
+                textAlign: "center",
+                sx: { userSelect: "none" },
+                children: o.label
+              }
+            )
+          }
+        )
+      }
+    ) }, o.value);
+  }) })
+] });
+var SearchBar = ({
+  value,
+  onChange,
+  onSearch,
+  placeholder = "Pesquisar\u2026",
+  textFieldProps
+}) => {
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && onSearch) {
+      onSearch(value);
+    }
+  };
+  return /* @__PURE__ */ jsxRuntime.jsx(
+    material.TextField,
+    {
+      value,
+      onChange: (e) => onChange(e.target.value),
+      placeholder,
+      onKeyPress: handleKeyPress,
+      variant: "outlined",
+      size: "small",
+      fullWidth: true,
+      InputProps: {
+        startAdornment: /* @__PURE__ */ jsxRuntime.jsx(material.InputAdornment, { position: "start", children: /* @__PURE__ */ jsxRuntime.jsx(
+          material.IconButton,
+          {
+            size: "small",
+            onClick: () => onSearch == null ? void 0 : onSearch(value),
+            edge: "start",
+            children: /* @__PURE__ */ jsxRuntime.jsx(SearchIcon__default.default, { fontSize: "small" })
+          }
+        ) }),
+        endAdornment: value ? /* @__PURE__ */ jsxRuntime.jsx(material.InputAdornment, { position: "end", children: /* @__PURE__ */ jsxRuntime.jsx(
+          material.IconButton,
+          {
+            size: "small",
+            onClick: () => onChange(""),
+            edge: "end",
+            children: /* @__PURE__ */ jsxRuntime.jsx(ClearIcon__default.default, { fontSize: "small" })
+          }
+        ) }) : null
+      },
+      ...textFieldProps
+    }
+  );
+};
 
 exports.AgendaFeed = AgendaFeed;
 exports.AgendaLargeCard = AgendaLargeCard;
@@ -1526,10 +1676,13 @@ exports.InfoStepCard = InfoStepCard_default;
 exports.Logo = Logo;
 exports.NotificationBell = NotificationBell;
 exports.NumericField = NumericField;
+exports.Paginator = Paginator;
 exports.PasswordField = PasswordField;
 exports.PrimaryButton = PrimaryButton;
 exports.QuizProgressBar = QuizProgressBar;
+exports.QuizQuestion = QuizQuestion;
 exports.RouteLink = RouteLink;
+exports.SearchBar = SearchBar;
 exports.SecondaryButton = SecondaryButton;
 exports.SectionDivider = SectionDivider;
 exports.SelectableOptions = SelectableOptions;

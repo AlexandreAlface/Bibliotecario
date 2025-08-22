@@ -1,7 +1,8 @@
-import { styled, Button, alpha, TextField as TextField$1, Link, Card, Box, IconButton as IconButton$1, ThemeProvider, CssBaseline, Divider, Typography, Stack, FormControl, FormLabel, FormGroup, FormControlLabel, Checkbox, RadioGroup, Radio, Avatar, Tooltip, Drawer, List, Badge, Menu, ListItem, ListItemText, MenuItem, InputLabel, Select, ListItemAvatar, LinearProgress, linearProgressClasses, Paper, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, useTheme, CardMedia, CardContent, Rating, Collapse, Chip, ListItemButton, ListItemIcon, Popper, ClickAwayListener } from '@mui/material';
+import { styled, Button, alpha, TextField as TextField$1, Link, Card, Box, IconButton as IconButton$1, ThemeProvider, CssBaseline, Divider, Typography, Stack, FormControl, FormLabel, FormGroup, FormControlLabel, Checkbox, RadioGroup, Radio, Avatar, Tooltip, Drawer, List, Badge, Menu, ListItem, ListItemText, MenuItem, InputLabel, Select, ListItemIcon, LinearProgress, linearProgressClasses, Paper, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, useTheme, CardMedia, CardContent, Rating, Collapse, Chip, Pagination, CardActionArea, InputAdornment as InputAdornment$1, ListItemButton, Popper, ClickAwayListener } from '@mui/material';
 import { createTheme, styled as styled$2 } from '@mui/material/styles';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
 import { shouldForwardProp, styled as styled$1 } from '@mui/system';
+import * as React4 from 'react';
 import { forwardRef, useState, useRef, useEffect, useMemo } from 'react';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -15,7 +16,6 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import FilterAltIcon from '@mui/icons-material/FilterAlt';
 import ClearIcon from '@mui/icons-material/Clear';
 import DoneIcon from '@mui/icons-material/Done';
@@ -24,6 +24,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import CloseIcon from '@mui/icons-material/Close';
+import SearchIcon from '@mui/icons-material/Search';
 
 // src/ThemeProvider.tsx
 var palette = {
@@ -625,7 +626,11 @@ var SidebarMenu = ({
   open: controlled,
   onToggle,
   toggleVertical = "center",
-  sx
+  sx,
+  children,
+  headerTitle,
+  headerSubtitle,
+  headerAvatarUrl
 }) => {
   const [internal, setInternal] = useState(true);
   const open = controlled != null ? controlled : internal;
@@ -644,7 +649,6 @@ var SidebarMenu = ({
             my: 0.5,
             borderRadius: 1,
             px: open ? 2 : 0,
-            // sem “padding” lateral quando fechado
             justifyContent: open ? "flex-start" : "center",
             ...selected && selectedSX
           },
@@ -653,11 +657,7 @@ var SidebarMenu = ({
             /* @__PURE__ */ jsx(
               ListItemIcon,
               {
-                sx: {
-                  minWidth: 0,
-                  mr: open ? 2 : "0",
-                  justifyContent: "center"
-                },
+                sx: { minWidth: 0, mr: open ? 2 : 0, justifyContent: "center" },
                 children: icon
               }
             ),
@@ -677,9 +677,10 @@ var SidebarMenu = ({
           sx: {
             width: open ? OPEN : CLOSED,
             overflowX: "clip",
-            // evita barra horizontal
             borderRadius: "0 8px 8px 0",
             boxShadow: "0 4px 24px rgba(0,0,0,.08)",
+            bgcolor: "background.paper",
+            backgroundImage: "none",
             transition: (t) => t.transitions.create("width", {
               duration: t.transitions.duration.shorter
             }),
@@ -689,24 +690,26 @@ var SidebarMenu = ({
           }
         },
         children: [
-          /* @__PURE__ */ jsxs(Stack, { position: "relative", alignItems: "center", spacing: 1, mt: 3, mb: 2, children: [
-            /* @__PURE__ */ jsx(
-              Box,
-              {
-                component: "img",
-                src: "https://placehold.co/40",
-                width: 40,
-                height: 40,
-                borderRadius: "50%"
-              }
-            ),
-            open && /* @__PURE__ */ jsxs(Fragment, { children: [
-              /* @__PURE__ */ jsx(Typography, { fontWeight: 700, fontSize: 14, children: "Alexandre Brissos" }),
-              /* @__PURE__ */ jsx(Typography, { variant: "caption", color: "text.secondary", children: "TUTOR" }),
-              /* @__PURE__ */ jsx(Divider, { sx: { width: "100%", mt: 1 } })
-            ] })
-          ] }),
+          (headerTitle || headerSubtitle) && /* @__PURE__ */ jsxs(
+            Stack,
+            {
+              alignItems: "center",
+              spacing: 1,
+              mt: 3,
+              mb: open ? 2 : 1,
+              px: open ? 2 : 0,
+              children: [
+                /* @__PURE__ */ jsx(Avatar, { src: headerAvatarUrl, sx: { width: 40, height: 40 } }),
+                open && /* @__PURE__ */ jsxs(Fragment, { children: [
+                  headerTitle && /* @__PURE__ */ jsx(Typography, { fontWeight: 700, fontSize: 14, textAlign: "center", children: headerTitle }),
+                  headerSubtitle && /* @__PURE__ */ jsx(Typography, { variant: "caption", color: "text.secondary", children: headerSubtitle }),
+                  /* @__PURE__ */ jsx(Divider, { sx: { width: "100%", mt: 1 } })
+                ] })
+              ]
+            }
+          ),
           /* @__PURE__ */ jsx(List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(items) }),
+          children && /* @__PURE__ */ jsx(Box, { mt: 2, px: open ? 2 : 0, sx: { flexShrink: 0, width: "100%" }, children }),
           !!(footerItems == null ? void 0 : footerItems.length) && /* @__PURE__ */ jsx(Box, { mt: "auto", pb: 2, children: /* @__PURE__ */ jsx(List, { disablePadding: true, sx: { px: open ? 1 : 0 }, children: render(footerItems) }) })
         ]
       }
@@ -823,43 +826,40 @@ var AvatarSelect = ({
   options,
   value,
   onChange,
-  disabled = false,
-  placeholderAvatar,
-  minWidth
+  minWidth = 200,
+  sx
 }) => {
-  const current = options.find((o) => o.id === value);
-  const handle = (e) => onChange(e.target.value);
-  const Placeholder = /* @__PURE__ */ jsxs(Box, { display: "flex", alignItems: "center", gap: 1, color: "text.secondary", children: [
-    /* @__PURE__ */ jsx(Avatar, { sx: { width: 24, height: 24, bgcolor: "#E0E0E0" }, children: placeholderAvatar != null ? placeholderAvatar : /* @__PURE__ */ jsx(PersonOutlineIcon, { fontSize: "small" }) }),
-    label
+  const labelId = React4.useId();
+  options.find((o) => String(o.id) === String(value));
+  return /* @__PURE__ */ jsxs(FormControl, { size: "small", sx: { minWidth, ...sx }, children: [
+    label && /* @__PURE__ */ jsx(InputLabel, { id: labelId, children: label }),
+    /* @__PURE__ */ jsx(
+      Select,
+      {
+        labelId: label ? labelId : void 0,
+        label,
+        value: value != null ? value : "",
+        onChange: (e) => onChange == null ? void 0 : onChange(String(e.target.value)),
+        renderValue: (selectedId) => {
+          var _a, _b;
+          const opt = options.find((o) => String(o.id) === String(selectedId));
+          if (!opt) return "";
+          return /* @__PURE__ */ jsxs(Stack, { direction: "row", spacing: 1, alignItems: "center", children: [
+            /* @__PURE__ */ jsx(Avatar, { sx: { width: 24, height: 24 }, src: opt.avatar, children: (_b = (_a = opt.nome) == null ? void 0 : _a[0]) == null ? void 0 : _b.toUpperCase() }),
+            /* @__PURE__ */ jsx("span", { children: opt.nome })
+          ] });
+        },
+        MenuProps: { disablePortal: true },
+        children: options.map((o) => {
+          var _a, _b;
+          return /* @__PURE__ */ jsxs(MenuItem, { value: o.id, children: [
+            /* @__PURE__ */ jsx(ListItemIcon, { sx: { minWidth: 32 }, children: /* @__PURE__ */ jsx(Avatar, { sx: { width: 24, height: 24 }, src: o.avatar, children: (_b = (_a = o.nome) == null ? void 0 : _a[0]) == null ? void 0 : _b.toUpperCase() }) }),
+            /* @__PURE__ */ jsx(ListItemText, { primary: o.nome })
+          ] }, o.id);
+        })
+      }
+    )
   ] });
-  return /* @__PURE__ */ jsxs(
-    FormControl,
-    {
-      fullWidth: true,
-      variant: "standard",
-      disabled,
-      sx: { minWidth },
-      children: [
-        /* @__PURE__ */ jsx(InputLabel, { shrink: true, children: label }),
-        /* @__PURE__ */ jsx(
-          Select,
-          {
-            value,
-            onChange: handle,
-            renderValue: () => value && current ? /* @__PURE__ */ jsxs(Box, { display: "flex", alignItems: "center", gap: 1, children: [
-              /* @__PURE__ */ jsx(Avatar, { src: current.avatar, sx: { width: 24, height: 24 }, children: current.nome[0] }),
-              current.nome
-            ] }) : Placeholder,
-            children: options.map((o) => /* @__PURE__ */ jsx(MenuItem, { value: o.id, children: /* @__PURE__ */ jsxs(ListItem, { disableGutters: true, children: [
-              /* @__PURE__ */ jsx(ListItemAvatar, { sx: { minWidth: 32 }, children: /* @__PURE__ */ jsx(Avatar, { src: o.avatar, sx: { width: 32, height: 32, marginRight: "1em" }, children: o.nome[0] }) }),
-              /* @__PURE__ */ jsx(ListItemText, { primary: o.nome })
-            ] }) }, o.id))
-          }
-        )
-      ]
-    }
-  );
 };
 var QuizProgressBar = ({
   passo,
@@ -1483,7 +1483,139 @@ var FilterBar = ({
     )
   ] });
 };
+var Paginator = ({
+  count,
+  page,
+  onChange,
+  siblingCount = 1,
+  boundaryCount = 1,
+  showFirstButton = false,
+  showLastButton = false,
+  muiProps = {}
+}) => /* @__PURE__ */ jsx(Stack, { alignItems: "center", sx: { my: 2 }, children: /* @__PURE__ */ jsx(
+  Pagination,
+  {
+    count,
+    page,
+    onChange,
+    siblingCount,
+    boundaryCount,
+    showFirstButton,
+    showLastButton,
+    color: "primary",
+    ...muiProps
+  }
+) });
+var QuizQuestion = ({
+  pergunta,
+  opcoes,
+  valor,
+  onChange,
+  topoIcon,
+  sx
+}) => /* @__PURE__ */ jsxs(Box, { textAlign: "center", sx, children: [
+  /* @__PURE__ */ jsx(
+    Box,
+    {
+      position: "relative",
+      bgcolor: "rgba(122,68,189,0.08)",
+      color: "primary.dark",
+      px: 4,
+      py: 3,
+      borderRadius: 2,
+      mb: 4,
+      children: /* @__PURE__ */ jsx(Typography, { variant: "h6", fontWeight: 600, children: pergunta })
+    }
+  ),
+  /* @__PURE__ */ jsx(Grid, { container: true, spacing: 4, justifyContent: "center", children: opcoes.map((o) => {
+    const selected = o.value === valor;
+    return /* @__PURE__ */ jsx(Grid, { item: true, children: /* @__PURE__ */ jsx(
+      Card,
+      {
+        elevation: 0,
+        sx: {
+          width: 120,
+          height: 120,
+          borderRadius: 2,
+          bgcolor: selected ? "primary.main" : "rgba(122,68,189,0.08)",
+          color: selected ? "#fff" : "primary.dark",
+          transition: "all .25s"
+        },
+        children: /* @__PURE__ */ jsx(
+          CardActionArea,
+          {
+            sx: {
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              px: 2
+            },
+            onClick: () => onChange == null ? void 0 : onChange(o.value),
+            children: /* @__PURE__ */ jsx(
+              Typography,
+              {
+                variant: "h6",
+                fontWeight: 600,
+                textAlign: "center",
+                sx: { userSelect: "none" },
+                children: o.label
+              }
+            )
+          }
+        )
+      }
+    ) }, o.value);
+  }) })
+] });
+var SearchBar = ({
+  value,
+  onChange,
+  onSearch,
+  placeholder = "Pesquisar\u2026",
+  textFieldProps
+}) => {
+  const handleKeyPress = (e) => {
+    if (e.key === "Enter" && onSearch) {
+      onSearch(value);
+    }
+  };
+  return /* @__PURE__ */ jsx(
+    TextField$1,
+    {
+      value,
+      onChange: (e) => onChange(e.target.value),
+      placeholder,
+      onKeyPress: handleKeyPress,
+      variant: "outlined",
+      size: "small",
+      fullWidth: true,
+      InputProps: {
+        startAdornment: /* @__PURE__ */ jsx(InputAdornment$1, { position: "start", children: /* @__PURE__ */ jsx(
+          IconButton$1,
+          {
+            size: "small",
+            onClick: () => onSearch == null ? void 0 : onSearch(value),
+            edge: "start",
+            children: /* @__PURE__ */ jsx(SearchIcon, { fontSize: "small" })
+          }
+        ) }),
+        endAdornment: value ? /* @__PURE__ */ jsx(InputAdornment$1, { position: "end", children: /* @__PURE__ */ jsx(
+          IconButton$1,
+          {
+            size: "small",
+            onClick: () => onChange(""),
+            edge: "end",
+            children: /* @__PURE__ */ jsx(ClearIcon, { fontSize: "small" })
+          }
+        ) }) : null
+      },
+      ...textFieldProps
+    }
+  );
+};
 
-export { AgendaFeed, AgendaLargeCard, AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, BookCard, EmailField, FilterBar, GradientBackground, HowItWorksSection, InfoStepCard_default as InfoStepCard, Logo, NotificationBell, NumericField, PasswordField, PrimaryButton, QuizProgressBar, RouteLink, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
+export { AgendaFeed, AgendaLargeCard, AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, BookCard, EmailField, FilterBar, GradientBackground, HowItWorksSection, InfoStepCard_default as InfoStepCard, Logo, NotificationBell, NumericField, Paginator, PasswordField, PrimaryButton, QuizProgressBar, QuizQuestion, RouteLink, SearchBar, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
 //# sourceMappingURL=index.mjs.map
 //# sourceMappingURL=index.mjs.map

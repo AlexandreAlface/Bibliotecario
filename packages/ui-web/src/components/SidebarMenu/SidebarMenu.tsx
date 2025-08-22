@@ -1,5 +1,4 @@
-// src/components/SidebarMenu/SidebarMenu.tsx
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Box,
   Drawer,
@@ -13,11 +12,10 @@ import {
   Typography,
   SxProps,
   Theme,
-} from '@mui/material';
-import { SidebarToggle, VerticalPos } from './SidebarToggle';
+  Avatar,
+} from "@mui/material";
+import { SidebarToggle, VerticalPos } from "./SidebarToggle";
 
-
-/* ---------- Tipos ---------- */
 export interface MenuItem {
   label: string;
   icon: React.ReactNode;
@@ -33,28 +31,36 @@ export interface SidebarMenuProps {
   onToggle?: (open: boolean) => void;
   toggleVertical?: VerticalPos;
   sx?: SxProps<Theme>;
+  children?: React.ReactNode;
+
+  // --- NOVO: header controlado por props ---
+  headerTitle?: string; // Família X ou Nome da criança ativa
+  headerSubtitle?: string; // Role ou "Modo criança"
+  headerAvatarUrl?: string; // avatar opcional
 }
 
-/* ---------- Constantes ---------- */
 const OPEN = 260;
 const CLOSED = 64;
 
 const selectedSX = {
-  bgcolor: '#EEF3FF',
-  '& .MuiListItemIcon-root, & .MuiListItemText-primary': {
-    color: 'primary.main',
+  bgcolor: "#EEF3FF",
+  "& .MuiListItemIcon-root, & .MuiListItemText-primary": {
+    color: "primary.main",
     fontWeight: 600,
   },
 };
 
-/* ---------- Componente ---------- */
 export const SidebarMenu: React.FC<SidebarMenuProps> = ({
   items,
   footerItems,
   open: controlled,
   onToggle,
-  toggleVertical = 'center',
+  toggleVertical = "center",
   sx,
+  children,
+  headerTitle,
+  headerSubtitle,
+  headerAvatarUrl,
 }) => {
   const [internal, setInternal] = useState(true);
   const open = controlled ?? internal;
@@ -64,7 +70,7 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
     arr.map(({ label, icon, selected, ...rest }) => (
       <Tooltip
         key={label}
-        title={!open ? label : ''}
+        title={!open ? label : ""}
         placement="right"
         arrow
         disableInteractive
@@ -73,18 +79,14 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
           sx={{
             my: 0.5,
             borderRadius: 1,
-            px: open ? 2 : 0,            // sem “padding” lateral quando fechado
-            justifyContent: open ? 'flex-start' : 'center',
+            px: open ? 2 : 0,
+            justifyContent: open ? "flex-start" : "center",
             ...(selected && selectedSX),
-            }}
+          }}
           {...rest}
         >
           <ListItemIcon
-            sx={{
-              minWidth: 0,
-              mr: open ? 2 : '0',
-              justifyContent: 'center',
-            }}
+            sx={{ minWidth: 0, mr: open ? 2 : 0, justifyContent: "center" }}
           >
             {icon}
           </ListItemIcon>
@@ -100,47 +102,62 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
         PaperProps={{
           sx: {
             width: open ? OPEN : CLOSED,
-            overflowX: 'clip', // evita barra horizontal
-            borderRadius: '0 8px 8px 0',
-            boxShadow: '0 4px 24px rgba(0,0,0,.08)',
+            overflowX: "clip",
+            borderRadius: "0 8px 8px 0",
+            boxShadow: "0 4px 24px rgba(0,0,0,.08)",
+            bgcolor: "background.paper",
+            backgroundImage: "none",
             transition: (t) =>
-              t.transitions.create('width', {
+              t.transitions.create("width", {
                 duration: t.transitions.duration.shorter,
               }),
-            display: 'flex',
-            flexDirection: 'column',
+            display: "flex",
+            flexDirection: "column",
             ...sx,
           },
         }}
       >
-        {/* ---------- Header ---------- */}
-        <Stack position="relative" alignItems="center" spacing={1} mt={3} mb={2}>
-          <Box
-            component="img"
-            src="https://placehold.co/40"
-            width={40}
-            height={40}
-            borderRadius="50%"
-          />
-          {open && (
-            <>
-              <Typography fontWeight={700} fontSize={14}>
-                Alexandre Brissos
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                TUTOR
-              </Typography>
-              <Divider sx={{ width: '100%', mt: 1 }} />
-            </>
-          )}
-        </Stack>
+        {/* --- Header DINÂMICO (sem hard-code) --- */}
+        {(headerTitle || headerSubtitle) && (
+          <Stack
+            alignItems="center"
+            spacing={1}
+            mt={3}
+            mb={open ? 2 : 1}
+            px={open ? 2 : 0}
+          >
+            <Avatar src={headerAvatarUrl} sx={{ width: 40, height: 40 }} />
+            {open && (
+              <>
+                {headerTitle && (
+                  <Typography fontWeight={700} fontSize={14} textAlign="center">
+                    {headerTitle}
+                  </Typography>
+                )}
+                {headerSubtitle && (
+                  <Typography variant="caption" color="text.secondary">
+                    {headerSubtitle}
+                  </Typography>
+                )}
+                <Divider sx={{ width: "100%", mt: 1 }} />
+              </>
+            )}
+          </Stack>
+        )}
 
-        {/* ---------- Itens ---------- */}
+        {/* Itens */}
         <List disablePadding sx={{ px: open ? 1 : 0 }}>
           {render(items)}
         </List>
 
-        {/* ---------- Rodapé ---------- */}
+        {/* Conteúdo extra opcional */}
+        {children && (
+          <Box mt={2} px={open ? 2 : 0} sx={{ flexShrink: 0, width: "100%" }}>
+            {children}
+          </Box>
+        )}
+
+        {/* Rodapé */}
         {!!footerItems?.length && (
           <Box mt="auto" pb={2}>
             <List disablePadding sx={{ px: open ? 1 : 0 }}>
@@ -150,7 +167,6 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
         )}
       </Drawer>
 
-      {/* ---------- Handle ---------- */}
       <SidebarToggle
         open={open}
         openWidth={OPEN}

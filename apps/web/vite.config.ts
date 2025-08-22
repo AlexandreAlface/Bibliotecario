@@ -1,20 +1,28 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "path";
 
-// https://vite.dev/config/
 export default defineConfig({
-   plugins: [react()],
-   resolve: {
+  plugins: [react()],
+  resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      "@": path.resolve(__dirname, "src"),
+      "@bibliotecario/ui-web": path.resolve(
+        __dirname,
+        "../../packages/ui-web/src"
+      ),
     },
-    dedupe: ['@emotion/react', '@emotion/styled'] ,
-    preserveSymlinks: true
+    dedupe: ["react", "react-dom", "@emotion/react", "@emotion/styled"],
+    preserveSymlinks: true,
   },
   server: {
-     fs: {  allow: [ path.resolve(__dirname, '../../') ] } 
+    fs: {
+      allow: [
+        "..",
+        path.resolve(__dirname, "../../"),
+        path.resolve(__dirname, "../../packages/ui-web"),
+        path.resolve(__dirname, "../../node_modules"),
+      ],
+    },
   },
-})
-
- 
+});

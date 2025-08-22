@@ -4,7 +4,7 @@ export default {
     slug: "bibliotecario",
     scheme: "bibliotecario",
     platforms: ["ios", "android"],   // <— acrescenta isto
-    plugins: ["expo-font", "expo-secure-store"],
+    plugins: ["expo-router", "expo-font", "expo-secure-store"],
     extra: { API_URL: process.env.EXPO_PUBLIC_API_URL },
   },
 };

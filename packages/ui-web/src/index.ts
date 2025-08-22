@@ -24,4 +24,13 @@ export * from './components/SimpleDataTable';
 export * from './components/BookCard';
 export * from './components/AgendaFeed';
 export * from './components/Filter';
+export * from './components/Paginator';
+export * from './components/QuizQuestion';
+export * from './components/SearchBar';
+
+
+
+
+
+
 
