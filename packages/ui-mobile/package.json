@@ -15,17 +15,20 @@
   },
   "dependencies": {
     "@bibliotecario/tokens": "file:../tokens",
-    "expo-linear-gradient": "^14.1.5",
-    "react-dom": "^19.1.1"
+    "expo-linear-gradient": "^14.1.5"
   },
   "peerDependencies": {
     "expo-font": "*",
-    "react": "^19.1.1",
+    "react": ">=19.0.0 <20",
+    "react-dom": ">=19.0.0 <20",
     "react-native": ">=0.76 <0.80",
     "react-native-paper": "^5",
     "react-native-reanimated": ">=3"
   },
   "peerDependenciesMeta": {
+    "react-dom": {
+      "optional": true
+    },
     "react": {
       "optional": true
     },

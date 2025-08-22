@@ -15,10 +15,21 @@ import {
   getNextConsultas,
   getProximosEventos,
 } from "src/services/events";
-import { BookLite, getLeiturasAtuais, getSugestoes } from "src/services/books";
+import { BookLite, getSugestoes } from "src/services/books";
+import {
+  ReadingLite,
+  getLeiturasAtuais,
+} from "src/services/readings"; // <-- usa o service de leituras
 import { TABBAR_HEIGHT } from "./_layout";
 
 const PLACEHOLDER = "https://picsum.photos/seed/placeholder/800/600";
+
+// perto do topo, junto ao PLACEHOLDER
+const IMG_CHILD_MODE =
+  "https://resources.finalsite.net/images/v1629226818/usmk12org/sxtynkrkjkr4xi3tpdir/boy-reading.png"; // criança a ler
+const IMG_CONSULTAS =
+  "https://thumbs.dreamstime.com/b/kid-his-mother-consulting-doctor-hospital-46164214.jpg"; // calendário/agenda
+
 
 /* ---------------- helpers ---------------- */
 function extractRoles(u: any): string[] {
@@ -104,6 +115,7 @@ function CategoryTile({
               marginTop: 2,
               fontSize: 12,
             }}
+            numberOfLines={1}
           >
             {subtitle}
           </Text>
@@ -150,6 +162,7 @@ function ProgramCard({
             fontWeight: "800",
             fontSize: 18,
           }}
+          numberOfLines={1}
         >
           {title}
         </Text>
@@ -262,20 +275,14 @@ export default function Landing() {
   const roles = React.useMemo(() => extractRoles(user), [user]);
   const role = user?.actingChild ? "CRIANÇA" : roles[0] ?? "FAMÍLIA";
 
-  console.log(
-    "Rendering Landing with roles:",
-    roles,
-    "actingChild:",
-    user?.actingChild?.name
-  );
-
   const [consultas, setConsultas] = React.useState<EventLite[] | null>(null);
   const [eventos, setEventos] = React.useState<EventLite[] | null>(null);
-  const [leituras, setLeituras] = React.useState<BookLite[] | null>(null);
+  const [leituras, setLeituras] = React.useState<ReadingLite[] | null>(null);
   const [sugestoes, setSugestoes] = React.useState<BookLite[] | null>(null);
 
   React.useEffect(() => {
     (async () => {
+      // Próximas consultas
       try {
         setConsultas(await getNextConsultas(3));
       } catch {
@@ -286,6 +293,7 @@ export default function Landing() {
         ]);
       }
 
+      // Eventos
       try {
         setEventos(await getProximosEventos(2));
       } catch {
@@ -300,23 +308,43 @@ export default function Landing() {
         ]);
       }
 
+      // Sugestões (modo criança) OU Leituras atuais (modo família)
       try {
-        if (role === "CRIANÇA") setSugestoes(await getSugestoes(2));
-        else setLeituras(await getLeiturasAtuais(2));
+        if (role === "CRIANÇA") {
+          setSugestoes(await getSugestoes(2));
+          setLeituras(null);
+        } else {
+          const childIdsAll =
+            (user?.children || [])
+              .map((c: any) => Number(c.id))
+              .filter((n: number) => Number.isFinite(n)) || [];
+          setLeituras(await getLeiturasAtuais(2, { childIds: childIdsAll }));
+          setSugestoes(null);
+        }
       } catch {
-        if (role === "CRIANÇA")
+        if (role === "CRIANÇA") {
           setSugestoes([
             { id: "1", title: "Harry Potter" },
             { id: "2", title: "O Pequeno Príncipe" },
           ]);
-        else
+          setLeituras(null);
+        } else {
           setLeituras([
-            { id: "1", title: "O Pequeno Príncipe" },
-            { id: "2", title: "Diário de um Banana", date: "10/07" },
+            { id: 1, childId: 1, isbn: "x", title: "O Pequeno Príncipe" },
+            {
+              id: 2,
+              childId: 2,
+              isbn: "y",
+              title: "Diário de um Banana",
+              date: "10/07",
+            },
           ]);
+          setSugestoes(null);
+        }
       }
     })();
-  }, [role]);
+    // refaz quando muda o modo/child selecionado
+  }, [role, user?.actingChild?.id, user?.children?.length]);
 
   // botões compactos
   const btnStyle = {
@@ -376,12 +404,12 @@ export default function Landing() {
               flexWrap: "wrap",
             }}
           >
-            {/* family -> escolher criança */}
+            {/* família -> escolher criança */}
             {canActAsChild && (
               <CategoryTile
                 title="Entrar como criança"
                 subtitle="Escolher perfil"
-                imageUrl={PLACEHOLDER}
+                imageUrl={IMG_CHILD_MODE}
                 onPress={() => router.push("/choose-child")}
               />
             )}
@@ -395,7 +423,7 @@ export default function Landing() {
                     }`
                   : "Próximas marcações"
               }
-              imageUrl={PLACEHOLDER}
+              imageUrl={IMG_CONSULTAS}
               onPress={() => {}}
             />
 
