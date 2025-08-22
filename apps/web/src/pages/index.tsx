@@ -3,8 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   WhiteCard,
   NotificationBell,
-  BookCard,
-  SectionDivider,
   PrimaryButton,
   RouteLink,
   AvatarSelect,
@@ -24,15 +22,18 @@ import Grid from "@mui/material/GridLegacy";
 import { useUserSession } from "../contexts/UserSession";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
-import StarRounded from "@mui/icons-material/StarRounded";
+import { StarRounded, WorkspacePremiumRounded } from "@mui/icons-material";
+
+import { getLeiturasAtuais } from "../services/readings";
+import type { BookLite as ReadingBookLite } from "../services/readings";
 
 import { getProximosEventos } from "../services/events";
-import {
-  getLeiturasAtuais,
-  getSugestoes,
-  type BookLite,
-} from "../services/books";
+import { getSugestoes } from "../services/books";
+import type { BookLite as SuggestionBookLite } from "../services/books";
 import { getNextConsultas, type ConsultaLite } from "../services/consultations";
+import { getBadgesRecent, type BadgeLite } from "../services/badges";
+import EmojiEventsRounded from "@mui/icons-material/EmojiEventsRounded";
+import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 
 // Placeholder para eventos sem imagem
 import EVENT_PLACEHOLDER from "../assets/placeholder-event.jpg";
@@ -41,7 +42,6 @@ const TOP_CARD_H = "clamp(360px, 50vh, 440px)";
 
 /** ---------- helpers ---------- */
 
-// config visual dos estados
 const STATUS_CFG: Record<
   string,
   { label: string; color: "success" | "warning" | "error" | "default" }
@@ -51,7 +51,6 @@ const STATUS_CFG: Record<
   RECUSADO: { label: "Recusado", color: "error" },
 };
 
-// partir um ISO em partes legíveis
 function parts(iso?: string) {
   if (!iso) return { day: "—", mon: "—", time: "" };
   const d = new Date(iso);
@@ -60,6 +59,40 @@ function parts(iso?: string) {
     mon: d.toLocaleDateString("pt-PT", { month: "short" }),
     time: d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }),
   };
+}
+
+// normalizador p/ comparar categorias/locais com espaços NBSP e acentos
+const norm = (s: string) =>
+  s
+    ?.toString()
+    .replace(/\u00A0/g, " ")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase() || "";
+
+/** ---------- Cabeçalho de card (visível) ---------- */
+function CardHeader({
+  title,
+  action,
+}: {
+  title: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <Stack
+      direction="row"
+      alignItems="center"
+      justifyContent="space-between"
+      sx={{ mb: 1.25 }}
+    >
+      <Typography variant="h6" fontWeight={900}>
+        {title}
+      </Typography>
+      {action}
+    </Stack>
+  );
 }
 
 /** ---------- KPI tile ---------- */
@@ -112,7 +145,7 @@ function StatTile({
 const ROW_STROKE = "#00000026";
 const ROW_GAP = 1.25;
 
-/** ---------- Consultas (da API) ---------- */
+/** ---------- Consultas ---------- */
 function ConsultaRow({ c }: { c: ConsultaLite }) {
   const iso = c.scheduledAt || c.date;
   const { day, mon, time } = parts(iso);
@@ -248,7 +281,7 @@ function EventSlide({ ev }: { ev: any }) {
         }}
         sx={{
           width: "100%",
-          height: 120, // ↓ mais pequeno
+          height: 120,
           objectFit: "cover",
           borderRadius: 1.5,
           border: "1px solid",
@@ -273,7 +306,6 @@ function EventSlide({ ev }: { ev: any }) {
   );
 }
 
-// Carrossel simples 1-slide com setas e dots
 function EventCarousel({
   items,
   index,
@@ -369,6 +401,149 @@ function EventCarousel({
   );
 }
 
+/** ---------- Sugestões ---------- */
+type SuggestionWithMeta = SuggestionBookLite & {
+  author?: string | null;
+  ageRange?: string | null;
+  category?: string | null;
+};
+
+function SuggestionCard({
+  book,
+  onReserve,
+}: {
+  book: SuggestionWithMeta;
+  onReserve: () => void;
+}) {
+  const cover = book.coverUrl || "/placeholder-book.jpg";
+
+  return (
+    <Box
+      sx={{
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 2,
+        bgcolor: "background.paper",
+        p: 1,
+        display: "grid",
+        gridTemplateColumns: "auto 1fr auto",
+        columnGap: 1.25,
+        alignItems: "center",
+        minWidth: 0,
+      }}
+    >
+      <Box
+        component="img"
+        src={cover}
+        alt={book.title}
+        onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+          const img = e.currentTarget;
+          if (!img.src.includes("placeholder-book.jpg"))
+            img.src = "/placeholder-book.jpg";
+        }}
+        sx={{
+          width: 64,
+          height: 90,
+          objectFit: "cover",
+          borderRadius: 1.5,
+          border: "1px solid",
+          borderColor: "divider",
+          flexShrink: 0,
+        }}
+      />
+
+      <Box sx={{ minWidth: 0 }}>
+        <Typography
+          fontWeight={900}
+          sx={{
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            lineHeight: 1.15,
+          }}
+          title={book.title}
+        >
+          {book.title}
+        </Typography>
+
+        {!!book.author && (
+          <Typography
+            variant="body2"
+            sx={{
+              opacity: 0.7,
+              mt: 0.25,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={book.author || undefined}
+          >
+            de {book.author}
+          </Typography>
+        )}
+
+        <Box sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 0.25 }}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <StarRounded
+              key={i}
+              fontSize="small"
+              sx={{ opacity: i < 4 ? 1 : 0.35 }}
+            />
+          ))}
+        </Box>
+      </Box>
+
+      <PrimaryButton
+        onClick={onReserve}
+        size="small"
+        sx={{ ml: 1, whiteSpace: "nowrap" }}
+      >
+        Reservar
+      </PrimaryButton>
+    </Box>
+  );
+}
+
+function BadgePill({ b, showChild }: { b: BadgeLite; showChild: boolean }) {
+  const isTrophy = (b.type || "").toUpperCase().includes("TROF");
+  const Icon = isTrophy ? EmojiEventsRounded : LocalOfferRounded;
+
+  return (
+    <Box
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 1,
+        px: 1.25,
+        py: 0.75,
+        borderRadius: 999,
+        border: "1px solid",
+        borderColor: isTrophy ? "warning.light" : "secondary.light",
+        bgcolor: isTrophy ? "warning.50" : "secondary.50",
+        boxShadow: "0 8px 20px rgba(0,0,0,.06)",
+        whiteSpace: "nowrap",
+        maxWidth: "100%",
+      }}
+      title={b.criteria || undefined}
+    >
+      <Icon fontSize="small" />
+      <Typography fontWeight={800} noWrap sx={{ maxWidth: 220 }}>
+        {b.name}
+      </Typography>
+      {showChild && !!b.childName && (
+        <Typography
+          variant="caption"
+          noWrap
+          sx={{ opacity: 0.75, maxWidth: 160 }}
+        >
+          · de {b.childName}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
 /** ---------- Página ---------- */
 export default function LandingPage() {
   const theme = useTheme();
@@ -381,28 +556,50 @@ export default function LandingPage() {
     exitChild,
   } = useUserSession();
 
+  const [badges, setBadges] = useState<BadgeLite[]>([]);
   const [eventos, setEventos] = useState<EventItem[]>([]);
   const [eventIndex, setEventIndex] = useState(0);
-
-  const [leituras, setLeituras] = useState<BookLite[]>([]);
-  const [sugestoes, setSugestoes] = useState<BookLite[]>([]);
+  const [leituras, setLeituras] = useState<ReadingBookLite[]>([]);
+  const [sugestoes, setSugestoes] = useState<SuggestionWithMeta[]>([]);
   const [consultas, setConsultas] = useState<ConsultaLite[]>([]);
 
   useEffect(() => {
     (async () => {
-      const [ev, le, su, co] = await Promise.allSettled([
+      const childIdsAll = (user?.children || [])
+        .map((c) => Number(c.id))
+        .filter((n) => Number.isFinite(n));
+
+      const leiturasPromise = asChild
+        ? getLeiturasAtuais(4, {
+            childId: Number(
+              (user?.actingChild?.id as any) ?? (selectedChildId as any)
+            ),
+          })
+        : getLeiturasAtuais(4, { childIds: childIdsAll });
+
+      const badgesPromise = asChild
+        ? getBadgesRecent(12, {
+            childId: Number(
+              (user?.actingChild?.id as any) ?? (selectedChildId as any)
+            ),
+          })
+        : getBadgesRecent(12, { familyId: Number(user?.id) });
+
+      const [ev, le, su, co, ba] = await Promise.allSettled([
         getProximosEventos(8),
-        getLeiturasAtuais(4),
+        leiturasPromise,
         getSugestoes(6),
         getNextConsultas(6),
+        badgesPromise,
       ]);
 
-      if (ev.status === "fulfilled") setEventos(ev.value as EventItem[]);
-      if (le.status === "fulfilled") setLeituras(le.value);
-      if (su.status === "fulfilled") setSugestoes(su.value);
-      if (co.status === "fulfilled") setConsultas(co.value);
+      if (ev.status === "fulfilled") setEventos(ev.value as any);
+      if (le.status === "fulfilled") setLeituras(le.value as any);
+      if (su.status === "fulfilled") setSugestoes(su.value as any);
+      if (co.status === "fulfilled") setConsultas(co.value as any);
+      if (ba.status === "fulfilled") setBadges(ba.value as any);
     })();
-  }, []);
+  }, [asChild, selectedChildId, user?.actingChild?.id, user?.children?.length]);
 
   const familyName = user?.fullName ?? "Família";
   const roleLabel = (user?.roles?.[0] ?? "").toString();
@@ -428,7 +625,6 @@ export default function LandingPage() {
     [asChild, user?.fullName]
   );
 
-  // Gradients com as tuas cores
   const gPrimary = `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`;
   const gSecondary = `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.light} 100%)`;
   const gSuccess = `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.light} 100%)`;
@@ -437,27 +633,16 @@ export default function LandingPage() {
     "Biblioteca" | "Casa da Cultura" | "Centro UNESCO"
   >("Biblioteca");
 
-  const norm = (s: string) =>
-    s
-      ?.toString()
-      .replace(/\u00A0/g, " ") // NBSP -> espaço normal
-      .normalize("NFD")
-      .replace(/\p{Diacritic}/gu, "") // tira acentos
-      .replace(/\s+/g, " ") // colapsa espaços
-      .trim()
-      .toLowerCase() || "";
-
   const eventosFiltrados = useMemo(
     () =>
       eventos.filter((e: any) => {
         const base = norm(e.category || e.location || "");
         const alvo = norm(evCat);
-        // aceita "biblioteca", "biblioteca municipal", etc.
         return base.includes(alvo);
       }),
     [eventos, evCat]
   );
-  // quando mudas de categoria, volta ao 1º slide
+
   useEffect(() => {
     setEventIndex(0);
   }, [evCat]);
@@ -473,6 +658,7 @@ export default function LandingPage() {
       {/* Barra de contexto */}
       {!!user?.children?.length && (
         <WhiteCard sx={{ mt: 1.5 }}>
+          <CardHeader title={asChild ? "Modo criança" : "Família"} />
           <Stack
             direction="row"
             alignItems="center"
@@ -564,7 +750,6 @@ export default function LandingPage() {
         {/* Sugestões / Consultas */}
         <Grid item xs={12} md={4} sx={{ display: "flex" }}>
           <WhiteCard
-            title={asChild ? "Sugestões para ti" : "Próximas Consultas"}
             sx={{
               flex: 1,
               height: TOP_CARD_H,
@@ -572,6 +757,9 @@ export default function LandingPage() {
               flexDirection: "column",
             }}
           >
+            <CardHeader
+              title={asChild ? "Sugestões para ti" : "Próximas Consultas"}
+            />
             <Box
               sx={{
                 flex: 1,
@@ -585,30 +773,20 @@ export default function LandingPage() {
               }}
             >
               {asChild ? (
-                <Stack spacing={1}>
+                <Stack spacing={1.25}>
                   {sugestoes.map((b, i) => (
                     <Box key={b.id}>
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        alignItems="center"
-                        sx={{
-                          px: 1,
-                          py: 1,
-                          borderRadius: 2,
-                          "&:hover": { bgcolor: "action.hover" },
+                      <SuggestionCard
+                        book={b}
+                        onReserve={() => {
+                          /* reservar */
                         }}
-                      >
-                        <BookCard
-                          variant="reserve"
-                          title={b.title}
-                          coverImage={b.coverUrl || "/placeholder-book.jpg"}
-                          rating={5}
-                          onReserve={() => {}}
+                      />
+                      {i < sugestoes.length - 1 && (
+                        <Divider
+                          sx={{ my: 1.25, mx: 0, borderColor: "divider" }}
                         />
-                        <RouteLink href="/suggestions">Reservar</RouteLink>
-                      </Stack>
-                      {i < sugestoes.length - 1 && <Divider sx={{ my: 0.5 }} />}
+                      )}
                     </Box>
                   ))}
                 </Stack>
@@ -633,7 +811,6 @@ export default function LandingPage() {
         {/* Eventos em Destaque */}
         <Grid item xs={12} md={5} sx={{ display: "flex" }}>
           <WhiteCard
-            title="Eventos em Destaque"
             sx={{
               flex: 1,
               height: TOP_CARD_H,
@@ -641,6 +818,7 @@ export default function LandingPage() {
               flexDirection: "column",
             }}
           >
+            <CardHeader title="Eventos em Destaque" />
             {/* filtros */}
             <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
               {(
@@ -668,9 +846,7 @@ export default function LandingPage() {
               }}
             >
               {eventosFiltrados.length ? (
-                <Box
-                  sx={{ width: "min(100%, 420px)" /* ↓ slide mais pequeno */ }}
-                >
+                <Box sx={{ width: "min(100%, 420px)" }}>
                   <EventCarousel
                     items={eventosFiltrados}
                     index={eventIndex}
@@ -689,7 +865,6 @@ export default function LandingPage() {
         {/* Leituras */}
         <Grid item xs={12} md={3} sx={{ display: "flex" }}>
           <WhiteCard
-            title="Leituras"
             sx={{
               flex: 1,
               height: TOP_CARD_H,
@@ -697,6 +872,7 @@ export default function LandingPage() {
               flexDirection: "column",
             }}
           >
+            <CardHeader title="Leituras" />
             <Box
               sx={{
                 flex: 1,
@@ -734,9 +910,9 @@ export default function LandingPage() {
                         <Typography fontWeight={800} noWrap title={b.title}>
                           {b.title}
                         </Typography>
-                        {!asChild && (
-                          <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                            {b.date || ""}
+                        {!asChild && b.childName && (
+                          <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                            de {b.childName}
                           </Typography>
                         )}
                         {!asChild && (
@@ -753,10 +929,14 @@ export default function LandingPage() {
                         )}
                       </Box>
                       <RouteLink href={asChild ? "/suggestions" : "/leituras"}>
-                        {asChild ? "Reservar" : "Abrir"}
+                        {asChild ? "Abrir" : "Abrir"}
                       </RouteLink>
                     </Stack>
-                    {idx < leituras.length - 1 && <Divider sx={{ my: 0.5 }} />}
+                    {idx < leituras.length - 1 && (
+                      <Divider
+                        sx={{ my: 1.25, mx: 0, borderColor: "divider" }}
+                      />
+                    )}
                   </Box>
                 ))}
               </Stack>
@@ -766,20 +946,46 @@ export default function LandingPage() {
 
         {/* Área inferior */}
         <Grid item xs={12} md={6} sx={{ display: "flex" }}>
-          <WhiteCard
-            title="Conquistas Recentes"
-            sx={{ flex: 1, minHeight: 180 }}
-          >
-            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-              <Chip label="Primeira Leitura" />
-              <Chip label="3 livros numa semana" />
-              <Chip label="Streak todos os dias" />
-            </Stack>
+          <WhiteCard sx={{ flex: 1, minHeight: 180 }}>
+            <CardHeader title="Conquistas Recentes" />
+            {badges.length === 0 ? (
+              <Typography sx={{ opacity: 0.6 }}>
+                Ainda não há conquistas… continua a ler! 📚
+              </Typography>
+            ) : (
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                {badges.map((b) => {
+                  const isTrofeu = (b.type || "")
+                    .toUpperCase()
+                    .includes("TROF");
+                  return (
+                    <Chip
+                      key={b.id}
+                      variant={isTrofeu ? "filled" : "outlined"}
+                      icon={
+                        isTrofeu ? (
+                          <EmojiEventsRounded fontSize="small" />
+                        ) : (
+                          <WorkspacePremiumRounded fontSize="small" />
+                        )
+                      }
+                      label={
+                        asChild
+                          ? b.name
+                          : `${b.name}${b.childName ? ` — ${b.childName}` : ""}`
+                      }
+                      sx={{ borderRadius: 3 }}
+                    />
+                  );
+                })}
+              </Stack>
+            )}
           </WhiteCard>
         </Grid>
 
         <Grid item xs={12} md={6} sx={{ display: "flex" }}>
-          <WhiteCard title="Atividade recente" sx={{ flex: 1, minHeight: 180 }}>
+          <WhiteCard sx={{ flex: 1, minHeight: 180 }}>
+            <CardHeader title="Atividade recente" />
             <Stack spacing={1}>
               <Typography variant="body2">
                 ✅ Reserva efetuada em{" "}
@@ -799,8 +1005,6 @@ export default function LandingPage() {
           </WhiteCard>
         </Grid>
       </Grid>
-
-      <SectionDivider label="" sx={{ my: 4 }} />
     </Container>
   );
 }

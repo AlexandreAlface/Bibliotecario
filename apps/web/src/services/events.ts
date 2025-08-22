@@ -11,27 +11,28 @@ export type EventLite = {
   location?: string | null;
 };
 
-export async function getProximosEventos(limit = 3): Promise<EventLite[]> {
-  // Nota: este endpoint devolve os eventos “crus” do prisma (inclui startDate, category, location, imageUrl)
-  const { data } = await api.get("/events", { params: { limit } });
+const toTs = (x: any) => {
+  const raw = x?.startDate ?? x?.date;
+  const t = Date.parse(raw ?? "");
+  return Number.isFinite(t) ? t : Infinity;
+};
 
+export async function getProximosEventos(limit = 8): Promise<EventLite[]> {
+  // Pedimos mais ao servidor para não “cortar” categorias (ex.: Biblioteca)
+  const serverLimit = Math.max(limit * 5, 60);
+
+  const { data } = await api.get("/events", { params: { limit: serverLimit } });
   const arr: any[] = Array.isArray(data) ? data : data?.items ?? [];
 
-  // Ordena por startDate (se houver), depois faz slice e normaliza campos
   return arr
-    .sort((a, b) => {
-      const ta = a.startDate ? new Date(a.startDate).getTime() : Infinity;
-      const tb = b.startDate ? new Date(b.startDate).getTime() : Infinity;
-      return ta - tb;
-    })
-    .slice(0, limit)
+    .sort((a, b) => toTs(a) - toTs(b))
     .map((e) => ({
       id: Number(e.id),
       title: e.title ?? e.name ?? "Evento",
       date: e.startDateText ?? e.startDate ?? e.date ?? "",
       time: e.time ?? e.startTime ?? "",
       imageUrl: e.imageUrl ?? e.banner ?? e?.enclosure?.url ?? null,
-      category: e.category ?? e.categories?.[0] ?? null, // 👈 mantemos para o filtro
-      location: e.location ?? e.venue ?? null, // 👈 idem
+      category: e.category ?? null,
+      location: e.location ?? null,
     }));
 }
