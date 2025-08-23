@@ -103,6 +103,11 @@ model Book {
   ageRange        String? // faixa etária
   coverUrl        String? // URL da capa
 
+  ageMin    Int?
+  ageMax    Int?
+  genres    String[]                     @default([]) // opcional (p/ futuro); mantém category como está
+  embedding Unsupported("vector(1536)")?
+
   origins          BookOrigin[] // ligações às origens
   readings         Reading[]
   ratings          Rating[]
@@ -138,6 +143,16 @@ model Child {
   families         ChildFamily[] // relação N:N → ChildFamily
   readings         Reading[] // relação 1:N → Reading
   badgeAssignments BadgeAssignment[] // relação 1:N → BadgeAssignment
+  ChildPreference  ChildPreference?
+}
+
+model ChildPreference {
+  childId     Int                          @unique
+  profileText String?
+  embedding   Unsupported("vector(1536)")?
+  updatedAt   DateTime                     @updatedAt
+
+  child Child @relation(fields: [childId], references: [id])
 }
 
 // Associação N:N entre Child e User (família)

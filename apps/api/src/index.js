@@ -8,6 +8,8 @@ import authChildRouter from "./routes/auth-child.js";
 import consultationsRouter from "./routes/consultations.js";
 import readingsRouter from "./routes/readings.js";
 import badgeAssignmentsRouter from "./routes/badge-assignments.js";
+import recommendations from "./routes/recommendations.js";
+import reservationsRouter from "./routes/reservations.js";
 import "dotenv/config";
 
 import cors from "cors";
@@ -22,6 +24,7 @@ if (!process.env.DATABASE_URL) {
 const ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
 
 const app = express();
+app.use(express.json({ limit: "1mb" }));
 
 // Segurança / parsing
 app.use(helmet());
@@ -40,6 +43,8 @@ app.use('/api', authChildRouter);
 app.use("/api/consultations", consultationsRouter);
 app.use("/api/readings", readingsRouter);
 app.use("/api/badge-assignments", badgeAssignmentsRouter);
+app.use("/api", recommendations);
+app.use("/api", reservationsRouter);
 
 
 // Ingestão manual no arranque (RSS)
