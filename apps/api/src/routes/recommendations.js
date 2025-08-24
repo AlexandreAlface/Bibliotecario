@@ -166,12 +166,15 @@ router.get("/recommendations/profile", async (req, res) => {
         if (queryVec) {
           const v = toSqlVector(queryVec);
           await prisma.$executeRaw`
-            INSERT INTO "ChildPreference" ("childId","profileText","embedding")
-            VALUES (${childId}, ${"Bootstrap por idade"}, ${v}::vector)
+            INSERT INTO "ChildPreference" ("childId","profileText","embedding","updatedAt")
+            VALUES (${childId}, ${"Bootstrap por idade"}, ${v}::vector, now())
             ON CONFLICT ("childId")
-            DO UPDATE SET "profileText"=EXCLUDED."profileText", "embedding"=EXCLUDED."embedding";
+            DO UPDATE SET
+              "profileText" = EXCLUDED."profileText",
+              "embedding"   = EXCLUDED."embedding",
+              "updatedAt"   = now();
           `;
-        }
+}
       }
     } else if (familyId) {
       // família: média das preferências das crianças; senão, média por idade de cada criança

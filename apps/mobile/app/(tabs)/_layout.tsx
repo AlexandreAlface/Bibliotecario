@@ -35,12 +35,12 @@ const ICONS: Record<
   { active: React.ComponentProps<typeof Icon>["name"]; inactive: React.ComponentProps<typeof Icon>["name"] }
 > = {
   index:      { active: "home-variant",           inactive: "home-variant-outline" },
+  sugestoes:  { active: "magic-staff",            inactive: "magic-staff" },
   agenda:     { active: "calendar-month",         inactive: "calendar-month-outline" },
   conquistas: { active: "trophy-award",           inactive: "trophy-outline" },
   consultas:  { active: "calendar-clock",         inactive: "calendar-clock-outline" },
   familias:   { active: "account-group",          inactive: "account-group-outline" },
   feed:       { active: "rss",                    inactive: "rss" }, // sem outline
-  sugestoes:  { active: "book-open-page-variant", inactive: "book-open-outline" },
 };
 
 const MENU_FAMILIA: RouteName[] = [

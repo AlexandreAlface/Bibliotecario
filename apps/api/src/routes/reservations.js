@@ -18,7 +18,7 @@ function getAuthUserId(req) {
 }
 
 // resolve o userId (familyId) a partir de: familyId explícito > childId > auth
-async function resolveFamilyUserId({ req, childId, familyId }) {
+async function resolveFamilyUserId({ req, childId, familyId, prisma }) {
   if (Number.isFinite(familyId)) return Number(familyId);
 
   if (Number.isFinite(childId)) {
@@ -30,7 +30,13 @@ async function resolveFamilyUserId({ req, childId, familyId }) {
     if (cf?.familyId) return Number(cf.familyId);
   }
 
-  const authId = getAuthUserId(req);
+  const authId =
+    (req.user && Number(req.user.id)) ||
+    (req.session && Number(req.session.userId)) ||
+    Number(req.headers["x-user-id"]) ||
+    Number(req.query.userId) ||
+    null;
+
   return Number.isFinite(authId) ? Number(authId) : null;
 }
 

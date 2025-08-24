@@ -9,7 +9,7 @@ type UserShape = {
   email: string;
   roles: string[];
   children?: ChildLite[];
-  actingChild?: ChildLite | null;
+  actingChild?: { id: number; name?: string } | null;
 };
 
 type Ctx = {

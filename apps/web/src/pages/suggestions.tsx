@@ -1,6 +1,6 @@
 // apps/web/src/pages/suggestions.tsx
 import { useEffect, useMemo, useState } from "react";
-import { WhiteCard, PrimaryButton, RouteLink } from "@bibliotecario/ui-web";
+import { WhiteCard, PrimaryButton, RouteLink, AvatarSelect } from "@bibliotecario/ui-web";
 import {
   Box,
   Chip,
@@ -78,24 +78,8 @@ function SkeletonCard() {
       }}
     >
       <Box sx={{ height: 280, bgcolor: "action.hover", borderRadius: 2 }} />
-      <Box
-        sx={{
-          mt: 1.5,
-          height: 16,
-          width: "75%",
-          bgcolor: "action.hover",
-          borderRadius: 1,
-        }}
-      />
-      <Box
-        sx={{
-          mt: 1,
-          height: 12,
-          width: "45%",
-          bgcolor: "action.hover",
-          borderRadius: 1,
-        }}
-      />
+      <Box sx={{ mt: 1.5, height: 16, width: "75%", bgcolor: "action.hover", borderRadius: 1 }} />
+      <Box sx={{ mt: 1, height: 12, width: "45%", bgcolor: "action.hover", borderRadius: 1 }} />
     </Box>
   );
 }
@@ -105,14 +89,16 @@ function SuggestionCard({
   onReserve,
   reserving,
   reserved,
+  disabled,
 }: {
   book: BookLite;
   onReserve: (isbn: string) => void;
   reserving?: boolean;
   reserved?: boolean;
+  disabled?: boolean;
 }) {
   const cover = book.coverUrl || "/placeholder-book.jpg";
-  const isBusy = !!reserving || !!reserved;
+  const isBusy = !!reserving || !!reserved || !!disabled;
 
   return (
     <Box
@@ -162,11 +148,7 @@ function SuggestionCard({
       )}
       <Box sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 0.25 }}>
         {Array.from({ length: 5 }).map((_, i) => (
-          <StarRounded
-            key={i}
-            fontSize="small"
-            sx={{ opacity: i < 4 ? 1 : 0.35 }}
-          />
+          <StarRounded key={i} fontSize="small" sx={{ opacity: i < 4 ? 1 : 0.35 }} />
         ))}
       </Box>
       <Button
@@ -226,31 +208,15 @@ function QuizModal({
         Sugestões de Leitura — Quiz {age ? `(${age})` : ""}
       </DialogTitle>
       <DialogContent dividers>
-        <LinearProgress
-          variant="determinate"
-          value={(step + 1) * 25}
-          sx={{ mb: 2, borderRadius: 999 }}
-        />
+        <LinearProgress variant="determinate" value={(step + 1) * 25} sx={{ mb: 2, borderRadius: 999 }} />
 
         {step === 0 && (
           <Box>
             <Typography variant="h6" fontWeight={900} sx={{ mb: 2 }}>
               Que género de livro preferes?
             </Typography>
-            <ToggleButtonGroup
-              value={genres}
-              onChange={(_, v) => setGenres(Array.isArray(v) ? v : [])}
-              sx={{ flexWrap: "wrap", gap: 1 }}
-            >
-              {[
-                "Aventura",
-                "Fantasia",
-                "Mistério",
-                "Humor",
-                "Ciências",
-                "Animais",
-                "Clássicos",
-              ].map((g) => (
+            <ToggleButtonGroup value={genres} onChange={(_, v) => setGenres(Array.isArray(v) ? v : [])} sx={{ flexWrap: "wrap", gap: 1 }}>
+              {["Aventura", "Fantasia", "Mistério", "Humor", "Ciências", "Animais", "Clássicos"].map((g) => (
                 <ToggleButton key={g} value={g} sx={{ borderRadius: 3, px: 2 }}>
                   {g}
                 </ToggleButton>
@@ -267,15 +233,10 @@ function QuizModal({
             <ToggleButtonGroup
               value={mood}
               exclusive
-              onChange={(_, v) =>
-                setMood(typeof v === "string" ? v : undefined)
-              }
+              onChange={(_, v) => setMood(typeof v === "string" ? v : undefined)}
               sx={{ flexWrap: "wrap", gap: 1 }}
             >
-              <ToggleButton
-                value="antes-de-dormir"
-                sx={{ borderRadius: 3, px: 2 }}
-              >
+              <ToggleButton value="antes-de-dormir" sx={{ borderRadius: 3, px: 2 }}>
                 Antes de dormir
               </ToggleButton>
               <ToggleButton value="tempo-livre" sx={{ borderRadius: 3, px: 2 }}>
@@ -293,11 +254,7 @@ function QuizModal({
             <Typography variant="h6" fontWeight={900} sx={{ mb: 2 }}>
               Preferes algum formato?
             </Typography>
-            <ToggleButtonGroup
-              value={format}
-              onChange={(_, v) => setFormat(Array.isArray(v) ? v : [])}
-              sx={{ flexWrap: "wrap", gap: 1 }}
-            >
+            <ToggleButtonGroup value={format} onChange={(_, v) => setFormat(Array.isArray(v) ? v : [])} sx={{ flexWrap: "wrap", gap: 1 }}>
               <ToggleButton value="curto" sx={{ borderRadius: 3, px: 2 }}>
                 Histórias curtas
               </ToggleButton>
@@ -316,12 +273,7 @@ function QuizModal({
             <Typography variant="h6" fontWeight={900} sx={{ mb: 2 }}>
               Faixa etária
             </Typography>
-            <ToggleButtonGroup
-              value={age}
-              exclusive
-              onChange={(_, v) => setAge(typeof v === "string" ? v : undefined)}
-              sx={{ flexWrap: "wrap", gap: 1 }}
-            >
+            <ToggleButtonGroup value={age} exclusive onChange={(_, v) => setAge(typeof v === "string" ? v : undefined)} sx={{ flexWrap: "wrap", gap: 1 }}>
               {["0-2", "3-5", "6-8", "9-12", "12-15"].map((r) => (
                 <ToggleButton key={r} value={r} sx={{ borderRadius: 3, px: 2 }}>
                   {r}
@@ -355,10 +307,13 @@ function QuizModal({
 
 /* ---------- página ---------- */
 export default function SuggestionsPage() {
-  const { user, asChild, selectedChildId } = useUserSession();
+  const { user, asChild, selectedChildId, setSelectedChildId } = useUserSession();
+
+  // Em modo criança: usa a criança ativa; Em modo família: OBRIGATÓRIO escolher uma criança
   const childId = asChild
     ? Number((user?.actingChild?.id as any) ?? (selectedChildId as any))
-    : undefined;
+    : (selectedChildId ? Number(selectedChildId) : undefined);
+
   const familyId = asChild ? undefined : Number(user?.id);
 
   const [items, setItems] = useState<BookLite[] | null>(null);
@@ -367,15 +322,18 @@ export default function SuggestionsPage() {
   const [quizOpen, setQuizOpen] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
 
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  const mustPickChild = !asChild && !childId; // obrigatoriedade em modo família
+
   const subtitle = useMemo(
     () =>
-      source === "perfil"
-        ? "Baseadas no teu perfil (idade/leitura)"
-        : "Baseadas nas tuas respostas ao quiz",
+      source === "perfil" ? "Baseadas no teu perfil (idade/leitura)" : "Baseadas nas tuas respostas ao quiz",
     [source]
   );
 
   async function loadPerfil() {
+    if (mustPickChild) return; // bloqueia enquanto não escolher a criança
     setLoading(true);
     try {
       const raw = await getSugestoesPerfil(12, { childId, familyId });
@@ -389,6 +347,7 @@ export default function SuggestionsPage() {
   }
 
   async function runQuiz(answers: QuizAnswer[]) {
+    if (mustPickChild) return;
     setQuizOpen(false);
     setLoading(true);
     try {
@@ -402,14 +361,13 @@ export default function SuggestionsPage() {
     }
   }
 
-  const [toast, setToast] = useState<{
-    msg: string;
-    type: "success" | "error";
-  } | null>(null);
-
   async function handleReserve(isbn: string) {
+    if (!childId) {
+      setToast({ msg: "Escolhe primeiro a criança.", type: "error" });
+      return;
+    }
     try {
-      await reserveBook(isbn, { childId }); // <— passa o childId (modo criança)
+      await reserveBook(isbn, { childId });
       setToast({ msg: "Reserva efetuada!", type: "success" });
     } catch (e) {
       console.error(e);
@@ -422,15 +380,56 @@ export default function SuggestionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, familyId]);
 
+  const childOptions =
+    (user?.children || []).map((c) => ({
+      id: String(c.id),
+      nome: c.name,
+      avatar: c.avatarUrl || undefined,
+    })) ?? [];
+
+  // ---- Se estiver em modo família e ainda não escolheu a criança, bloqueia a página com o seletor ----
+  if (mustPickChild) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <WhiteCard>
+          <Typography variant="h5" fontWeight={900} sx={{ mb: 1 }}>
+            Sugestões de Leitura
+          </Typography>
+          <Typography sx={{ mb: 2, opacity: 0.8 }}>
+            Escolhe o perfil da criança para gerar sugestões e permitir reservas.
+          </Typography>
+          <AvatarSelect
+            label="Escolher criança"
+            options={childOptions}
+            value={selectedChildId}
+            onChange={(id) => setSelectedChildId(id)}
+            minWidth={280}
+          />
+        </WhiteCard>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* Barra obrigatória de contexto em modo família */}
+      {!asChild && (
+        <WhiteCard sx={{ mb: 2 }}>
+          <Stack direction="row" alignItems="center" spacing={2} useFlexGap flexWrap="wrap">
+            <Typography fontWeight={900}>A atuar como</Typography>
+            <AvatarSelect
+              label="Escolher criança"
+              options={childOptions}
+              value={selectedChildId}
+              onChange={(id) => setSelectedChildId(id)}
+              minWidth={280}
+            />
+          </Stack>
+        </WhiteCard>
+      )}
+
       <WhiteCard>
-        <Stack
-          direction="row"
-          alignItems="center"
-          justifyContent="space-between"
-          sx={{ mb: 1 }}
-        >
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
           <Box>
             <Typography variant="h4" fontWeight={900}>
               Sugestões de Leitura
@@ -445,7 +444,7 @@ export default function SuggestionsPage() {
             )}
           </Box>
           <Stack direction="row" spacing={1}>
-            <Tooltip title="Atualizar lista">
+            <Tooltip title={mustPickChild ? "Escolhe uma criança" : "Atualizar lista"}>
               <span>
                 <IconButton
                   onClick={
@@ -457,15 +456,13 @@ export default function SuggestionsPage() {
                           else setQuizOpen(true);
                         }
                   }
+                  disabled={mustPickChild}
                 >
                   <RefreshRounded />
                 </IconButton>
               </span>
             </Tooltip>
-            <PrimaryButton
-              startIcon={<QuizRounded />}
-              onClick={() => setQuizOpen(true)}
-            >
+            <PrimaryButton startIcon={<QuizRounded />} onClick={() => setQuizOpen(true)} disabled={mustPickChild}>
               Fazer quiz
             </PrimaryButton>
           </Stack>
@@ -484,26 +481,13 @@ export default function SuggestionsPage() {
         {!loading && items && items.length > 0 && (
           <>
             <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-              <Chip
-                label={source === "perfil" ? "Perfil" : "Quiz"}
-                color={source === "perfil" ? "default" : "primary"}
-              />
-              {source === "quiz" && (
-                <Chip
-                  label="Voltar ao perfil"
-                  onClick={loadPerfil}
-                  variant="outlined"
-                />
-              )}
+              <Chip label={source === "perfil" ? "Perfil" : "Quiz"} color={source === "perfil" ? "default" : "primary"} />
+              {source === "quiz" && <Chip label="Voltar ao perfil" onClick={loadPerfil} variant="outlined" />}
             </Stack>
 
             <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
               {items.map((b) => (
-                <SuggestionCard
-                  key={b.isbn}
-                  book={b}
-                  onReserve={(isbn) => handleReserve(isbn)}
-                />
+                <SuggestionCard key={b.isbn} book={b} onReserve={(isbn) => handleReserve(isbn)} disabled={mustPickChild} />
               ))}
             </Stack>
           </>
@@ -526,11 +510,7 @@ export default function SuggestionsPage() {
         )}
       </WhiteCard>
 
-      <QuizModal
-        open={quizOpen}
-        onClose={() => setQuizOpen(false)}
-        onFinish={runQuiz}
-      />
+      <QuizModal open={quizOpen} onClose={() => setQuizOpen(false)} onFinish={runQuiz} />
 
       <Snackbar
         open={!!toast}
