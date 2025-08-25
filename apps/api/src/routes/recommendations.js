@@ -32,6 +32,7 @@ router.post("/recommendations/quiz", async (req, res) => {
   const vec = await embedOne(profile);
   const v = toSqlVector(vec);
 
+  // idade vinda do quiz (ex.: "6-8")
   const ageRange = answers.find(
     (a) => a.id === "age" || a.id === "ageRange"
   )?.value;
@@ -43,16 +44,21 @@ router.post("/recommendations/quiz", async (req, res) => {
     max = Number(m[2]);
   }
 
+  // CASTS seguros para o Postgres
+  const minI = Number.isFinite(min) ? Number(min) : null;
+  const maxI = Number.isFinite(max) ? Number(max) : null;
+
   const exclude = await getAlreadyReadIsbns({ childId, familyId });
+  const excludeArr = Array.isArray(exclude) && exclude.length ? exclude : null;
 
   const rows = await prisma.$queryRaw`
     SELECT b."isbn", b."title", b."coverUrl",
            1 - (b."embedding" <=> ${v}::vector) AS score
     FROM "Book" b
     WHERE b."embedding" IS NOT NULL
-      AND (${min} IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${max})
-      AND (${max} IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${min})
-      AND (array_length(${exclude}::text[],1) IS NULL OR b."isbn" <> ALL(${exclude}::text[]))
+      AND (${minI}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${maxI}::int)
+      AND (${maxI}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${minI}::int)
+      AND (${excludeArr}::text[] IS NULL OR b."isbn" <> ALL(${excludeArr}::text[]))
     ORDER BY b."embedding" <=> ${v}::vector
     LIMIT ${limit};
   `;
@@ -72,8 +78,7 @@ function avgVec(vecs) {
   if (!vecs?.length) return null;
   const n = vecs.length;
   const acc = Array.from(vecs[0], () => 0);
-  for (const v of vecs)
-    for (let i = 0; i < acc.length; i++) acc[i] += Number(v[i] || 0);
+  for (const v of vecs) for (let i = 0; i < acc.length; i++) acc[i] += Number(v[i] || 0);
   for (let i = 0; i < acc.length; i++) acc[i] /= n;
   return acc;
 }
@@ -81,7 +86,6 @@ function asNumArray(v) {
   if (!v) return null;
   if (Array.isArray(v)) return v.map(Number);
   if (typeof v === "string") {
-    // remove [ ] e espaços
     const s = v.replace(/^\s*\[|\]\s*$/g, "");
     if (!s) return null;
     const arr = s.split(",").map((x) => Number(x.trim()));
@@ -102,8 +106,6 @@ function yearsOld(dob) {
 // ======================
 // GET /recommendations/profile
 // Query: ?limit=12&childId=...&familyId=...
-// Usa o embedding do perfil (ChildPreference) ou a média dos livros lidos;
-// se nada existir, faz fallback por idade e ainda grava bootstrap.
 router.get("/recommendations/profile", async (req, res) => {
   const limit = Number(req.query.limit ?? 12);
   const childId = req.query.childId ? Number(req.query.childId) : undefined;
@@ -149,20 +151,23 @@ router.get("/recommendations/profile", async (req, res) => {
         queryVec = avgVec(vecs);
       }
 
-      // ------- 2) FALLBACK COLD-START por idade (CAST para texto) -------
+      // ------- 2) FALLBACK COLD-START por idade -------
       if (!queryVec) {
+        const minAgeI = Number.isFinite(minAge) ? Number(minAge) : null;
+        const maxAgeI = Number.isFinite(maxAge) ? Number(maxAge) : null;
+
         const rows = await prisma.$queryRaw`
           SELECT b.embedding::text AS embedding
           FROM "Book" b
           WHERE b.embedding IS NOT NULL
-            AND (${minAge} IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${maxAge})
-            AND (${maxAge} IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${minAge})
+            AND (${minAgeI}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${maxAgeI}::int)
+            AND (${maxAgeI}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${minAgeI}::int)
           LIMIT 200;
         `;
         const vecs = rows.map((r) => asNumArray(r.embedding)).filter(Boolean);
         queryVec = avgVec(vecs) || null;
 
-        // opcional: guardar bootstrap para futuras chamadas
+        // guardar bootstrap para futuras chamadas
         if (queryVec) {
           const v = toSqlVector(queryVec);
           await prisma.$executeRaw`
@@ -174,7 +179,7 @@ router.get("/recommendations/profile", async (req, res) => {
               "embedding"   = EXCLUDED."embedding",
               "updatedAt"   = now();
           `;
-}
+        }
       }
     } else if (familyId) {
       // família: média das preferências das crianças; senão, média por idade de cada criança
@@ -201,8 +206,8 @@ router.get("/recommendations/profile", async (req, res) => {
             SELECT b.embedding::text AS embedding
             FROM "Book" b
             WHERE b.embedding IS NOT NULL
-              AND (${age} IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${age})
-              AND (${age} IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${age})
+              AND (b."ageMin" IS NULL OR b."ageMin" <= ${age}::int)
+              AND (b."ageMax" IS NULL OR b."ageMax" >= ${age}::int)
             LIMIT 120;
           `;
           const vks = rows.map((r) => asNumArray(r.embedding)).filter(Boolean);
@@ -244,17 +249,21 @@ router.get("/recommendations/profile", async (req, res) => {
       select: { bookIsbn: true },
     });
     const exclude = excludeRows.map((r) => r.bookIsbn);
+    const excludeArr = exclude.length ? exclude : null;
 
     const v = toSqlVector(queryVec);
+
+    const minAgeI = Number.isFinite(minAge) ? Number(minAge) : null;
+    const maxAgeI = Number.isFinite(maxAge) ? Number(maxAge) : null;
 
     const rows = await prisma.$queryRaw`
       SELECT b."isbn", b."title", b."coverUrl",
              1 - (b."embedding" <=> ${v}::vector) AS score
       FROM "Book" b
       WHERE b."embedding" IS NOT NULL
-        AND (${minAge} IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${maxAge})
-        AND (${maxAge} IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${minAge})
-        AND (array_length(${exclude}::text[],1) IS NULL OR b."isbn" <> ALL(${exclude}::text[]))
+        AND (${minAgeI}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${maxAgeI}::int)
+        AND (${maxAgeI}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${minAgeI}::int)
+        AND (${excludeArr}::text[] IS NULL OR b."isbn" <> ALL(${excludeArr}::text[]))
       ORDER BY b."embedding" <=> ${v}::vector
       LIMIT ${limit};
     `;
@@ -264,7 +273,7 @@ router.get("/recommendations/profile", async (req, res) => {
       title: r.title,
       coverUrl: r.coverUrl ?? undefined,
       score: Number((r.score ?? 0).toFixed(3)),
-      why: [], // ex.: ["Baseado no teu perfil (idade)"]
+      why: [],
     }));
     res.json(out);
   } catch (e) {

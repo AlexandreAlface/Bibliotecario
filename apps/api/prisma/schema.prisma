@@ -29,7 +29,7 @@ model User {
   children          ChildFamily[] // relação N:N → ChildFamily
   ratings           Rating[] // relação 1:N → Rating
   pointsHistory     PointsHistory[] // relação 1:N → PointsHistory
-  bookReservations  BookReservation[] // relação 1:N → BookReservation
+  // bookReservations  BookReservation[] // relação 1:N → BookReservation ERRADO
   eventReservations EventReservation[] // relação 1:N → EventReservation
 
   consultationsAsFamily    Consultation[] @relation("ConsultationsAsFamily") // relação 1:N → Consultation (família)
@@ -143,7 +143,10 @@ model Child {
   families         ChildFamily[] // relação N:N → ChildFamily
   readings         Reading[] // relação 1:N → Reading
   badgeAssignments BadgeAssignment[] // relação 1:N → BadgeAssignment
+  
   ChildPreference  ChildPreference?
+
+  bookReservations BookReservation[]
 }
 
 model ChildPreference {
@@ -266,8 +269,8 @@ model EventReservation {
 // Reservas de livros
 model BookReservation {
   id         Int      @id @default(autoincrement()) // PK: id_reserva_livro
-  user       User     @relation(fields: [userId], references: [id])
-  userId     Int // FK → User.id
+  child      Child    @relation(fields: [childId], references: [id])   // ✅ NOVO
+  childId    Int
   book       Book     @relation(fields: [bookIsbn], references: [isbn])
   bookIsbn   String // FK → Book.isbn
   reservedAt DateTime @default(now()) // data_reserva

@@ -1,17 +1,17 @@
 // apps/mobile/app/(tabs)/sugestoes.tsx
 import SelectChild from "@bibliotecario/ui-mobile/components/Avatars/SelectChild";
 import React, { useEffect, useMemo, useState } from "react";
-import { FlatList, View } from "react-native";
+import { ScrollView, View, RefreshControl } from "react-native";
 import {
   Appbar,
   Button,
   Card,
   Chip,
-  IconButton,
   Modal,
   Portal,
   Snackbar,
   Text,
+  useTheme,
 } from "react-native-paper";
 import { useAuth } from "src/contexts/AuthContext";
 import {
@@ -20,6 +20,10 @@ import {
   type QuizAnswer,
 } from "src/services/recommendations";
 import { reserveBook } from "src/services/reservations";
+import { router, usePathname } from "expo-router";
+import { Background, LinkText } from "@bibliotecario/ui-mobile";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { TABBAR_HEIGHT } from "./_layout";
 
 type BookLite = {
   isbn: string;
@@ -66,24 +70,28 @@ const QUIZ_STEPS = [
 
 export default function SugestoesTab() {
   const { user } = useAuth();
+  const pathname = usePathname();
+  const onQuiz =
+    pathname?.includes("/sugestoes") && !pathname.includes("categorias");
+  const onCategorias = pathname?.includes("sugestoes-categorias");
 
-  // actingChild vindo do backend (me())
   const actingChildId = (user as any)?.actingChild?.id
     ? Number((user as any).actingChild.id)
     : undefined;
 
-  // seleção local obrigatória quando não há actingChild
-  const [selectedChildId, setSelectedChildId] = useState<string | undefined>(undefined);
-
-  // childId efetivo: se houver actingChild usa esse; senão, o selecionado localmente
-  const childId = actingChildId ?? (selectedChildId ? Number(selectedChildId) : undefined);
+  const [selectedChildId, setSelectedChildId] = useState<string | undefined>();
+  const childId =
+    actingChildId ?? (selectedChildId ? Number(selectedChildId) : undefined);
 
   const [items, setItems] = useState<BookLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"perfil" | "quiz">("perfil");
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizState, setQuizState] = useState<Record<string, any>>({});
-  const [snack, setSnack] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [snack, setSnack] = useState<{
+    msg: string;
+    type: "success" | "error";
+  } | null>(null);
 
   const subtitle = useMemo(
     () =>
@@ -94,7 +102,7 @@ export default function SugestoesTab() {
   );
 
   async function loadPerfil() {
-    if (!childId) return; // obrigatório escolher criança
+    if (!childId) return;
     setLoading(true);
     try {
       const data = await getSugestoesPerfil(12, { childId });
@@ -123,7 +131,7 @@ export default function SugestoesTab() {
         setSnack({ msg: "Escolhe a criança primeiro.", type: "error" });
         return;
       }
-      await reserveBook(isbn, { childId }); // envia sempre o childId
+      await reserveBook(isbn, { childId });
       setSnack({ msg: "Reserva efetuada!", type: "success" });
     } catch (e) {
       console.error(e);
@@ -136,103 +144,221 @@ export default function SugestoesTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId]);
 
+  const insets = useSafeAreaInsets();
+  const theme = useTheme();
+
+  const CardContainer: React.FC<{ children: React.ReactNode; style?: any }> = ({
+    children,
+    style,
+  }) => (
+    <View
+      style={[
+        {
+          backgroundColor: theme.colors.background,
+          borderRadius: 16,
+          padding: 16,
+          // sombra iOS
+          shadowColor: "#000",
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
+          // elevação Android
+          elevation: 2,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+
   return (
-    <>
-      <Appbar.Header mode="small">
-        <Appbar.Content title="Sugestões de Leitura" subtitle={subtitle} />
-        <IconButton
-          icon="refresh"
-          disabled={loading || !childId}
-          onPress={() => (mode === "perfil" ? loadPerfil() : handleQuizFinish())}
-        />
-        <Button
-          mode="contained"
-          icon="help-circle-outline"
-          onPress={() => setQuizOpen(true)}
-          disabled={!childId}
-        >
-          Fazer quiz
-        </Button>
-      </Appbar.Header>
-
-      {/* Se não houver actingChild e ainda não foi escolhida localmente, força seleção */}
-      {!actingChildId && (
-        <View style={{ padding: 16, gap: 12 }}>
-          <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
-            Escolhe a criança
-          </Text>
-          <SelectChild
-            label="Selecionar criança"
-            placeholder="Escolhe um perfil"
-            // 🔽 mapeia para o shape correto: { id, name, avatarUri }
-            options={(user?.children || []).map((c: any) => ({
-              id: String(c.id),
-              name: c.name,
-              avatarUri: c.avatarUrl || undefined,
-            }))}
-            value={selectedChildId ?? ""}
-            onChange={(id: string) => setSelectedChildId(id)}
+    <Background>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        refreshControl={
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={() =>
+              mode === "perfil" ? loadPerfil() : handleQuizFinish()
+            }
           />
-          {!childId && (
-            <Text variant="bodyMedium" style={{ opacity: 0.7 }}>
-              Seleciona uma criança para veres sugestões e poderes reservar.
-            </Text>
-          )}
-        </View>
-      )}
-
-      <FlatList
-        contentContainerStyle={{ padding: 16, gap: 12 }}
-        data={items}
-        numColumns={2}
-        keyExtractor={(b) => b.isbn}
-        refreshing={loading}
-        onRefresh={mode === "perfil" ? loadPerfil : () => handleQuizFinish()}
-        renderItem={({ item }) => (
-          <Card style={{ flex: 1, margin: 6 }}>
-            <Card.Cover
-              source={
-                item.coverUrl
-                  ? { uri: item.coverUrl }
-                  : require("../../assets/placeholder-book.png")
+        }
+        contentContainerStyle={{
+          paddingTop: Math.max(insets.top + 8),
+          paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
+          paddingHorizontal: 16,
+          rowGap: 16,
+        }}
+      >
+        {/* WHITE CARD #1 — Header + links + seletor */}
+        <CardContainer>
+          <Appbar.Header
+            mode="small"
+            style={{
+              backgroundColor: "transparent",
+              elevation: 0,
+              paddingHorizontal: 0,
+            }}
+          >
+            <Appbar.Content title="Sugestões de Leitura" subtitle={subtitle} />
+            <Appbar.Action
+              icon="refresh"
+              disabled={loading || !childId}
+              onPress={() =>
+                mode === "perfil" ? loadPerfil() : handleQuizFinish()
               }
-              resizeMode="cover"
-              style={{ height: 200 }}
             />
-            <Card.Content>
-              <Text variant="titleSmall" numberOfLines={2} style={{ marginTop: 8 }}>
-                {item.title}
+            <Button
+              mode="contained"
+              icon="help-circle-outline"
+              onPress={() => setQuizOpen(true)}
+              disabled={!childId}
+            >
+              Fazer quiz
+            </Button>
+          </Appbar.Header>
+
+          {/* Links sublinhados */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              columnGap: 8,
+              marginTop: 4,
+            }}
+          >
+            <LinkText
+              underline
+              size="sm"
+              onPress={() => router.push("/(tabs)/sugestoes")}
+              style={onQuiz ? { fontWeight: "700" } : { opacity: 0.85 }}
+            >
+              Quiz
+            </LinkText>
+            <Text>·</Text>
+            <LinkText
+              underline
+              size="sm"
+              onPress={() => router.push("/(tabs)/sugestoes-categorias")}
+              style={onCategorias ? { fontWeight: "700" } : { opacity: 0.85 }}
+            >
+              Categorias
+            </LinkText>
+          </View>
+
+          {/* Seletor de criança (obrigatório se não há actingChild) */}
+          {!actingChildId && (
+            <View style={{ rowGap: 10, marginTop: 12 }}>
+              <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
+                Escolhe a criança
               </Text>
-              {typeof item.score === "number" ? (
-                <Text variant="labelSmall" style={{ opacity: 0.6 }}>
-                  score {item.score.toFixed(3)}
+              <SelectChild
+                label="Selecionar criança"
+                placeholder="Escolhe um perfil"
+                options={(user?.children ?? []).map((c: any) => ({
+                  id: String(c.id),
+                  name: c.name,
+                  avatarUri: c.avatarUrl || undefined,
+                }))}
+                value={selectedChildId}
+                onChange={(id?: string) => setSelectedChildId(id)}
+                clearable
+                disabled={!user?.children?.length}
+                menuMaxHeight={360}
+              />
+              {!childId && (
+                <Text style={{ opacity: 0.7 }}>
+                  Seleciona uma criança para veres sugestões e poderes reservar.
                 </Text>
-              ) : null}
-              {item.why?.length ? (
-                <Chip compact style={{ marginTop: 6 }} icon="information-outline">
-                  {item.why[0]}
-                </Chip>
-              ) : null}
-            </Card.Content>
-            <Card.Actions>
-              <Button onPress={() => onReserve(item.isbn)} disabled={!childId}>
-                Reservar
-              </Button>
-            </Card.Actions>
-          </Card>
-        )}
-        ListEmptyComponent={
-          !loading ? (
-            <View style={{ padding: 24 }}>
-              <Text variant="bodyMedium" style={{ opacity: 0.7 }}>
+              )}
+            </View>
+          )}
+        </CardContainer>
+
+        {/* WHITE CARD #2 — Grelha de sugestões */}
+        <CardContainer>
+          {items.length === 0 ? (
+            <View style={{ paddingVertical: 12 }}>
+              <Text style={{ opacity: 0.7 }}>
                 {childId
                   ? "Sem resultados. Experimenta o quiz para explorar novos livros."
                   : "Seleciona uma criança para começar."}
               </Text>
             </View>
-          ) : null
-        }
-      />
+          ) : (
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                justifyContent: "space-between",
+              }}
+            >
+              {items.map((item) => (
+                <Card
+                  key={item.isbn}
+                  style={{ width: "48%", marginBottom: 12 }}
+                >
+                  <Card.Cover
+                    source={
+                      item.coverUrl
+                        ? { uri: item.coverUrl }
+                        : require("../../assets/placeholder-book.png")
+                    }
+                    resizeMode="cover"
+                    style={{ height: 200 }}
+                  />
+                  <Card.Content>
+                    <Text
+                      variant="titleSmall"
+                      numberOfLines={2}
+                      style={{ marginTop: 8 }}
+                    >
+                      {item.title}
+                    </Text>
+                    {typeof item.score === "number" ? (
+                      <Text variant="labelSmall" style={{ opacity: 0.6 }}>
+                        score {item.score.toFixed(3)}
+                      </Text>
+                    ) : null}
+                    {item.why?.length ? (
+                      <Chip
+                        compact
+                        style={{ marginTop: 6 }}
+                        icon="information-outline"
+                      >
+                        {item.why[0]}
+                      </Chip>
+                    ) : null}
+                  </Card.Content>
+                  <Card.Actions>
+                    <Button
+                      onPress={() => onReserve(item.isbn)}
+                      disabled={!childId}
+                    >
+                      Reservar
+                    </Button>
+                  </Card.Actions>
+                </Card>
+              ))}
+            </View>
+          )}
+        </CardContainer>
+
+        {/* Snackbar */}
+        <Snackbar
+          visible={!!snack}
+          onDismiss={() => setSnack(null)}
+          duration={3000}
+          action={
+            snack?.type === "error"
+              ? { label: "Fechar", onPress: () => setSnack(null) }
+              : undefined
+          }
+        >
+          {snack?.msg}
+        </Snackbar>
+      </ScrollView>
 
       {/* Quiz modal */}
       <Portal>
@@ -246,7 +372,10 @@ export default function SugestoesTab() {
             padding: 16,
           }}
         >
-          <Text variant="titleMedium" style={{ fontWeight: "bold", marginBottom: 8 }}>
+          <Text
+            variant="titleMedium"
+            style={{ fontWeight: "bold", marginBottom: 8 }}
+          >
             Sugestões — Quiz
           </Text>
 
@@ -258,7 +387,8 @@ export default function SugestoesTab() {
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 {step.items.map((it) => {
                   const selected = step.multi
-                    ? Array.isArray(quizState[step.id]) && quizState[step.id]?.includes(it)
+                    ? Array.isArray(quizState[step.id]) &&
+                      quizState[step.id]?.includes(it)
                     : quizState[step.id] === it;
                   return (
                     <Chip
@@ -268,7 +398,9 @@ export default function SugestoesTab() {
                       onPress={() => {
                         setQuizState((s) => {
                           if (step.multi) {
-                            const prev = Array.isArray(s[step.id]) ? s[step.id] : [];
+                            const prev = Array.isArray(s[step.id])
+                              ? s[step.id]
+                              : [];
                             return {
                               ...s,
                               [step.id]: prev.includes(it)
@@ -276,7 +408,10 @@ export default function SugestoesTab() {
                                 : [...prev, it],
                             };
                           } else {
-                            return { ...s, [step.id]: s[step.id] === it ? undefined : it };
+                            return {
+                              ...s,
+                              [step.id]: s[step.id] === it ? undefined : it,
+                            };
                           }
                         });
                       }}
@@ -289,7 +424,14 @@ export default function SugestoesTab() {
             </View>
           ))}
 
-          <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "flex-end",
+              gap: 8,
+              marginTop: 8,
+            }}
+          >
             <Button
               onPress={() => {
                 setQuizState({});
@@ -298,22 +440,17 @@ export default function SugestoesTab() {
             >
               Cancelar
             </Button>
-            <Button mode="contained" onPress={handleQuizFinish} disabled={!quizReady(quizState) || !childId}>
+            <Button
+              mode="contained"
+              onPress={handleQuizFinish}
+              disabled={!quizReady(quizState) || !childId}
+            >
               Ver sugestões
             </Button>
           </View>
         </Modal>
       </Portal>
-
-      <Snackbar
-        visible={!!snack}
-        onDismiss={() => setSnack(null)}
-        duration={3000}
-        action={snack?.type === "error" ? { label: "Fechar", onPress: () => setSnack(null) } : undefined}
-      >
-        {snack?.msg}
-      </Snackbar>
-    </>
+    </Background>
   );
 
   function quizReady(state: Record<string, any>) {

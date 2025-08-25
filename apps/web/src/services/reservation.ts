@@ -1,13 +1,20 @@
 import { api } from "./https";
 
-/** Cria uma reserva para o utilizador (family) resolvido pelo childId (ou auth) */
+type ReserveCtx = {
+  childId?: number;
+  familyId?: number;
+};
+
 export async function reserveBook(
   isbn: string,
-  opts?: { childId?: number; familyId?: number }
+  ctx: ReserveCtx = {}
 ): Promise<{ ok: boolean; id: number; reservedAt: string }> {
   const qs = new URLSearchParams();
-  if (opts?.childId) qs.set("childId", String(opts.childId));
-  if (opts?.familyId) qs.set("familyId", String(opts.familyId));
-  const url = `/reservations${qs.toString() ? `?${qs.toString()}` : ""}`;
+  if (ctx.childId != null) qs.set("childId", String(ctx.childId));
+  if (ctx.familyId != null) qs.set("familyId", String(ctx.familyId));
+
+  const query = qs.toString();
+  const url = query ? `/reservations?${query}` : "/reservations";
+
   return api(url, { method: "POST", data: { isbn } });
 }

@@ -1,12 +1,13 @@
-import { request } from "./api";
+// apps/mobile/src/services/reservations.ts
+import axios from "axios";
+
+const API = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3333/api";
 
 export async function reserveBook(
   isbn: string,
-  opts: { childId?: number; familyId?: number } = {}
+  opts: { childId: number }
 ): Promise<{ ok: boolean; id: number; reservedAt: string }> {
-  const qs = new URLSearchParams();
-  if (opts.childId) qs.set("childId", String(opts.childId));
-  if (opts.familyId) qs.set("familyId", String(opts.familyId));
-  const url = `/reservations${qs.toString() ? `?${qs.toString()}` : ""}`;
-  return request(url, { method: "POST", json: { isbn } });
+  const qs = new URLSearchParams({ childId: String(opts.childId) });
+  const { data } = await axios.post(`${API}/reservations?${qs.toString()}`, { isbn }, { withCredentials: true });
+  return data;
 }

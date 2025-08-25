@@ -15,6 +15,7 @@ import ConsultasPage from "@/pages/consultas";
 import Login from "@/pages/auth/Login";
 import CreateAccount from "@/pages/auth/CreateAccount";
 import CreateProfilesPage from "@/pages/auth/CreateProfilesPage";
+import SuggestionsByCategoriesPage from "@/pages/suggestions-categories";
 
 // Layout simples para as rotas de auth (sem sidebar)
 // (se quiseres, troca por um componente em src/layouts/AuthLayout.tsx)
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <LandingPage /> },
       { path: "suggestions", element: <SuggestionsPage /> },
+      { path: "suggestions-categories", element: <SuggestionsByCategoriesPage /> },
       { path: "achievements", element: <AchievementsPage /> },
       { path: "agenda", element: <AgendasPage /> },
       { path: "consultas", element: <ConsultasPage /> },

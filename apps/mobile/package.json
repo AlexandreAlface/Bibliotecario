@@ -13,6 +13,7 @@
     "@bibliotecario/ui-mobile": "file:../../packages/ui-mobile",
     "@expo-google-fonts/poppins": "^0.4.0",
     "@hookform/resolvers": "^5.2.1",
+    "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native/virtualized-lists": "^0.81.0",
     "expo": "~53.0.20",
     "expo-font": "~13.3.2",
@@ -30,7 +31,7 @@
     "react-native-reanimated": "3.17.5",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1",
-    "zod": "^4.0.17"
+    "zod": "^4.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

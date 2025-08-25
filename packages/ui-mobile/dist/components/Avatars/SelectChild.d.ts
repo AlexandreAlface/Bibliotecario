@@ -10,13 +10,15 @@ export interface SelectChildProps {
     placeholder?: string;
     value?: string;
     options: ChildOption[];
-    onChange: (id: string) => void;
+    onChange: (id: string | undefined) => void;
     disabled?: boolean;
     menuMaxHeight?: number;
     anchorTestID?: string;
     accessibilityLabel?: string;
     /** Ajusta o posicionamento relativo ao anchor */
     anchorPosition?: MenuProps["anchorPosition"];
+    /** Mostra um “✕” para limpar a seleção rapidamente */
+    clearable?: boolean;
 }
 declare const SelectChild: React.FC<SelectChildProps>;
 export default SelectChild;

@@ -57,7 +57,6 @@ function readQuizFromStorage(): QuizAnswer[] | null {
     return null;
   }
 }
-// normaliza payload vindo do serviço (array direto, {data:[...]}, {items:[...]})
 function normalizeBooks(payload: any): BookLite[] {
   if (Array.isArray(payload)) return payload as BookLite[];
   if (Array.isArray(payload?.data)) return payload.data as BookLite[];
@@ -309,7 +308,6 @@ function QuizModal({
 export default function SuggestionsPage() {
   const { user, asChild, selectedChildId, setSelectedChildId } = useUserSession();
 
-  // Em modo criança: usa a criança ativa; Em modo família: OBRIGATÓRIO escolher uma criança
   const childId = asChild
     ? Number((user?.actingChild?.id as any) ?? (selectedChildId as any))
     : (selectedChildId ? Number(selectedChildId) : undefined);
@@ -324,16 +322,15 @@ export default function SuggestionsPage() {
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const mustPickChild = !asChild && !childId; // obrigatoriedade em modo família
+  const mustPickChild = !asChild && !childId;
 
   const subtitle = useMemo(
-    () =>
-      source === "perfil" ? "Baseadas no teu perfil (idade/leitura)" : "Baseadas nas tuas respostas ao quiz",
+    () => (source === "perfil" ? "Baseadas no teu perfil (idade/leitura)" : "Baseadas nas tuas respostas ao quiz"),
     [source]
   );
 
   async function loadPerfil() {
-    if (mustPickChild) return; // bloqueia enquanto não escolher a criança
+    if (mustPickChild) return;
     setLoading(true);
     try {
       const raw = await getSugestoesPerfil(12, { childId, familyId });
@@ -376,7 +373,7 @@ export default function SuggestionsPage() {
   }
 
   useEffect(() => {
-    loadPerfil(); // ao abrir e quando muda o contexto
+    loadPerfil();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, familyId]);
 
@@ -387,7 +384,6 @@ export default function SuggestionsPage() {
       avatar: c.avatarUrl || undefined,
     })) ?? [];
 
-  // ---- Se estiver em modo família e ainda não escolheu a criança, bloqueia a página com o seletor ----
   if (mustPickChild) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -395,7 +391,12 @@ export default function SuggestionsPage() {
           <Typography variant="h5" fontWeight={900} sx={{ mb: 1 }}>
             Sugestões de Leitura
           </Typography>
-          <Typography sx={{ mb: 2, opacity: 0.8 }}>
+          <Typography sx={{ opacity: 0.75 }}>{/* nav entre páginas */}
+            <RouteLink href="/suggestions" weight={600}>Quiz</RouteLink>
+            {" · "}
+            <RouteLink href="/suggestions-categories" weight={600}>Categorias</RouteLink>
+          </Typography>
+          <Typography sx={{ mt: 1.5, mb: 2, opacity: 0.8 }}>
             Escolhe o perfil da criança para gerar sugestões e permitir reservas.
           </Typography>
           <AvatarSelect
@@ -412,7 +413,6 @@ export default function SuggestionsPage() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Barra obrigatória de contexto em modo família */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
           <Stack direction="row" alignItems="center" spacing={2} useFlexGap flexWrap="wrap">
@@ -434,9 +434,18 @@ export default function SuggestionsPage() {
             <Typography variant="h4" fontWeight={900}>
               Sugestões de Leitura
             </Typography>
+
             <Typography variant="body2" sx={{ opacity: 0.75 }}>
               {subtitle}
             </Typography>
+
+            {/* nav entre páginas (links sublinhados) */}
+            <Typography variant="body2" sx={{ mt: 0.25 }}>
+              <RouteLink href="/suggestions" weight={600}>Quiz</RouteLink>
+              {" · "}
+              <RouteLink href="/suggestions-categories" weight={600}>Categorias</RouteLink>
+            </Typography>
+
             {!!updatedAt && (
               <Typography variant="caption" sx={{ opacity: 0.6 }}>
                 Última geração: {new Date(updatedAt).toLocaleString("pt-PT")}
@@ -496,13 +505,7 @@ export default function SuggestionsPage() {
         {!loading && items && items.length === 0 && (
           <Typography sx={{ opacity: 0.7 }}>
             Sem resultados. Tenta o{" "}
-            <RouteLink
-              href="#"
-              onClick={(e: any) => {
-                e.preventDefault();
-                setQuizOpen(true);
-              }}
-            >
+            <RouteLink href="#" onClick={(e: any) => { e.preventDefault(); setQuizOpen(true); }} weight={600}>
               quiz
             </RouteLink>{" "}
             para explorar novos livros.

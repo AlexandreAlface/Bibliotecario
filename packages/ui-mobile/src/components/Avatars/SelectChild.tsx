@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { View, StyleSheet, LayoutChangeEvent, Image } from "react-native";
+import { View, StyleSheet, LayoutChangeEvent, Image, Pressable, Dimensions } from "react-native";
 import {
   Text,
   Menu,
@@ -8,6 +8,7 @@ import {
   useTheme,
   MenuProps,
 } from "react-native-paper";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export type ChildOption = {
   id: string;
@@ -18,15 +19,17 @@ export type ChildOption = {
 export interface SelectChildProps {
   label?: string;
   placeholder?: string;
-  value?: string; // id selecionado
+  value?: string;                 // id selecionado
   options: ChildOption[];
-  onChange: (id: string) => void;
+  onChange: (id: string | undefined) => void; // permite limpar (undefined)
   disabled?: boolean;
-  menuMaxHeight?: number;
+  menuMaxHeight?: number;         // se não passar, calculo com safe area
   anchorTestID?: string;
   accessibilityLabel?: string;
   /** Ajusta o posicionamento relativo ao anchor */
   anchorPosition?: MenuProps["anchorPosition"];
+  /** Mostra um “✕” para limpar a seleção rapidamente */
+  clearable?: boolean;
 }
 
 const getInitials = (name: string) =>
@@ -80,12 +83,14 @@ const SelectChild: React.FC<SelectChildProps> = ({
   options,
   onChange,
   disabled,
-  menuMaxHeight = 320,
+  menuMaxHeight,
   anchorTestID,
   accessibilityLabel,
   anchorPosition = "bottom",
+  clearable = false,
 }) => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const [anchorWidth, setAnchorWidth] = useState<number | undefined>();
 
@@ -101,6 +106,10 @@ const SelectChild: React.FC<SelectChildProps> = ({
 
   const selectedInitials = selected ? getInitials(selected.name) : undefined;
 
+  // altura segura (fallback) quando o dev não define menuMaxHeight
+  const fallbackMaxH =
+    Dimensions.get("window").height - (insets.top + insets.bottom) - 48;
+
   return (
     <View accessible accessibilityLabel={accessibilityLabel ?? label}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -115,6 +124,7 @@ const SelectChild: React.FC<SelectChildProps> = ({
             onLayout={onAnchorLayout}
             onPress={() => setOpen((v) => !v)}
             testID={anchorTestID}
+            accessibilityRole="button"
             accessibilityLabel={
               selected
                 ? `${label}. Selecionado: ${selected.name}. Tocar para alterar.`
@@ -145,6 +155,18 @@ const SelectChild: React.FC<SelectChildProps> = ({
                   >
                     {selected.name}
                   </Text>
+
+                  {/* Botão limpar (opcional) */}
+                  {clearable && !disabled ? (
+                    <Pressable
+                      onPress={() => onChange(undefined)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Limpar seleção"
+                      hitSlop={8}
+                    >
+                      <Text style={styles.clearX}>✕</Text>
+                    </Pressable>
+                  ) : null}
                 </>
               ) : (
                 <Text
@@ -170,7 +192,7 @@ const SelectChild: React.FC<SelectChildProps> = ({
           styles.menuContent,
           {
             width: anchorWidth,
-            maxHeight: menuMaxHeight,
+            maxHeight: menuMaxHeight ?? fallbackMaxH,
             backgroundColor: theme.colors.background,
           },
         ]}
@@ -230,6 +252,11 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 16,
     opacity: 0.7,
+  },
+  clearX: {
+    marginLeft: 6,
+    fontSize: 14,
+    opacity: 0.6,
   },
   menuOuter: {},
   menuContent: {
