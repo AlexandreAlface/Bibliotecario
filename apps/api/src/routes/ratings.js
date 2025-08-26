@@ -32,8 +32,7 @@ router.get("/pending", async (req, res) => {
       SELECT br.id AS "reservationId", br."reservedAt",
              b."isbn", b."title", b."coverUrl",
              r."id" AS "readingId", r."startedAt", r."finishedAt",
-             (SELECT MAX(rt."stars") FROM "Rating" rt
-               WHERE rt."userId" = ${userId} AND rt."bookIsbn" = br."bookIsbn") AS "stars"
+             ur."stars" AS "stars", ur."comment" AS "comment", ur."ratedAt" AS "ratedAt"
       FROM "BookReservation" br
       JOIN "Book" b ON b."isbn" = br."bookIsbn"
       LEFT JOIN LATERAL (
@@ -43,6 +42,13 @@ router.get("/pending", async (req, res) => {
         ORDER BY r2."id" DESC
         LIMIT 1
       ) r ON TRUE
+      LEFT JOIN LATERAL (
+        SELECT rt."stars", rt."comment", rt."ratedAt"
+        FROM "Rating" rt
+        WHERE rt."userId" = ${userId} AND rt."bookIsbn" = br."bookIsbn"
+        ORDER BY rt."ratedAt" DESC
+        LIMIT 1
+      ) ur ON TRUE
       WHERE br."childId" = ${cid}
       ORDER BY br."reservedAt" DESC
       LIMIT ${limit};
@@ -63,6 +69,8 @@ router.get("/pending", async (req, res) => {
         startedAt: r.startedAt,
         finishedAt: r.finishedAt,
         stars: r.stars ? Number(r.stars) : null,
+        comment: r.comment ?? null,
+        ratedAt: r.ratedAt ?? null,
         readingId: r.readingId ?? null,
       };
     });
@@ -203,11 +211,14 @@ async function recomputeChildPreferenceFromRatings(prisma, childId) {
     const v = asNumArray(r.embedding);
     if (!v) continue;
 
-    const stars = Number(r.stars || 0);                 // 1..5
-    const ageDays = Math.max(0, (now - new Date(r.ratedAt).getTime()) / 86400000);
-    const recency = Math.exp(-ageDays / 180);           // meia-vida ~6 meses
+    const stars = Number(r.stars || 0); // 1..5
+    const ageDays = Math.max(
+      0,
+      (now - new Date(r.ratedAt).getTime()) / 86400000
+    );
+    const recency = Math.exp(-ageDays / 180); // meia-vida ~6 meses
     const starGain = Math.max(0, Math.min(1, (stars - 2) / 3)); // 1..5 → 0..1 (<=2 dá 0)
-    const w = (0.2 + starGain) * recency;              // base 0.2 + ganho por estrelas, atenuado pela recência
+    const w = (0.2 + starGain) * recency; // base 0.2 + ganho por estrelas, atenuado pela recência
 
     vecs.push(v);
     weights.push(w);
@@ -225,12 +236,18 @@ async function recomputeChildPreferenceFromRatings(prisma, childId) {
   });
 
   if (comm.length) {
-    const text = comm.map(c => c.comment).filter(Boolean).join("\n");
+    const text = comm
+      .map((c) => c.comment)
+      .filter(Boolean)
+      .join("\n");
     try {
-      const textVec = await embedOne(`Comentários de livros de que gostei: ${text}`);
+      const textVec = await embedOne(
+        `Comentários de livros de que gostei: ${text}`
+      );
       const alpha = 0.2; // 20% texto, 80% livros
       const L = Math.min(centroid.length, textVec.length);
-      for (let i = 0; i < L; i++) centroid[i] = centroid[i] * (1 - alpha) + textVec[i] * alpha;
+      for (let i = 0; i < L; i++)
+        centroid[i] = centroid[i] * (1 - alpha) + textVec[i] * alpha;
     } catch (e) {
       console.error("embedOne(comments) falhou:", e);
       // segue só com o centroid calculado pelas avaliações

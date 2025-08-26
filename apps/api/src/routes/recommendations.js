@@ -6,7 +6,7 @@ import {
   buildProfileText,
   getAlreadyReadIsbns,
   toSqlVector,
-} from "../reco/utils.js";
+  weightedCentroid} from "../reco/utils.js";
 
 const prisma = new PrismaClient();
 const router = Router();

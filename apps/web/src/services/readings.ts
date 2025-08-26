@@ -38,7 +38,7 @@ export async function getLeiturasAtuais(
       finishedAt: r.finishedAt ?? null,
       childId: r.childId,
       childName: r.childName ?? null,
-      stars: r.stars ?? null, 
+      stars: r.stars ?? null,
       comment: r.comment ?? null,
     })
   );
@@ -80,6 +80,8 @@ export type PendingRating = {
   startedAt?: string | null;
   finishedAt?: string | null;
   stars: number | null; // do utilizador atual
+  comment?: string | null;
+  ratedAt?: string | null; 
 };
 
 export async function listPendingRatings(ctx: {

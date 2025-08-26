@@ -60,3 +60,26 @@ export function buildProfileText(answers) {
     .filter(Boolean)
     .join(" ");
 }
+
+// ... (o que já tens)
+
+export function weightedCentroid(vecs, weights = []) {
+  if (!vecs?.length) return null;
+  const d = vecs[0].length;
+  const acc = new Array(d).fill(0);
+  let sumW = 0;
+
+  for (let i = 0; i < vecs.length; i++) {
+    const v = vecs[i];
+    const w = Number(weights?.[i] ?? 1);
+    if (!Array.isArray(v) || v.length !== d) continue;
+    if (!Number.isFinite(w) || w <= 0) continue;
+
+    for (let j = 0; j < d; j++) acc[j] += v[j] * w;
+    sumW += w;
+  }
+  if (sumW === 0) return null;
+  for (let j = 0; j < d; j++) acc[j] /= sumW;
+  return acc;
+}
+
