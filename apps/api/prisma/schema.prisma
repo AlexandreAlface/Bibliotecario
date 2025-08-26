@@ -134,19 +134,20 @@ model BookOrigin {
 
 // Dados de crianças para perfil de leitor
 model Child {
-  id            Int      @id @default(autoincrement()) // PK: id_crianca
-  name          String // nome da criança
-  birthDate     DateTime // data de nascimento
-  gender        String? // género (“M”/“F”)
-  readerProfile String? // perfil_leitor
+  id            Int      @id @default(autoincrement())
+  name          String
+  birthDate     DateTime
+  gender        String?
+  readerProfile String?
 
-  families         ChildFamily[] // relação N:N → ChildFamily
-  readings         Reading[] // relação 1:N → Reading
-  badgeAssignments BadgeAssignment[] // relação 1:N → BadgeAssignment
-  
+  families         ChildFamily[]
+  readings         Reading[]
+  badgeAssignments BadgeAssignment[]
   ChildPreference  ChildPreference?
-
   bookReservations BookReservation[]
+
+  // 👇 lado oposto da relação com Rating
+  ratings Rating[]
 }
 
 model ChildPreference {
@@ -168,26 +169,48 @@ model ChildFamily {
   @@id([childId, familyId]) // PK composto
 }
 
-// Histórico de leituras marcadas
+// -------------------- Reading --------------------
 model Reading {
-  id       Int      @id @default(autoincrement()) // PK: id_leitura
-  child    Child    @relation(fields: [childId], references: [id])
-  childId  Int // FK → Child.id
-  book     Book     @relation(fields: [bookIsbn], references: [isbn])
-  bookIsbn String // FK → Book.isbn
-  readAt   DateTime @default(now()) // data_leitura
+  id       Int    @id @default(autoincrement())
+  child    Child  @relation(fields: [childId], references: [id])
+  childId  Int
+  book     Book   @relation(fields: [bookIsbn], references: [isbn])
+  bookIsbn String
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  // 👇 relação para a reserva (opcional) + FK
+  reservation   BookReservation? @relation(fields: [reservationId], references: [id])
+  reservationId Int?
+
+  // 👇 se quiseres associar avaliações a uma sessão
+  ratings Rating[]
+
+  @@index([childId, finishedAt])
 }
 
-// Avaliação de livros
 model Rating {
-  id       Int      @id @default(autoincrement()) // PK: id_avaliacao
-  user     User     @relation(fields: [userId], references: [id])
-  userId   Int // FK → User.id
-  book     Book     @relation(fields: [bookIsbn], references: [isbn])
-  bookIsbn String // FK → Book.isbn
-  stars    Int // estrelas (1–5)
-  comment  String? // comentário opcional
-  ratedAt  DateTime @default(now()) // data_avaliacao
+  id      Int    @id @default(autoincrement())
+  user    User   @relation(fields: [userId], references: [id]) // quem registou
+  userId  Int
+  // 👇 para que criança vale a avaliação (opcional)
+  child   Child? @relation(fields: [childId], references: [id])
+  childId Int?
+
+  book     Book   @relation(fields: [bookIsbn], references: [isbn])
+  bookIsbn String
+
+  // 👇 opcional: liga à sessão de leitura
+  reading   Reading? @relation(fields: [readingId], references: [id])
+  readingId Int?
+
+  stars   Int
+  comment String?
+  ratedAt DateTime @default(now())
+
+  @@index([childId])
+  @@index([bookIsbn])
 }
 
 // Definição de selos e troféus
@@ -268,12 +291,15 @@ model EventReservation {
 
 // Reservas de livros
 model BookReservation {
-  id         Int      @id @default(autoincrement()) // PK: id_reserva_livro
-  child      Child    @relation(fields: [childId], references: [id])   // ✅ NOVO
+  id         Int      @id @default(autoincrement())
+  child      Child    @relation(fields: [childId], references: [id])
   childId    Int
   book       Book     @relation(fields: [bookIsbn], references: [isbn])
-  bookIsbn   String // FK → Book.isbn
-  reservedAt DateTime @default(now()) // data_reserva
+  bookIsbn   String
+  reservedAt DateTime @default(now())
+
+  // 👇 lado oposto da relação com Reading
+  readings Reading[]
 }
 
 // Tabela de newsletters

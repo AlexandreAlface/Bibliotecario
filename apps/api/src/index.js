@@ -6,10 +6,11 @@ import booksRouter from "./routes/books.js";
 import authRouter from "./routes/auth.js";
 import authChildRouter from "./routes/auth-child.js";
 import consultationsRouter from "./routes/consultations.js";
-import readingsRouter from "./routes/readings.js";
 import badgeAssignmentsRouter from "./routes/badge-assignments.js";
 import recommendations from "./routes/recommendations.js";
 import reservationsRouter from "./routes/reservations.js";
+import readingsRouter from "./routes/readings.js";
+import ratingsRouter from "./routes/ratings.js";
 import "dotenv/config";
 
 import cors from "cors";
@@ -41,10 +42,12 @@ app.use("/api", booksRouter);
 app.use('/api/auth', authRouter);
 app.use('/api', authChildRouter);
 app.use("/api/consultations", consultationsRouter);
-app.use("/api/readings", readingsRouter);
 app.use("/api/badge-assignments", badgeAssignmentsRouter);
 app.use("/api", recommendations);
 app.use("/api", reservationsRouter);
+
+app.use("/api/readings", readingsRouter);
+app.use("/api/ratings", ratingsRouter);
 
 
 // Ingestão manual no arranque (RSS)

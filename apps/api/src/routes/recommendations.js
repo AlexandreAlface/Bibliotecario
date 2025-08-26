@@ -78,7 +78,8 @@ function avgVec(vecs) {
   if (!vecs?.length) return null;
   const n = vecs.length;
   const acc = Array.from(vecs[0], () => 0);
-  for (const v of vecs) for (let i = 0; i < acc.length; i++) acc[i] += Number(v[i] || 0);
+  for (const v of vecs)
+    for (let i = 0; i < acc.length; i++) acc[i] += Number(v[i] || 0);
   for (let i = 0; i < acc.length; i++) acc[i] /= n;
   return acc;
 }
@@ -137,6 +138,38 @@ router.get("/recommendations/profile", async (req, res) => {
       `;
       queryVec = asNumArray(pref && pref[0] && pref[0].embedding);
 
+      // 1b) Se ainda não existir, tenta gerar pelas avaliações (mesmo algoritmo do ratings.js)
+      if (!queryVec) {
+        const rowsRt = await prisma.$queryRaw`
+         SELECT b.embedding::text AS embedding, r."stars", r."ratedAt"
+         FROM "Rating" r
+         JOIN "Book" b ON b."isbn" = r."bookIsbn"
+         WHERE r."childId" = ${childId} AND b.embedding IS NOT NULL
+         ORDER BY r."ratedAt" DESC
+         LIMIT 100;
+       `;
+        if (rowsRt.length) {
+          const now = Date.now();
+          const vecs = [];
+          const weights = [];
+          for (const r of rowsRt) {
+            const v = asNumArray(r.embedding);
+            if (!v) continue;
+            const stars = Number(r.stars || 0);
+            const ageDays = Math.max(
+              0,
+              (now - new Date(r.ratedAt).getTime()) / 86400000
+            );
+            const recency = Math.exp(-ageDays / 180);
+            const starGain = Math.max(0, (stars - 2) / 3);
+            const w = (0.2 + starGain) * recency;
+            vecs.push(v);
+            weights.push(w);
+          }
+          queryVec = weightedCentroid(vecs, weights) || null;
+        }
+      }
+
       // média dos livros lidos se não houver preferência (CAST para texto)
       if (!queryVec) {
         const rows = await prisma.$queryRaw`
@@ -144,7 +177,7 @@ router.get("/recommendations/profile", async (req, res) => {
           FROM "Reading" r
           JOIN "Book" b ON b."isbn" = r."bookIsbn"
           WHERE r."childId"=${childId} AND b.embedding IS NOT NULL
-          ORDER BY r."readAt" DESC
+          ORDER BY COALESCE(r."finishedAt", r."startedAt") DESC
           LIMIT 20;
         `;
         const vecs = rows.map((r) => asNumArray(r.embedding)).filter(Boolean);
