@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   Chip,
+  Portal,
   Snackbar,
   Text,
   useTheme,
@@ -532,19 +533,26 @@ export default function SugestoesCategoriasTab() {
             </View>
           )}
         </SectionCard>
-
-        <Snackbar
-          visible={!!snack}
-          onDismiss={() => setSnack(null)}
-          duration={3000}
-          action={
-            snack?.type === "error"
-              ? { label: "Fechar", onPress: () => setSnack(null) }
-              : undefined
-          }
-        >
-          {snack?.msg}
-        </Snackbar>
+        <Portal>
+          <Snackbar
+            visible={!!snack}
+            onDismiss={() => setSnack(null)}
+            duration={2500}
+            action={{
+              label: "Fechar",
+              onPress: () => setSnack(null),
+            }}
+            style={
+              snack?.type === "success"
+                ? { backgroundColor: "#2e7d32" } // verde sucesso
+                : snack?.type === "error"
+                ? { backgroundColor: "#c62828" } // vermelho erro
+                : undefined
+            }
+          >
+            {snack?.msg}
+          </Snackbar>
+        </Portal>
       </ScrollView>
     </Background>
   );

@@ -1,4 +1,4 @@
-// apps/mobile/src/services/ratings.ts
+// src/services/ratings.ts
 import { request } from "./api";
 
 export type PendingRating = {
@@ -14,38 +14,47 @@ export type PendingRating = {
   finishedAt?: string | null; // ISO
 };
 
-export async function getPendingRatings(
-  limit = 10,
-  opts: { childId?: number; familyId?: number } = {}
-): Promise<PendingRating[]> {
-  const qs = new URLSearchParams({ limit: String(limit) });
-  if (opts.childId) qs.set("childId", String(opts.childId));
-  if (opts.familyId) qs.set("familyId", String(opts.familyId));
-  const data = await request<PendingRating[]>(
-    `/ratings/pending?${qs.toString()}`
-  );
-  return Array.isArray(data) ? data : [];
-}
-
 export async function saveRating(input: {
   isbn: string;
   stars: number;
   comment?: string;
-  childId?: number; // ← vai no BODY
-  familyId?: number; // ← pode ir no BODY (ou query, mas body já chega)
-  userId?: number; // ← vai na QUERY ou header
+  childId?: number;
+  familyId?: number;
+  /** opcional: força x-user-id no header */
+  userIdHeader?: number;
 }): Promise<{ ok: boolean }> {
-  const { userId, ...body } = input;
+  const { childId, familyId, userIdHeader, ...body } = input;
 
-  // só userId na query (backend aceita ?userId= ou header x-user-id)
   const qs = new URLSearchParams();
-  if (userId) qs.set("userId", String(userId));
+  if (childId) qs.set("childId", String(childId));
+  if (familyId) qs.set("familyId", String(familyId));
+
+  const headers: Record<string, string> = {};
+  const xUser = userIdHeader ?? familyId;
+  if (xUser) headers["x-user-id"] = String(xUser);
 
   await request(`/ratings${qs.toString() ? `?${qs.toString()}` : ""}`, {
     method: "POST",
-    json: body, // 👈 AQUI: childId/familyId seguem no body
+    json: body,
+    headers,
   });
   return { ok: true };
 }
-// opcional: alias semântico
-export const updateRating = saveRating;
+
+export async function listPendingRatings(opts: {
+  childId?: number;
+  familyId?: number;
+  limit?: number;
+  userIdHeader?: number;
+}) {
+  const qs = new URLSearchParams();
+  if (opts.childId) qs.set("childId", String(opts.childId));
+  if (opts.familyId) qs.set("familyId", String(opts.familyId));
+  if (opts.limit) qs.set("limit", String(opts.limit));
+
+  const headers: Record<string, string> = {};
+  const xUser = opts.userIdHeader ?? opts.familyId;
+  if (xUser) headers["x-user-id"] = String(xUser);
+
+  return request(`/ratings/pending?${qs.toString()}`, { headers });
+}

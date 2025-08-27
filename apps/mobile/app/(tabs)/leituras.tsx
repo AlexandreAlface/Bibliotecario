@@ -10,6 +10,8 @@ import {
   useTheme,
   Snackbar,
   IconButton,
+  TouchableRipple,
+  Divider,
 } from "react-native-paper";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,7 +32,7 @@ import { TABBAR_HEIGHT } from "./_layout";
 
 type PendingStatus = "reserved" | "reading";
 
-/* ---------- WhiteCard consistente ---------- */
+/* ---------- Section Card (branco) ---------- */
 const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({
   children,
   style,
@@ -56,6 +58,35 @@ const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({
     >
       {children}
     </View>
+  );
+};
+
+/* ---------- Mini card para cada livro ---------- */
+const RowCard: React.FC<{
+  children: React.ReactNode;
+  onPress?: () => void;
+  style?: any;
+}> = ({ children, onPress, style }) => {
+  const theme = useTheme();
+  return (
+    <TouchableRipple
+      onPress={onPress}
+      rippleColor={theme.colors.primary}
+      style={[
+        {
+          backgroundColor: theme.colors.background,
+          borderRadius: 12,
+          padding: 12,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.colors.outlineVariant ?? "rgba(0,0,0,0.12)",
+        },
+        style,
+      ]}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        {children}
+      </View>
+    </TouchableRipple>
   );
 };
 
@@ -89,6 +120,24 @@ type HistoryRow = {
 function isPendingStatus(s: PendingRatingRow["status"]): s is PendingStatus {
   return s === "reserved" || s === "reading";
 }
+
+const StarsDisplay: React.FC<{ value?: number | null }> = ({ value }) => {
+  if (typeof value !== "number") return null;
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        marginTop: 2,
+      }}
+    >
+      <IconButton icon="star" size={16} disabled />
+      <Text style={{ opacity: 0.8 }}>{value}/5</Text>
+    </View>
+  );
+};
+
 export default function LeiturasTab() {
   const { user, actAsChild } = useAuth();
   const router = useRouter();
@@ -113,6 +162,12 @@ export default function LeiturasTab() {
   // 👇 a seleção manda; se não houver, cai para actingChild
   const childId = selectedChildId ? Number(selectedChildId) : actingChildId;
 
+  const familyIdForAuth =
+    Number((user as any)?.family?.id) ||
+    Number((user as any)?.families?.[0]?.id) ||
+    Number((user as any)?.id) ||
+    undefined;
+
   const [pending, setPending] = React.useState<PendingRatingRow[]>([]);
   const [history, setHistory] = React.useState<HistoryRow[]>([]);
   const [busyIsbn, setBusyIsbn] = React.useState<string | null>(null);
@@ -122,13 +177,13 @@ export default function LeiturasTab() {
     type: "success" | "error";
   } | null>(null);
 
-  // filtros (como no web)
+  // filtros (como no web) — AGORA debaixo do título
   const [pendingFilter, setPendingFilter] = React.useState<PendingStatus[]>([]);
   const [historyFilter, setHistoryFilter] = React.useState<
     ("rated" | "unrated")[]
   >([]);
-  type PendingRow = PendingRatingRow & { status: PendingStatus };
 
+  type PendingRow = PendingRatingRow & { status: PendingStatus };
   const pendingOnly = React.useMemo<PendingRow[]>(
     () => pending.filter((r): r is PendingRow => isPendingStatus(r.status)),
     [pending]
@@ -139,7 +194,7 @@ export default function LeiturasTab() {
   const filteredPending = React.useMemo(
     () =>
       pendingFilter.length
-        ? pendingOnly.filter((p) => pendingFilter.includes(p.status)) // p.status agora é PendingStatus
+        ? pendingOnly.filter((p) => pendingFilter.includes(p.status))
         : pendingOnly,
     [pendingOnly, pendingFilter]
   );
@@ -156,8 +211,9 @@ export default function LeiturasTab() {
       const pRows = await listPendingRatings({
         childId,
         limit: 80,
-        userId: (user as any)?.id, // permite trazer as estrelas do utilizador
+        userId: familyIdForAuth, // <- para trazer as tuas estrelas
       });
+
       setPending(
         pRows.filter((r) => r.status === "reserved" || r.status === "reading")
       );
@@ -185,7 +241,6 @@ export default function LeiturasTab() {
 
   React.useEffect(() => {
     loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId]);
 
   // ações
@@ -305,15 +360,6 @@ export default function LeiturasTab() {
                 onChange={(val: any) => {
                   const id = toChildId(val);
                   setSelectedChildId(id ? String(id) : undefined);
-                  if (
-                    id &&
-                    id !== actingChildId &&
-                    typeof actAsChild === "function"
-                  ) {
-                    actAsChild(id).catch((e: any) =>
-                      console.warn("actAsChild:", e?.message || e)
-                    );
-                  }
                 }}
                 clearable
                 disabled={!user?.children?.length}
@@ -330,50 +376,49 @@ export default function LeiturasTab() {
 
         {/* WHITE CARD #2 — Leituras em curso (pendentes) */}
         <WhiteCard>
+          <Text variant="titleLarge" style={{ fontWeight: "900" }}>
+            Leituras em Curso
+          </Text>
+
+          {/* ⬇️ Chips IMEDIATAMENTE abaixo do título */}
           <View
             style={{
               flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 8,
+              marginTop: 8,
+              marginBottom: 8,
             }}
           >
-            <Text variant="titleLarge" style={{ fontWeight: "900" }}>
-              Leituras em Curso
-            </Text>
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              {/* Filtro Estado */}
-              <Chip
-                mode={pendingFilter.includes("reserved") ? "flat" : "outlined"}
-                selected={pendingFilter.includes("reserved")}
-                onPress={() =>
-                  setPendingFilter((s) =>
-                    s.includes("reserved")
-                      ? s.filter((x) => x !== "reserved")
-                      : [...s, "reserved"]
-                  )
-                }
-                icon="bookmark-outline"
-              >
-                Reservado
-              </Chip>
-              <Chip
-                mode={pendingFilter.includes("reading") ? "flat" : "outlined"}
-                selected={pendingFilter.includes("reading")}
-                onPress={() =>
-                  setPendingFilter((s) =>
-                    s.includes("reading")
-                      ? s.filter((x) => x !== "reading")
-                      : [...s, "reading"]
-                  )
-                }
-                icon="book-open-page-variant"
-              >
-                A ler
-              </Chip>
-            </View>
+            <Chip
+              mode={pendingFilter.includes("reserved") ? "flat" : "outlined"}
+              selected={pendingFilter.includes("reserved")}
+              onPress={() =>
+                setPendingFilter((s) =>
+                  s.includes("reserved")
+                    ? s.filter((x) => x !== "reserved")
+                    : [...s, "reserved"]
+                )
+              }
+              icon="bookmark-outline"
+            >
+              Reservado
+            </Chip>
+            <Chip
+              mode={pendingFilter.includes("reading") ? "flat" : "outlined"}
+              selected={pendingFilter.includes("reading")}
+              onPress={() =>
+                setPendingFilter((s) =>
+                  s.includes("reading")
+                    ? s.filter((x) => x !== "reading")
+                    : [...s, "reading"]
+                )
+              }
+              icon="book-open-page-variant"
+            >
+              A ler
+            </Chip>
           </View>
-
-          <View style={{ height: 8 }} />
 
           {mustPickChild ? (
             <Text style={{ opacity: 0.75 }}>
@@ -386,108 +431,136 @@ export default function LeiturasTab() {
               Não há reservas por iniciar nem leituras por terminar.
             </Text>
           ) : (
-            filteredPending.map((r) => (
-              <View
-                key={r.isbn}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: 8,
-                }}
-              >
-                <Image
-                  source={{ uri: r.coverUrl ?? undefined }}
-                  style={{
-                    width: 56,
-                    height: 80,
-                    borderRadius: 6,
-                    marginRight: 12,
-                    backgroundColor: theme.colors.surfaceVariant,
-                  }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ fontWeight: "700" }}>
-                    {r.title}
-                  </Text>
-                  <Text style={{ opacity: 0.75, marginTop: 2 }}>
-                    {r.status === "reserved"
-                      ? "Reservado"
-                      : r.status === "reading"
-                      ? "A ler"
-                      : "Terminado"}
-                  </Text>
+            <View style={{ rowGap: 10 }}>
+              {filteredPending.map((r, idx) => (
+                <View key={r.isbn}>
+                  <RowCard>
+                    <Image
+                      source={{ uri: r.coverUrl ?? undefined }}
+                      style={{
+                        width: 64,
+                        height: 96,
+                        borderRadius: 8,
+                        marginRight: 12,
+                        backgroundColor: theme.colors.surfaceVariant,
+                      }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <Text
+                          numberOfLines={2}
+                          style={{ fontWeight: "700", flex: 1 }}
+                        >
+                          {r.title}
+                        </Text>
+                        <Chip
+                          compact
+                          mode="flat"
+                          style={{ alignSelf: "flex-start" }}
+                        >
+                          {r.status === "reserved" ? "Reservado" : "A ler"}
+                        </Chip>
+                      </View>
+
+                      {typeof r.stars === "number" && (
+                        <StarsDisplay value={r.stars} />
+                      )}
+
+                      <View
+                        style={{ flexDirection: "row", gap: 8, marginTop: 8 }}
+                      >
+                        {r.status === "reserved" ? (
+                          <Button
+                            mode="contained"
+                            compact
+                            onPress={() => onStart(r.isbn)}
+                            loading={busyIsbn === r.isbn}
+                            disabled={!!busyIsbn}
+                          >
+                            Começar
+                          </Button>
+                        ) : (
+                          <Button
+                            mode="outlined"
+                            compact
+                            onPress={() => onFinish(r.isbn)}
+                            loading={busyIsbn === r.isbn}
+                            disabled={!!busyIsbn}
+                          >
+                            Terminar
+                          </Button>
+                        )}
+                      </View>
+                    </View>
+                  </RowCard>
+
+                  {/* separador subtil entre cards */}
+                  {idx < filteredPending.length - 1 && (
+                    <Divider
+                      style={{
+                        marginHorizontal: 4,
+                        marginTop: 10,
+                        opacity: 0.15,
+                      }}
+                    />
+                  )}
                 </View>
-                {r.status === "reserved" ? (
-                  <Button
-                    mode="contained"
-                    compact
-                    onPress={() => onStart(r.isbn)}
-                    loading={busyIsbn === r.isbn}
-                    disabled={!!busyIsbn}
-                  >
-                    Começar
-                  </Button>
-                ) : r.status === "reading" ? (
-                  <Button
-                    mode="outlined"
-                    compact
-                    onPress={() => onFinish(r.isbn)}
-                    loading={busyIsbn === r.isbn}
-                    disabled={!!busyIsbn}
-                  >
-                    Terminar
-                  </Button>
-                ) : null}
-              </View>
-            ))
+              ))}
+            </View>
           )}
         </WhiteCard>
 
         {/* WHITE CARD #3 — Histórico */}
         <WhiteCard>
+          <Text variant="titleLarge" style={{ fontWeight: "900" }}>
+            Histórico de leituras
+          </Text>
+
+          {/* ⬇️ Chips IMEDIATAMENTE abaixo do título */}
           <View
             style={{
               flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 8,
+              marginTop: 8,
+              marginBottom: 8,
             }}
           >
-            <Text variant="titleLarge" style={{ fontWeight: "900" }}>
-              Histórico de leituras
-            </Text>
-            <View style={{ flexDirection: "row", gap: 6 }}>
-              <Chip
-                mode={historyFilter.includes("rated") ? "flat" : "outlined"}
-                selected={historyFilter.includes("rated")}
-                onPress={() =>
-                  setHistoryFilter((s) =>
-                    s.includes("rated")
-                      ? s.filter((x) => x !== "rated")
-                      : [...s, "rated"]
-                  )
-                }
-                icon="star"
-              >
-                Com avaliação
-              </Chip>
-              <Chip
-                mode={historyFilter.includes("unrated") ? "flat" : "outlined"}
-                selected={historyFilter.includes("unrated")}
-                onPress={() =>
-                  setHistoryFilter((s) =>
-                    s.includes("unrated")
-                      ? s.filter((x) => x !== "unrated")
-                      : [...s, "unrated"]
-                  )
-                }
-                icon="star-outline"
-              >
-                Sem avaliação
-              </Chip>
-            </View>
+            <Chip
+              mode={historyFilter.includes("rated") ? "flat" : "outlined"}
+              selected={historyFilter.includes("rated")}
+              onPress={() =>
+                setHistoryFilter((s) =>
+                  s.includes("rated")
+                    ? s.filter((x) => x !== "rated")
+                    : [...s, "rated"]
+                )
+              }
+              icon="star"
+            >
+              Com avaliação
+            </Chip>
+            <Chip
+              mode={historyFilter.includes("unrated") ? "flat" : "outlined"}
+              selected={historyFilter.includes("unrated")}
+              onPress={() =>
+                setHistoryFilter((s) =>
+                  s.includes("unrated")
+                    ? s.filter((x) => x !== "unrated")
+                    : [...s, "unrated"]
+                )
+              }
+              icon="star-outline"
+            >
+              Sem avaliação
+            </Chip>
           </View>
-
-          <View style={{ height: 8 }} />
 
           {loading ? (
             <ActivityIndicator />
@@ -505,65 +578,62 @@ export default function LeiturasTab() {
                 : "Escolhe uma criança para ver o histórico."}
             </Text>
           ) : (
-            (historyFilter.length
-              ? history.filter((h) =>
-                  historyFilter.includes(
-                    typeof h.stars === "number" ? "rated" : "unrated"
+            <View style={{ rowGap: 10 }}>
+              {(historyFilter.length
+                ? history.filter((h) =>
+                    historyFilter.includes(
+                      typeof h.stars === "number" ? "rated" : "unrated"
+                    )
                   )
-                )
-              : history
-            ).map((row) => (
-              <View
-                key={row.id}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: 8,
-                }}
-              >
-                <Image
-                  source={{ uri: row.coverUrl ?? undefined }}
-                  style={{
-                    width: 56,
-                    height: 80,
-                    borderRadius: 6,
-                    marginRight: 12,
-                    backgroundColor: theme.colors.surfaceVariant,
-                  }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ fontWeight: "700" }}>
-                    {row.title}
-                  </Text>
-                  <Text style={{ opacity: 0.7 }}>
-                    {row.date
-                      ? new Date(row.date).toLocaleDateString("pt-PT")
-                      : row.childName ?? ""}
-                  </Text>
-                  {typeof row.stars === "number" && (
-                    <View
+                : history
+              ).map((row, idx, arr) => (
+                <View key={row.id}>
+                  <RowCard>
+                    <Image
+                      source={{ uri: row.coverUrl ?? undefined }}
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 4,
-                        marginTop: 2,
+                        width: 64,
+                        height: 96,
+                        borderRadius: 8,
+                        marginRight: 12,
+                        backgroundColor: theme.colors.surfaceVariant,
                       }}
-                    >
-                      <IconButton icon="star" size={16} disabled />
-                      <Text style={{ opacity: 0.8 }}>{row.stars}/5</Text>
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text numberOfLines={2} style={{ fontWeight: "700" }}>
+                        {row.title}
+                      </Text>
+                      <Text style={{ opacity: 0.7, marginTop: 2 }}>
+                        {row.date
+                          ? new Date(row.date).toLocaleDateString("pt-PT")
+                          : row.childName ?? ""}
+                      </Text>
+
+                      <StarsDisplay value={row.stars} />
+
+                      {!!row.comment && (
+                        <Text
+                          style={{ opacity: 0.85, marginTop: 4 }}
+                          numberOfLines={2}
+                        >
+                          “{row.comment}”
+                        </Text>
+                      )}
                     </View>
-                  )}
-                  {row.comment && (
-                    <Text
-                      style={{ opacity: 0.8, marginTop: 2 }}
-                      numberOfLines={2}
-                    >
-                      “{row.comment}”
-                    </Text>
+                  </RowCard>
+
+                  {idx < arr.length - 1 && (
+                    <Divider
+                      style={{
+                        marginHorizontal: 4,
+                        marginTop: 10,
+                        opacity: 0.15,
+                      }}
+                    />
                   )}
                 </View>
-              </View>
-            ))
+              ))}
+            </View>
           )}
         </WhiteCard>
       </ScrollView>

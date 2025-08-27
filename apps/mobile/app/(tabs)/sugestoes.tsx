@@ -132,7 +132,7 @@ export default function SugestoesTab() {
         return;
       }
       await reserveBook(isbn, { childId });
-      setSnack({ msg: "Reserva efetuada!", type: "success" });
+      setSnack({ msg: "Reserva efetuada!", type: "success" }); // 👈 mostra o toast
     } catch (e) {
       console.error(e);
       setSnack({ msg: "Falha ao reservar.", type: "error" });
@@ -345,19 +345,27 @@ export default function SugestoesTab() {
           )}
         </CardContainer>
 
-        {/* Snackbar */}
-        <Snackbar
-          visible={!!snack}
-          onDismiss={() => setSnack(null)}
-          duration={3000}
-          action={
-            snack?.type === "error"
-              ? { label: "Fechar", onPress: () => setSnack(null) }
-              : undefined
-          }
-        >
-          {snack?.msg}
-        </Snackbar>
+        <Portal>
+          {/* Snackbar */}
+          <Snackbar
+            visible={!!snack}
+            onDismiss={() => setSnack(null)}
+            duration={2500}
+            action={{
+              label: "Fechar",
+              onPress: () => setSnack(null),
+            }}
+            style={
+              snack?.type === "success"
+                ? { backgroundColor: "#2e7d32" } // verde sucesso
+                : snack?.type === "error"
+                ? { backgroundColor: "#c62828" } // vermelho erro
+                : undefined
+            }
+          >
+            {snack?.msg}
+          </Snackbar>
+        </Portal>
       </ScrollView>
 
       {/* Quiz modal */}
