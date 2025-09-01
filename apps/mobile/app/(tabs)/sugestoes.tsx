@@ -31,6 +31,9 @@ type BookLite = {
   coverUrl?: string | null;
   score?: number;
   why?: string[];
+  // ⬇️ novo: estado vindo do servidor (opcional) e última data terminada
+  status?: "none" | "reserved" | "reading" | "finished";
+  lastFinished?: string | null;
 };
 
 const QUIZ_STEPS = [
@@ -93,6 +96,25 @@ export default function SugestoesTab() {
     type: "success" | "error";
   } | null>(null);
 
+  // loading por ISBN para evitar duplo-clique
+  const [busyByIsbn, setBusyByIsbn] = useState<Record<string, boolean>>({});
+  // estado deduzido localmente após reservar: 'reserved' | 'reading'
+  const [statusByIsbn, setStatusByIsbn] = useState<
+    Record<string, "reserved" | "reading">
+  >({});
+
+  const dedupedItems = React.useMemo<BookLite[]>(() => {
+    const seen = new Set<string>();
+    const out: BookLite[] = [];
+    for (const it of items) {
+      if (!it?.isbn) continue;
+      if (seen.has(it.isbn)) continue;
+      seen.add(it.isbn);
+      out.push(it);
+    }
+    return out;
+  }, [items]);
+
   const subtitle = useMemo(
     () =>
       mode === "perfil"
@@ -105,8 +127,9 @@ export default function SugestoesTab() {
     if (!childId) return;
     setLoading(true);
     try {
+      // se o service já suporta options extra como { excludeOpen: true }, podes passar aqui.
       const data = await getSugestoesPerfil(12, { childId });
-      setItems(data);
+      setItems(data as any);
       setMode("perfil");
     } finally {
       setLoading(false);
@@ -118,7 +141,7 @@ export default function SugestoesTab() {
     setLoading(true);
     try {
       const data = await getSugestoesQuiz(answers, 12, { childId });
-      setItems(data);
+      setItems(data as any);
       setMode("quiz");
     } finally {
       setLoading(false);
@@ -131,11 +154,34 @@ export default function SugestoesTab() {
         setSnack({ msg: "Escolhe a criança primeiro.", type: "error" });
         return;
       }
-      await reserveBook(isbn, { childId });
-      setSnack({ msg: "Reserva efetuada!", type: "success" }); // 👈 mostra o toast
-    } catch (e) {
+      // evitar cliques múltiplos
+      setBusyByIsbn((m) => ({ ...m, [isbn]: true }));
+      // assinatura correta: (childId: number, isbn: string)
+      await reserveBook(childId, isbn);
+      setStatusByIsbn((m) => ({ ...m, [isbn]: "reserved" }));
+      setSnack({
+        msg: "Reserva criada! Vai a Leituras › Reservado.",
+        type: "success",
+      });
+    } catch (e: any) {
+      const code = e?.response?.data?.error;
+      if (code === "already_reading") {
+        setStatusByIsbn((m) => ({ ...m, [isbn]: "reading" }));
+        setSnack({ msg: "Já estás a ler este livro.", type: "error" });
+      } else if (code === "already_reserved") {
+        setStatusByIsbn((m) => ({ ...m, [isbn]: "reserved" }));
+        setSnack({
+          msg: "Este livro já está reservado para esta criança.",
+          type: "error",
+        });
+      } else if (typeof e?.message === "string" && e.message) {
+        setSnack({ msg: e.message, type: "error" });
+      } else {
+        setSnack({ msg: "Falha ao reservar.", type: "error" });
+      }
       console.error(e);
-      setSnack({ msg: "Falha ao reservar.", type: "error" });
+    } finally {
+      setBusyByIsbn((m) => ({ ...m, [isbn]: false }));
     }
   }
 
@@ -278,7 +324,7 @@ export default function SugestoesTab() {
 
         {/* WHITE CARD #2 — Grelha de sugestões */}
         <CardContainer>
-          {items.length === 0 ? (
+          {dedupedItems.length === 0 ? (
             <View style={{ paddingVertical: 12 }}>
               <Text style={{ opacity: 0.7 }}>
                 {childId
@@ -294,53 +340,96 @@ export default function SugestoesTab() {
                 justifyContent: "space-between",
               }}
             >
-              {items.map((item) => (
-                <Card
-                  key={item.isbn}
-                  style={{ width: "48%", marginBottom: 12 }}
-                >
-                  <Card.Cover
-                    source={
-                      item.coverUrl
-                        ? { uri: item.coverUrl }
-                        : require("../../assets/placeholder-book.png")
-                    }
-                    resizeMode="cover"
-                    style={{ height: 200 }}
-                  />
-                  <Card.Content>
-                    <Text
-                      variant="titleSmall"
-                      numberOfLines={2}
-                      style={{ marginTop: 8 }}
-                    >
-                      {item.title}
-                    </Text>
-                    {typeof item.score === "number" ? (
-                      <Text variant="labelSmall" style={{ opacity: 0.6 }}>
-                        score {item.score.toFixed(3)}
-                      </Text>
-                    ) : null}
-                    {item.why?.length ? (
-                      <Chip
-                        compact
-                        style={{ marginTop: 6 }}
-                        icon="information-outline"
+              {dedupedItems.map((item) => {
+                const btnBusy = !!busyByIsbn[item.isbn];
+                // ⬇️ estado vindo do servidor (se o service devolver), com fallback ao override local
+                const serverStatus = (item as any).status as
+                  | "reserved"
+                  | "reading"
+                  | "finished"
+                  | "none"
+                  | undefined;
+                const localOverride = statusByIsbn[item.isbn]; // 'reserved' | 'reading' | undefined
+                const effectiveStatus = (localOverride || serverStatus) as
+                  | "reserved"
+                  | "reading"
+                  | "finished"
+                  | "none"
+                  | undefined;
+
+                const disabled =
+                  !childId ||
+                  btnBusy ||
+                  effectiveStatus === "reserved" ||
+                  effectiveStatus === "reading";
+
+                const label =
+                  effectiveStatus === "reserved"
+                    ? "Reservado"
+                    : effectiveStatus === "reading"
+                    ? "A ler"
+                    : effectiveStatus === "finished"
+                    ? "Reservar de novo"
+                    : "Reservar";
+
+                return (
+                  <Card
+                    key={item.isbn}
+                    style={{ width: "48%", marginBottom: 12 }}
+                  >
+                    <Card.Cover
+                      source={
+                        item.coverUrl
+                          ? { uri: item.coverUrl }
+                          : require("../../assets/placeholder-book.png")
+                      }
+                      resizeMode="cover"
+                      style={{ height: 200 }}
+                    />
+                    <Card.Content>
+                      <Text
+                        variant="titleSmall"
+                        numberOfLines={2}
+                        style={{ marginTop: 8 }}
                       >
-                        {item.why[0]}
-                      </Chip>
-                    ) : null}
-                  </Card.Content>
-                  <Card.Actions>
-                    <Button
-                      onPress={() => onReserve(item.isbn)}
-                      disabled={!childId}
-                    >
-                      Reservar
-                    </Button>
-                  </Card.Actions>
-                </Card>
-              ))}
+                        {item.title}
+                      </Text>
+                      {typeof item.score === "number" ? (
+                        <Text variant="labelSmall" style={{ opacity: 0.6 }}>
+                          score {item.score.toFixed(3)}
+                        </Text>
+                      ) : null}
+
+                      {/* motivo (reco) */}
+                      {item.why?.length ? (
+                        <Chip
+                          compact
+                          style={{ marginTop: 6 }}
+                          icon="information-outline"
+                        >
+                          {item.why[0]}
+                        </Chip>
+                      ) : null}
+
+                      {/* marcador "Já lido" quando o servidor indicar finished */}
+                      {serverStatus === "finished" && (
+                        <Chip compact style={{ marginTop: 6 }} icon="check">
+                          Já lido
+                        </Chip>
+                      )}
+                    </Card.Content>
+                    <Card.Actions>
+                      <Button
+                        onPress={() => onReserve(item.isbn)}
+                        disabled={disabled}
+                        loading={btnBusy}
+                      >
+                        {label}
+                      </Button>
+                    </Card.Actions>
+                  </Card>
+                );
+              })}
             </View>
           )}
         </CardContainer>
@@ -357,9 +446,9 @@ export default function SugestoesTab() {
             }}
             style={
               snack?.type === "success"
-                ? { backgroundColor: "#2e7d32" } // verde sucesso
+                ? { backgroundColor: "#2e7d32" }
                 : snack?.type === "error"
-                ? { backgroundColor: "#c62828" } // vermelho erro
+                ? { backgroundColor: "#c62828" }
                 : undefined
             }
           >

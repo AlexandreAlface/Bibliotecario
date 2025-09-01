@@ -338,7 +338,6 @@ export default function AvaliacoesTab() {
         comment: comment || undefined,
         childId,
         familyId: familyIdForAuth, // para o resolveChildId / contexto
-        userIdHeader: familyIdForAuth, // força x-user-id no header
       });
       setSnack({ msg: "Avaliação guardada!", type: "success" });
       setItems((arr) =>
@@ -348,7 +347,11 @@ export default function AvaliacoesTab() {
       );
     } catch (e: any) {
       console.error(e);
-      setSnack({ msg: "Falha ao guardar a avaliação.", type: "error" });
+      // o service já mapeia 'reading_not_finished' para uma mensagem amigável
+      setSnack({
+        msg: e?.message || "Falha ao guardar a avaliação.",
+        type: "error",
+      });
     } finally {
       setSavingIsbn(null);
     }

@@ -1,5 +1,6 @@
 // apps/mobile/src/services/readings.ts
-import { request } from "./api"; // ⬅️ remove 'api'
+import { API_URL, request } from "./api"; // ⬅️ remove 'api'
+import axios from "axios";
 
 export type ReadingLite = {
   id: number;
@@ -80,30 +81,37 @@ export async function getLeiturasAtuais(
   return Array.isArray(data) ? data : [];
 }
 
-export async function startReading(
-  isbn: string,
-  opts: { childId?: number; familyId?: number } = {}
-) {
-  const qs = new URLSearchParams();
-  if (opts.childId) qs.set("childId", String(opts.childId));
-  if (opts.familyId) qs.set("familyId", String(opts.familyId));
-  return request(`/readings/start${qs.toString() ? `?${qs.toString()}` : ""}`, { // ⬅️ era api(...)
-    method: "POST",
-    json: { isbn },
-  });
+export async function startReading(childId: number, familyId: number | undefined, isbn: string) {
+  try {
+    const q = new URLSearchParams({ childId: String(childId), ...(familyId ? { familyId: String(familyId) } : {}) });
+    const { data } = await axios.post(`${API_URL}/readings/start?${q.toString()}`, { isbn }, { withCredentials: true });
+    return data; // { ok, reading }
+  } catch (err: any) {
+    const status = err?.response?.status;
+    const code = err?.response?.data?.error;
+    if (status === 409 && code === "already_reading") {
+      throw new Error("Já existe uma leitura em curso para este livro.");
+    }
+    if (status === 404 && code === "book_not_found") {
+      throw new Error("Livro não encontrado.");
+    }
+    throw new Error("Não foi possível iniciar a leitura.");
+  }
 }
 
-export async function finishReading(
-  isbn: string,
-  opts: { childId?: number; familyId?: number } = {}
-) {
-  const qs = new URLSearchParams();
-  if (opts.childId) qs.set("childId", String(opts.childId));
-  if (opts.familyId) qs.set("familyId", String(opts.familyId));
-  return request(`/readings/finish${qs.toString() ? `?${qs.toString()}` : ""}`, { // ⬅️ era api(...)
-    method: "POST",
-    json: { isbn },
-  });
+export async function finishReading(childId: number, familyId: number | undefined, isbn: string) {
+  try {
+    const q = new URLSearchParams({ childId: String(childId), ...(familyId ? { familyId: String(familyId) } : {}) });
+    const { data } = await axios.post(`${API_URL}/readings/finish?${q.toString()}`, { isbn }, { withCredentials: true });
+    return data; // { ok, reading }
+  } catch (err: any) {
+    const status = err?.response?.status;
+    const code = err?.response?.data?.error;
+    if (status === 404 && code === "no_open_reading") {
+      throw new Error("Não há leitura em curso para este livro.");
+    }
+    throw new Error("Não foi possível terminar a leitura.");
+  }
 }
 
 export async function getLeiturasTerminadas(

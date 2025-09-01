@@ -1,5 +1,6 @@
 // src/services/ratings.ts
-import { request } from "./api";
+import { API_URL, request } from "./api";
+import axios from "axios";
 
 export type PendingRating = {
   isbn: string;
@@ -19,26 +20,17 @@ export async function saveRating(input: {
   stars: number;
   comment?: string;
   childId?: number;
-  familyId?: number;
-  /** opcional: força x-user-id no header */
-  userIdHeader?: number;
-}): Promise<{ ok: boolean }> {
-  const { childId, familyId, userIdHeader, ...body } = input;
-
-  const qs = new URLSearchParams();
-  if (childId) qs.set("childId", String(childId));
-  if (familyId) qs.set("familyId", String(familyId));
-
-  const headers: Record<string, string> = {};
-  const xUser = userIdHeader ?? familyId;
-  if (xUser) headers["x-user-id"] = String(xUser);
-
-  await request(`/ratings${qs.toString() ? `?${qs.toString()}` : ""}`, {
-    method: "POST",
-    json: body,
-    headers,
-  });
-  return { ok: true };
+  familyId?: number; // envia sempre o familyId mesmo em child mode
+}) {
+  try {
+    const { data } = await axios.post(`${API_URL}/ratings`, input, { withCredentials: true });
+    return data; // { ok, rating }
+  } catch (err: any) {
+    if (err?.response?.data?.error === "reading_not_finished") {
+      throw new Error("Só podes avaliar depois de terminar a leitura.");
+    }
+    throw new Error("Não foi possível guardar a avaliação.");
+  }
 }
 
 export async function listPendingRatings(opts: {

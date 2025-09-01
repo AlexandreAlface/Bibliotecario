@@ -1,12 +1,13 @@
+// apps/api/src/routes/recommendations.js
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import z from "zod";
 import { embedOne } from "../ai/embeddings.js";
 import {
   buildProfileText,
-  getAlreadyReadIsbns,
   toSqlVector,
-  weightedCentroid} from "../reco/utils.js";
+  weightedCentroid,
+} from "../reco/utils.js";
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -28,50 +29,65 @@ router.post("/recommendations/quiz", async (req, res) => {
   const childId = req.query.childId ? Number(req.query.childId) : undefined;
   const familyId = req.query.familyId ? Number(req.query.familyId) : undefined;
 
-  const profile = buildProfileText(answers);
-  const vec = await embedOne(profile);
-  const v = toSqlVector(vec);
+  try {
+    const profile = buildProfileText(answers);
+    const vec = await embedOne(profile);
+    const v = toSqlVector(vec);
 
-  // idade vinda do quiz (ex.: "6-8")
-  const ageRange = answers.find(
-    (a) => a.id === "age" || a.id === "ageRange"
-  )?.value;
-  let min, max;
-  const m =
-    typeof ageRange === "string" ? ageRange.match(/^(\d+)\s*-\s*(\d+)$/) : null;
-  if (m) {
-    min = Number(m[1]);
-    max = Number(m[2]);
+    // idade vinda do quiz (ex.: "6-8")
+    const ageRange = answers.find(
+      (a) => a.id === "age" || a.id === "ageRange"
+    )?.value;
+    let min, max;
+    const m =
+      typeof ageRange === "string" ? ageRange.match(/^(\d+)\s*-\s*(\d+)$/) : null;
+    if (m) {
+      min = Number(m[1]);
+      max = Number(m[2]);
+    }
+
+    // CASTS seguros para o Postgres
+    const minI = Number.isFinite(min) ? Number(min) : null;
+    const maxI = Number.isFinite(max) ? Number(max) : null;
+
+    // 🔎 Excluir APENAS “a ler” (leituras ativas) do próprio child/família
+    const rows = await prisma.$queryRaw`
+      SELECT b."isbn", b."title", b."coverUrl",
+             1 - (b."embedding" <=> ${v}::vector) AS score
+      FROM "Book" b
+      WHERE b."embedding" IS NOT NULL
+        AND (${minI}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${maxI}::int)
+        AND (${maxI}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${minI}::int)
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "Reading" rblock
+          WHERE rblock."bookIsbn" = b."isbn"
+            AND rblock."finishedAt" IS NULL
+            AND (
+              (${childId ?? null}::int IS NOT NULL AND rblock."childId" = ${childId})
+              OR
+              (${familyId ?? null}::int IS NOT NULL AND rblock."childId" IN (
+                SELECT cf."childId" FROM "ChildFamily" cf WHERE cf."familyId" = ${familyId}
+              ))
+            )
+        )
+      ORDER BY b."embedding" <=> ${v}::vector
+      LIMIT ${limit};
+    `;
+
+    const out = rows.map((r) => ({
+      isbn: r.isbn,
+      title: r.title,
+      coverUrl: r.coverUrl ?? undefined,
+      score: Number((r.score ?? 0).toFixed(3)),
+      why: [profile.replace(/^Perfil do quiz:\s*/, "").trim()].filter(Boolean),
+    }));
+
+    res.json(out);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "internal_error" });
   }
-
-  // CASTS seguros para o Postgres
-  const minI = Number.isFinite(min) ? Number(min) : null;
-  const maxI = Number.isFinite(max) ? Number(max) : null;
-
-  const exclude = await getAlreadyReadIsbns({ childId, familyId });
-  const excludeArr = Array.isArray(exclude) && exclude.length ? exclude : null;
-
-  const rows = await prisma.$queryRaw`
-    SELECT b."isbn", b."title", b."coverUrl",
-           1 - (b."embedding" <=> ${v}::vector) AS score
-    FROM "Book" b
-    WHERE b."embedding" IS NOT NULL
-      AND (${minI}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${maxI}::int)
-      AND (${maxI}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${minI}::int)
-      AND (${excludeArr}::text[] IS NULL OR b."isbn" <> ALL(${excludeArr}::text[]))
-    ORDER BY b."embedding" <=> ${v}::vector
-    LIMIT ${limit};
-  `;
-
-  const out = rows.map((r) => ({
-    isbn: r.isbn,
-    title: r.title,
-    coverUrl: r.coverUrl ?? undefined,
-    score: Number((r.score ?? 0).toFixed(3)),
-    why: [profile.replace(/^Perfil do quiz:\s*/, "").trim()].filter(Boolean),
-  }));
-
-  res.json(out);
 });
 
 function avgVec(vecs) {
@@ -138,16 +154,16 @@ router.get("/recommendations/profile", async (req, res) => {
       `;
       queryVec = asNumArray(pref && pref[0] && pref[0].embedding);
 
-      // 1b) Se ainda não existir, tenta gerar pelas avaliações (mesmo algoritmo do ratings.js)
+      // 1b) Se ainda não existir, tenta gerar pelas avaliações
       if (!queryVec) {
         const rowsRt = await prisma.$queryRaw`
-         SELECT b.embedding::text AS embedding, r."stars", r."ratedAt"
-         FROM "Rating" r
-         JOIN "Book" b ON b."isbn" = r."bookIsbn"
-         WHERE r."childId" = ${childId} AND b.embedding IS NOT NULL
-         ORDER BY r."ratedAt" DESC
-         LIMIT 100;
-       `;
+          SELECT b.embedding::text AS embedding, r."stars", r."ratedAt"
+          FROM "Rating" r
+          JOIN "Book" b ON b."isbn" = r."bookIsbn"
+          WHERE r."childId" = ${childId} AND b.embedding IS NOT NULL
+          ORDER BY r."ratedAt" DESC
+          LIMIT 100;
+        `;
         if (rowsRt.length) {
           const now = Date.now();
           const vecs = [];
@@ -272,18 +288,7 @@ router.get("/recommendations/profile", async (req, res) => {
       );
     }
 
-    // ------- 4) excluir já lidos e fazer a query vetorial -------
-    const excludeRows = await prisma.reading.findMany({
-      where: childId
-        ? { childId }
-        : familyId
-        ? { child: { families: { some: { familyId } } } }
-        : undefined,
-      select: { bookIsbn: true },
-    });
-    const exclude = excludeRows.map((r) => r.bookIsbn);
-    const excludeArr = exclude.length ? exclude : null;
-
+    // ------- 4) query vetorial EXCLUINDO SÓ “A LER” -------
     const v = toSqlVector(queryVec);
 
     const minAgeI = Number.isFinite(minAge) ? Number(minAge) : null;
@@ -296,7 +301,19 @@ router.get("/recommendations/profile", async (req, res) => {
       WHERE b."embedding" IS NOT NULL
         AND (${minAgeI}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${maxAgeI}::int)
         AND (${maxAgeI}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${minAgeI}::int)
-        AND (${excludeArr}::text[] IS NULL OR b."isbn" <> ALL(${excludeArr}::text[]))
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "Reading" rblock
+          WHERE rblock."bookIsbn" = b."isbn"
+            AND rblock."finishedAt" IS NULL
+            AND (
+              (${childId ?? null}::int IS NOT NULL AND rblock."childId" = ${childId})
+              OR
+              (${familyId ?? null}::int IS NOT NULL AND rblock."childId" IN (
+                SELECT cf."childId" FROM "ChildFamily" cf WHERE cf."familyId" = ${familyId}
+              ))
+            )
+        )
       ORDER BY b."embedding" <=> ${v}::vector
       LIMIT ${limit};
     `;

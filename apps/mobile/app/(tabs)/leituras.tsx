@@ -31,6 +31,7 @@ import {
 import { TABBAR_HEIGHT } from "./_layout";
 
 type PendingStatus = "reserved" | "reading";
+type HistoryStatus = "reserved" | "reading" | "finished";
 
 /* ---------- Section Card (branco) ---------- */
 const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({
@@ -100,7 +101,7 @@ function toChildId(val: unknown): number | undefined {
   }
   if (typeof val === "object") {
     // @ts-ignore
-    const anyId = val.id ?? val.value ?? val.key;
+    const anyId = (val as any).id ?? (val as any).value ?? (val as any).key;
     return toChildId(anyId);
   }
   return undefined;
@@ -115,6 +116,7 @@ type HistoryRow = {
   childName?: string | null;
   stars?: number | null;
   comment?: string | null;
+  status: HistoryStatus; // 👈 novo
 };
 
 function isPendingStatus(s: PendingRatingRow["status"]): s is PendingStatus {
@@ -139,7 +141,7 @@ const StarsDisplay: React.FC<{ value?: number | null }> = ({ value }) => {
 };
 
 export default function LeiturasTab() {
-  const { user, actAsChild } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
@@ -177,7 +179,7 @@ export default function LeiturasTab() {
     type: "success" | "error";
   } | null>(null);
 
-  // filtros (como no web) — AGORA debaixo do título
+  // filtros — debaixo do título
   const [pendingFilter, setPendingFilter] = React.useState<PendingStatus[]>([]);
   const [historyFilter, setHistoryFilter] = React.useState<
     ("rated" | "unrated")[]
@@ -213,24 +215,35 @@ export default function LeiturasTab() {
         limit: 80,
         userId: familyIdForAuth, // <- para trazer as tuas estrelas
       });
-
       setPending(
         pRows.filter((r) => r.status === "reserved" || r.status === "reading")
       );
 
-      // histórico (tudo o que veio de /readings)
+      // histórico
       const hRaw = await getLeiturasAtuais(200, { childId });
-      const hRows: HistoryRow[] = hRaw.map((r: ReadingLite & any) => ({
-        id: Number(r.id ?? 0),
-        title: r.title ?? "Livro",
-        coverUrl: r.coverUrl ?? null,
-        date: r.date ?? r.finishedAt ?? r.startedAt ?? null,
-        childId: r.childId,
-        childName: r.childName ?? null,
-        stars: typeof r.stars === "number" ? r.stars : undefined,
-        comment: r.comment ?? undefined,
-      }));
-      setHistory(hRows);
+
+      const hRows: HistoryRow[] = (hRaw as (ReadingLite & any)[]).map((r) => {
+        const status: HistoryStatus = r.finishedAt
+          ? "finished"
+          : r.startedAt
+          ? "reading"
+          : "reserved";
+        return {
+          id: Number(r.id ?? 0),
+          title: r.title ?? "Livro",
+          coverUrl: r.coverUrl ?? null,
+          date: r.date ?? r.finishedAt ?? r.startedAt ?? null,
+          childId: r.childId,
+          childName: r.childName ?? null,
+          stars: typeof r.stars === "number" ? r.stars : undefined,
+          comment: r.comment ?? undefined,
+          status,
+        };
+      });
+
+      // 👇 histórico NÃO inclui reservas (ficam na secção de cima)
+      // Se também quiseres remover “A ler”, troca o filtro para (row.status === "finished")
+      setHistory(hRows.filter((row) => row.status !== "reserved"));
     } catch (e) {
       console.error(e);
       setSnack({ msg: "Falha ao carregar leituras.", type: "error" });
@@ -251,12 +264,12 @@ export default function LeiturasTab() {
     }
     setBusyIsbn(isbn);
     try {
-      await startReading(isbn, { childId });
+      await startReading(childId, familyIdForAuth, isbn);
       await loadAll();
       setSnack({ msg: "Leitura iniciada.", type: "success" });
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      setSnack({ msg: "Não foi possível iniciar.", type: "error" });
+      setSnack({ msg: e?.message || "Não foi possível iniciar.", type: "error" });
     } finally {
       setBusyIsbn(null);
     }
@@ -269,12 +282,12 @@ export default function LeiturasTab() {
     }
     setBusyIsbn(isbn);
     try {
-      await finishReading(isbn, { childId });
+      await finishReading(childId, familyIdForAuth, isbn);
       await loadAll();
       setSnack({ msg: "Leitura terminada.", type: "success" });
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      setSnack({ msg: "Não foi possível terminar.", type: "error" });
+      setSnack({ msg: e?.message || "Não foi possível terminar.", type: "error" });
     } finally {
       setBusyIsbn(null);
     }
@@ -309,6 +322,18 @@ export default function LeiturasTab() {
       </Background>
     );
   }
+
+  // helpers para label/ícone de estado
+  const statusLabel: Record<HistoryStatus, string> = {
+    reserved: "Reservado",
+    reading: "A ler",
+    finished: "Terminado",
+  };
+  const statusIcon: Record<HistoryStatus, string> = {
+    reserved: "bookmark-outline",
+    reading: "book-open-page-variant",
+    finished: "check",
+  };
 
   return (
     <Background>
@@ -463,6 +488,7 @@ export default function LeiturasTab() {
                           compact
                           mode="flat"
                           style={{ alignSelf: "flex-start" }}
+                          icon={r.status === "reserved" ? "bookmark-outline" : "book-open-page-variant"}
                         >
                           {r.status === "reserved" ? "Reservado" : "A ler"}
                         </Chip>
@@ -600,9 +626,27 @@ export default function LeiturasTab() {
                       }}
                     />
                     <View style={{ flex: 1 }}>
-                      <Text numberOfLines={2} style={{ fontWeight: "700" }}>
-                        {row.title}
-                      </Text>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <Text numberOfLines={2} style={{ fontWeight: "700", flex: 1 }}>
+                          {row.title}
+                        </Text>
+                        {/* 👇 etiqueta de estado no histórico */}
+                        <Chip
+                          compact
+                          mode="outlined"
+                          icon={statusIcon[row.status]}
+                          style={{ alignSelf: "flex-start" }}
+                        >
+                          {statusLabel[row.status]}
+                        </Chip>
+                      </View>
+
                       <Text style={{ opacity: 0.7, marginTop: 2 }}>
                         {row.date
                           ? new Date(row.date).toLocaleDateString("pt-PT")

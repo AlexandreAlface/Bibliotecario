@@ -1,13 +1,24 @@
-// apps/mobile/src/services/reservations.ts
+// services/reservations.ts
 import axios from "axios";
+import { API_URL } from "./api";
 
-const API = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3333/api";
-
-export async function reserveBook(
-  isbn: string,
-  opts: { childId: number }
-): Promise<{ ok: boolean; id: number; reservedAt: string }> {
-  const qs = new URLSearchParams({ childId: String(opts.childId) });
-  const { data } = await axios.post(`${API}/reservations?${qs.toString()}`, { isbn }, { withCredentials: true });
-  return data;
+export async function reserveBook(childId: number, isbn: string) {
+  try {
+    const { data } = await axios.post(
+      `${API_URL}/reservations?childId=${childId}`,
+      { isbn },
+      { withCredentials: true }
+    );
+    return data; // { ok, id, reservedAt }
+  } catch (err: any) {
+    const status = err?.response?.status;
+    const code = err?.response?.data?.error;
+    if (status === 409 && code === "already_reading") {
+      throw new Error("Já estás a ler este livro.");
+    }
+    if (status === 409 && code === "already_reserved") {
+      throw new Error("Este livro já está reservado para esta criança.");
+    }
+    throw new Error("Não foi possível reservar. Tenta novamente.");
+  }
 }

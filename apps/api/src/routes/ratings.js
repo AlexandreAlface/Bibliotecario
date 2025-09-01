@@ -4,7 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import z from "zod";
 import { resolveChildId } from "./_helpers.js";
 import { toSqlVector } from "../reco/utils.js";
-import { embedOne } from "../ai/embeddings.js"; // ⬅️ adicionar
+import { embedOne } from "../ai/embeddings.js";
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -29,23 +29,30 @@ router.get("/pending", async (req, res) => {
       null;
 
     const rows = await prisma.$queryRaw`
-      SELECT br.id AS "reservationId", br."reservedAt",
-             b."isbn", b."title", b."coverUrl",
-             r."id" AS "readingId", r."startedAt", r."finishedAt",
-             ur."stars" AS "stars", ur."comment" AS "comment", ur."ratedAt" AS "ratedAt"
+      SELECT
+        br.id AS "reservationId", br."reservedAt",
+        b."isbn", b."title", b."coverUrl",
+        rr."id" AS "readingId", rr."startedAt", rr."finishedAt",
+        ur."stars" AS "stars", ur."comment" AS "comment", ur."ratedAt" AS "ratedAt"
       FROM "BookReservation" br
-      JOIN "Book" b ON b."isbn" = br."bookIsbn"
+      JOIN "Book" b
+        ON b."isbn" = br."bookIsbn"
+      -- ⚠️ apenas leitura ABERTA associada a ESTA reserva
       LEFT JOIN LATERAL (
         SELECT r2."id", r2."startedAt", r2."finishedAt"
         FROM "Reading" r2
-        WHERE r2."childId" = ${cid} AND r2."bookIsbn" = br."bookIsbn"
+        WHERE r2."reservationId" = br."id"
+          AND r2."finishedAt" IS NULL            -- 👈 só “a ler”
         ORDER BY r2."id" DESC
         LIMIT 1
-      ) r ON TRUE
+      ) rr ON TRUE
+      -- rating mais recente do utilizador (opcional, só para mostrar estrelas/coment)
       LEFT JOIN LATERAL (
         SELECT rt."stars", rt."comment", rt."ratedAt"
         FROM "Rating" rt
-        WHERE rt."userId" = ${userId} AND rt."bookIsbn" = br."bookIsbn"
+        WHERE rt."userId" = ${userId}
+          AND rt."childId" = ${cid}
+          AND rt."bookIsbn" = br."bookIsbn"
         ORDER BY rt."ratedAt" DESC
         LIMIT 1
       ) ur ON TRUE
@@ -85,7 +92,8 @@ router.get("/pending", async (req, res) => {
 /**
  * POST /api/ratings
  * body: { isbn, stars, comment?, childId?, familyId? }
- * exige uma leitura terminada para (childId, isbn)
+ * - primeira avaliação: exige leitura terminada
+ * - reavaliação (update): não exige leitura terminada
  */
 router.post("/", async (req, res) => {
   const body = z
@@ -124,38 +132,82 @@ router.post("/", async (req, res) => {
     });
     if (!cid) return res.status(400).json({ error: "missing_child" });
 
-    const finished = await prisma.reading.findFirst({
-      where: { childId: cid, bookIsbn: body.isbn, finishedAt: { not: null } },
-      select: { id: true },
-      orderBy: { id: "desc" },
-    });
-    if (!finished)
-      return res.status(400).json({ error: "reading_not_finished" });
+    const row = await prisma.$transaction(async (tx) => {
+      // rating anterior deste user para este filho e este livro?
+      const existing = await tx.rating.findFirst({
+        where: { userId, childId: cid, bookIsbn: body.isbn },
+        select: { id: true, readingId: true },
+        orderBy: { ratedAt: "desc" },
+      });
 
-    const row = await prisma.rating.create({
-      data: {
-        userId,
-        childId: cid, // 👈 liga a avaliação à criança
-        readingId: finished.id, // 👈 e à sessão de leitura
-        bookIsbn: body.isbn,
-        stars: body.stars,
-        comment: body.comment ?? null,
-      },
-      select: {
-        id: true,
-        stars: true,
-        comment: true,
-        ratedAt: true,
-        childId: true,
-        readingId: true,
-      },
+      // leitura terminada mais recente (se existir)
+      const finished = await tx.reading.findFirst({
+        where: { childId: cid, bookIsbn: body.isbn, finishedAt: { not: null } },
+        select: { id: true },
+        orderBy: { id: "desc" },
+      });
+
+      if (existing) {
+        // UPDATE (reavaliar) — não exige leitura terminada
+        return tx.rating.update({
+          where: { id: existing.id },
+          data: {
+            stars: body.stars,
+            comment: body.comment ?? null,
+            ratedAt: new Date(),
+            readingId: finished?.id ?? existing.readingId ?? null,
+          },
+          select: {
+            id: true,
+            stars: true,
+            comment: true,
+            ratedAt: true,
+            childId: true,
+            readingId: true,
+          },
+        });
+      }
+
+      // CREATE (primeira avaliação) — aqui sim exigimos leitura terminada
+      if (!finished) {
+        const err = new Error("reading_not_finished");
+        // @ts-ignore
+        err.code = "reading_not_finished";
+        throw err;
+      }
+
+      return tx.rating.create({
+        data: {
+          userId,
+          childId: cid,
+          readingId: finished.id,
+          bookIsbn: body.isbn,
+          stars: body.stars,
+          comment: body.comment ?? null,
+        },
+        select: {
+          id: true,
+          stars: true,
+          comment: true,
+          ratedAt: true,
+          childId: true,
+          readingId: true,
+        },
+      });
     });
 
+    // ⬇️ atualiza o perfil de afinidades da criança (inclui repetições)
     await recomputeChildPreferenceFromRatings(prisma, cid);
 
     res.json({ ok: true, rating: row });
   } catch (e) {
     console.error(e);
+    if (
+      e?.code === "reading_not_finished" ||
+      e?.message === "reading_not_finished"
+    ) {
+      return res.status(400).json({ error: "reading_not_finished" });
+    }
     res.status(500).json({ error: "internal_error" });
   }
 });
@@ -190,19 +242,44 @@ function weightedCentroid(vecs, weights) {
   return acc;
 }
 
-/** Recalcula o ChildPreference a partir das avaliações (peso por estrelas e recência) */
+/**
+ * Recalcula o ChildPreference a partir das avaliações
+ * Peso = estrelas + recência do rating + (opcional) recência da leitura
+ *        e bónus por repetições (reservas/leituras terminadas)
+ */
 async function recomputeChildPreferenceFromRatings(prisma, childId) {
+  // trouxe também contagens e última leitura terminada por livro para este child
   const rows = await prisma.$queryRaw`
-    SELECT b.embedding::text AS embedding, r."stars", r."ratedAt"
+    SELECT
+      b.embedding::text AS embedding,
+      r."stars",
+      r."ratedAt",
+      rc.read_count::int  AS "readCount",
+      res.res_count::int  AS "resCount",
+      rc.last_finished    AS "lastFinished"
     FROM "Rating" r
     JOIN "Book" b ON b."isbn" = r."bookIsbn"
-    WHERE r."childId" = ${childId} AND b.embedding IS NOT NULL
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) AS read_count,
+             MAX("finishedAt") AS last_finished
+      FROM "Reading" rr
+      WHERE rr."childId" = r."childId"
+        AND rr."bookIsbn" = r."bookIsbn"
+        AND rr."finishedAt" IS NOT NULL
+    ) rc ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) AS res_count
+      FROM "BookReservation" br
+      WHERE br."childId" = r."childId"
+        AND br."bookIsbn" = r."bookIsbn"
+    ) res ON TRUE
+    WHERE r."childId" = ${childId}
+      AND b.embedding IS NOT NULL
     ORDER BY r."ratedAt" DESC
-    LIMIT 100;
+    LIMIT 200;
   `;
   if (!rows.length) return false;
 
-  // ---- centroido a partir das avaliações (peso por estrelas + recência) ----
   const now = Date.now();
   const vecs = [];
   const weights = [];
@@ -216,18 +293,39 @@ async function recomputeChildPreferenceFromRatings(prisma, childId) {
       0,
       (now - new Date(r.ratedAt).getTime()) / 86400000
     );
-    const recency = Math.exp(-ageDays / 180); // meia-vida ~6 meses
-    const starGain = Math.max(0, Math.min(1, (stars - 2) / 3)); // 1..5 → 0..1 (<=2 dá 0)
-    const w = (0.2 + starGain) * recency; // base 0.2 + ganho por estrelas, atenuado pela recência
+    const recencyRating = Math.exp(-ageDays / 180); // meia-vida ~6 meses
 
-    vecs.push(v);
-    weights.push(w);
+    const lastFinished = r.lastFinished
+      ? new Date(r.lastFinished).getTime()
+      : null;
+    const daysSinceFinished = lastFinished
+      ? Math.max(0, (now - lastFinished) / 86400000)
+      : null;
+    const recencyFinished =
+      daysSinceFinished != null ? Math.exp(-daysSinceFinished / 120) : 1.0; // meia-vida 4 meses
+
+    const starGain = Math.max(0, Math.min(1, (stars - 2) / 3)); // 1..5 → 0..1 (<=2 dá 0)
+
+    const resCount = Math.max(0, Number(r.resCount || 0));
+    const readCount = Math.max(0, Number(r.readCount || 0));
+    // bónus por repetição, capado
+    const repeatBonus =
+      1.0 +
+      Math.min(0.25, 0.05 * resCount) + // até +25% via reservas
+      Math.min(0.35, 0.08 * readCount); // até +35% via leituras terminadas
+
+    const w = (0.2 + starGain) * recencyRating * recencyFinished * repeatBonus;
+
+    if (w > 0) {
+      vecs.push(v);
+      weights.push(w);
+    }
   }
 
   const centroid = weightedCentroid(vecs, weights);
   if (!centroid) return false;
 
-  // ---- (opcional) mistura o embedding do texto dos comentários positivos ----
+  // ---- mistura embedding do texto dos comentários positivos (opcional) ----
   const comm = await prisma.rating.findMany({
     where: { childId, stars: { gte: 4 }, comment: { not: null } },
     select: { comment: true },
@@ -246,8 +344,9 @@ async function recomputeChildPreferenceFromRatings(prisma, childId) {
       );
       const alpha = 0.2; // 20% texto, 80% livros
       const L = Math.min(centroid.length, textVec.length);
-      for (let i = 0; i < L; i++)
+      for (let i = 0; i < L; i++) {
         centroid[i] = centroid[i] * (1 - alpha) + textVec[i] * alpha;
+      }
     } catch (e) {
       console.error("embedOne(comments) falhou:", e);
       // segue só com o centroid calculado pelas avaliações
@@ -258,7 +357,12 @@ async function recomputeChildPreferenceFromRatings(prisma, childId) {
   const v = toSqlVector(centroid);
   await prisma.$executeRaw`
     INSERT INTO "ChildPreference" ("childId","profileText","embedding","updatedAt")
-    VALUES (${childId}, ${"Gerado a partir de avaliações (estrelas+recência) + comentários"}, ${v}::vector, now())
+    VALUES (
+      ${childId},
+      ${"Gerado a partir de avaliações (estrelas+recência+repetições) + comentários"},
+      ${v}::vector,
+      now()
+    )
     ON CONFLICT ("childId")
     DO UPDATE SET
       "profileText" = EXCLUDED."profileText",
