@@ -620,7 +620,7 @@ export default function LandingPage() {
       const [ev, le, co, ba] = await Promise.allSettled([
         getProximosEventos(8),
         leiturasPromise,
-        getNextConsultas(6),
+        // getNextConsultas(6),
         badgesPromise,
       ]);
 

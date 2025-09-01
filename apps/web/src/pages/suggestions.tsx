@@ -1,4 +1,3 @@
-// apps/web/src/pages/suggestions.tsx
 import { useEffect, useMemo, useState } from "react";
 import { WhiteCard, PrimaryButton, RouteLink, AvatarSelect } from "@bibliotecario/ui-web";
 import {
@@ -62,6 +61,17 @@ function normalizeBooks(payload: any): BookLite[] {
   if (Array.isArray(payload?.data)) return payload.data as BookLite[];
   if (Array.isArray(payload?.items)) return payload.items as BookLite[];
   return [];
+}
+// ⬇️ tira duplicados por ISBN (defensivo)
+function dedupeByIsbn(list: BookLite[]) {
+  const seen = new Set<string>();
+  const out: BookLite[] = [];
+  for (const it of list) {
+    if (!it?.isbn || seen.has(it.isbn)) continue;
+    seen.add(it.isbn);
+    out.push(it);
+  }
+  return out;
 }
 
 /* ---------- cartões ---------- */
@@ -272,7 +282,7 @@ function QuizModal({
             <Typography variant="h6" fontWeight={900} sx={{ mb: 2 }}>
               Faixa etária
             </Typography>
-            <ToggleButtonGroup value={age} exclusive onChange={(_, v) => setAge(typeof v === "string" ? v : undefined)} sx={{ flexWrap: "wrap", gap: 1 }}>
+              <ToggleButtonGroup value={age} exclusive onChange={(_, v) => setAge(typeof v === "string" ? v : undefined)} sx={{ flexWrap: "wrap", gap: 1 }}>
               {["0-2", "3-5", "6-8", "9-12", "12-15"].map((r) => (
                 <ToggleButton key={r} value={r} sx={{ borderRadius: 3, px: 2 }}>
                   {r}
@@ -322,6 +332,10 @@ export default function SuggestionsPage() {
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
+  // ⬇️ flags por ISBN
+  const [busyByIsbn, setBusyByIsbn] = useState<Record<string, boolean>>({});
+  const [reservedByIsbn, setReservedByIsbn] = useState<Record<string, boolean>>({});
+
   const mustPickChild = !asChild && !childId;
 
   const subtitle = useMemo(
@@ -334,7 +348,7 @@ export default function SuggestionsPage() {
     setLoading(true);
     try {
       const raw = await getSugestoesPerfil(12, { childId, familyId });
-      const data = normalizeBooks(raw);
+      const data = dedupeByIsbn(normalizeBooks(raw));
       setItems(data);
       setSource("perfil");
       setUpdatedAt(Date.now());
@@ -349,7 +363,7 @@ export default function SuggestionsPage() {
     setLoading(true);
     try {
       const raw = await getSugestoesQuiz(answers, 12, { childId, familyId });
-      const data = normalizeBooks(raw);
+      const data = dedupeByIsbn(normalizeBooks(raw));
       setItems(data);
       setSource("quiz");
       setUpdatedAt(Date.now());
@@ -364,11 +378,24 @@ export default function SuggestionsPage() {
       return;
     }
     try {
-      await reserveBook(isbn, { childId });
+      setBusyByIsbn((m) => ({ ...m, [isbn]: true }));
+      await reserveBook(isbn, { childId }); // ✅ só childId
+      setReservedByIsbn((m) => ({ ...m, [isbn]: true }));
       setToast({ msg: "Reserva efetuada!", type: "success" });
-    } catch (e) {
+    } catch (e: any) {
+      const code = e?.response?.data?.error;
+      if (code === "already_reading") {
+        setReservedByIsbn((m) => ({ ...m, [isbn]: true }));
+        setToast({ msg: "Já estás a ler este livro.", type: "error" });
+      } else if (code === "already_reserved") {
+        setReservedByIsbn((m) => ({ ...m, [isbn]: true }));
+        setToast({ msg: "Este livro já está reservado.", type: "error" });
+      } else {
+        setToast({ msg: "Falha ao reservar.", type: "error" });
+      }
       console.error(e);
-      setToast({ msg: "Falha ao reservar.", type: "error" });
+    } finally {
+      setBusyByIsbn((m) => ({ ...m, [isbn]: false }));
     }
   }
 
@@ -391,7 +418,8 @@ export default function SuggestionsPage() {
           <Typography variant="h5" fontWeight={900} sx={{ mb: 1 }}>
             Sugestões de Leitura
           </Typography>
-          <Typography sx={{ opacity: 0.75 }}>{/* nav entre páginas */}
+          <Typography sx={{ opacity: 0.75 }}>
+            {/* nav entre páginas */}
             <RouteLink href="/suggestions" weight={600}>Quiz</RouteLink>
             {" · "}
             <RouteLink href="/suggestions-categories" weight={600}>Categorias</RouteLink>
@@ -496,7 +524,14 @@ export default function SuggestionsPage() {
 
             <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
               {items.map((b) => (
-                <SuggestionCard key={b.isbn} book={b} onReserve={(isbn) => handleReserve(isbn)} disabled={mustPickChild} />
+                <SuggestionCard
+                  key={b.isbn}
+                  book={b}
+                  onReserve={(isbn) => handleReserve(isbn)}
+                  reserving={!!busyByIsbn[b.isbn]}
+                  reserved={!!reservedByIsbn[b.isbn]}
+                  disabled={mustPickChild}
+                />
               ))}
             </Stack>
           </>

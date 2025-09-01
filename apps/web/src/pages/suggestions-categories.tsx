@@ -1,4 +1,3 @@
-// apps/web/src/pages/suggestions-categories.tsx
 import { useEffect, useMemo, useState } from "react";
 import { WhiteCard, PrimaryButton, RouteLink, AvatarSelect } from "@bibliotecario/ui-web";
 import {
@@ -50,6 +49,12 @@ function normalizeBooks(payload: any): BookLite[] {
   if (Array.isArray(payload?.items)) return payload.items as BookLite[];
   return [];
 }
+// ⬇️ dedupe por ISBN
+function dedupeByIsbn(list: BookLite[]) {
+  const seen = new Set<string>(); const out: BookLite[] = [];
+  for (const it of list) { if (!it?.isbn || seen.has(it.isbn)) continue; seen.add(it.isbn); out.push(it); }
+  return out;
+}
 
 function loadSavedFilters(): Filters {
   try {
@@ -81,13 +86,19 @@ function momentToMood(m?: string) {
 function SuggestionCard({
   book,
   onReserve,
+  reserving,
+  reserved,
   disabled,
 }: {
   book: BookLite;
   onReserve: (isbn: string) => void;
+  reserving?: boolean;
+  reserved?: boolean;
   disabled?: boolean;
 }) {
   const cover = book.coverUrl || "/placeholder-book.jpg";
+  const isBusy = !!reserving || !!reserved || !!disabled;
+
   return (
     <Box
       sx={{
@@ -144,9 +155,9 @@ function SuggestionCard({
         variant="contained"
         sx={{ mt: 1, borderRadius: 2 }}
         onClick={() => onReserve(book.isbn)}
-        disabled={disabled}
+        disabled={isBusy}
       >
-        Reservar
+        {reserved ? "Reservado" : reserving ? "A reservar..." : "Reservar"}
       </Button>
     </Box>
   );
@@ -170,6 +181,10 @@ export default function SuggestionsByCategoriesPage() {
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
+  // ⬇️ flags por ISBN
+  const [busyByIsbn, setBusyByIsbn] = useState<Record<string, boolean>>({});
+  const [reservedByIsbn, setReservedByIsbn] = useState<Record<string, boolean>>({});
+
   const subtitle = useMemo(() => "Escolhe categorias para afinar as sugestões", []);
 
   // opções para o AvatarSelect
@@ -187,7 +202,7 @@ export default function SuggestionsByCategoriesPage() {
       setLoading(true);
       try {
         const raw = await getSugestoesPerfil(12, { childId, familyId });
-        setItems(normalizeBooks(raw));
+        setItems(dedupeByIsbn(normalizeBooks(raw)));
         setUpdatedAt(Date.now());
       } finally {
         setLoading(false);
@@ -215,7 +230,7 @@ export default function SuggestionsByCategoriesPage() {
     setLoading(true);
     try {
       const raw = await getSugestoesQuiz(answers, 12, { childId, familyId });
-      setItems(normalizeBooks(raw));
+      setItems(dedupeByIsbn(normalizeBooks(raw)));
       setUpdatedAt(Date.now());
     } finally {
       setLoading(false);
@@ -228,11 +243,24 @@ export default function SuggestionsByCategoriesPage() {
       return;
     }
     try {
-      await reserveBook(isbn, { childId }); // ✅ garante number
+      setBusyByIsbn((m) => ({ ...m, [isbn]: true }));
+      await reserveBook(isbn, { childId }); // ✅ só childId
+      setReservedByIsbn((m) => ({ ...m, [isbn]: true }));
       setToast({ msg: "Reserva efetuada!", type: "success" });
-    } catch (e) {
+    } catch (e: any) {
+      const code = e?.response?.data?.error;
+      if (code === "already_reading") {
+        setReservedByIsbn((m) => ({ ...m, [isbn]: true }));
+        setToast({ msg: "Já estás a ler este livro.", type: "error" });
+      } else if (code === "already_reserved") {
+        setReservedByIsbn((m) => ({ ...m, [isbn]: true }));
+        setToast({ msg: "Este livro já está reservado.", type: "error" });
+      } else {
+        setToast({ msg: "Falha ao reservar.", type: "error" });
+      }
       console.error(e);
-      setToast({ msg: "Falha ao reservar.", type: "error" });
+    } finally {
+      setBusyByIsbn((m) => ({ ...m, [isbn]: false }));
     }
   }
 
@@ -450,7 +478,14 @@ export default function SuggestionsByCategoriesPage() {
         {!loading && items && items.length > 0 && (
           <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
             {items.map((b) => (
-              <SuggestionCard key={b.isbn} book={b} onReserve={onReserve} disabled={!childId} />
+              <SuggestionCard
+                key={b.isbn}
+                book={b}
+                onReserve={onReserve}
+                reserving={!!busyByIsbn[b.isbn]}
+                reserved={!!reservedByIsbn[b.isbn]}
+                disabled={!childId}
+              />
             ))}
           </Stack>
         )}

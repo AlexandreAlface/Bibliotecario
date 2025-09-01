@@ -22,10 +22,7 @@ import {
   type QuizAnswer,
 } from "src/services/recommendations";
 import { reserveBook } from "src/services/reservations";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TABBAR_HEIGHT } from "./_layout";
 
 /* ---------- Tipos ---------- */
@@ -35,6 +32,8 @@ type BookLite = {
   coverUrl?: string | null;
   score?: number;
   why?: string[];
+  // opcional: pode vir do servidor
+  status?: "none" | "reserved" | "reading" | "finished";
 };
 
 type Filters = {
@@ -86,6 +85,16 @@ function normalizeBooks(payload: any): BookLite[] {
   if (Array.isArray(payload?.items)) return payload.items as BookLite[];
   return [];
 }
+function dedupeByIsbn(list: BookLite[]) {
+  const seen = new Set<string>();
+  const out: BookLite[] = [];
+  for (const it of list) {
+    if (!it?.isbn || seen.has(it.isbn)) continue;
+    seen.add(it.isbn);
+    out.push(it);
+  }
+  return out;
+}
 
 /* Pequeno “cartão branco” reutilizável */
 function SectionCard({
@@ -133,9 +142,7 @@ export default function SugestoesCategoriasTab() {
     : undefined;
 
   // seleção local obrigatória quando não há actingChild
-  const [selectedChildId, setSelectedChildId] = useState<string | undefined>(
-    undefined
-  );
+  const [selectedChildId, setSelectedChildId] = useState<string | undefined>();
   const childId =
     actingChildId ?? (selectedChildId ? Number(selectedChildId) : undefined);
 
@@ -153,6 +160,12 @@ export default function SugestoesCategoriasTab() {
     msg: string;
     type: "success" | "error";
   } | null>(null);
+
+  // 👇 evitar duplo clique e mostrar estado local
+  const [busyByIsbn, setBusyByIsbn] = useState<Record<string, boolean>>({});
+  const [statusByIsbn, setStatusByIsbn] = useState<
+    Record<string, "reserved" | "reading">
+  >({});
 
   const disableActions = !childId;
   const subtitle = useMemo(
@@ -179,7 +192,7 @@ export default function SugestoesCategoriasTab() {
       setLoading(true);
       try {
         const raw = await getSugestoesPerfil(12, { childId });
-        setItems(normalizeBooks(raw));
+        setItems(dedupeByIsbn(normalizeBooks(raw)));
       } finally {
         setLoading(false);
       }
@@ -202,7 +215,7 @@ export default function SugestoesCategoriasTab() {
     setLoading(true);
     try {
       const raw = await getSugestoesQuiz(answers, 12, { childId });
-      setItems(normalizeBooks(raw));
+      setItems(dedupeByIsbn(normalizeBooks(raw)));
     } finally {
       setLoading(false);
     }
@@ -214,11 +227,27 @@ export default function SugestoesCategoriasTab() {
         setSnack({ msg: "Escolhe a criança primeiro.", type: "error" });
         return;
       }
-      await reserveBook(isbn, { childId });
-      setSnack({ msg: "Reserva efetuada!", type: "success" });
-    } catch (e) {
+      // ✅ assinatura correta
+      setBusyByIsbn((m) => ({ ...m, [isbn]: true }));
+      await reserveBook(childId, isbn);
+      setStatusByIsbn((m) => ({ ...m, [isbn]: "reserved" }));
+      setSnack({ msg: "Reserva criada! Vai a Leituras › Reservado.", type: "success" });
+    } catch (e: any) {
+      const code = e?.response?.data?.error;
+      if (code === "already_reading") {
+        setStatusByIsbn((m) => ({ ...m, [isbn]: "reading" }));
+        setSnack({ msg: "Já estás a ler este livro.", type: "error" });
+      } else if (code === "already_reserved") {
+        setStatusByIsbn((m) => ({ ...m, [isbn]: "reserved" }));
+        setSnack({ msg: "Este livro já está reservado para esta criança.", type: "error" });
+      } else if (typeof e?.message === "string" && e.message) {
+        setSnack({ msg: e.message, type: "error" });
+      } else {
+        setSnack({ msg: "Falha ao reservar.", type: "error" });
+      }
       console.error(e);
-      setSnack({ msg: "Falha ao reservar.", type: "error" });
+    } finally {
+      setBusyByIsbn((m) => ({ ...m, [isbn]: false }));
     }
   }
 
@@ -231,7 +260,7 @@ export default function SugestoesCategoriasTab() {
         }
         contentContainerStyle={{
           paddingHorizontal: 16,
-          paddingTop: 8, // SafeArea já protege do notch/status bar
+          paddingTop: 8,
           paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
           rowGap: 16,
         }}
@@ -304,8 +333,8 @@ export default function SugestoesCategoriasTab() {
                   avatarUri: c.avatarUrl || undefined,
                 }))}
                 value={selectedChildId}
-                onChange={(id) => setSelectedChildId(id)} // ← id pode vir undefined ao limpar
-                clearable // ← mostra o “✕” para limpar (opcional)
+                onChange={(id?: string) => setSelectedChildId(id)}
+                clearable
                 disabled={!user?.children?.length}
                 menuMaxHeight={360}
               />
@@ -317,15 +346,14 @@ export default function SugestoesCategoriasTab() {
             </View>
           )}
         </SectionCard>
+
+        {/* CARD 2 — Filtros */}
         <SectionCard>
           {/* Filtros */}
           <View style={{ rowGap: 16 }}>
             {/* Faixa Etária */}
             <View>
-              <Text
-                variant="titleMedium"
-                style={{ fontWeight: "bold", marginBottom: 8 }}
-              >
+              <Text variant="titleMedium" style={{ fontWeight: "bold", marginBottom: 8 }}>
                 Faixa Etária
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
@@ -349,10 +377,7 @@ export default function SugestoesCategoriasTab() {
 
             {/* Géneros */}
             <View>
-              <Text
-                variant="titleMedium"
-                style={{ fontWeight: "bold", marginBottom: 8 }}
-              >
+              <Text variant="titleMedium" style={{ fontWeight: "bold", marginBottom: 8 }}>
                 Géneros
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
@@ -373,10 +398,7 @@ export default function SugestoesCategoriasTab() {
 
             {/* Formato */}
             <View>
-              <Text
-                variant="titleMedium"
-                style={{ fontWeight: "bold", marginBottom: 8 }}
-              >
+              <Text variant="titleMedium" style={{ fontWeight: "bold", marginBottom: 8 }}>
                 Formato
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
@@ -397,10 +419,7 @@ export default function SugestoesCategoriasTab() {
 
             {/* Objetivos */}
             <View>
-              <Text
-                variant="titleMedium"
-                style={{ fontWeight: "bold", marginBottom: 8 }}
-              >
+              <Text variant="titleMedium" style={{ fontWeight: "bold", marginBottom: 8 }}>
                 Objetivos
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
@@ -421,10 +440,7 @@ export default function SugestoesCategoriasTab() {
 
             {/* Momento de leitura */}
             <View>
-              <Text
-                variant="titleMedium"
-                style={{ fontWeight: "bold", marginBottom: 8 }}
-              >
+              <Text variant="titleMedium" style={{ fontWeight: "bold", marginBottom: 8 }}>
                 Momento de leitura
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
@@ -474,7 +490,7 @@ export default function SugestoesCategoriasTab() {
           </View>
         </SectionCard>
 
-        {/* CARD 2 — Resultados */}
+        {/* CARD 3 — Resultados */}
         <SectionCard>
           {items.length === 0 ? (
             <View style={{ paddingVertical: 8 }}>
@@ -492,61 +508,84 @@ export default function SugestoesCategoriasTab() {
                 justifyContent: "space-between",
               }}
             >
-              {items.map((item) => (
-                <Card
-                  key={item.isbn}
-                  style={{ width: "48%", marginBottom: 12 }}
-                >
-                  <Card.Cover
-                    source={
-                      item.coverUrl
-                        ? { uri: item.coverUrl }
-                        : require("../../assets/placeholder-book.png")
-                    }
-                    resizeMode="cover"
-                    style={{ height: 200 }}
-                  />
-                  <Card.Content>
-                    <Text
-                      variant="titleSmall"
-                      numberOfLines={2}
-                      style={{ marginTop: 8 }}
-                    >
-                      {item.title}
-                    </Text>
-                    {typeof item.score === "number" ? (
-                      <Text variant="labelSmall" style={{ opacity: 0.6 }}>
-                        score {item.score.toFixed(3)}
+              {items.map((item) => {
+                const btnBusy = !!busyByIsbn[item.isbn];
+                const serverStatus =
+                  (item as any).status as "reserved" | "reading" | "finished" | "none" | undefined;
+                const localOverride = statusByIsbn[item.isbn];
+                const effectiveStatus = (localOverride || serverStatus) as
+                  | "reserved" | "reading" | "finished" | "none" | undefined;
+
+                const disabled =
+                  !childId || btnBusy || effectiveStatus === "reserved" || effectiveStatus === "reading";
+
+                const label =
+                  effectiveStatus === "reserved"
+                    ? "Reservado"
+                    : effectiveStatus === "reading"
+                    ? "A ler"
+                    : effectiveStatus === "finished"
+                    ? "Reservar de novo"
+                    : "Reservar";
+
+                return (
+                  <Card key={item.isbn} style={{ width: "48%", marginBottom: 12 }}>
+                    <Card.Cover
+                      source={
+                        item.coverUrl
+                          ? { uri: item.coverUrl }
+                          : require("../../assets/placeholder-book.png")
+                      }
+                      resizeMode="cover"
+                      style={{ height: 200 }}
+                    />
+                    <Card.Content>
+                      <Text variant="titleSmall" numberOfLines={2} style={{ marginTop: 8 }}>
+                        {item.title}
                       </Text>
-                    ) : null}
-                  </Card.Content>
-                  <Card.Actions>
-                    <Button
-                      onPress={() => onReserve(item.isbn)}
-                      disabled={!childId}
-                    >
-                      Reservar
-                    </Button>
-                  </Card.Actions>
-                </Card>
-              ))}
+                      {typeof item.score === "number" ? (
+                        <Text variant="labelSmall" style={{ opacity: 0.6 }}>
+                          score {item.score.toFixed(3)}
+                        </Text>
+                      ) : null}
+                      {item.why?.length ? (
+                        <Chip compact style={{ marginTop: 6 }} icon="information-outline">
+                          {item.why[0]}
+                        </Chip>
+                      ) : null}
+                      {serverStatus === "finished" && (
+                        <Chip compact style={{ marginTop: 6 }} icon="check">
+                          Já lido
+                        </Chip>
+                      )}
+                    </Card.Content>
+                    <Card.Actions>
+                      <Button
+                        onPress={() => onReserve(item.isbn)}
+                        disabled={disabled}
+                        loading={btnBusy}
+                      >
+                        {label}
+                      </Button>
+                    </Card.Actions>
+                  </Card>
+                );
+              })}
             </View>
           )}
         </SectionCard>
+
         <Portal>
           <Snackbar
             visible={!!snack}
             onDismiss={() => setSnack(null)}
             duration={2500}
-            action={{
-              label: "Fechar",
-              onPress: () => setSnack(null),
-            }}
+            action={{ label: "Fechar", onPress: () => setSnack(null) }}
             style={
               snack?.type === "success"
-                ? { backgroundColor: "#2e7d32" } // verde sucesso
+                ? { backgroundColor: "#2e7d32" }
                 : snack?.type === "error"
-                ? { backgroundColor: "#c62828" } // vermelho erro
+                ? { backgroundColor: "#c62828" }
                 : undefined
             }
           >

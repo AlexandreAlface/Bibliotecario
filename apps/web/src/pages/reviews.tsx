@@ -1,4 +1,3 @@
-// apps/web/src/pages/reviews.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Container,
@@ -17,7 +16,13 @@ import {
 } from "@mui/material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import StarRounded from "@mui/icons-material/StarRounded";
-import { WhiteCard, AvatarSelect, FilterBar, type FilterDefinition, Paginator } from "@bibliotecario/ui-web";
+import {
+  WhiteCard,
+  AvatarSelect,
+  FilterBar,
+  type FilterDefinition,
+  Paginator,
+} from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
 import { listPendingRatings, submitRating } from "../services/readings";
 
@@ -26,28 +31,39 @@ type Row = {
   title: string;
   coverUrl?: string | null;
   status: "reserved" | "reading" | "finished";
-  stars: number | null;          // estrelas do utilizador (se existir)
-  comment?: string | null;       // comentário do utilizador (se existir)
-  ratedAt?: string | null;       // data da avaliação (se existir)
+  stars: number | null;
+  comment?: string | null;
+  ratedAt?: string | null;
 };
 
 export default function ReviewsPage() {
-  const { user, asChild, selectedChildId, setSelectedChildId } = useUserSession();
+  const { user, asChild, selectedChildId, setSelectedChildId } =
+    useUserSession();
 
-  // Em modo criança usa actingChild; em família, obriga a escolher
+  // childId: usa actingChild se existir; em modo família precisa de escolha
   const childId = asChild
     ? Number((user?.actingChild?.id as any) ?? (selectedChildId as any))
     : selectedChildId
     ? Number(selectedChildId)
     : undefined;
 
-  const familyId = asChild ? undefined : Number(user?.id);
+  // ⚠️ MESMA LÓGICA DO MOBILE — header de auth para as reviews
+  const familyIdForAuth =
+    Number((user as any)?.family?.id) ||
+    Number((user as any)?.families?.[0]?.id) ||
+    Number((user as any)?.id) ||
+    undefined;
+
+  const mustPickChild = !asChild && !childId;
 
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [comment, setComment] = useState<Record<string, string>>({});
   const [stars, setStars] = useState<Record<string, number>>({});
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [toast, setToast] = useState<{
+    msg: string;
+    type: "success" | "error";
+  } | null>(null);
 
   // -------- filtros + paginação --------
   const FINISHED_FILTERS: FilterDefinition[] = [
@@ -60,14 +76,21 @@ export default function ReviewsPage() {
       ],
     },
   ];
-  const [filters, setFilters] = useState<Record<string, string[]>>({ rating: [] });
+  const [filters, setFilters] = useState<Record<string, string[]>>({
+    rating: [],
+  });
 
-  const finished = useMemo(() => rows.filter((r) => r.status === "finished"), [rows]);
+  const finished = useMemo(
+    () => rows.filter((r) => r.status === "finished"),
+    [rows]
+  );
   const filtered = useMemo(() => {
     const sel = filters.rating || [];
     if (sel.length === 0 || sel.length === 2) return finished;
     const wantRated = sel.includes("rated");
-    return finished.filter((r) => (wantRated ? typeof r.stars === "number" : typeof r.stars !== "number"));
+    return finished.filter((r) =>
+      wantRated ? typeof r.stars === "number" : typeof r.stars !== "number"
+    );
   }, [finished, filters]);
 
   const [page, setPage] = useState(1);
@@ -80,12 +103,17 @@ export default function ReviewsPage() {
   useEffect(() => setPage(1), [JSON.stringify(filters), finished.length]);
 
   async function load() {
-    if (!childId && !familyId) return;
-    const data = await listPendingRatings({ childId, familyId, limit: 200 });
-    // só guardamos terminados
-    const onlyFinished = (data as any[]).filter((r) => r.status === "finished") as Row[];
+    if (!childId) return; // não disparamos sem criança
+    const data = await listPendingRatings({
+      childId,
+      familyId: familyIdForAuth, // ← header x-user-id (igual ao mobile)
+      limit: 200,
+    });
 
-    // preseed de estrelas/comentário com o que já existe
+    const onlyFinished = (data as any[]).filter(
+      (r) => r.status === "finished"
+    ) as Row[];
+
     const seedStars: Record<string, number> = {};
     const seedComment: Record<string, string> = {};
     for (const r of onlyFinished) {
@@ -100,7 +128,7 @@ export default function ReviewsPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childId, familyId]);
+  }, [childId, familyIdForAuth]);
 
   const childOptions =
     (user?.children || []).map((c: any) => ({
@@ -109,12 +137,40 @@ export default function ReviewsPage() {
       avatar: c.avatarUrl || undefined,
     })) ?? [];
 
+  if (mustPickChild) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <WhiteCard>
+          <Typography variant="h5" fontWeight={900} sx={{ mb: 1 }}>
+            Avaliar Leituras
+          </Typography>
+          <Typography sx={{ mt: 1.5, mb: 2, opacity: 0.8 }}>
+            Escolhe o perfil da criança para veres as leituras terminadas e
+            deixares a avaliação.
+          </Typography>
+          <AvatarSelect
+            label="Escolher criança"
+            options={childOptions}
+            value={selectedChildId}
+            onChange={(id) => setSelectedChildId(id)}
+            minWidth={280}
+          />
+        </WhiteCard>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Contexto em modo família */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
-          <Stack direction="row" alignItems="center" spacing={2} useFlexGap flexWrap="wrap">
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={2}
+            useFlexGap
+            flexWrap="wrap"
+          >
             <Typography fontWeight={900}>A atuar como</Typography>
             <AvatarSelect
               label="Escolher criança"
@@ -128,12 +184,20 @@ export default function ReviewsPage() {
       )}
 
       <WhiteCard>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-          <Typography variant="h4" fontWeight={900}>Avaliar Leituras</Typography>
-          <IconButton onClick={load} title="Atualizar"><RefreshRounded /></IconButton>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          sx={{ mb: 1 }}
+        >
+          <Typography variant="h4" fontWeight={900}>
+            Avaliar Leituras
+          </Typography>
+          <IconButton onClick={load} title="Atualizar" disabled={!childId}>
+            <RefreshRounded />
+          </IconButton>
         </Stack>
 
-        {/* filtros */}
         <FilterBar
           filters={FINISHED_FILTERS}
           selected={filters}
@@ -146,7 +210,7 @@ export default function ReviewsPage() {
 
         {pageItems.length === 0 ? (
           <Typography sx={{ opacity: 0.75 }}>
-            {childId || familyId
+            {childId
               ? "Sem resultados para os filtros aplicados."
               : "Escolhe a criança para ver leituras terminadas."}
           </Typography>
@@ -170,7 +234,9 @@ export default function ReviewsPage() {
                         borderTopRightRadius: 4,
                       }}
                       onError={(e: any) => {
-                        if (!e.currentTarget.src.includes("placeholder-book.jpg")) {
+                        if (
+                          !e.currentTarget.src.includes("placeholder-book.jpg")
+                        ) {
                           e.currentTarget.src = "/placeholder-book.jpg";
                         }
                       }}
@@ -180,17 +246,21 @@ export default function ReviewsPage() {
                         {r.title}
                       </Typography>
 
-                      {/* Data da avaliação, se houver */}
                       {r.ratedAt && (
-                        <Typography variant="caption" sx={{ opacity: 0.65, display: "block", mb: 0.5 }}>
-                          Avaliado em {new Date(r.ratedAt).toLocaleDateString("pt-PT")}
+                        <Typography
+                          variant="caption"
+                          sx={{ opacity: 0.65, display: "block", mb: 0.5 }}
+                        >
+                          Avaliado em{" "}
+                          {new Date(r.ratedAt).toLocaleDateString("pt-PT")}
                         </Typography>
                       )}
 
-                      {/* rating + comentário (pré-preenchidos) */}
                       <Rating
                         value={currentStars}
-                        onChange={(_, v) => setStars((s) => ({ ...s, [r.isbn]: v || 0 }))}
+                        onChange={(_, v) =>
+                          setStars((s) => ({ ...s, [r.isbn]: v || 0 }))
+                        }
                         sx={{ mt: 0.5 }}
                       />
                       <TextField
@@ -198,7 +268,10 @@ export default function ReviewsPage() {
                         placeholder="Comentário (opcional)"
                         value={comment[r.isbn] ?? r.comment ?? ""}
                         onChange={(e) =>
-                          setComment((c) => ({ ...c, [r.isbn]: e.target.value }))
+                          setComment((c) => ({
+                            ...c,
+                            [r.isbn]: e.target.value,
+                          }))
                         }
                         multiline
                         rows={2}
@@ -214,23 +287,39 @@ export default function ReviewsPage() {
                           try {
                             setBusy(r.isbn);
                             const starsToSend = stars[r.isbn] ?? r.stars ?? 0;
-                            const commentToSend = (comment[r.isbn] ?? r.comment ?? "").trim() || undefined;
+                            const commentToSend =
+                              (comment[r.isbn] ?? r.comment ?? "").trim() ||
+                              undefined;
 
                             await submitRating(
-                              { isbn: r.isbn, stars: starsToSend, comment: commentToSend },
-                              { childId, familyId }
+                              {
+                                isbn: r.isbn,
+                                stars: starsToSend,
+                                comment: commentToSend,
+                              },
+                              { childId, familyId: familyIdForAuth } // ← header x-user-id
                             );
-                            setToast({ msg: hasExisting ? "Avaliação atualizada!" : "Avaliação guardada!", type: "success" });
-                            await load(); // volta já com comment/ratedAt
+                            setToast({
+                              msg: hasExisting
+                                ? "Avaliação atualizada!"
+                                : "Avaliação guardada!",
+                              type: "success",
+                            });
+                            await load();
                           } catch (e) {
                             console.error(e);
-                            setToast({ msg: "Falha ao guardar avaliação.", type: "error" });
+                            setToast({
+                              msg: "Falha ao guardar avaliação.",
+                              type: "error",
+                            });
                           } finally {
                             setBusy(null);
                           }
                         }}
                       >
-                        {hasExisting ? "Atualizar avaliação" : "Guardar avaliação"}
+                        {hasExisting
+                          ? "Atualizar avaliação"
+                          : "Guardar avaliação"}
                       </Button>
                     </CardActions>
                   </Card>

@@ -28,36 +28,82 @@ router.get("/pending", async (req, res) => {
       Number(req.query.userId) ||
       null;
 
+    // 🔧 1) Reservas atuais (status: reserved/reading)
+    // 🔧 2) Leituras terminadas mais recentes por livro (status: finished)
     const rows = await prisma.$queryRaw`
-      SELECT
-        br.id AS "reservationId", br."reservedAt",
-        b."isbn", b."title", b."coverUrl",
-        rr."id" AS "readingId", rr."startedAt", rr."finishedAt",
-        ur."stars" AS "stars", ur."comment" AS "comment", ur."ratedAt" AS "ratedAt"
-      FROM "BookReservation" br
-      JOIN "Book" b
-        ON b."isbn" = br."bookIsbn"
-      -- ⚠️ apenas leitura ABERTA associada a ESTA reserva
-      LEFT JOIN LATERAL (
-        SELECT r2."id", r2."startedAt", r2."finishedAt"
-        FROM "Reading" r2
-        WHERE r2."reservationId" = br."id"
-          AND r2."finishedAt" IS NULL            -- 👈 só “a ler”
-        ORDER BY r2."id" DESC
-        LIMIT 1
-      ) rr ON TRUE
-      -- rating mais recente do utilizador (opcional, só para mostrar estrelas/coment)
-      LEFT JOIN LATERAL (
-        SELECT rt."stars", rt."comment", rt."ratedAt"
-        FROM "Rating" rt
-        WHERE rt."userId" = ${userId}
-          AND rt."childId" = ${cid}
-          AND rt."bookIsbn" = br."bookIsbn"
-        ORDER BY rt."ratedAt" DESC
-        LIMIT 1
-      ) ur ON TRUE
-      WHERE br."childId" = ${cid}
-      ORDER BY br."reservedAt" DESC
+      WITH pending AS (
+        SELECT
+          br.id               AS "reservationId",
+          br."reservedAt"     AS "reservedAt",
+          b."isbn"            AS "isbn",
+          b."title"           AS "title",
+          b."coverUrl"        AS "coverUrl",
+          rr."id"             AS "readingId",
+          rr."startedAt"      AS "startedAt",
+          rr."finishedAt"     AS "finishedAt",
+          ur."stars"          AS "stars",
+          ur."comment"        AS "comment",
+          ur."ratedAt"        AS "ratedAt",
+          br."reservedAt"     AS "sortDate"
+        FROM "BookReservation" br
+        JOIN "Book" b
+          ON b."isbn" = br."bookIsbn"
+        LEFT JOIN LATERAL (
+          SELECT r2."id", r2."startedAt", r2."finishedAt"
+          FROM "Reading" r2
+          WHERE r2."reservationId" = br."id"
+            AND r2."finishedAt" IS NULL      -- apenas leitura aberta
+          ORDER BY r2."id" DESC
+          LIMIT 1
+        ) rr ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT rt."stars", rt."comment", rt."ratedAt"
+          FROM "Rating" rt
+          WHERE rt."userId" = ${userId}
+            AND rt."childId" = ${cid}
+            AND rt."bookIsbn" = br."bookIsbn"
+          ORDER BY rt."ratedAt" DESC
+          LIMIT 1
+        ) ur ON TRUE
+        WHERE br."childId" = ${cid}
+      ),
+      finished AS (
+        SELECT
+          NULL::int           AS "reservationId",
+          NULL::timestamp     AS "reservedAt",
+          b."isbn"            AS "isbn",
+          b."title"           AS "title",
+          b."coverUrl"        AS "coverUrl",
+          r."id"              AS "readingId",
+          r."startedAt"       AS "startedAt",
+          r."finishedAt"      AS "finishedAt",
+          ur."stars"          AS "stars",
+          ur."comment"        AS "comment",
+          ur."ratedAt"        AS "ratedAt",
+          r."finishedAt"      AS "sortDate"
+        FROM (
+          -- última leitura terminada por livro
+          SELECT DISTINCT ON (rr."bookIsbn")
+            rr."id", rr."childId", rr."bookIsbn", rr."startedAt", rr."finishedAt"
+          FROM "Reading" rr
+          WHERE rr."childId" = ${cid} AND rr."finishedAt" IS NOT NULL
+          ORDER BY rr."bookIsbn", rr."finishedAt" DESC
+        ) r
+        JOIN "Book" b ON b."isbn" = r."bookIsbn"
+        LEFT JOIN LATERAL (
+          SELECT rt."stars", rt."comment", rt."ratedAt"
+          FROM "Rating" rt
+          WHERE rt."userId" = ${userId}
+            AND rt."childId" = ${cid}
+            AND rt."bookIsbn" = r."bookIsbn"
+          ORDER BY rt."ratedAt" DESC
+          LIMIT 1
+        ) ur ON TRUE
+      )
+      SELECT * FROM pending
+      UNION ALL
+      SELECT * FROM finished
+      ORDER BY "sortDate" DESC NULLS LAST
       LIMIT ${limit};
     `;
 
@@ -68,14 +114,14 @@ router.get("/pending", async (req, res) => {
         ? "reading"
         : "reserved";
       return {
-        reservationId: r.reservationId,
+        reservationId: r.reservationId ?? null,
         isbn: r.isbn,
         title: r.title,
-        coverUrl: r.coverUrl ?? undefined,
+        coverUrl: r.coverUrl ?? null,
         status,
-        startedAt: r.startedAt,
-        finishedAt: r.finishedAt,
-        stars: r.stars ? Number(r.stars) : null,
+        startedAt: r.startedAt ?? null,
+        finishedAt: r.finishedAt ?? null,
+        stars: r.stars != null ? Number(r.stars) : null,
         comment: r.comment ?? null,
         ratedAt: r.ratedAt ?? null,
         readingId: r.readingId ?? null,
