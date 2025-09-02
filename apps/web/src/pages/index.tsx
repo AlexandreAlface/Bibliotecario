@@ -36,7 +36,6 @@ import type { BookLite as SuggestionBookLite } from "../services/books";
 import { getNextConsultas, type ConsultaLite } from "../services/consultations";
 import { getBadgesRecent, type BadgeLite } from "../services/badges";
 import EmojiEventsRounded from "@mui/icons-material/EmojiEventsRounded";
-import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 
 // Placeholder para eventos sem imagem
 import EVENT_PLACEHOLDER from "../assets/placeholder-event.jpg";
@@ -73,6 +72,13 @@ const STATUS_CFG: Record<
   string,
   { label: string; color: "success" | "warning" | "error" | "default" }
 > = {
+  // EN do backend
+  CONFIRMED: { label: "Confirmado", color: "success" },
+  PENDING: { label: "Pendente", color: "warning" },
+  DECLINED: { label: "Recusado", color: "error" },
+  CANCELLED: { label: "Cancelado", color: "default" },
+  COMPLETED: { label: "Concluída", color: "success" },
+  // PT (legacy)
   CONFIRMADO: { label: "Confirmado", color: "success" },
   PENDENTE: { label: "Pendente", color: "warning" },
   RECUSADO: { label: "Recusado", color: "error" },
@@ -532,45 +538,6 @@ function SuggestionCard({
   );
 }
 
-function BadgePill({ b, showChild }: { b: BadgeLite; showChild: boolean }) {
-  const isTrophy = (b.type || "").toUpperCase().includes("TROF");
-  const Icon = isTrophy ? EmojiEventsRounded : LocalOfferRounded;
-
-  return (
-    <Box
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 1,
-        px: 1.25,
-        py: 0.75,
-        borderRadius: 999,
-        border: "1px solid",
-        borderColor: isTrophy ? "warning.light" : "secondary.light",
-        bgcolor: isTrophy ? "warning.50" : "secondary.50",
-        boxShadow: "0 8px 20px rgba(0,0,0,.06)",
-        whiteSpace: "nowrap",
-        maxWidth: "100%",
-      }}
-      title={b.criteria || undefined}
-    >
-      <Icon fontSize="small" />
-      <Typography fontWeight={800} noWrap sx={{ maxWidth: 220 }}>
-        {b.name}
-      </Typography>
-      {showChild && !!b.childName && (
-        <Typography
-          variant="caption"
-          noWrap
-          sx={{ opacity: 0.75, maxWidth: 160 }}
-        >
-          · de {b.childName}
-        </Typography>
-      )}
-    </Box>
-  );
-}
-
 /** ---------- Página ---------- */
 export default function LandingPage() {
   const theme = useTheme();
@@ -594,42 +561,59 @@ export default function LandingPage() {
   const [sugLoading, setSugLoading] = useState(false);
   const [sugUpdatedAt, setSugUpdatedAt] = useState<number | null>(null);
 
-  // carga geral (sem tocar nas sugestões)
+  // carga geral (com consultas e leituras conforme o modo)
   useEffect(() => {
     (async () => {
-      const childIdsAll = (user?.children || [])
-        .map((c) => Number(c.id))
-        .filter((n) => Number.isFinite(n));
+      const childIdsAll =
+        (user?.children || [])
+          .map((c) => Number(c.id))
+          .filter((n) => Number.isFinite(n)) ?? [];
 
+      const currentChildId = Number(
+        (user?.actingChild?.id as any) ?? (selectedChildId as any)
+      );
+
+      // Leituras
       const leiturasPromise = asChild
-        ? getLeiturasAtuais(4, {
-            childId: Number(
-              (user?.actingChild?.id as any) ?? (selectedChildId as any)
-            ),
-          })
-        : getLeiturasAtuais(4, { childIds: childIdsAll });
+        ? getLeiturasAtuais(4, { childId: currentChildId })
+        : (async () => {
+            if (!childIdsAll.length) return [] as ReadingBookLite[];
+            const perChild = await Promise.all(
+              childIdsAll.map((cid) => getLeiturasAtuais(2, { childId: cid }))
+            );
+            // junta e corta às 4 mais recentes (se o serviço já vier ordenado, perfeito)
+            return perChild.flat().slice(0, 4) as ReadingBookLite[];
+          })();
+
+      // Consultas (só família) — serviço já usa o utilizador autenticado
+      const consultasPromise = asChild
+        ? Promise.resolve([] as ConsultaLite[])
+        : getNextConsultas(6, { familyId: Number(user?.id) });
 
       const badgesPromise = asChild
-        ? getBadgesRecent(12, {
-            childId: Number(
-              (user?.actingChild?.id as any) ?? (selectedChildId as any)
-            ),
-          })
+        ? getBadgesRecent(12, { childId: currentChildId })
         : getBadgesRecent(12, { familyId: Number(user?.id) });
 
       const [ev, le, co, ba] = await Promise.allSettled([
         getProximosEventos(8),
         leiturasPromise,
-        // getNextConsultas(6),
+        consultasPromise,
         badgesPromise,
       ]);
 
       if (ev.status === "fulfilled") setEventos(ev.value as any);
       if (le.status === "fulfilled") setLeituras(le.value as any);
       if (co.status === "fulfilled") setConsultas(co.value as any);
+      else if (asChild) setConsultas([]);
       if (ba.status === "fulfilled") setBadges(ba.value as any);
     })();
-  }, [asChild, selectedChildId, user?.actingChild?.id, user?.children?.length, user?.id]);
+  }, [
+    asChild,
+    selectedChildId,
+    user?.actingChild?.id,
+    user?.children?.length,
+    user?.id,
+  ]);
 
   // gerar sugestões on-demand
   async function generateSuggestions() {
@@ -934,7 +918,7 @@ export default function LandingPage() {
               ))}
             </Stack>
 
-            {/* contentor do carrossel - sempre dentro do pai */}
+            {/* contentor do carrossel */}
             <Box
               sx={{
                 position: "relative",
@@ -1009,9 +993,9 @@ export default function LandingPage() {
                         <Typography fontWeight={800} noWrap title={b.title}>
                           {b.title}
                         </Typography>
-                        {!asChild && b.childName && (
+                        {!asChild && (b as any).childName && (
                           <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                            de {b.childName}
+                            de {(b as any).childName}
                           </Typography>
                         )}
                         {!asChild && (
@@ -1027,7 +1011,7 @@ export default function LandingPage() {
                           />
                         )}
                       </Box>
-                      <RouteLink href={asChild ? "/suggestions" : "/leituras"}>
+                      <RouteLink href={asChild ? "/suggestions" : "/reading"}>
                         {asChild ? "Abrir" : "Abrir"}
                       </RouteLink>
                     </Stack>
@@ -1061,13 +1045,7 @@ export default function LandingPage() {
                     <Chip
                       key={b.id}
                       variant={isTrofeu ? "filled" : "outlined"}
-                      icon={
-                        isTrofeu ? (
-                          <EmojiEventsRounded fontSize="small" />
-                        ) : (
-                          <WorkspacePremiumRounded fontSize="small" />
-                        )
-                      }
+                      icon={<EmojiEventsRounded fontSize="small" />}
                       label={
                         asChild
                           ? b.name
