@@ -16,7 +16,8 @@ const API_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
   "http://localhost:3333/api";
 
-function qs(params: Record<string, string | number | undefined>) {
+/* ----------------------------- helpers ----------------------------- */
+function qs(params: Record<string, string | number | undefined | null>) {
   const s = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     if (v === undefined || v === null || v === "") continue;
@@ -26,23 +27,41 @@ function qs(params: Record<string, string | number | undefined>) {
   return s.toString();
 }
 
-async function fetchJson(url: string) {
+function getAccessTokenFromCookie(): string | undefined {
+  const m = document.cookie.match(/(?:^|;\s*)bf_access=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : undefined;
+}
+
+async function fetchJson(url: string, init?: RequestInit) {
+  const bearer = getAccessTokenFromCookie();
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...(init?.headers as any),
+  };
+  if (bearer && !headers.Authorization) {
+    headers.Authorization = `Bearer ${bearer}`;
+  }
+
   const res = await fetch(url, {
     credentials: "include",
-    headers: { Accept: "application/json" },
     cache: "no-store",
+    ...init,
+    headers,
   });
   if (res.status === 204) return [];
   const raw = await res.text();
+
   if (!res.ok) {
-    // tenta extrair mensagem útil
     try {
       const j = raw ? JSON.parse(raw) : {};
       throw new Error(j?.error || `HTTP ${res.status}`);
     } catch {
-      throw new Error(`HTTP ${res.status}${raw ? `: ${raw.slice(0, 120)}` : ""}`);
+      throw new Error(
+        `HTTP ${res.status}${raw ? `: ${raw.slice(0, 160)}` : ""}`
+      );
     }
   }
+
   if (!raw.trim()) return [];
   try {
     return JSON.parse(raw);
@@ -51,7 +70,7 @@ async function fetchJson(url: string) {
   }
 }
 
-/** Próximas consultas – tenta /next, cai para /all se necessário */
+/* ------------------------- próximas consultas ------------------------- */
 export async function getNextConsultas(
   limit = 6,
   opts?: { familyId?: number; childId?: number; librarianId?: number }
@@ -63,19 +82,22 @@ export async function getNextConsultas(
     librarianId: opts?.librarianId,
   });
 
-  // 1) tentativa principal
+  // 1) rota principal
   try {
     const url = `${API_BASE}/consultations/next?${baseParams}`;
     const items = await fetchJson(url);
     if (Array.isArray(items)) return items as ConsultaLite[];
   } catch (e) {
-    // segue para o fallback
+    // fallback abaixo
     console.debug("fallback /consultations/all por falha no /next:", e);
   }
 
-  // 2) fallback: /all (filtra por datas/estado e normaliza forma “Lite”)
+  // 2) fallback: /all (normaliza para ConsultaLite)
   const now = new Date();
-  const monthStart = new Date(now); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+  const monthStart = new Date(now);
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
   const urlAll = `${API_BASE}/consultations/all?${qs({
     limit: Math.max(100, limit),
     from: monthStart.toISOString(),
@@ -87,7 +109,6 @@ export async function getNextConsultas(
 
   const full = await fetchJson(urlAll);
 
-  // normalizar para ConsultaLite (o /all devolve objeto “rich”)
   const lite: ConsultaLite[] = (Array.isArray(full) ? full : [])
     .filter((c: any) =>
       ["PENDING", "CONFIRMED"].includes(String(c.status || "").toUpperCase())
@@ -107,18 +128,17 @@ export async function getNextConsultas(
       librarianId: c.librarianId,
       librarianName: c?.librarian?.fullName ?? undefined,
     }))
-    .sort((a, b) =>
-      new Date(a.scheduledAt || a.date || 0).getTime() -
-      new Date(b.scheduledAt || b.date || 0).getTime()
+    .sort(
+      (a, b) =>
+        new Date(a.scheduledAt || a.date || 0).getTime() -
+        new Date(b.scheduledAt || b.date || 0).getTime()
     )
     .slice(0, limit);
 
   return lite;
 }
 
-
-// apps/web/src/services/consultations.ts (ADICIONAR)
-
+/* ----------------------------- slots abertos ----------------------------- */
 export type SlotLite = {
   id: number;
   startAt: string;
@@ -131,18 +151,46 @@ export type SlotLite = {
   libraryName?: string;
 };
 
-
-/** Lista slots abertos no intervalo [from,to] */
+/** Lista slots abertos no intervalo [from,to]. Aceita filtros opcionais */
 export async function listOpenSlots(params: {
   from: string; // ISO
-  to: string;   // ISO
+  to: string; // ISO
   libraryId?: number;
   librarianId?: number;
 }): Promise<SlotLite[]> {
-  const url = `/api/consultations/slots?${qs(params)}`;
-  const res = await fetch(url, { credentials: "include" });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const url = `${API_BASE}/consultations/slots?${qs(params)}`;
+  const data = await fetchJson(url);
+
+  // Se a API já devolver no formato SlotLite, devolvemos direto.
+  // Caso venha "rich", mapeamos.
+  if (
+    Array.isArray(data) &&
+    data.length &&
+    "startAt" in data[0] &&
+    "endAt" in data[0]
+  ) {
+    // tentativa simples de detetar shape
+    return data as SlotLite[];
+  }
+
+  // mapeamento defensivo (caso venha com relações aninhadas)
+  const mapped: SlotLite[] = (Array.isArray(data) ? data : []).map(
+    (s: any) => ({
+      id: Number(s.id),
+      startAt: String(s.startAt),
+      endAt: String(s.endAt),
+      status:
+        (s.status || "OPEN").toUpperCase() === "BOOKED" ? "BOOKED" : "OPEN",
+      librarianId: Number(s.librarianId ?? s.librarian?.id),
+      librarianName: s.librarianName ?? s.librarian?.fullName,
+      librarianAvatarUrl:
+        s.librarianAvatarUrl ?? s.librarian?.avatarUrl ?? null,
+      libraryId: s.libraryId ?? s.library?.id,
+      libraryName: s.libraryName ?? s.library?.name,
+    })
+  );
+
+  return mapped;
 }
 
 /** Cria consulta para um slot */
@@ -153,15 +201,11 @@ export async function createConsultationWithSlot(payload: {
   libraryId?: number;
   slotId: number;
 }): Promise<ConsultaLite> {
-  const res = await fetch(`/api/consultations`, {
+  const url = `${API_BASE}/consultations`;
+  const data = await fetchJson(url, {
     method: "POST",
-    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const msg = await res.text();
-    throw new Error(msg || `HTTP ${res.status}`);
-  }
-  return res.json();
+  return data as ConsultaLite;
 }

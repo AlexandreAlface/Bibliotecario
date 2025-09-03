@@ -78,64 +78,79 @@ function forbidden(res: Response, msg = 'forbidden') {
  * - Carrega utilizador + roles
  * - Lê header opcional x-acting-child-id (apenas válido para família)
  */
+
 export async function withUser(req: Request, res: Response, next: NextFunction) {
   try {
-    const auth = req.header('authorization') || req.header('Authorization')
-    if (!auth || !auth.startsWith('Bearer ')) return unauthorized(res)
+    // 1) tenta Authorization: Bearer <token>
+    let token: string | undefined;
+    const h = req.header('authorization') || req.header('Authorization');
+    if (h?.startsWith('Bearer ')) token = h.slice(7).trim();
 
-    const token = auth.slice('Bearer '.length).trim()
-    const secret = process.env.JWT_SECRET
-    if (!secret) return unauthorized(res, 'server misconfigured (JWT_SECRET)')
-
-    let payload: JwtPayloadMinimal
-    try {
-      payload = jwt.verify(token, secret) as JwtPayloadMinimal
-    } catch {
-      return unauthorized(res, 'invalid token')
+    // 2) fallback: cookie httpOnly bf_access
+    if (!token && (req as any).cookies?.bf_access) {
+      token = (req as any).cookies.bf_access;
     }
 
+    if (!token) return unauthorized(res);
+
+    const secret = process.env.JWT_SECRET;
+    if (!secret) return unauthorized(res, 'server misconfigured (JWT_SECRET)');
+
+    let payload: any;
+    try {
+      payload = jwt.verify(token, secret);
+    } catch {
+      return unauthorized(res, 'invalid token');
+    }
+
+    // Aceita id em vários campos (id | sub | userId)
     const userId =
       typeof payload.id === 'number'
         ? payload.id
-        : typeof payload.sub === 'string'
+        : typeof payload.sub === 'number'
+        ? payload.sub
+        : typeof payload.sub === 'string' && /^\d+$/.test(payload.sub)
         ? Number(payload.sub)
-        : undefined
+        : typeof payload.userId === 'number'
+        ? payload.userId
+        : undefined;
 
-    if (!userId || !Number.isFinite(userId)) return unauthorized(res, 'invalid subject')
+    if (!Number.isFinite(userId)) return unauthorized(res, 'invalid subject');
 
     // Carrega utilizador + roles
     const dbUser = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: Number(userId) },
       include: { userRoles: { include: { role: true } } },
-    })
-    if (!dbUser) return unauthorized(res, 'user not found')
+    });
+    if (!dbUser) return unauthorized(res, 'user not found');
 
-    req.user = toAuthUser(dbUser)
+    req.user = toAuthUser(dbUser);
 
-    // acting child (opcional) — só faz sentido para FAMÍLIA
-    const actingHeader = req.header('x-acting-child-id')
+    // acting child opcional (só família)
+    const actingHeader = req.header('x-acting-child-id');
     if (actingHeader && req.user.isFamily) {
-      const childId = Number(actingHeader)
+      const childId = Number(actingHeader);
       if (Number.isFinite(childId)) {
-        // valida que pertence à família
         const link = await prisma.childFamily.findUnique({
           where: { childId_familyId: { childId, familyId: req.user.id } },
           select: { childId: true },
-        })
-        req.actingChildId = link ? childId : null
+        });
+        req.actingChildId = link ? childId : null;
       } else {
-        req.actingChildId = null
+        req.actingChildId = null;
       }
     } else {
-      req.actingChildId = null
+      req.actingChildId = null;
     }
 
-    next()
+    next();
   } catch (e) {
-    console.error('withUser error', e)
-    return unauthorized(res)
+    console.error('withUser error', e);
+    return unauthorized(res);
   }
 }
+
+
 
 // ------------- guards -------------
 export function requireAuth(req: Request, res: Response, next: NextFunction) {

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { WhiteCard, RouteLink, AvatarSelect } from "@bibliotecario/ui-web";
 import {
+  Avatar, // 👈 adicionado
   Box,
   Chip,
   Container,
@@ -180,32 +181,25 @@ export default function AgendasPage() {
   const { user, asChild, selectedChildId, setSelectedChildId, actAsChild } =
     useUserSession();
 
-  const [monthRef, setMonthRef] = useState(startOfDay(new Date())); // âncora do mês
+  const [monthRef, setMonthRef] = useState(startOfDay(new Date()));
   const [consultasRaw, setConsultasRaw] = useState<ConsultaLite[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(fmtYMD(new Date()));
   const [focused, setFocused] = useState<ConsultaLite | null>(null);
 
-  // opções do seletor
+  // opções base (usado só em modo família)
   const childBaseOptions = (user?.children || []).map((c) => ({
     id: String(c.id),
     nome: c.name,
     avatar: (c as any).avatarUrl || undefined,
   }));
-
-  // em modo família adicionamos a opção "Todos os filhos"
-  const selectOptions = asChild
-    ? childBaseOptions
-    : [{ id: "", nome: "Todos os filhos" }, ...childBaseOptions];
-
-  const valueForSelect = asChild ? selectedChildId : selectedChildId ?? "";
+  const selectOptions = [{ id: "", nome: "Todos os filhos" }, ...childBaseOptions];
 
   // Carregar consultas (família; filtra por criança somente se houver filtro)
   useEffect(() => {
     (async () => {
       const famIdNum = Number(user?.id);
-      if (!Number.isFinite(famIdNum)) return; // espera por sessão
+      if (!Number.isFinite(famIdNum)) return;
 
-      // child ativo: em modo criança é o actingChild; em família é o filtro opcional
       const rawId =
         (asChild ? (user?.actingChild?.id as any) : undefined) ??
         (selectedChildId as any);
@@ -213,9 +207,7 @@ export default function AgendasPage() {
         rawId !== undefined && rawId !== null && String(rawId) !== "";
       const activeChildId = hasChild ? Number(rawId) : NaN;
 
-      const opts: { familyId?: number; childId?: number } = {
-        familyId: famIdNum,
-      };
+      const opts: { familyId?: number; childId?: number } = { familyId: famIdNum };
       if (Number.isFinite(activeChildId)) opts.childId = activeChildId;
 
       try {
@@ -251,7 +243,7 @@ export default function AgendasPage() {
     return map;
   }, [consultas]);
 
-  // Assim que houver consultas, salta para o mês/dia da 1ª (se o dia atual estiver vazio)
+  // Salta para a 1ª consulta se o dia atual estiver vazio
   useEffect(() => {
     if (!consultas.length) return;
     const sorted = [...consultas].sort(
@@ -280,7 +272,7 @@ export default function AgendasPage() {
     return theme.palette.divider;
   };
 
-  // dias do mês corrente (inclui “vazios” para quadrícula)
+  // dias do mês
   const month = useMemo(() => {
     const d0 = new Date(monthRef);
     d0.setDate(1);
@@ -291,17 +283,12 @@ export default function AgendasPage() {
     const total = dEnd.getDate();
 
     const cells: { ymd: string; inMonth: boolean }[] = [];
-
-    // blanks antes
-    for (let i = 0; i < firstWeekday; i++)
-      cells.push({ ymd: "", inMonth: false });
-    // dias
+    for (let i = 0; i < firstWeekday; i++) cells.push({ ymd: "", inMonth: false });
     for (let day = 1; day <= total; day++) {
       const d = new Date(d0);
       d.setDate(day);
       cells.push({ ymd: fmtYMD(d), inMonth: true });
     }
-    // pad múltiplo de 7
     while (cells.length % 7) cells.push({ ymd: "", inMonth: false });
 
     return {
@@ -310,13 +297,11 @@ export default function AgendasPage() {
     };
   }, [monthRef]);
 
-  // lista do painel do meio
   const dayList = useMemo(
     () => byDay.get(selectedDate) || [],
     [byDay, selectedDate]
   );
 
-  // quando muda o dia, focar a primeira
   useEffect(() => {
     setFocused(dayList[0] ?? null);
   }, [selectedDate, dayList.length]);
@@ -342,35 +327,39 @@ export default function AgendasPage() {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Título */}
-      <Typography
-        variant="h3"
-        fontWeight={900}
-        sx={{ mb: 2, letterSpacing: 0.3 }}
-      >
+      <Typography variant="h3" fontWeight={900} sx={{ mb: 2, letterSpacing: 0.3 }}>
         {titleLeft}
       </Typography>
 
-      {/* -------- Seletor de criança em WhiteCard -------- */}
-      {!!user?.children?.length && (
+      {/* -------- Topo: criança -------- */}
+      {/* Modo FAMÍLIA → seletor normal */}
+      {!asChild && !!user?.children?.length && (
         <WhiteCard sx={{ mb: 2 }}>
-          <CardHeader title={asChild ? "A atuar como" : "Escolher criança"} />
+          <CardHeader title="Escolher criança" />
           <AvatarSelect
-            label={asChild ? "A atuar como" : "Filtrar por criança"}
+            label="Filtrar por criança"
             options={selectOptions}
-            value={valueForSelect ?? ""} // <- força string
+            value={selectedChildId ?? ""}
             onChange={async (id: string) => {
-              // <- tipa como string
-              const eff = id && String(id).length ? String(id) : ""; // '' = todos os filhos
-
-              if (asChild && eff) {
-                // se o teu actAsChild espera número, usa Number(eff)
-                await actAsChild(eff as any);
-              }
-              // em modo família apenas filtra; '' mantém "todos"
-              setSelectedChildId(eff); // <- agora é sempre string
+              const eff = id && String(id).length ? String(id) : "";
+              setSelectedChildId(eff);
             }}
             minWidth={320}
           />
+        </WhiteCard>
+      )}
+
+      {/* Modo CRIANÇA → apenas mostra quem está ativo (sem escolher) */}
+      {asChild && user?.actingChild && (
+        <WhiteCard sx={{ mb: 2 }}>
+          <CardHeader title="A atuar como" />
+          <Stack direction="row" spacing={1.25} alignItems="center">
+            <Avatar
+              src={(user.actingChild as any).avatarUrl || undefined}
+              sx={{ width: 36, height: 36 }}
+            />
+            <Typography fontWeight={900}>{user.actingChild.name}</Typography>
+          </Stack>
         </WhiteCard>
       )}
 
@@ -404,10 +393,7 @@ export default function AgendasPage() {
               }}
             >
               {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((h) => (
-                <Box
-                  key={h}
-                  sx={{ px: 1, py: 0.5, opacity: 0.7, fontWeight: 700 }}
-                >
+                <Box key={h} sx={{ px: 1, py: 0.5, opacity: 0.7, fontWeight: 700 }}>
                   {h}
                 </Box>
               ))}
@@ -416,7 +402,6 @@ export default function AgendasPage() {
                 const items = c.ymd ? byDay.get(c.ymd) ?? [] : [];
                 const isSelected = c.ymd === selectedDate;
                 const dayNum = c.ymd ? Number(c.ymd.split("-")[2]) : "";
-
                 const extra = Math.max(0, items.length - 2);
 
                 return (
@@ -455,8 +440,7 @@ export default function AgendasPage() {
                             opacity: 0.9,
                           }}
                           title={`${it.title} — ${
-                            STATUS_CFG[(it.status || "").toUpperCase()]
-                              ?.label ?? it.status
+                            STATUS_CFG[(it.status || "").toUpperCase()]?.label ?? it.status
                           }`}
                         />
                       );
@@ -487,9 +471,7 @@ export default function AgendasPage() {
 
         {/* Coluna 2: Lista do dia */}
         <Grid item xs={12} md={3}>
-          <WhiteCard
-            sx={{ height: "100%", display: "flex", flexDirection: "column" }}
-          >
+          <WhiteCard sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
             <CardHeader
               title={new Date(selectedDate).toLocaleDateString("pt-PT", {
                 weekday: "long",
@@ -510,22 +492,13 @@ export default function AgendasPage() {
               }}
             >
               {dayList.length ? (
-                <Stack
-                  spacing={1.25}
-                  divider={<Divider sx={{ borderColor: "divider" }} />}
-                >
+                <Stack spacing={1.25} divider={<Divider sx={{ borderColor: "divider" }} />}>
                   {dayList.map((c) => (
-                    <ConsultaRow
-                      key={c.id}
-                      c={c}
-                      onClick={() => setFocused(c)}
-                    />
+                    <ConsultaRow key={c.id} c={c} onClick={() => setFocused(c)} />
                   ))}
                 </Stack>
               ) : (
-                <Typography sx={{ opacity: 0.7 }}>
-                  Sem consultas neste dia.
-                </Typography>
+                <Typography sx={{ opacity: 0.7 }}>Sem consultas neste dia.</Typography>
               )}
             </Box>
           </WhiteCard>
@@ -541,41 +514,28 @@ export default function AgendasPage() {
                   {focused.title}
                 </Typography>
 
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{ mb: 1.5 }}
-                  useFlexGap
-                  flexWrap="wrap"
-                >
+                <Stack direction="row" spacing={1} sx={{ mb: 1.5 }} useFlexGap flexWrap="wrap">
                   <Chip
                     icon={<CalendarMonthRounded fontSize="small" />}
-                    label={new Date(
-                      focused.scheduledAt || focused.date || ""
-                    ).toLocaleDateString("pt-PT", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
+                    label={new Date(focused.scheduledAt || focused.date || "").toLocaleDateString(
+                      "pt-PT",
+                      { day: "2-digit", month: "2-digit", year: "numeric" }
+                    )}
                   />
                   <Chip
                     icon={<AccessTimeRounded fontSize="small" />}
-                    label={new Date(
-                      focused.scheduledAt || focused.date || ""
-                    ).toLocaleTimeString("pt-PT", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    label={new Date(focused.scheduledAt || focused.date || "").toLocaleTimeString(
+                      "pt-PT",
+                      { hour: "2-digit", minute: "2-digit" }
+                    )}
                   />
                   {!!focused.status && (
                     <Chip
                       label={
-                        STATUS_CFG[(focused.status || "").toUpperCase()]
-                          ?.label || focused.status
+                        STATUS_CFG[(focused.status || "").toUpperCase()]?.label || focused.status
                       }
                       color={
-                        STATUS_CFG[(focused.status || "").toUpperCase()]
-                          ?.color || "default"
+                        STATUS_CFG[(focused.status || "").toUpperCase()]?.color || "default"
                       }
                       variant="outlined"
                     />
@@ -588,14 +548,10 @@ export default function AgendasPage() {
                   </Typography>
                 )}
 
-                <RouteLink href="/consultas">
-                  Abrir página de consultas
-                </RouteLink>
+                <RouteLink href="/consultas">Abrir página de consultas</RouteLink>
               </>
             ) : (
-              <Typography sx={{ opacity: 0.7 }}>
-                Selecione uma consulta.
-              </Typography>
+              <Typography sx={{ opacity: 0.7 }}>Selecione uma consulta.</Typography>
             )}
           </WhiteCard>
         </Grid>

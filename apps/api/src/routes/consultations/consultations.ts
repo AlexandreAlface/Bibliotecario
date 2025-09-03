@@ -1,13 +1,13 @@
 // apps/api/src/routes/consultations/consultations.ts
 import { Router } from "express";
 import { $Enums, PrismaClient } from "@prisma/client";
-import { requireFamilyOrLibrarian } from "../../middlewares/auth";
+import { requireFamilyOrLibrarian, withUser } from "../../middlewares/auth";
 
 const prisma = new PrismaClient();
 const r = Router();
 
 // POST /api/consultations
-r.post("/", requireFamilyOrLibrarian, async (req, res) => {
+r.post("/", withUser, requireFamilyOrLibrarian, async (req, res) => {
   try {
     const {
       familyId,
@@ -101,7 +101,7 @@ r.post("/", requireFamilyOrLibrarian, async (req, res) => {
 });
 
 /** ---------- Ações ---------- */
-r.post("/:id/confirm", async (req, res) => {
+r.post("/:id/confirm",  withUser, requireFamilyOrLibrarian, async (req, res) => {
   const id = Number(req.params.id);
   const c = await prisma.consultation.update({
     where: { id },
@@ -110,7 +110,7 @@ r.post("/:id/confirm", async (req, res) => {
   res.json(c);
 });
 
-r.post("/:id/decline", async (req, res) => {
+r.post("/:id/decline", withUser, requireFamilyOrLibrarian, async (req, res) => {
   const id = Number(req.params.id);
   const c = await prisma.consultation.update({
     where: { id },
@@ -125,7 +125,7 @@ r.post("/:id/decline", async (req, res) => {
   res.json(c);
 });
 
-r.post("/:id/cancel", async (req, res) => {
+r.post("/:id/cancel", withUser, requireFamilyOrLibrarian, async (req, res) => {
   const id = Number(req.params.id);
   const c = await prisma.consultation.update({
     where: { id },
@@ -140,7 +140,7 @@ r.post("/:id/cancel", async (req, res) => {
   res.json(c);
 });
 
-r.post("/:id/complete", async (req, res) => {
+r.post("/:id/complete", withUser, requireFamilyOrLibrarian, async (req, res) => {
   const id = Number(req.params.id);
   const c = await prisma.consultation.update({
     where: { id },
@@ -151,7 +151,7 @@ r.post("/:id/complete", async (req, res) => {
 
 /** ---------- Listagens ---------- */
 // GET /api/consultations/all  (debug/QA)
-r.get("/all", async (req, res) => {
+r.get("/all", withUser, requireFamilyOrLibrarian, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
 
@@ -216,7 +216,7 @@ r.get("/all", async (req, res) => {
  *  Próximas consultas (para landing): filtra por família OU bibliotecário.
  *  Query: limit, familyId, librarianId (um dos dois), from (default now)
  */
-r.get("/next", async (req, res) => {
+r.get("/next", withUser, requireFamilyOrLibrarian, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 6, 50);
     const now = req.query.from ? new Date(String(req.query.from)) : new Date();

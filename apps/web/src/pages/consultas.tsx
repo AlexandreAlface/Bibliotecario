@@ -44,9 +44,6 @@ function endOfDay(d: Date) {
   x.setHours(23, 59, 59, 999);
   return x;
 }
-function fmtYMD(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
 function timeLabel(iso?: string) {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -112,27 +109,24 @@ export default function ConsultasPage() {
     exitChild,
   } = useUserSession();
 
-  // Gate: esta página é só para família
-  useEffect(() => {
-    // se estiver em modo criança, deixamos entrar mas mostramos call-to-action para sair
-  }, [asChild]);
-
   // --- estado
   const [dayRef, setDayRef] = useState(startOfDay(new Date()));
-  const [slots, setSlots] = useState<SlotLite[]>([]);
+  const [slotsAll, setSlotsAll] = useState<SlotLite[]>([]); // todos os slots do dia
   const [loading, setLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<SlotLite | null>(null);
   const [justBooked, setJustBooked] = useState<ConsultaLite | null>(null);
+
+  // filtro por bibliotecário ("" = todos)
+  const [selectedLibrarianId, setSelectedLibrarianId] = useState<string>("");
 
   const childOptions = (user?.children || []).map((c) => ({
     id: String(c.id),
     nome: c.name,
     avatar: (c as any).avatarUrl || undefined,
   }));
-
   const selectOptions = [{ id: "", nome: "Todos os filhos" }, ...childOptions];
 
-  // carregar slots abertos para o dia selecionado (todas as bibs e bibliotecários)
+  // carregar slots abertos para o dia selecionado (todas as bibs e todos os bibliotecários)
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -141,44 +135,72 @@ export default function ConsultasPage() {
       try {
         const from = startOfDay(dayRef).toISOString();
         const to = endOfDay(dayRef).toISOString();
-        const list = await listOpenSlots({ from, to });
-        setSlots(list);
+        const list = await listOpenSlots({
+          from,
+          to,
+          librarianId: selectedLibrarianId
+            ? Number(selectedLibrarianId)
+            : undefined,
+        });
+        setSlotsAll(list);
       } finally {
         setLoading(false);
       }
     })();
-  }, [dayRef]);
+  }, [dayRef, selectedLibrarianId]);
+
+  // opções de bibliotecário (deduzidas dos slots do dia)
+  const librarianOptions = useMemo(() => {
+    const seen = new Set<number>();
+    const opts = slotsAll
+      .filter((s) => {
+        if (seen.has(s.librarianId)) return false;
+        seen.add(s.librarianId);
+        return true;
+      })
+      .map((s) => ({
+        id: String(s.librarianId),
+        nome: s.librarianName || "Bibliotecário",
+        avatar: s.librarianAvatarUrl || undefined,
+      }));
+    return [{ id: "", nome: "Todos os bibliotecários" }, ...opts];
+  }, [slotsAll]);
+
+  // aplica o filtro por bibliotecário em memória
+  const slots = useMemo(() => {
+    if (!selectedLibrarianId) return slotsAll;
+    return slotsAll.filter(
+      (s) => String(s.librarianId) === String(selectedLibrarianId)
+    );
+  }, [slotsAll, selectedLibrarianId]);
 
   type Group = {
     librarianId: number;
     librarianName: string;
-    librarianAvatarUrl?: string | null; // <- aceita null também
+    librarianAvatarUrl?: string | null;
     items: SlotLite[];
   };
 
-  // agrupar por bibliotecário
+  // agrupar por bibliotecário (já com slots filtrados)
   const grouped = useMemo<Group[]>(() => {
     const map = new Map<number, Group>();
 
     for (const s of slots) {
       const k = s.librarianId;
 
-      // cria o grupo com items tipado
       let g = map.get(k);
       if (!g) {
         g = {
           librarianId: k,
           librarianName: s.librarianName || "Bibliotecário",
           librarianAvatarUrl: s.librarianAvatarUrl ?? null,
-          items: [] as SlotLite[], // <- evita "never[]"
+          items: [] as SlotLite[],
         };
         map.set(k, g);
       }
-
-      g.items.push(s); // agora compila
+      g.items.push(s);
     }
 
-    // ordenar slots dentro de cada grupo
     const out = Array.from(map.values()).map((g) => ({
       ...g,
       items: g.items
@@ -190,7 +212,6 @@ export default function ConsultasPage() {
         ),
     }));
 
-    // ordenar grupos por nome
     out.sort((a, b) => a.librarianName.localeCompare(b.librarianName));
     return out;
   }, [slots]);
@@ -230,8 +251,7 @@ export default function ConsultasPage() {
         slotId: selectedSlot.id,
       });
       setJustBooked(booked);
-      // remove do ecrã
-      setSlots((old) => old.filter((s) => s.id !== selectedSlot.id));
+      setSlotsAll((old) => old.filter((s) => s.id !== selectedSlot.id));
       setSelectedSlot(null);
     } catch (e: any) {
       alert(e?.message || "Falha a reservar o slot.");
@@ -275,7 +295,6 @@ export default function ConsultasPage() {
             value={selectedChildId ?? ""}
             onChange={async (id) => {
               const eff = id && String(id).length ? id : "";
-              // em modo criança, permitir trocar o actingChild (mas recomendamos sair do modo criança acima)
               if (asChild && eff) await actAsChild(eff);
               setSelectedChildId(eff);
             }}
@@ -333,8 +352,23 @@ export default function ConsultasPage() {
           </WhiteCard>
         </Grid>
 
-        {/* Coluna 2 – lista de slots por bibliotecário */}
+        {/* Coluna 2 – filtros + lista de slots por bibliotecário */}
         <Grid item xs={12} md={6}>
+          {/* Filtro por bibliotecário */}
+          <WhiteCard sx={{ mb: 2 }}>
+            <CardHeader title="Filtrar por bibliotecário" />
+            <AvatarSelect
+              label="Bibliotecário"
+              options={librarianOptions}
+              value={selectedLibrarianId}
+              onChange={(id) => {
+                setSelectedLibrarianId(id ?? "");
+                setSelectedSlot(null);
+              }}
+              minWidth={320}
+            />
+          </WhiteCard>
+
           <WhiteCard
             sx={{ minHeight: 380, display: "flex", flexDirection: "column" }}
           >
@@ -438,9 +472,22 @@ export default function ConsultasPage() {
                     </b>
                   </Typography>
                 ) : (
-                  <Typography sx={{ mb: 1, opacity: 0.8 }}>
-                    Escolhe a criança acima para reservar.
-                  </Typography>
+                  <Tooltip
+                    title={
+                      !selectedChildId
+                        ? "Escolhe a criança acima para reservar"
+                        : ""
+                    }
+                  >
+                    <span>
+                      <PrimaryButton
+                        onClick={reservar}
+                        disabled={loading || !selectedChildId}
+                      >
+                        Reservar
+                      </PrimaryButton>
+                    </span>
+                  </Tooltip>
                 )}
 
                 <PrimaryButton
