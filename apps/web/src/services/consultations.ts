@@ -75,6 +75,12 @@ export async function getNextConsultas(
   limit = 6,
   opts?: { familyId?: number; childId?: number; librarianId?: number }
 ): Promise<ConsultaLite[]> {
+  // 👇 evita 400 quando a sessão ainda não carregou
+  const hasKey =
+    Number.isFinite(opts?.familyId as number) ||
+    Number.isFinite(opts?.librarianId as number);
+  if (!hasKey) return [];
+
   const baseParams = qs({
     limit,
     familyId: opts?.familyId,
@@ -82,13 +88,11 @@ export async function getNextConsultas(
     librarianId: opts?.librarianId,
   });
 
-  // 1) rota principal
   try {
     const url = `${API_BASE}/consultations/next?${baseParams}`;
     const items = await fetchJson(url);
     if (Array.isArray(items)) return items as ConsultaLite[];
   } catch (e) {
-    // fallback abaixo
     console.debug("fallback /consultations/all por falha no /next:", e);
   }
 

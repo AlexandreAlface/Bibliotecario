@@ -573,6 +573,8 @@ export default function LandingPage() {
         (user?.actingChild?.id as any) ?? (selectedChildId as any)
       );
 
+      const userIdNum = Number(user?.id);
+
       // Leituras
       const leiturasPromise = asChild
         ? getLeiturasAtuais(4, { childId: currentChildId })
@@ -586,9 +588,10 @@ export default function LandingPage() {
           })();
 
       // Consultas (só família) — serviço já usa o utilizador autenticado
-      const consultasPromise = asChild
-        ? Promise.resolve([] as ConsultaLite[])
-        : getNextConsultas(6, { familyId: Number(user?.id) });
+      const consultasPromise =
+        asChild || !Number.isFinite(userIdNum)
+          ? Promise.resolve([] as ConsultaLite[])
+          : getNextConsultas(6, { familyId: userIdNum });
 
       const badgesPromise = asChild
         ? getBadgesRecent(12, { childId: currentChildId })
