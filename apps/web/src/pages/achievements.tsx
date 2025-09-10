@@ -1,9 +1,6 @@
 // apps/web/src/pages/conquistas.tsx
 import { useEffect, useMemo, useState } from "react";
-import {
-  WhiteCard,
-  AvatarSelect,
-} from "@bibliotecario/ui-web";
+import { WhiteCard, AvatarSelect } from "@bibliotecario/ui-web";
 import {
   Box,
   Chip,
@@ -27,7 +24,13 @@ import {
 } from "../services/badges";
 
 /* --- UI helpers --- */
-function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
+function SectionHeader({
+  title,
+  action,
+}: {
+  title: string;
+  action?: React.ReactNode;
+}) {
   return (
     <Stack
       direction="row"
@@ -35,12 +38,15 @@ function SectionHeader({ title, action }: { title: string; action?: React.ReactN
       justifyContent="space-between"
       sx={{ mb: 1.25 }}
     >
-      <Typography variant="h6" fontWeight={900}>{title}</Typography>
+      <Typography variant="h6" fontWeight={900}>
+        {title}
+      </Typography>
       {action}
     </Stack>
   );
 }
 
+// substitui o teu BadgeCard por este
 function BadgeCard({
   badge,
   earnedAt,
@@ -51,7 +57,8 @@ function BadgeCard({
   onClick?: () => void;
 }) {
   const isEarned = Boolean(earnedAt);
-  const Icon = badge.type === "TROFÉU" ? EmojiEventsRounded : VerifiedRounded;
+  const isTrophy = String(badge.type).toUpperCase().includes("TROF");
+  const Icon = isTrophy ? EmojiEventsRounded : VerifiedRounded;
 
   return (
     <Box
@@ -67,20 +74,47 @@ function BadgeCard({
         "&:hover": { bgcolor: isEarned ? "success.main" : "action.hover" },
         transition: "background-color .15s ease",
       }}
+      // ao passar o rato sobre o cartão ainda vês o critério completo
       title={badge.criteria || ""}
     >
       <Stack direction="row" spacing={1.25} alignItems="center">
         <Avatar sx={{ width: 32, height: 32 }}>
           <Icon fontSize="small" />
         </Avatar>
-        <Box flex={1} minWidth={0}>
-          <Typography noWrap fontWeight={900}>{badge.name}</Typography>
-          {badge.criteria && (
-            <Typography variant="caption" sx={{ opacity: 0.85 }} noWrap>
+
+        <Box flex={1} minWidth={0} sx={{ overflow: "hidden" }}>
+          <Typography noWrap fontWeight={900}>
+            {badge.name}
+          </Typography>
+
+          {/* SELos: mostra critério truncado; TROFÉUS: apenas “ver critério” com tooltip */}
+          {!isTrophy && !!badge.criteria && (
+            <Typography
+              variant="caption"
+              sx={{
+                opacity: 0.85,
+                display: "-webkit-box",
+                WebkitLineClamp: 1, // se quiseres 2 linhas, mete 2
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
               {badge.criteria}
             </Typography>
           )}
+
+          {isTrophy && !!badge.criteria && (
+            <Tooltip arrow placement="top" title={badge.criteria}>
+              <Typography
+                variant="caption"
+                sx={{ opacity: 0.65, textDecoration: "underline" }}
+              >
+                ver critério
+              </Typography>
+            </Tooltip>
+          )}
         </Box>
+
         {isEarned && (
           <Tooltip title={new Date(earnedAt!).toLocaleString("pt-PT")}>
             <CheckCircleRounded />
@@ -171,17 +205,26 @@ export default function AchievementsPage() {
   }, [badges, assignments]);
 
   const groups = useMemo(() => {
-    const stamps = catalog.filter((b) => String(b.type).toUpperCase() === "STAMP");
-    const trophies = catalog.filter((b) => String(b.type).toUpperCase() === "TROFÉU");
+    const stamps = catalog.filter(
+      (b) => String(b.type).toUpperCase() === "STAMP"
+    );
+    const trophies = catalog.filter(
+      (b) => String(b.type).toUpperCase() === "TROFÉU"
+    );
     return { stamps, trophies };
   }, [catalog]);
 
   // contadores
-  const countEarned = (arr: Badge[]) => arr.filter((b) => earnedById.has(b.id)).length;
+  const countEarned = (arr: Badge[]) =>
+    arr.filter((b) => earnedById.has(b.id)).length;
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h3" fontWeight={900} sx={{ mb: 2, letterSpacing: 0.3 }}>
+      <Typography
+        variant="h3"
+        fontWeight={900}
+        sx={{ mb: 2, letterSpacing: 0.3 }}
+      >
         Conquistas
       </Typography>
 
@@ -222,11 +265,15 @@ export default function AchievementsPage() {
         <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
           <Chip
             icon={<VerifiedRounded />}
-            label={`Selos: ${countEarned(groups.stamps)} / ${groups.stamps.length}`}
+            label={`Selos: ${countEarned(groups.stamps)} / ${
+              groups.stamps.length
+            }`}
           />
           <Chip
             icon={<EmojiEventsRounded />}
-            label={`Troféus: ${countEarned(groups.trophies)} / ${groups.trophies.length}`}
+            label={`Troféus: ${countEarned(groups.trophies)} / ${
+              groups.trophies.length
+            }`}
           />
           {!Number.isFinite(activeChildId) && (
             <Typography sx={{ opacity: 0.8 }}>
@@ -235,7 +282,9 @@ export default function AchievementsPage() {
                 : "Escolhe uma criança para ver as conquistas."}
             </Typography>
           )}
-          {loading && <Typography sx={{ opacity: 0.8 }}>A carregar…</Typography>}
+          {loading && (
+            <Typography sx={{ opacity: 0.8 }}>A carregar…</Typography>
+          )}
         </Stack>
       </WhiteCard>
 
@@ -286,7 +335,9 @@ export default function AchievementsPage() {
               ))}
             </Box>
           ) : (
-            <Typography sx={{ opacity: 0.7 }}>Sem troféus definidos.</Typography>
+            <Typography sx={{ opacity: 0.7 }}>
+              Sem troféus definidos.
+            </Typography>
           )}
         </WhiteCard>
       </Stack>
@@ -302,7 +353,9 @@ export default function AchievementsPage() {
 
             return (
               <Stack spacing={1}>
-                <Typography variant="h6" fontWeight={900}>{badge.name}</Typography>
+                <Typography variant="h6" fontWeight={900}>
+                  {badge.name}
+                </Typography>
                 <Stack direction="row" spacing={1} alignItems="center">
                   <Chip
                     icon={
@@ -319,7 +372,9 @@ export default function AchievementsPage() {
                     <Chip
                       color="success"
                       icon={<CheckCircleRounded />}
-                      label={`Conquistado em ${new Date(earnedAt).toLocaleDateString("pt-PT")}`}
+                      label={`Conquistado em ${new Date(
+                        earnedAt
+                      ).toLocaleDateString("pt-PT")}`}
                     />
                   ) : (
                     <Chip label="Por conquistar" />
@@ -328,7 +383,9 @@ export default function AchievementsPage() {
                 {!!badge.criteria && (
                   <>
                     <Divider sx={{ my: 1 }} />
-                    <Typography sx={{ opacity: 0.9 }}>{badge.criteria}</Typography>
+                    <Typography sx={{ opacity: 0.9 }}>
+                      {badge.criteria}
+                    </Typography>
                   </>
                 )}
               </Stack>

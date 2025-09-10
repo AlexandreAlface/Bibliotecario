@@ -6,9 +6,9 @@ import jwt from "jsonwebtoken";
 
 const router = Router();
 
-const COOKIE_NAME   = process.env.COOKIE_NAME   || "bf_access";
+const COOKIE_NAME = process.env.COOKIE_NAME || "bf_access";
 const ACTING_COOKIE = process.env.ACTING_COOKIE || "bf_acting";
-const isProd        = process.env.NODE_ENV === "production";
+const isProd = process.env.NODE_ENV === "production";
 
 // ------- helpers -------
 function setAuthCookie(res, token) {
@@ -46,7 +46,12 @@ export function requireAuth(req, res, next) {
 router.post("/register", async (req, res, next) => {
   try {
     const {
-      fullName, email, phone, citizenCard, address, password,
+      fullName,
+      email,
+      phone,
+      citizenCard,
+      address,
+      password,
       children = [],
     } = req.body;
 
@@ -67,16 +72,28 @@ router.post("/register", async (req, res, next) => {
 
     const user = await prisma.user.create({
       data: {
-        fullName, email, phone, citizenCard, address, passwordHash,
+        fullName,
+        email,
+        phone,
+        citizenCard,
+        address,
+        passwordHash,
         userRoles: { create: { roleId: role.id } },
         children: {
           create: children.map((c) => ({
             child: {
               create: {
-                name: [c.firstName, c.lastName].filter(Boolean).join(" ").trim(),
+                name: [c.firstName, c.lastName]
+                  .filter(Boolean)
+                  .join(" ")
+                  .trim(),
                 birthDate: c.birthDate
                   ? new Date(c.birthDate)
-                  : new Date(new Date().getFullYear() - Number(c.age || 0), 0, 1),
+                  : new Date(
+                      new Date().getFullYear() - Number(c.age || 0),
+                      0,
+                      1
+                    ),
                 gender: c.gender || null,
                 readerProfile: c.readerProfile || null,
               },
@@ -87,7 +104,9 @@ router.post("/register", async (req, res, next) => {
       select: { id: true, fullName: true, email: true },
     });
 
-    return res.status(201).json({ userId: user.id, emailVerification: "pending" });
+    return res
+      .status(201)
+      .json({ userId: user.id, emailVerification: "pending" });
   } catch (err) {
     next(err);
   }
@@ -97,7 +116,8 @@ router.post("/register", async (req, res, next) => {
 router.post("/login", async (req, res, next) => {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: "Credenciais em falta" });
+    if (!email || !password)
+      return res.status(400).json({ error: "Credenciais em falta" });
 
     const user = await prisma.user.findUnique({
       where: { email },
@@ -129,7 +149,12 @@ router.get("/me", requireAuth, async (req, res, next) => {
     const u = await prisma.user.findUnique({
       where: { id: Number(req.user.sub) },
       select: {
-        id: true, fullName: true, email: true,
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        citizenCard: true,
+        address: true, // 👈 ADICIONA
         userRoles: { include: { role: true } },
         children: { include: { child: { select: { id: true, name: true } } } },
       },
@@ -138,7 +163,9 @@ router.get("/me", requireAuth, async (req, res, next) => {
 
     const roles = u.userRoles.map((ur) => ur.role.name);
     const children = u.children.map((c) => ({
-      id: c.childId, name: c.child.name, avatarUrl: null,
+      id: c.childId,
+      name: c.child.name,
+      avatarUrl: null,
     }));
 
     // lê o cookie de “atuar como criança”
@@ -147,15 +174,26 @@ router.get("/me", requireAuth, async (req, res, next) => {
       const child = children.find((c) => c.id === actingId) || null;
       if (child) {
         return res.json({
-          id: u.id, fullName: u.fullName, email: u.email,
-          roles: ["CRIANÇA"], actingChild: child, children,
+          id: u.id,
+          fullName: u.fullName,
+          email: u.email,
+          roles: ["CRIANÇA"],
+          actingChild: child,
+          children,
         });
       }
     }
 
     res.json({
-      id: u.id, fullName: u.fullName, email: u.email,
-      roles, children, actingChild: null,
+      id: u.id,
+      fullName: u.fullName,
+      email: u.email,
+      phone: u.phone,
+      citizenCard: u.citizenCard,
+      address: u.address, // 👈 ADICIONA
+      roles,
+      children,
+      actingChild: null,
     });
   } catch (e) {
     next(e);

@@ -18,7 +18,11 @@ import readingsRouter from "./routes/readings.js";
 import ratingsRouter from "./routes/ratings.js";
 import slots from "./routes/consultations/slots.js";
 import consultations from "./routes/consultations/consultations.js";
+import badgesEngineRouter from "./routes/badges-engine";
 import { withUser } from "./middlewares/auth.js";
+import { recomputeAllChildren } from "./services/badgesEngine.js";
+import badgesRouter from './routes/badges.js';
+import usersRouter from "./routes/users.js";
 
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL não carregada. Verifica apps/api/.env");
@@ -57,7 +61,7 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
 app.use("/api/auth", authRouter);
 app.use("/api", authChildRouter);
 
-app.use('/api', withUser);
+app.use("/api", withUser);
 
 app.use("/api/consultations", consultations); // /api/consultations/...
 app.use("/api/consultations", slots); // /api/consultations/slots, /api/consultations/librarians/:id/slots, etc.
@@ -68,12 +72,16 @@ app.use("/api", recommendationsRouter);
 app.use("/api", reservationsRouter);
 app.use("/api/readings", readingsRouter);
 app.use("/api/ratings", ratingsRouter);
+app.use("/api/badges", badgesEngineRouter);
+app.use('/api/badges', badgesRouter);
+app.use("/api/users", usersRouter);
 
 /* --------- Ingestão RSS --------- */
 (async () => {
   try {
     console.log("▶️  Ingestão manual de eventos RSS …");
     await fetchAndUpsertAllFeeds();
+    await recomputeAllChildren();
     console.log("✅  Ingestão concluída");
   } catch (e) {
     console.error("❌ Falha na ingestão inicial de RSS:", e);
@@ -89,6 +97,11 @@ cron.schedule("0 0 */2 * *", async () => {
   } catch (e) {
     console.error("❌ Falha na ingestão agendada de RSS:", e);
   }
+});
+
+cron.schedule("15 3 * * *", async () => {
+  const res = await recomputeAllChildren();
+  console.log("Badges recomputados:", res);
 });
 
 /* --------- 404 e errors --------- */

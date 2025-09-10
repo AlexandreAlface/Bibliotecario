@@ -26,6 +26,7 @@ import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import { StarRounded, WorkspacePremiumRounded } from "@mui/icons-material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
+import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
 
 import { getLeiturasAtuais } from "../services/readings";
 import type { BookLite as ReadingBookLite } from "../services/readings";
@@ -694,6 +695,33 @@ export default function LandingPage() {
     [eventos, evCat]
   );
 
+  const groupedBadges = useMemo(() => {
+    if (asChild) return [] as Array<{ child: string; items: BadgeLite[] }>;
+
+    const map = new Map<string, BadgeLite[]>();
+    for (const b of badges) {
+      const key = b.childName || "—";
+      const arr = map.get(key) || [];
+      arr.push(b);
+      map.set(key, arr);
+    }
+
+    // ordenar cada grupo por data desc
+    const groups = Array.from(map.entries()).map(([child, items]) => ({
+      child,
+      items: items
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.assignedAt || 0).getTime() -
+            new Date(a.assignedAt || 0).getTime()
+        ),
+    }));
+
+    // podes mudar o slice para mostrar mais/menos por criança
+    return groups.map((g) => ({ child: g.child, items: g.items.slice(0, 4) }));
+  }, [asChild, badges]);
+
   useEffect(() => {
     setEventIndex(0);
   }, [evCat]);
@@ -1033,31 +1061,91 @@ export default function LandingPage() {
         {/* Área inferior */}
         <Grid item xs={12} md={6} sx={{ display: "flex" }}>
           <WhiteCard sx={{ flex: 1, minHeight: 180 }}>
-            <CardHeader title="Conquistas Recentes" />
+            <CardHeader
+              title="Conquistas Recentes"
+              action={<RouteLink href="/conquistas">Ver todas</RouteLink>}
+            />
+
             {badges.length === 0 ? (
               <Typography sx={{ opacity: 0.6 }}>
                 Ainda não há conquistas… continua a ler! 📚
               </Typography>
-            ) : (
+            ) : asChild ? (
+              // --- MODO CRIANÇA: lista simples ---
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                 {badges.map((b) => {
-                  const isTrofeu = (b.type || "")
+                  const isTrophy = (b.type || "")
                     .toUpperCase()
                     .includes("TROF");
+                  const Icon = isTrophy ? EmojiEventsRounded : VerifiedRounded;
                   return (
-                    <Chip
-                      key={b.id}
-                      variant={isTrofeu ? "filled" : "outlined"}
-                      icon={<EmojiEventsRounded fontSize="small" />}
-                      label={
-                        asChild
-                          ? b.name
-                          : `${b.name}${b.childName ? ` — ${b.childName}` : ""}`
+                    <Tooltip
+                      key={`${b.id}-${b.assignedAt || ""}`}
+                      title={
+                        b.assignedAt
+                          ? new Date(b.assignedAt).toLocaleString("pt-PT")
+                          : ""
                       }
-                      sx={{ borderRadius: 3 }}
-                    />
+                    >
+                      <Chip
+                        size="small"
+                        variant={isTrophy ? "filled" : "outlined"}
+                        icon={<Icon fontSize="small" />}
+                        label={b.name}
+                        sx={{ borderRadius: 3 }}
+                      />
+                    </Tooltip>
                   );
                 })}
+              </Stack>
+            ) : (
+              // --- MODO FAMÍLIA: AGRUPADO POR CRIANÇA ---
+              <Stack spacing={1.25}>
+                {groupedBadges.map(({ child, items }) => (
+                  <Box key={child}>
+                    <Typography
+                      variant="subtitle2"
+                      fontWeight={900}
+                      sx={{ mb: 0.5, opacity: 0.9 }}
+                    >
+                      {child}
+                    </Typography>
+
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      useFlexGap
+                      flexWrap="wrap"
+                    >
+                      {items.map((b) => {
+                        const isTrophy = (b.type || "")
+                          .toUpperCase()
+                          .includes("TROF");
+                        const Icon = isTrophy
+                          ? EmojiEventsRounded
+                          : VerifiedRounded;
+                        return (
+                          <Tooltip
+                            key={`${child}-${b.id}-${b.assignedAt || ""}`}
+                            title={
+                              b.assignedAt
+                                ? new Date(b.assignedAt).toLocaleString("pt-PT")
+                                : ""
+                            }
+                          >
+                            <Chip
+                              size="small"
+                              variant={isTrophy ? "filled" : "outlined"}
+                              icon={<Icon fontSize="small" />}
+                              label={b.name}
+                              sx={{ borderRadius: 3 }}
+                            />
+                          </Tooltip>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                ))}
               </Stack>
             )}
           </WhiteCard>
