@@ -1,25 +1,48 @@
+// apps/web/src/services/books.ts
 import { api } from "./https";
 
-export type BookLite = { id: string; title: string; date?: string; coverUrl?: string | null };
+export type BookLite = {
+  id?: string | number;
+  isbn: string;
+  title: string;
+  coverUrl?: string | null;
+  score?: number;
+  why?: string[];
+};
 
-// back expõe /api/current e /api/suggestions (sem /books/*)
-export async function getLeiturasAtuais(limit = 3): Promise<BookLite[]> {
-  const { data } = await api.get("/current", { params: { limit } });
-  const arr = Array.isArray(data) ? data : (data?.items ?? []);
-  return arr.map((b: any) => ({
-    id: String(b.isbn ?? b.id),
-    title: b.title ?? b.name ?? "Livro",
-    date: b.date ?? b.readAtText ?? "",
-    coverUrl: b.coverUrl ?? b.cover ?? b.image ?? null,
-  }));
+export type QuizAnswer = { id: string; value: any };
+
+export async function getSugestoesPerfil(
+  limit = 6,
+  who?: { childId?: number; familyId?: number }
+): Promise<BookLite[]> {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (who?.childId) qs.set("childId", String(who.childId));
+  if (who?.familyId) qs.set("familyId", String(who.familyId));
+
+  // novo endpoint, sem body (GET)
+  const { data } = await api.get<BookLite[]>(
+    `/recommendations/profile?${qs.toString()}`,
+    { withCredentials: true }
+  );
+  return data;
+  
 }
 
-export async function getSugestoes(limit = 3): Promise<BookLite[]> {
-  const { data } = await api.get("/suggestions", { params: { limit } });
-  const arr = Array.isArray(data) ? data : (data?.items ?? []);
-  return arr.map((b: any) => ({
-    id: String(b.isbn ?? b.id),
-    title: b.title ?? b.name ?? "Livro",
-    coverUrl: b.coverUrl ?? b.cover ?? b.image ?? null,
-  }));
+export async function getSugestoesQuiz(
+  answers: QuizAnswer[],
+  limit = 12,
+  who?: { childId?: number; familyId?: number }
+) {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (who?.childId) qs.set("childId", String(who.childId));
+  if (who?.familyId) qs.set("familyId", String(who.familyId));
+
+  // IMPORTANTE: Axios usa "data", não "body"
+  return api(`/recommendations/quiz?${qs}`, {
+    method: "POST",
+    data: { answers },
+  });
 }
+
+

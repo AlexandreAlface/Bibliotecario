@@ -8,7 +8,7 @@
   "scripts": {
 
     "dev":   "nodemon -r dotenv/config src/index.js",
-    "start": "node -r dotenv/config src/index.js",
+    "start": "npx tsx src/index.ts",
     
     "seed:api": "npm -w apps/api run seed",
     "seed:api:csv": "npm -w apps/api run seed:csv",

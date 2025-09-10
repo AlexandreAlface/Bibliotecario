@@ -7,6 +7,33 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum ConsultationStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+  CANCELLED
+  COMPLETED
+}
+
+enum SlotStatus {
+  OPEN // visível para marcação
+  BOOKED // reservado/associado a uma consulta
+  BLOCKED // bloqueado pelo bibliotecário (férias, reunião, etc.)
+}
+
+enum ProposalStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum ProposalActor {
+  FAMILY
+  LIBRARIAN
+  SYSTEM
+}
+
 // Tabela de perfis de utilizador
 model Role {
   id        Int        @id @default(autoincrement()) // PK: id_role
@@ -16,27 +43,31 @@ model Role {
 
 // Tabela de utilizadores (família, bibliotecário, criança, administrador)
 model User {
-  id           Int     @id @default(autoincrement()) // PK: id_user
-  fullName     String // nome completo
-  email        String  @unique // e-mail
-  phone        String? // telemóvel
-  citizenCard  String? // nº Cartão de Cidadão
-  address      String? // morada completa
-  passwordHash String // hash da palavra-passe
+  id           Int     @id @default(autoincrement())
+  fullName     String
+  email        String  @unique
+  phone        String?
+  citizenCard  String?
+  address      String?
+  passwordHash String
 
-  userRoles         UserRole[] // relação N:N → UserRole
-  userLibraries     UserLibrary[] // relação N:N → UserLibrary
-  children          ChildFamily[] // relação N:N → ChildFamily
-  ratings           Rating[] // relação 1:N → Rating
-  pointsHistory     PointsHistory[] // relação 1:N → PointsHistory
-  bookReservations  BookReservation[] // relação 1:N → BookReservation
-  eventReservations EventReservation[] // relação 1:N → EventReservation
+  userRoles         UserRole[]
+  userLibraries     UserLibrary[]
+  children          ChildFamily[]
+  ratings           Rating[]
+  pointsHistory     PointsHistory[]
+  eventReservations EventReservation[]
 
-  consultationsAsFamily    Consultation[] @relation("ConsultationsAsFamily") // relação 1:N → Consultation (família)
-  consultationsAsLibrarian Consultation[] @relation("ConsultationsAsLibrarian") // relação 1:N → Consultation (bibliotecário)
+  consultationsAsFamily    Consultation[] @relation("ConsultationsAsFamily")
+  consultationsAsLibrarian Consultation[] @relation("ConsultationsAsLibrarian")
 
-  newsletterSubscriptions NewsletterSubscription[] // relação 1:N → NewsletterSubscription
-  microInteractions       MicroInteraction[] // relação 1:N → MicroInteraction
+  // 👇 novos lados opostos
+  consultationSlots            ConsultationSlot[]     @relation("LibrarianSlots")
+  consultationEventsAuthored   ConsultationEvent[]    @relation("ConsultationEventActor")
+  consultationProposalsDecided ConsultationProposal[] @relation("ProposalDecider")
+
+  newsletterSubscriptions NewsletterSubscription[]
+  microInteractions       MicroInteraction[]
 }
 
 // Associação N:N entre User e Role
@@ -51,13 +82,17 @@ model UserRole {
 
 // Tabela de bibliotecas
 model Library {
-  id      Int     @id @default(autoincrement()) // PK: id_biblioteca
-  name    String // nome da biblioteca
-  address String? // morada da biblioteca
-  contact String? // contacto (telefone ou e-mail)
+  id      Int     @id @default(autoincrement())
+  name    String
+  address String?
+  contact String?
 
-  userLibraries UserLibrary[] // relação N:N → UserLibrary
-  feeds         FeedRss[] // relação 1:N → FeedRss
+  userLibraries UserLibrary[]
+  feeds         FeedRss[]
+
+  // 👇 novos lados opostos
+  consultations     Consultation[]
+  consultationSlots ConsultationSlot[]
 }
 
 // Associação N:N entre User e Library
@@ -103,6 +138,11 @@ model Book {
   ageRange        String? // faixa etária
   coverUrl        String? // URL da capa
 
+  ageMin    Int?
+  ageMax    Int?
+  genres    String[]                     @default([]) // opcional (p/ futuro); mantém category como está
+  embedding Unsupported("vector(1536)")?
+
   origins          BookOrigin[] // ligações às origens
   readings         Reading[]
   ratings          Rating[]
@@ -129,15 +169,31 @@ model BookOrigin {
 
 // Dados de crianças para perfil de leitor
 model Child {
-  id            Int      @id @default(autoincrement()) // PK: id_crianca
-  name          String // nome da criança
-  birthDate     DateTime // data de nascimento
-  gender        String? // género (“M”/“F”)
-  readerProfile String? // perfil_leitor
+  id            Int      @id @default(autoincrement())
+  name          String
+  birthDate     DateTime
+  gender        String?
+  readerProfile String?
 
-  families         ChildFamily[] // relação N:N → ChildFamily
-  readings         Reading[] // relação 1:N → Reading
-  badgeAssignments BadgeAssignment[] // relação 1:N → BadgeAssignment
+  families         ChildFamily[]
+  readings         Reading[]
+  badgeAssignments BadgeAssignment[]
+  ChildPreference  ChildPreference?
+  bookReservations BookReservation[]
+
+  ratings Rating[]
+
+  // 👇 novo lado oposto
+  consultations Consultation[]
+}
+
+model ChildPreference {
+  childId     Int                          @unique
+  profileText String?
+  embedding   Unsupported("vector(1536)")?
+  updatedAt   DateTime                     @updatedAt
+
+  child Child @relation(fields: [childId], references: [id])
 }
 
 // Associação N:N entre Child e User (família)
@@ -150,26 +206,46 @@ model ChildFamily {
   @@id([childId, familyId]) // PK composto
 }
 
-// Histórico de leituras marcadas
+// -------------------- Reading --------------------
 model Reading {
-  id       Int      @id @default(autoincrement()) // PK: id_leitura
-  child    Child    @relation(fields: [childId], references: [id])
-  childId  Int // FK → Child.id
-  book     Book     @relation(fields: [bookIsbn], references: [isbn])
-  bookIsbn String // FK → Book.isbn
-  readAt   DateTime @default(now()) // data_leitura
+  id         Int      @id @default(autoincrement())
+  child      Child    @relation(fields: [childId], references: [id])
+  childId    Int
+  book       Book     @relation(fields: [bookIsbn], references: [isbn])
+  bookIsbn   String
+  startedAt  DateTime?
+  finishedAt DateTime?
+  reservation   BookReservation? @relation(fields: [reservationId], references: [id])
+  reservationId Int?
+  ratings    Rating[]
+
+  @@index([childId, finishedAt])
+  @@index([childId, bookIsbn, finishedAt])
+  @@unique([childId, bookIsbn])          // 👈 APENAS UMA leitura por (criança, livro)
 }
 
-// Avaliação de livros
 model Rating {
-  id       Int      @id @default(autoincrement()) // PK: id_avaliacao
-  user     User     @relation(fields: [userId], references: [id])
-  userId   Int // FK → User.id
-  book     Book     @relation(fields: [bookIsbn], references: [isbn])
-  bookIsbn String // FK → Book.isbn
-  stars    Int // estrelas (1–5)
-  comment  String? // comentário opcional
-  ratedAt  DateTime @default(now()) // data_avaliacao
+  id      Int    @id @default(autoincrement())
+  user    User   @relation(fields: [userId], references: [id]) // quem registou
+  userId  Int
+  // 👇 para que criança vale a avaliação (opcional)
+  child   Child? @relation(fields: [childId], references: [id])
+  childId Int?
+
+  book     Book   @relation(fields: [bookIsbn], references: [isbn])
+  bookIsbn String
+
+  // 👇 opcional: liga à sessão de leitura
+  reading   Reading? @relation(fields: [readingId], references: [id])
+  readingId Int?
+
+  stars   Int
+  comment String?
+  ratedAt DateTime @default(now())
+
+  @@index([childId])
+  @@index([bookIsbn])
+  @@unique([userId, childId, bookIsbn])
 }
 
 // Definição de selos e troféus
@@ -203,19 +279,101 @@ model PointsHistory {
   actionDate DateTime @default(now()) // data_acao
 }
 
-// Pedidos de consulta
 model Consultation {
-  id Int @id @default(autoincrement()) // PK: id_consulta
+  id Int @id @default(autoincrement())
 
   family   User @relation("ConsultationsAsFamily", fields: [familyId], references: [id])
-  familyId Int // FK → User.id (família)
+  familyId Int
 
   librarian   User @relation("ConsultationsAsLibrarian", fields: [librarianId], references: [id])
-  librarianId Int // FK → User.id (bibliotecário)
+  librarianId Int
 
-  requestedAt DateTime  @default(now()) // data_pedido
-  scheduledAt DateTime? // data_marcação
-  status      String // estado (PENDENTE/CONFIRMADO/RECUSADO)
+  child   Child? @relation(fields: [childId], references: [id])
+  childId Int?
+
+  library   Library? @relation(fields: [libraryId], references: [id])
+  libraryId Int?
+  mode      String?
+  location  String?
+
+  requestedAt DateTime           @default(now())
+  startAt     DateTime?
+  endAt       DateTime?
+  status      ConsultationStatus @default(PENDING)
+
+  notes String?
+
+  // 👇 1–1: FK aqui + UNIQUE, e só este lado define fields/references
+  slotId Int?              @unique
+  slot   ConsultationSlot? @relation("ConsultationSlotLink", fields: [slotId], references: [id])
+
+  proposals ConsultationProposal[]
+  events    ConsultationEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([librarianId, startAt])
+  @@index([familyId, startAt])
+}
+
+model ConsultationEvent {
+  id             Int          @id @default(autoincrement())
+  consultation   Consultation @relation(fields: [consultationId], references: [id])
+  consultationId Int
+
+  type String
+  at   DateTime @default(now())
+
+  actor   User? @relation("ConsultationEventActor", fields: [actorId], references: [id])
+  actorId Int?
+
+  payload Json?
+}
+
+model ConsultationSlot {
+  id Int @id @default(autoincrement())
+
+  librarian   User @relation("LibrarianSlots", fields: [librarianId], references: [id])
+  librarianId Int
+
+  library   Library? @relation(fields: [libraryId], references: [id])
+  libraryId Int?
+
+  startAt DateTime
+  endAt   DateTime
+  status  SlotStatus @default(OPEN)
+
+  // 👇 lado passivo da 1–1 (mesmo nome da relação do outro lado)
+  consultation Consultation? @relation("ConsultationSlotLink")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([librarianId, startAt, endAt])
+  @@index([librarianId, startAt, status])
+}
+
+model ConsultationProposal {
+  id             Int          @id @default(autoincrement())
+  consultation   Consultation @relation(fields: [consultationId], references: [id])
+  consultationId Int
+
+  proposedBy  ProposalActor
+  fromStartAt DateTime?
+  fromEndAt   DateTime?
+  toStartAt   DateTime
+  toEndAt     DateTime
+
+  message   String?
+  status    ProposalStatus @default(PENDING)
+  createdAt DateTime       @default(now())
+  decidedAt DateTime?
+
+  decidedBy   User? @relation("ProposalDecider", fields: [decidedById], references: [id])
+  decidedById Int?
+
+  @@index([consultationId, status])
 }
 
 // Eventos culturais (importados de RSS ou manualmente)
@@ -250,12 +408,16 @@ model EventReservation {
 
 // Reservas de livros
 model BookReservation {
-  id         Int      @id @default(autoincrement()) // PK: id_reserva_livro
-  user       User     @relation(fields: [userId], references: [id])
-  userId     Int // FK → User.id
+  id         Int      @id @default(autoincrement())
+  child      Child    @relation(fields: [childId], references: [id])
+  childId    Int
   book       Book     @relation(fields: [bookIsbn], references: [isbn])
-  bookIsbn   String // FK → Book.isbn
-  reservedAt DateTime @default(now()) // data_reserva
+  bookIsbn   String
+  reservedAt DateTime @default(now())
+  readings   Reading[]
+
+  @@index([childId, bookIsbn, reservedAt])
+  @@unique([childId, bookIsbn])          // 👈 APENAS UMA reserva por (criança, livro)
 }
 
 // Tabela de newsletters

@@ -9,6 +9,8 @@ import {
   CalendarDays,
   CalendarCheck2,
   UsersRound,
+  Stars,
+  Book, // ⬅️ ícone para “Avaliar leituras”
 } from "lucide-react";
 import { useUserSession } from "../contexts/UserSession";
 
@@ -34,12 +36,16 @@ export default function AppLayout() {
         ? [
             { label: "Início", icon: <Home />, href: "/" },
             { label: "Sugestões", icon: <Wand2 />, href: "/suggestions" },
+            { label: "Leituras", icon: <Book />, href: "/reading" }, // ⬅️ novo
+            { label: "Avaliar leituras", icon: <Stars />, href: "/reviews" }, // ⬅️ novo
             { label: "Conquistas", icon: <Trophy />, href: "/achievements" },
             { label: "Agenda", icon: <CalendarDays />, href: "/agenda" },
           ].map((i) => ({ ...i, selected: is(i.href) }))
         : [
             { label: "Início", icon: <Home />, href: "/" },
             { label: "Sugestões", icon: <Wand2 />, href: "/suggestions" },
+            { label: "Leituras", icon: <Book />, href: "/reading" }, // ⬅️ novo
+            { label: "Avaliar leituras", icon: <Stars />, href: "/reviews" }, // ⬅️ novo
             { label: "Conquistas", icon: <Trophy />, href: "/achievements" },
             { label: "Agenda", icon: <CalendarDays />, href: "/agenda" },
             {
@@ -94,3 +100,4 @@ export default function AppLayout() {
     </GradientBackground>
   );
 }
+;

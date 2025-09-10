@@ -17,23 +17,25 @@ import {
   Typography,
   LinearProgress,
   useTheme,
+  Tooltip,
+  IconButton,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import { useUserSession } from "../contexts/UserSession";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import { StarRounded, WorkspacePremiumRounded } from "@mui/icons-material";
+import RefreshRounded from "@mui/icons-material/RefreshRounded";
 
 import { getLeiturasAtuais } from "../services/readings";
 import type { BookLite as ReadingBookLite } from "../services/readings";
 
 import { getProximosEventos } from "../services/events";
-import { getSugestoes } from "../services/books";
+import { getSugestoesPerfil } from "../services/books";
 import type { BookLite as SuggestionBookLite } from "../services/books";
 import { getNextConsultas, type ConsultaLite } from "../services/consultations";
 import { getBadgesRecent, type BadgeLite } from "../services/badges";
 import EmojiEventsRounded from "@mui/icons-material/EmojiEventsRounded";
-import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 
 // Placeholder para eventos sem imagem
 import EVENT_PLACEHOLDER from "../assets/placeholder-event.jpg";
@@ -42,10 +44,41 @@ const TOP_CARD_H = "clamp(360px, 50vh, 440px)";
 
 /** ---------- helpers ---------- */
 
+// Cache de sugestões (manual only — sem pedidos automáticos)
+function sugKey(childId?: number) {
+  return `sug:cache:${childId ?? "anon"}`;
+}
+function loadSugFromCache(
+  childId?: number
+): { items: any[]; ts: number } | null {
+  try {
+    const raw = localStorage.getItem(sugKey(childId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.items || !Array.isArray(parsed.items)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function saveSugToCache(childId: number | undefined, items: any[]) {
+  localStorage.setItem(
+    sugKey(childId),
+    JSON.stringify({ items, ts: Date.now() })
+  );
+}
+
 const STATUS_CFG: Record<
   string,
   { label: string; color: "success" | "warning" | "error" | "default" }
 > = {
+  // EN do backend
+  CONFIRMED: { label: "Confirmado", color: "success" },
+  PENDING: { label: "Pendente", color: "warning" },
+  DECLINED: { label: "Recusado", color: "error" },
+  CANCELLED: { label: "Cancelado", color: "default" },
+  COMPLETED: { label: "Concluída", color: "success" },
+  // PT (legacy)
   CONFIRMADO: { label: "Confirmado", color: "success" },
   PENDENTE: { label: "Pendente", color: "warning" },
   RECUSADO: { label: "Recusado", color: "error" },
@@ -505,45 +538,6 @@ function SuggestionCard({
   );
 }
 
-function BadgePill({ b, showChild }: { b: BadgeLite; showChild: boolean }) {
-  const isTrophy = (b.type || "").toUpperCase().includes("TROF");
-  const Icon = isTrophy ? EmojiEventsRounded : LocalOfferRounded;
-
-  return (
-    <Box
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 1,
-        px: 1.25,
-        py: 0.75,
-        borderRadius: 999,
-        border: "1px solid",
-        borderColor: isTrophy ? "warning.light" : "secondary.light",
-        bgcolor: isTrophy ? "warning.50" : "secondary.50",
-        boxShadow: "0 8px 20px rgba(0,0,0,.06)",
-        whiteSpace: "nowrap",
-        maxWidth: "100%",
-      }}
-      title={b.criteria || undefined}
-    >
-      <Icon fontSize="small" />
-      <Typography fontWeight={800} noWrap sx={{ maxWidth: 220 }}>
-        {b.name}
-      </Typography>
-      {showChild && !!b.childName && (
-        <Typography
-          variant="caption"
-          noWrap
-          sx={{ opacity: 0.75, maxWidth: 160 }}
-        >
-          · de {b.childName}
-        </Typography>
-      )}
-    </Box>
-  );
-}
-
 /** ---------- Página ---------- */
 export default function LandingPage() {
   const theme = useTheme();
@@ -563,43 +557,100 @@ export default function LandingPage() {
   const [sugestoes, setSugestoes] = useState<SuggestionWithMeta[]>([]);
   const [consultas, setConsultas] = useState<ConsultaLite[]>([]);
 
+  // sugestões (manual only)
+  const [sugLoading, setSugLoading] = useState(false);
+  const [sugUpdatedAt, setSugUpdatedAt] = useState<number | null>(null);
+
+  // carga geral (com consultas e leituras conforme o modo)
   useEffect(() => {
     (async () => {
-      const childIdsAll = (user?.children || [])
-        .map((c) => Number(c.id))
-        .filter((n) => Number.isFinite(n));
+      const childIdsAll =
+        (user?.children || [])
+          .map((c) => Number(c.id))
+          .filter((n) => Number.isFinite(n)) ?? [];
 
+      const currentChildId = Number(
+        (user?.actingChild?.id as any) ?? (selectedChildId as any)
+      );
+
+      const userIdNum = Number(user?.id);
+
+      // Leituras
       const leiturasPromise = asChild
-        ? getLeiturasAtuais(4, {
-            childId: Number(
-              (user?.actingChild?.id as any) ?? (selectedChildId as any)
-            ),
-          })
-        : getLeiturasAtuais(4, { childIds: childIdsAll });
+        ? getLeiturasAtuais(4, { childId: currentChildId })
+        : (async () => {
+            if (!childIdsAll.length) return [] as ReadingBookLite[];
+            const perChild = await Promise.all(
+              childIdsAll.map((cid) => getLeiturasAtuais(2, { childId: cid }))
+            );
+            // junta e corta às 4 mais recentes (se o serviço já vier ordenado, perfeito)
+            return perChild.flat().slice(0, 4) as ReadingBookLite[];
+          })();
+
+      // Consultas (só família) — serviço já usa o utilizador autenticado
+      const consultasPromise =
+        asChild || !Number.isFinite(userIdNum)
+          ? Promise.resolve([] as ConsultaLite[])
+          : getNextConsultas(6, { familyId: userIdNum });
 
       const badgesPromise = asChild
-        ? getBadgesRecent(12, {
-            childId: Number(
-              (user?.actingChild?.id as any) ?? (selectedChildId as any)
-            ),
-          })
+        ? getBadgesRecent(12, { childId: currentChildId })
         : getBadgesRecent(12, { familyId: Number(user?.id) });
 
-      const [ev, le, su, co, ba] = await Promise.allSettled([
+      const [ev, le, co, ba] = await Promise.allSettled([
         getProximosEventos(8),
         leiturasPromise,
-        getSugestoes(6),
-        getNextConsultas(6),
+        consultasPromise,
         badgesPromise,
       ]);
 
       if (ev.status === "fulfilled") setEventos(ev.value as any);
       if (le.status === "fulfilled") setLeituras(le.value as any);
-      if (su.status === "fulfilled") setSugestoes(su.value as any);
       if (co.status === "fulfilled") setConsultas(co.value as any);
+      else if (asChild) setConsultas([]);
       if (ba.status === "fulfilled") setBadges(ba.value as any);
     })();
-  }, [asChild, selectedChildId, user?.actingChild?.id, user?.children?.length]);
+  }, [
+    asChild,
+    selectedChildId,
+    user?.actingChild?.id,
+    user?.children?.length,
+    user?.id,
+  ]);
+
+  // gerar sugestões on-demand
+  async function generateSuggestions() {
+    if (!asChild) return;
+    const cid = Number(
+      (user?.actingChild?.id as any) ?? (selectedChildId as any)
+    );
+    if (!cid) return;
+
+    setSugLoading(true);
+    try {
+      const res = await getSugestoesPerfil(6, { childId: cid });
+      setSugestoes(res as any);
+      setSugUpdatedAt(Date.now());
+      saveSugToCache(cid, res as any);
+    } finally {
+      setSugLoading(false);
+    }
+  }
+
+  // carregar da cache (sem auto-fetch)
+  useEffect(() => {
+    const cid = Number(
+      (user?.actingChild?.id as any) ?? (selectedChildId as any)
+    );
+    const cached = loadSugFromCache(cid);
+    if (cached) {
+      setSugestoes(cached.items as any);
+      setSugUpdatedAt(cached.ts);
+    } else {
+      setSugestoes([]);
+      setSugUpdatedAt(null);
+    }
+  }, [asChild, selectedChildId, user?.actingChild?.id]);
 
   const familyName = user?.fullName ?? "Família";
   const roleLabel = (user?.roles?.[0] ?? "").toString();
@@ -759,6 +810,22 @@ export default function LandingPage() {
           >
             <CardHeader
               title={asChild ? "Sugestões para ti" : "Próximas Consultas"}
+              action={
+                asChild ? (
+                  <Tooltip title="Gerar novas sugestões">
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={generateSuggestions}
+                        disabled={sugLoading}
+                        aria-label="Gerar novas sugestões"
+                      >
+                        <RefreshRounded fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                ) : null
+              }
             />
             <Box
               sx={{
@@ -774,8 +841,21 @@ export default function LandingPage() {
             >
               {asChild ? (
                 <Stack spacing={1.25}>
+                  {sugLoading && (
+                    <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                      A gerar sugestões…
+                    </Typography>
+                  )}
+
+                  {!!sugUpdatedAt && (
+                    <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                      Última geração:{" "}
+                      {new Date(sugUpdatedAt).toLocaleString("pt-PT")}
+                    </Typography>
+                  )}
+
                   {sugestoes.map((b, i) => (
-                    <Box key={b.id}>
+                    <Box key={(b as any).id ?? b.isbn}>
                       <SuggestionCard
                         book={b}
                         onReserve={() => {
@@ -789,6 +869,12 @@ export default function LandingPage() {
                       )}
                     </Box>
                   ))}
+
+                  {!sugLoading && sugestoes.length === 0 && (
+                    <Typography sx={{ opacity: 0.6 }}>
+                      Sem sugestões no momento. Clica em <b>↻</b> para gerar.
+                    </Typography>
+                  )}
                 </Stack>
               ) : consultas.length ? (
                 <Stack
@@ -835,7 +921,7 @@ export default function LandingPage() {
               ))}
             </Stack>
 
-            {/* contentor do carrossel - sempre dentro do pai */}
+            {/* contentor do carrossel */}
             <Box
               sx={{
                 position: "relative",
@@ -910,9 +996,9 @@ export default function LandingPage() {
                         <Typography fontWeight={800} noWrap title={b.title}>
                           {b.title}
                         </Typography>
-                        {!asChild && b.childName && (
+                        {!asChild && (b as any).childName && (
                           <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                            de {b.childName}
+                            de {(b as any).childName}
                           </Typography>
                         )}
                         {!asChild && (
@@ -928,7 +1014,7 @@ export default function LandingPage() {
                           />
                         )}
                       </Box>
-                      <RouteLink href={asChild ? "/suggestions" : "/leituras"}>
+                      <RouteLink href={asChild ? "/suggestions" : "/reading"}>
                         {asChild ? "Abrir" : "Abrir"}
                       </RouteLink>
                     </Stack>
@@ -962,13 +1048,7 @@ export default function LandingPage() {
                     <Chip
                       key={b.id}
                       variant={isTrofeu ? "filled" : "outlined"}
-                      icon={
-                        isTrofeu ? (
-                          <EmojiEventsRounded fontSize="small" />
-                        ) : (
-                          <WorkspacePremiumRounded fontSize="small" />
-                        )
-                      }
+                      icon={<EmojiEventsRounded fontSize="small" />}
                       label={
                         asChild
                           ? b.name

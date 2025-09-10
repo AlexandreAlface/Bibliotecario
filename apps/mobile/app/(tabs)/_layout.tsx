@@ -27,7 +27,9 @@ type RouteName =
   | "consultas"
   | "familias"
   | "feed"
-  | "sugestoes";
+  | "sugestoes"
+  | "leituras"      // 👈 novo
+  | "avaliacoes";   // 👈 novo
 
 /** Ícones: ativo usa “filled”, inativo (quando existe) usa “outline” */
 const ICONS: Record<
@@ -35,24 +37,35 @@ const ICONS: Record<
   { active: React.ComponentProps<typeof Icon>["name"]; inactive: React.ComponentProps<typeof Icon>["name"] }
 > = {
   index:      { active: "home-variant",           inactive: "home-variant-outline" },
+  sugestoes:  { active: "magic-staff",            inactive: "magic-staff" },
   agenda:     { active: "calendar-month",         inactive: "calendar-month-outline" },
   conquistas: { active: "trophy-award",           inactive: "trophy-outline" },
   consultas:  { active: "calendar-clock",         inactive: "calendar-clock-outline" },
   familias:   { active: "account-group",          inactive: "account-group-outline" },
   feed:       { active: "rss",                    inactive: "rss" }, // sem outline
-  sugestoes:  { active: "book-open-page-variant", inactive: "book-open-outline" },
+  leituras:   { active: "book-open-variant",      inactive: "book-open-variant" }, // sem outline
+  avaliacoes: { active: "star",                   inactive: "star-outline" },
 };
 
 const MENU_FAMILIA: RouteName[] = [
   "index",
+  "leituras",     // 👈 novo
+  "avaliacoes",   // 👈 novo
+  "sugestoes",
   "agenda",
   "conquistas",
   "consultas",
-  "familias",
-  "feed",
-  "sugestoes",
+  // "familias",
+  // "feed",
 ];
-const MENU_CRIANCA: RouteName[] = ["index", "sugestoes", "conquistas", "agenda"];
+const MENU_CRIANCA: RouteName[] = [
+  "index",
+  "leituras",     // 👈 novo
+  "avaliacoes",   // 👈 novo
+  "sugestoes",
+  "conquistas",
+  "agenda",
+];
 
 /* ---- Custom TabBar 100% compatível iOS/Android (usa navigation.navigate) ---- */
 function MyTabBar(props: BottomTabBarProps) {
@@ -80,7 +93,7 @@ function MyTabBar(props: BottomTabBarProps) {
         elevation: 8,
       }}
     >
-      {items.map((route, index) => {
+      {items.map((route) => {
         const isFocused = props.state.index === props.state.routes.findIndex((r) => r.key === route.key);
         const name = route.name as RouteName;
         const iconPair = ICONS[name];
@@ -111,7 +124,7 @@ function MyTabBar(props: BottomTabBarProps) {
             accessibilityState={isFocused ? { selected: true } : {}}
             onPress={onPress}
             onLongPress={onLongPress}
-            activeOpacity={0.6}              // funciona no iOS
+            activeOpacity={0.6}
             style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
             hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
           >
@@ -123,17 +136,17 @@ function MyTabBar(props: BottomTabBarProps) {
   );
 }
 
-/* ---- Tabs layout ---- */
 export default function TabsLayout() {
   return (
     <Tabs tabBar={(p) => <MyTabBar {...p} />} screenOptions={{ headerShown: false }}>
-      {/* Regista todas as screens que podes usar; o TabBar só mostra as do MENU_* */}
       <Tabs.Screen name="index" />
+      <Tabs.Screen name="leituras" />
+      <Tabs.Screen name="avaliacoes" />
       <Tabs.Screen name="agenda" />
-      <Tabs.Screen name="conquistas" />
       <Tabs.Screen name="consultas" />
-      <Tabs.Screen name="familias" />
-      <Tabs.Screen name="feed" />
+      <Tabs.Screen name="conquistas" />
+      {/* <Tabs.Screen name="familias" /> */}
+      {/* <Tabs.Screen name="feed" /> */}
       <Tabs.Screen name="sugestoes" />
     </Tabs>
   );
