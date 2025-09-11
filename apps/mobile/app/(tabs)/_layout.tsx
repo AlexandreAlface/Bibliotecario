@@ -55,7 +55,7 @@ const MENU_FAMILIA: RouteName[] = [
   "agenda",
   "conquistas",
   "consultas",
-  // "familias",
+  "familias",
   // "feed",
 ];
 const MENU_CRIANCA: RouteName[] = [
@@ -145,7 +145,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="agenda" />
       <Tabs.Screen name="consultas" />
       <Tabs.Screen name="conquistas" />
-      {/* <Tabs.Screen name="familias" /> */}
+      <Tabs.Screen name="familias" />
       {/* <Tabs.Screen name="feed" /> */}
       <Tabs.Screen name="sugestoes" />
     </Tabs>

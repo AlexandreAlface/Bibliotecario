@@ -1,14 +1,122 @@
 import * as React from 'react';
-import { View } from 'react-native';
-import { Text } from 'react-native-paper';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import Background from '@bibliotecario/ui-mobile/components/Background/Background';
+import { PrimaryButton, SecondaryButton } from '@bibliotecario/ui-mobile/components/Buttons/Buttons';
+import { useTheme } from 'react-native-paper';
+import { useAuth } from 'src/contexts/AuthContext';
+import { consultationsApi, ConsultationLite } from 'src/services/consultations';
 
-export default function Screen() {
+type TabKey = 'next' | 'past';
+type Chip = { id: number | null; name: string };
+
+function fmt(d?: string | null) {
+  if (!d) return '';
+  const dt = new Date(d);
+  return new Intl.DateTimeFormat('pt-PT', { dateStyle: 'medium', timeStyle: 'short' }).format(dt);
+}
+
+export default function ConsultasScreen() {
+  const theme = useTheme();
+  const { user } = useAuth();
+
+  const [tab, setTab] = React.useState<TabKey>('next');
+  const [childId, setChildId] = React.useState<number | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [items, setItems] = React.useState<ConsultationLite[]>([]);
+
+  const chips: Chip[] = [{ id: null, name: 'Todos' }, ...((user?.children ?? []).map(c => ({ id: c.id, name: c.name })))];
+
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!user?.id) return;
+      setLoading(true);
+      try {
+        const nowIso = new Date().toISOString();
+        const params =
+          tab === 'next'
+            ? { familyId: user.id, childId: childId ?? undefined, status: 'PENDING,CONFIRMED', from: nowIso, order: 'asc', limit: 100 }
+            : { familyId: user.id, childId: childId ?? undefined, to: nowIso, order: 'desc', limit: 100 };
+
+        // construímos a query à mão para já
+        const q = Object.entries(params)
+          .filter(([, v]) => v !== undefined && v !== null)
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+          .join('&');
+        const url = `/consultations/all?${q}`;
+        const data = (await fetch((await import('src/services/api')).API_URL + url, { credentials: 'include' }).then(r => r.json())) as ConsultationLite[];
+
+        if (alive) setItems(data);
+      } catch (e) {
+        if (alive) setItems([]);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [tab, childId, user?.id]);
+
   return (
     <Background>
-      <View style={{ padding: 16 }}>
-        <Text variant="titleLarge">Em breve…</Text>
-      </View>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+        <Text style={{ fontSize: 22, fontWeight: '600', color: theme.colors.onBackground }}>Consultas</Text>
+
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <SecondaryButton label="Próximas" onPress={() => setTab('next')} children={undefined} />
+          <SecondaryButton label="Anteriores" onPress={() => setTab('past')} children={undefined} />
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {chips.map(ch => {
+            const active = (ch.id ?? null) === childId;
+            return (
+              <TouchableOpacity
+                key={String(ch.id ?? 'all')}
+                onPress={() => setChildId(ch.id)}
+                style={{
+                  paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20,
+                  backgroundColor: active ? theme.colors.primary : theme.colors.secondaryContainer,
+                }}
+              >
+                <Text style={{ color: active ? theme.colors.onPrimary : theme.colors.onSecondaryContainer }}>{ch.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        <PrimaryButton label="Agendar Consulta" onPress={() => { } } children={undefined} />
+
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: 16 }} />
+        ) : (
+          <FlatList
+            data={items}
+            keyExtractor={(it) => String(it.id)}
+            renderItem={({ item }) => (
+              <View
+                style={{
+                  marginTop: 10,
+                  borderRadius: 12,
+                  padding: 14,
+                  backgroundColor: theme.colors.surface,
+                  borderWidth: 1,
+                  borderColor: theme.colors.outlineVariant,
+                }}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '600', color: theme.colors.onSurface }}>
+                  {item.title || 'Consulta'}
+                </Text>
+                <Text style={{ marginTop: 4, color: theme.colors.onSurfaceVariant }}>
+                  {fmt(item.startAt)} {item.librarianName ? `• ${item.librarianName}` : ''}
+                </Text>
+                <Text style={{ marginTop: 2, color: theme.colors.onSurfaceVariant }}>
+                  Estado: {item.status}
+                </Text>
+              </View>
+            )}
+          />
+        )}
+      </ScrollView>
     </Background>
   );
 }
