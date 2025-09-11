@@ -152,11 +152,20 @@ router.get("/me", requireAuth, async (req, res, next) => {
         id: true,
         fullName: true,
         email: true,
-        phone: true,
-        citizenCard: true,
-        address: true, // 👈 ADICIONA
         userRoles: { include: { role: true } },
-        children: { include: { child: { select: { id: true, name: true } } } },
+        children: {
+          include: {
+            child: {
+              select: {
+                id: true,
+                name: true,
+                birthDate: true,
+                gender: true,
+                readerProfile: true,
+              },
+            },
+          },
+        },
       },
     });
     if (!u) return res.status(401).json({ error: "Sessão inválida" });
@@ -165,10 +174,12 @@ router.get("/me", requireAuth, async (req, res, next) => {
     const children = u.children.map((c) => ({
       id: c.childId,
       name: c.child.name,
+      birthDate: c.child.birthDate,
+      gender: c.child.gender,
+      readerProfile: c.child.readerProfile,
       avatarUrl: null,
     }));
 
-    // lê o cookie de “atuar como criança”
     const actingId = Number(req.cookies?.[ACTING_COOKIE] || 0);
     if (actingId) {
       const child = children.find((c) => c.id === actingId) || null;
@@ -188,9 +199,6 @@ router.get("/me", requireAuth, async (req, res, next) => {
       id: u.id,
       fullName: u.fullName,
       email: u.email,
-      phone: u.phone,
-      citizenCard: u.citizenCard,
-      address: u.address, // 👈 ADICIONA
       roles,
       children,
       actingChild: null,

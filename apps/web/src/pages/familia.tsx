@@ -14,10 +14,10 @@ import {
   Typography,
   Alert,
   CircularProgress,
+  MenuItem,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import EditRounded from "@mui/icons-material/EditRounded";
-import PersonRounded from "@mui/icons-material/PersonRounded";
 import FamilyRestroomRounded from "@mui/icons-material/FamilyRestroomRounded";
 import EmojiEventsRounded from "@mui/icons-material/EmojiEventsRounded";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
@@ -65,23 +65,35 @@ function toYMD(d?: string | null) {
   return `${y}-${m}-${dd}`;
 }
 
+/* ====== género: mapeamento M/F/O <-> labels e normalização ====== */
+type GenderCode = "M" | "F" | "O" | "";
+const GENDER_OPTS: { code: GenderCode; label: string }[] = [
+  { code: "M", label: "Masculino" },
+  { code: "F", label: "Feminino" },
+  { code: "O", label: "Outro" },
+];
+function toGenderCode(raw?: string | null): GenderCode {
+  const s = (raw ?? "").toString().trim().toLowerCase();
+  if (!s) return "";
+  if (s === "m" || s.startsWith("masc") || s === "male" || s === "homem")
+    return "M";
+  if (s === "f" || s.startsWith("fem") || s === "female" || s === "mulher")
+    return "F";
+  return "O";
+}
+
 /* =================== Página =================== */
 type UIChild = {
   id: number;
   name: string;
   birthDate?: string | null;
+  gender?: string | null;
+  readerProfile?: string | null;
   avatarUrl?: string | null;
 };
 
 export default function FamilyPage() {
-  const {
-    user,
-    asChild,
-    selectedChildId,
-    setSelectedChildId,
-    actAsChild,
-    exitChild,
-  } = useUserSession();
+  const { user } = useUserSession();
 
   // lista local de crianças
   const [children, setChildren] = useState<UIChild[]>([]);
@@ -91,11 +103,30 @@ export default function FamilyPage() {
       arr.map((c) => ({
         id: Number(c.id),
         name: String(c.name),
-        birthDate: c.birthDate ?? null,
-        avatarUrl: c.avatarUrl ?? null,
+        birthDate: (c as any).birthDate ?? (c as any).dataNascimento ?? null,
+        gender: (c as any).gender ?? (c as any).sexo ?? null,
+        readerProfile:
+          (c as any).readerProfile ??
+          (c as any).perfilLeitor ??
+          (c as any).profileText ??
+          null,
+        avatarUrl: (c as any).avatarUrl ?? null,
       }))
     );
   }, [user?.children]);
+
+  // seleção local da criança ativa
+  const [activeId, setActiveId] = useState<number>(NaN);
+  useEffect(() => {
+    if (!Number.isFinite(activeId) && children.length) {
+      setActiveId(Number(children[0].id));
+    }
+  }, [children, activeId]);
+
+  const activeChild = useMemo(
+    () => children.find((c) => Number(c.id) === Number(activeId)),
+    [children, activeId]
+  );
 
   // estado: form família
   const [fullName, setFullName] = useState(user?.fullName || "");
@@ -136,23 +167,13 @@ export default function FamilyPage() {
     }
   }
 
-  // pesquisa + seleção de criança
+  // pesquisa na lista de crianças
   const [q, setQ] = useState("");
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return children;
     return children.filter((c) => c.name.toLowerCase().includes(s));
   }, [children, q]);
-
-  const activeChildId = useMemo(() => {
-    if (asChild) return Number((user as any)?.actingChild?.id);
-    return selectedChildId ? Number(selectedChildId) : NaN;
-  }, [asChild, user?.actingChild?.id, selectedChildId]);
-
-  const activeChild = useMemo(
-    () => children.find((c) => Number(c.id) === Number(activeChildId)),
-    [children, activeChildId]
-  );
 
   // dados do painel da criança selecionada
   const [leituras, setLeituras] = useState<BookLite[]>([]);
@@ -163,7 +184,7 @@ export default function FamilyPage() {
 
   useEffect(() => {
     (async () => {
-      if (!Number.isFinite(activeChildId)) {
+      if (!Number.isFinite(activeId)) {
         setLeituras([]);
         setBadges([]);
         setConsultas([]);
@@ -172,8 +193,8 @@ export default function FamilyPage() {
       setLoadingChild(true);
       try {
         const [le, ba] = await Promise.all([
-          getLeiturasAtuais(6, { childId: Number(activeChildId) }),
-          getBadgesRecent(6, { childId: Number(activeChildId) }),
+          getLeiturasAtuais(6, { childId: Number(activeId) }),
+          getBadgesRecent(6, { childId: Number(activeId) }),
         ]);
         setLeituras(le as any);
         setBadges(ba as any);
@@ -186,20 +207,20 @@ export default function FamilyPage() {
         try {
           const next = await getNextConsultas(6, { familyId: famId });
           setConsultas(
-            next.filter((c: any) => Number(c.childId) === Number(activeChildId))
+            next.filter((c: any) => Number(c.childId) === Number(activeId))
           );
         } catch {
           setConsultas([]);
         }
       }
     })();
-  }, [activeChildId, user?.id]);
+  }, [activeId, user?.id]);
 
   async function generateSuggestions() {
-    if (!Number.isFinite(activeChildId)) return;
+    if (!Number.isFinite(activeId)) return;
     setSugLoading(true);
     try {
-      await getSugestoesPerfil(6, { childId: Number(activeChildId) });
+      await getSugestoesPerfil(6, { childId: Number(activeId) });
     } finally {
       setSugLoading(false);
     }
@@ -222,21 +243,21 @@ export default function FamilyPage() {
 
   const [formName, setFormName] = useState("");
   const [formBirth, setFormBirth] = useState(""); // YYYY-MM-DD
-  const [formGender, setFormGender] = useState("");
+  const [formGender, setFormGender] = useState<GenderCode>(""); // M/F/O/""
   const [formProfile, setFormProfile] = useState("");
 
   function openEdit(c: UIChild) {
-    setSelectedChildId(String(c.id));
+    setActiveId(Number(c.id));
     setEditIsNew(false);
     setFormName(c.name || "");
     setFormBirth(toYMD(c.birthDate || null));
-    setFormGender("");
-    setFormProfile("");
+    setFormGender(toGenderCode(c.gender));
+    setFormProfile(c.readerProfile || "");
     setEditErr(null);
     setEditOpen(true);
   }
   function openCreate() {
-    setSelectedChildId("");
+    setActiveId(NaN);
     setEditIsNew(true);
     setFormName("");
     setFormBirth("");
@@ -257,10 +278,20 @@ export default function FamilyPage() {
         <FamilyRestroomRounded />
       </Stack>
 
-      <Grid container spacing={2}>
+      <Grid
+        container
+        spacing={2}
+        justifyContent="center"
+        alignItems="flex-start"
+      >
         {/* -------- Coluna esquerda: perfil família + EDITOR DA CRIANÇA -------- */}
-        <Grid item xs={12} md={7}>
-          <WhiteCard>
+        <Grid
+          item
+          xs={12}
+          md={7}
+          sx={{ display: "flex", flexDirection: "column", gap: 2 }}
+        >
+          <WhiteCard sx={{ mx: "auto", width: "100%", maxWidth: 720 }}>
             <Stack
               direction="row"
               alignItems="center"
@@ -270,17 +301,15 @@ export default function FamilyPage() {
               <Typography variant="h6" fontWeight={900}>
                 Dados da Família
               </Typography>
-              {!asChild && (
-                <PrimaryButton
-                  onClick={onSave}
-                  startIcon={
-                    saving ? <CircularProgress size={16} /> : <EditRounded />
-                  }
-                  disabled={saving}
-                >
-                  Guardar
-                </PrimaryButton>
-              )}
+              <PrimaryButton
+                onClick={onSave}
+                startIcon={
+                  saving ? <CircularProgress size={16} /> : <EditRounded />
+                }
+                disabled={saving}
+              >
+                Guardar
+              </PrimaryButton>
             </Stack>
 
             {saveMsg && (
@@ -302,7 +331,6 @@ export default function FamilyPage() {
                   onChange={(e) => setFullName(e.target.value)}
                   size="small"
                   fullWidth
-                  disabled={asChild}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -312,7 +340,6 @@ export default function FamilyPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   size="small"
                   fullWidth
-                  disabled={asChild}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -322,7 +349,6 @@ export default function FamilyPage() {
                   onChange={(e) => setPhone(e.target.value)}
                   size="small"
                   fullWidth
-                  disabled={asChild}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
@@ -332,7 +358,6 @@ export default function FamilyPage() {
                   onChange={(e) => setCitizenCard(e.target.value)}
                   size="small"
                   fullWidth
-                  disabled={asChild}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -342,15 +367,14 @@ export default function FamilyPage() {
                   onChange={(e) => setAddress(e.target.value)}
                   size="small"
                   fullWidth
-                  disabled={asChild}
                 />
               </Grid>
             </Grid>
           </WhiteCard>
 
           {/* >>>> EDITOR DA CRIANÇA AQUI, POR BAIXO DO FORM DA FAMÍLIA <<<< */}
-          {!asChild && editOpen && (
-            <WhiteCard sx={{ mt: 2 }}>
+          {editOpen && (
+            <WhiteCard sx={{ mx: "auto", width: "100%", maxWidth: 720 }}>
               <Stack
                 direction="row"
                 alignItems="center"
@@ -369,14 +393,16 @@ export default function FamilyPage() {
                           color="error"
                           onClick={async () => {
                             if (!activeChild) return;
-                            if (!confirm(`Remover ${activeChild.name}?`)) return;
+                            if (!confirm(`Remover ${activeChild.name}?`))
+                              return;
                             setEditSaving(true);
                             setEditErr(null);
                             try {
                               await deleteChildSvc(activeChild.id);
                               const me = await getMe();
-                              setChildren((me.children || []) as any);
-                              setSelectedChildId("");
+                              const newKids = (me.children || []) as any[];
+                              setChildren(newKids as any);
+                              setActiveId(newKids[0]?.id ?? NaN);
                               setEditOpen(false);
                             } catch (e: any) {
                               setEditErr(e?.message || "Erro ao remover.");
@@ -390,7 +416,10 @@ export default function FamilyPage() {
                       </span>
                     </Tooltip>
                   )}
-                  <PrimaryButton variant="outlined" onClick={() => setEditOpen(false)}>
+                  <PrimaryButton
+                    variant="outlined"
+                    onClick={() => setEditOpen(false)}
+                  >
                     Cancelar
                   </PrimaryButton>
                   <PrimaryButton
@@ -403,8 +432,10 @@ export default function FamilyPage() {
                       setEditErr(null);
                       const payload = {
                         name: formName.trim(),
-                        birthDate: formBirth ? new Date(formBirth).toISOString() : null,
-                        gender: formGender || null,
+                        birthDate: formBirth
+                          ? new Date(formBirth).toISOString()
+                          : null,
+                        gender: (formGender || null) as "M" | "F" | "O" | null,
                         readerProfile: formProfile || null,
                       };
                       try {
@@ -412,12 +443,15 @@ export default function FamilyPage() {
                           const saved = await createChild(payload);
                           const me = await getMe();
                           setChildren((me.children || []) as any);
-                          setSelectedChildId(String(saved.id));
+                          setActiveId(Number(saved.id));
                         } else if (activeChild) {
-                          const saved = await updateChildSvc(activeChild.id, payload);
+                          const saved = await updateChildSvc(
+                            activeChild.id,
+                            payload
+                          );
                           const me = await getMe();
                           setChildren((me.children || []) as any);
-                          setSelectedChildId(String(saved.id));
+                          setActiveId(Number(saved.id));
                         }
                         setEditOpen(false);
                       } catch (e: any) {
@@ -461,16 +495,27 @@ export default function FamilyPage() {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
+
+                {/* Género como SELECT com M/F/O */}
                 <Grid item xs={12} md={6}>
                   <TextField
+                    select
                     label="Género"
-                    placeholder="Opcional"
                     value={formGender}
-                    onChange={(e) => setFormGender(e.target.value)}
+                    onChange={(e) =>
+                      setFormGender(e.target.value as GenderCode)
+                    }
                     size="small"
                     fullWidth
-                  />
+                  >
+                    {GENDER_OPTS.map((opt) => (
+                      <MenuItem key={opt.code} value={opt.code}>
+                        {opt.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
                 </Grid>
+
                 <Grid item xs={12}>
                   <TextField
                     label="Perfil de leitor"
@@ -489,9 +534,14 @@ export default function FamilyPage() {
         </Grid>
 
         {/* -------- Coluna direita: lista de crianças + detalhe -------- */}
-        <Grid item xs={12} md={5}>
+        <Grid
+          item
+          xs={12}
+          md={5}
+          sx={{ display: "flex", flexDirection: "column", gap: 2 }}
+        >
           {/* Lista / Pesquisa */}
-          <WhiteCard sx={{ mb: 2 }}>
+          <WhiteCard sx={{ mx: "auto", width: "100%", maxWidth: 520 }}>
             <Stack
               direction="row"
               alignItems="center"
@@ -501,11 +551,9 @@ export default function FamilyPage() {
               <Typography variant="h6" fontWeight={900}>
                 Dados das Crianças
               </Typography>
-              {!asChild && (
-                <PrimaryButton onClick={openCreate} size="small">
-                  + Adicionar criança
-                </PrimaryButton>
-              )}
+              <PrimaryButton onClick={openCreate} size="small">
+                + Adicionar criança
+              </PrimaryButton>
             </Stack>
 
             <TextField
@@ -522,18 +570,18 @@ export default function FamilyPage() {
               sx={{ maxHeight: 240, overflowY: "auto", pr: 0.5 }}
             >
               {filtered.map((c) => {
-                const isActive = Number(c.id) === Number(activeChildId);
+                const isActive = Number(c.id) === Number(activeId);
                 return (
                   <Box
                     key={c.id}
-                    onClick={() => (!asChild ? openEdit(c) : undefined)}
+                    onClick={() => openEdit(c)}
                     sx={{
                       p: 1,
                       borderRadius: 2,
                       border: "1px solid",
                       borderColor: isActive ? "primary.main" : "divider",
                       bgcolor: isActive ? "primary.light" : "background.paper",
-                      cursor: asChild ? "default" : "pointer",
+                      cursor: "pointer",
                     }}
                   >
                     <Stack direction="row" alignItems="center" spacing={1}>
@@ -551,21 +599,6 @@ export default function FamilyPage() {
                           {ageFrom(c.birthDate)}
                         </Typography>
                       </Box>
-                      {!asChild && (
-                        <Tooltip title="Entrar como esta criança">
-                          <span>
-                            <IconButton
-                              size="small"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                await actAsChild(Number(c.id));
-                              }}
-                            >
-                              <PersonRounded fontSize="small" />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      )}
                     </Stack>
                   </Box>
                 );
@@ -577,7 +610,7 @@ export default function FamilyPage() {
           </WhiteCard>
 
           {/* Painel da criança ativa */}
-          <WhiteCard>
+          <WhiteCard sx={{ mx: "auto", width: "100%", maxWidth: 520 }}>
             <Stack
               direction="row"
               alignItems="center"
@@ -589,29 +622,26 @@ export default function FamilyPage() {
               </Typography>
 
               <Stack direction="row" spacing={1} alignItems="center">
-                {!asChild && activeChild && (
-                  <PrimaryButton onClick={() => openEdit(activeChild)} size="small">
+                {activeChild && (
+                  <PrimaryButton
+                    onClick={() => openEdit(activeChild)}
+                    size="small"
+                  >
                     Editar dados
                   </PrimaryButton>
                 )}
-                {asChild ? (
-                  <PrimaryButton onClick={exitChild} size="small">
-                    Sair do modo criança
-                  </PrimaryButton>
-                ) : (
-                  <Tooltip title="Gerar sugestões para esta criança">
-                    <span>
-                      <IconButton
-                        size="small"
-                        onClick={generateSuggestions}
-                        disabled={!activeChild || sugLoading}
-                        aria-label="Gerar sugestões"
-                      >
-                        <RefreshRounded fontSize="small" />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                )}
+                <Tooltip title="Gerar sugestões para esta criança">
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={generateSuggestions}
+                      disabled={!activeChild || sugLoading}
+                      aria-label="Gerar sugestões"
+                    >
+                      <RefreshRounded fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
                 <RouteLink href="/agenda">Ver Agenda</RouteLink>
               </Stack>
             </Stack>
@@ -629,7 +659,11 @@ export default function FamilyPage() {
               <Stack spacing={1.25}>
                 {/* Leituras recentes */}
                 <Box>
-                  <Typography variant="subtitle2" fontWeight={900} sx={{ mb: 0.5 }}>
+                  <Typography
+                    variant="subtitle2"
+                    fontWeight={900}
+                    sx={{ mb: 0.5 }}
+                  >
                     Leituras recentes
                   </Typography>
                   {leituras.length ? (
@@ -638,7 +672,12 @@ export default function FamilyPage() {
                       divider={<Divider sx={{ borderColor: "divider" }} />}
                     >
                       {leituras.slice(0, 3).map((b) => (
-                        <Stack key={b.id} direction="row" gap={1} alignItems="center">
+                        <Stack
+                          key={b.id}
+                          direction="row"
+                          gap={1}
+                          alignItems="center"
+                        >
                           <img
                             src={b.coverUrl || "/placeholder-book.jpg"}
                             alt=""
@@ -651,7 +690,10 @@ export default function FamilyPage() {
                               {b.title}
                             </Typography>
                             {!!authorOf(b) && (
-                              <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                              <Typography
+                                variant="caption"
+                                sx={{ opacity: 0.7 }}
+                              >
                                 de {authorOf(b)}
                               </Typography>
                             )}
@@ -669,16 +711,27 @@ export default function FamilyPage() {
 
                 {/* Conquistas recentes */}
                 <Box>
-                  <Typography variant="subtitle2" fontWeight={900} sx={{ mb: 0.5 }}>
+                  <Typography
+                    variant="subtitle2"
+                    fontWeight={900}
+                    sx={{ mb: 0.5 }}
+                  >
                     Conquistas recentes
                   </Typography>
                   {badges.length ? (
-                    <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      useFlexGap
+                      flexWrap="wrap"
+                    >
                       {badges.slice(0, 6).map((b) => {
                         const isTrophy = (b.type || "")
                           .toUpperCase()
                           .includes("TROF");
-                        const Icon = isTrophy ? EmojiEventsRounded : VerifiedRounded;
+                        const Icon = isTrophy
+                          ? EmojiEventsRounded
+                          : VerifiedRounded;
                         return (
                           <Tooltip
                             key={`${b.id}-${b.assignedAt || ""}`}
@@ -708,7 +761,11 @@ export default function FamilyPage() {
 
                 {/* Próximas consultas */}
                 <Box>
-                  <Typography variant="subtitle2" fontWeight={900} sx={{ mb: 0.5 }}>
+                  <Typography
+                    variant="subtitle2"
+                    fontWeight={900}
+                    sx={{ mb: 0.5 }}
+                  >
                     Próximas consultas
                   </Typography>
                   {consultas.length ? (
@@ -726,7 +783,11 @@ export default function FamilyPage() {
                               borderRadius: 2,
                             }}
                           >
-                            <Stack direction="row" spacing={1} alignItems="center">
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              alignItems="center"
+                            >
                               <Chip
                                 size="small"
                                 icon={<CalendarMonthRounded fontSize="small" />}
@@ -739,7 +800,11 @@ export default function FamilyPage() {
                                   label={time}
                                 />
                               )}
-                              <Typography noWrap title={c.title} sx={{ ml: 0.5 }}>
+                              <Typography
+                                noWrap
+                                title={c.title}
+                                sx={{ ml: 0.5 }}
+                              >
                                 {c.title}
                               </Typography>
                               <Box sx={{ flex: 1 }} />

@@ -23,6 +23,7 @@ import { withUser } from "./middlewares/auth.js";
 import { recomputeAllChildren } from "./services/badgesEngine.js";
 import badgesRouter from './routes/badges.js';
 import usersRouter from "./routes/users.js";
+import childrenRouter from "./routes/children.js";
 
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL não carregada. Verifica apps/api/.env");
@@ -75,6 +76,7 @@ app.use("/api/ratings", ratingsRouter);
 app.use("/api/badges", badgesEngineRouter);
 app.use('/api/badges', badgesRouter);
 app.use("/api/users", usersRouter);
+app.use("/api", childrenRouter);
 
 /* --------- Ingestão RSS --------- */
 (async () => {

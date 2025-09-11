@@ -4,8 +4,10 @@ import { api } from "./https";
 export type WebChild = {
   id: number;
   name: string;
-  avatarUrl?: string | null;
   birthDate?: string | null;
+  gender?: string | null;
+  readerProfile?: string | null;
+  avatarUrl?: string | null;
 };
 
 export type WebUser = {
@@ -27,7 +29,10 @@ function normalizeChild(raw: any): WebChild {
     id: Number(raw?.id ?? raw?.childId ?? raw?.kidId ?? 0),
     name: String(raw?.name ?? raw?.fullName ?? raw?.nome ?? "Sem nome"),
     avatarUrl: raw?.avatarUrl ?? raw?.avatar ?? null,
-    birthDate: raw?.birthDate ? new Date(raw.birthDate).toISOString() : null,
+    birthDate: raw?.birthDate ?? raw?.dataNascimento ?? null,
+    gender: raw?.gender ?? raw?.sexo ?? null,
+    readerProfile:
+      raw?.readerProfile ?? raw?.profileText ?? raw?.perfilLeitor ?? null,
   };
 }
 
