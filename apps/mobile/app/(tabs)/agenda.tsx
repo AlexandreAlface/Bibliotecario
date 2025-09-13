@@ -1,8 +1,11 @@
-// pontos-chave: 1) zodResolver<FormData>(schema)
-//               2) useForm<FormData, any, FormData>(...)
+// apps/mobile/app/(tabs)/agenda.tsx
+// - WhiteCard: FlexibleCard para filtros e para resultados
+// - Botões compactos: compact
+// - Resolver por cast + handlers tipados
+// - Mantém children={undefined}
+
 import * as React from "react";
 import type { Resolver, SubmitHandler } from "react-hook-form";
-
 import {
   View,
   Text,
@@ -17,6 +20,7 @@ import {
   PrimaryButton,
   SecondaryButton,
 } from "@bibliotecario/ui-mobile/components/Buttons/Buttons";
+import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -124,173 +128,197 @@ export default function AgendaScreen() {
           Agendar Consulta
         </Text>
 
-        {/* Criança */}
-        <Text style={{ color: theme.colors.onSurfaceVariant }}>Criança</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {(user?.children ?? []).map((ch) => {
-            const active = ch.id === childId;
-            return (
-              <TouchableOpacity
-                key={ch.id}
-                onPress={() =>
-                  setValue("childId", ch.id, { shouldValidate: true })
-                }
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 20,
-                  backgroundColor: active
-                    ? theme.colors.primary
-                    : theme.colors.secondaryContainer,
-                }}
-              >
-                <Text
-                  style={{
-                    color: active
-                      ? theme.colors.onPrimary
-                      : theme.colors.onSecondaryContainer,
-                  }}
-                >
-                  {ch.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Bibliotecário (mínimo viável) */}
-        <Text style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-          Bibliotecário
-        </Text>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          {[
-            { id: 1, name: "Bibliotecário 1" },
-            { id: 2, name: "Bibliotecário 2" },
-          ].map((lb) => {
-            const active = lb.id === librarianId;
-            return (
-              <TouchableOpacity
-                key={lb.id}
-                onPress={() =>
-                  setValue("librarianId", lb.id, { shouldValidate: true })
-                }
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 20,
-                  backgroundColor: active
-                    ? theme.colors.primary
-                    : theme.colors.secondaryContainer,
-                }}
-              >
-                <Text
-                  style={{
-                    color: active
-                      ? theme.colors.onPrimary
-                      : theme.colors.onSecondaryContainer,
-                  }}
-                >
-                  {lb.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Intervalo de datas */}
-        <Text style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
-          Procurar horários entre
-        </Text>
-        <View style={{ gap: 8 }}>
-          <Controller
-            control={control}
-            name="from"
-            render={({ field: { value, onChange } }) => (
-              <DateTimePicker
-                mode="date"
-                value={value}
-                onChange={(_, d) => d && onChange(d)}
-              />
-            )}
-          />
-          <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: -6 }}>
-            {fmt(from)}
-          </Text>
-
-          <Controller
-            control={control}
-            name="to"
-            render={({ field: { value, onChange } }) => (
-              <DateTimePicker
-                mode="date"
-                value={value}
-                onChange={(_, d) => d && onChange(d)}
-              />
-            )}
-          />
-          <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: -6 }}>
-            {fmt(to)}
-          </Text>
-        </View>
-
-        <SecondaryButton
-          label={loading ? "A procurar…" : "Procurar horários"}
-          onPress={loadSlots}
-          children={undefined}
-        />
-
-        {/* Slots */}
-        {loading ? (
-          <ActivityIndicator />
-        ) : (
-          <View style={{ gap: 8 }}>
-            {slots.length === 0 && (
-              <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                Sem horários.
-              </Text>
-            )}
-            {slots.map((s) => {
-              const active = s.id === (watch("slotId") ?? 0);
+        {/* WhiteCard: filtros de pesquisa */}
+        <FlexibleCard
+          title="Filtros"
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={14}
+          style={{ borderRadius: 12 }}
+        >
+          <Text style={{ color: theme.colors.onSurfaceVariant }}>Criança</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {(user?.children ?? []).map((ch) => {
+              const active = ch.id === childId;
               return (
                 <TouchableOpacity
-                  key={s.id}
+                  key={ch.id}
                   onPress={() =>
-                    setValue("slotId", s.id, { shouldValidate: true })
+                    setValue("childId", ch.id, { shouldValidate: true })
                   }
                   style={{
-                    padding: 12,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: active
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    borderRadius: 20,
+                    backgroundColor: active
                       ? theme.colors.primary
-                      : theme.colors.outlineVariant,
-                    backgroundColor: theme.colors.surface,
+                      : theme.colors.secondaryContainer,
                   }}
                 >
-                  <Text style={{ color: theme.colors.onSurface }}>
-                    {fmt(new Date(s.startAt))} — {fmt(new Date(s.endAt))}
-                  </Text>
                   <Text
                     style={{
-                      color: theme.colors.onSurfaceVariant,
-                      marginTop: 2,
+                      color: active
+                        ? theme.colors.onPrimary
+                        : theme.colors.onSecondaryContainer,
                     }}
                   >
-                    {s.librarianName}
-                    {s.libraryName ? ` • ${s.libraryName}` : ""}
+                    {ch.name}
                   </Text>
                 </TouchableOpacity>
               );
             })}
           </View>
-        )}
 
-        <PrimaryButton
-          label={isSubmitting ? "A enviar…" : "Agendar"}
-          onPress={handleSubmit(onSubmit)}
-          disabled={isSubmitting}
-          children={undefined}
-        />
+          <Text style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
+            Bibliotecário
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {[
+              { id: 1, name: "Bibliotecário 1" },
+              { id: 2, name: "Bibliotecário 2" },
+            ].map((lb) => {
+              const active = lb.id === librarianId;
+              return (
+                <TouchableOpacity
+                  key={lb.id}
+                  onPress={() =>
+                    setValue("librarianId", lb.id, { shouldValidate: true })
+                  }
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    borderRadius: 20,
+                    backgroundColor: active
+                      ? theme.colors.primary
+                      : theme.colors.secondaryContainer,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: active
+                        ? theme.colors.onPrimary
+                        : theme.colors.onSecondaryContainer,
+                    }}
+                  >
+                    {lb.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
+            Procurar horários entre
+          </Text>
+          <View style={{ gap: 8 }}>
+            <Controller
+              control={control}
+              name="from"
+              render={({ field: { value, onChange } }) => (
+                <DateTimePicker
+                  mode="date"
+                  value={value}
+                  onChange={(_, d) => d && onChange(d)}
+                />
+              )}
+            />
+            <Text
+              style={{ color: theme.colors.onSurfaceVariant, marginTop: -6 }}
+            >
+              {fmt(from)}
+            </Text>
+
+            <Controller
+              control={control}
+              name="to"
+              render={({ field: { value, onChange } }) => (
+                <DateTimePicker
+                  mode="date"
+                  value={value}
+                  onChange={(_, d) => d && onChange(d)}
+                />
+              )}
+            />
+            <Text
+              style={{ color: theme.colors.onSurfaceVariant, marginTop: -6 }}
+            >
+              {fmt(to)}
+            </Text>
+          </View>
+
+          <View style={{ marginTop: 8 }}>
+            <SecondaryButton
+              compact
+              label={loading ? "A procurar…" : "Procurar horários"}
+              onPress={loadSlots}
+              children={undefined}
+            />
+          </View>
+        </FlexibleCard>
+
+        {/* WhiteCard: resultados/slots */}
+        <FlexibleCard
+          title="Horários disponíveis"
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={14}
+          style={{ borderRadius: 12 }}
+        >
+          {loading ? (
+            <ActivityIndicator />
+          ) : (
+            <View style={{ gap: 8 }}>
+              {slots.length === 0 && (
+                <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                  Sem horários.
+                </Text>
+              )}
+              {slots.map((s) => {
+                const active = s.id === (watch("slotId") ?? 0);
+                return (
+                  <TouchableOpacity
+                    key={s.id}
+                    onPress={() =>
+                      setValue("slotId", s.id, { shouldValidate: true })
+                    }
+                    style={{
+                      padding: 12,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: active
+                        ? theme.colors.primary
+                        : theme.colors.outlineVariant,
+                      backgroundColor: theme.colors.surface,
+                    }}
+                  >
+                    <Text style={{ color: theme.colors.onSurface }}>
+                      {fmt(new Date(s.startAt))} — {fmt(new Date(s.endAt))}
+                    </Text>
+                    <Text
+                      style={{
+                        color: theme.colors.onSurfaceVariant,
+                        marginTop: 2,
+                      }}
+                    >
+                      {s.librarianName}
+                      {s.libraryName ? ` • ${s.libraryName}` : ""}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          <View style={{ marginTop: 12 }}>
+            <PrimaryButton
+              compact
+              label={isSubmitting ? "A enviar…" : "Agendar"}
+              onPress={handleSubmit(onSubmit)}
+              disabled={isSubmitting}
+              children={undefined}
+            />
+          </View>
+        </FlexibleCard>
       </ScrollView>
     </Background>
   );

@@ -1,5 +1,9 @@
-// pontos-chave: 1) zodResolver<ChildForm>(childSchema)
-//               2) useForm<ChildForm, any, ChildForm>(...)
+// apps/mobile/app/(tabs)/familias.tsx
+// - WhiteCard: FlexibleCard à volta de cada bloco
+// - Botões compactos: compact
+// - Resolver tipado por cast (mantém compatibilidade com a tua stack)
+// - Mantém children={undefined}
+
 import * as React from "react";
 import type { Resolver, SubmitHandler } from "react-hook-form";
 import {
@@ -17,6 +21,7 @@ import {
   PrimaryButton,
   SecondaryButton,
 } from "@bibliotecario/ui-mobile/components/Buttons/Buttons";
+import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -175,24 +180,14 @@ export default function FamiliasScreen() {
           Família
         </Text>
 
-        {/* Perfil */}
-        <View
-          style={{
-            padding: 14,
-            borderRadius: 12,
-            backgroundColor: theme.colors.surface,
-          }}
+        {/* WhiteCard: Perfil */}
+        <FlexibleCard
+          title="Os meus dados"
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={14}
+          style={{ borderRadius: 12 }}
         >
-          <Text
-            style={{
-              fontSize: 16,
-              marginBottom: 8,
-              color: theme.colors.onSurface,
-            }}
-          >
-            Os meus dados
-          </Text>
-
           <Text style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}>
             Nome
           </Text>
@@ -260,179 +255,188 @@ export default function FamiliasScreen() {
             )}
           />
 
-          <PrimaryButton
-            label={isSubmitting ? "A guardar…" : "Guardar"}
-            onPress={handleSubmit(onSaveProfile)}
-            disabled={isSubmitting}
-            children={undefined}
-          />
-        </View>
-
-        {/* Crianças */}
-        <View
-          style={{
-            padding: 14,
-            borderRadius: 12,
-            backgroundColor: theme.colors.surface,
-            gap: 12,
-          }}
-        >
-          <Text style={{ fontSize: 16, color: theme.colors.onSurface }}>
-            As minhas crianças
-          </Text>
-
-          {detailedChildren.map((c) => (
-            <View
-              key={c.id}
-              style={{
-                borderWidth: 1,
-                borderColor: theme.colors.outlineVariant,
-                borderRadius: 10,
-                padding: 12,
-              }}
-            >
-              <Text style={{ fontSize: 16, color: theme.colors.onSurface }}>
-                {c.name}
-              </Text>
-              <Text
-                style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}
-              >
-                {fmt(c.birthDate)} {c.gender ? `• ${c.gender}` : ""}
-              </Text>
-              <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-                <SecondaryButton
-                  label="Editar"
-                  onPress={() => {
-                    setEditingChild(c);
-                    cReset({
-                      name: c.name,
-                      birthDate: c.birthDate
-                        ? new Date(c.birthDate)
-                        : new Date(new Date().getFullYear() - 6, 0, 1),
-                      gender: (c.gender as any) ?? null,
-                      readerProfile: c.readerProfile ?? null,
-                    });
-                  }}
-                  children={undefined}
-                />
-                <SecondaryButton
-                  label="Remover"
-                  onPress={() => deleteChild(c.id)}
-                  children={undefined}
-                />
-              </View>
-            </View>
-          ))}
-
-          {/* Form criar/editar */}
-          <View style={{ marginTop: 8 }}>
-            <Text
-              style={{
-                fontWeight: "600",
-                marginBottom: 8,
-                color: theme.colors.onSurface,
-              }}
-            >
-              {editingChild ? "Editar criança" : "Adicionar criança"}
-            </Text>
-
-            <Text style={{ color: theme.colors.onSurfaceVariant }}>Nome</Text>
-            <Controller
-              control={cCtrl}
-              name="name"
-              render={({ field: { value, onChange } }) => (
-                <TextInput
-                  value={value}
-                  onChangeText={onChange}
-                  placeholder="Nome"
-                  style={{
-                    borderWidth: 1,
-                    borderColor: theme.colors.outlineVariant,
-                    borderRadius: 8,
-                    padding: 12,
-                    color: theme.colors.onSurface,
-                  }}
-                />
-              )}
+          <View style={{ marginTop: 12 }}>
+            <PrimaryButton
+              compact
+              label={isSubmitting ? "A guardar…" : "Guardar"}
+              onPress={handleSubmit(onSaveProfile)}
+              disabled={isSubmitting}
+              children={undefined}
             />
+          </View>
+        </FlexibleCard>
 
-            <Text
-              style={{ marginTop: 12, color: theme.colors.onSurfaceVariant }}
-            >
-              Data de nascimento
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowBirth(true)}
-              style={{
-                borderWidth: 1,
-                borderColor: theme.colors.outlineVariant,
-                borderRadius: 8,
-                padding: 12,
-              }}
-            >
-              <Text style={{ color: theme.colors.onSurface }}>
-                {birthDateValue
-                  ? new Intl.DateTimeFormat("pt-PT", {
-                      dateStyle: "medium",
-                    }).format(birthDateValue)
-                  : "Selecionar…"}
-              </Text>
-            </TouchableOpacity>
-
-            {showBirth && (
-              <DateTimePicker
-                mode="date"
-                value={birthDateValue || new Date()}
-                onChange={(_, date) => {
-                  if (!date) return;
-                  cSet("birthDate", date);
-                  if (Platform.OS !== "ios") setShowBirth(false);
+        {/* WhiteCard: Crianças */}
+        <FlexibleCard
+          title="As minhas crianças"
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={14}
+          style={{ borderRadius: 12 }}
+        >
+          <View style={{ gap: 12 }}>
+            {detailedChildren.map((c) => (
+              <FlexibleCard
+                key={c.id}
+                backgroundColor={theme.colors.surface}
+                elevation={0}
+                padding={12}
+                style={{
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: theme.colors.outlineVariant,
                 }}
-              />
-            )}
-
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
-              <SecondaryButton
-                label="Masculino"
-                onPress={() => cSet("gender", "M" as any)}
-                children={undefined}
-              />
-              <SecondaryButton
-                label="Feminino"
-                onPress={() => cSet("gender", "F" as any)}
-                children={undefined}
-              />
-            </View>
-
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-              {editingChild ? (
-                <>
-                  <PrimaryButton
-                    label={cSaving ? "A guardar…" : "Guardar alterações"}
-                    onPress={cSubmit(updateChildSubmit)}
-                    disabled={cSaving}
-                    children={undefined}
-                  />
+              >
+                <Text style={{ fontSize: 16, color: theme.colors.onSurface }}>
+                  {c.name}
+                </Text>
+                <Text
+                  style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}
+                >
+                  {fmt(c.birthDate)} {c.gender ? `• ${c.gender}` : ""}
+                </Text>
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
                   <SecondaryButton
-                    label="Cancelar"
+                    compact
+                    label="Editar"
                     onPress={() => {
-                      setEditingChild(null);
-                      cReset();
+                      setEditingChild(c);
+                      cReset({
+                        name: c.name,
+                        birthDate: c.birthDate
+                          ? new Date(c.birthDate)
+                          : new Date(new Date().getFullYear() - 6, 0, 1),
+                        gender: (c.gender as any) ?? null,
+                        readerProfile: c.readerProfile ?? null,
+                      });
                     }}
                     children={undefined}
                   />
-                </>
-              ) : (
-                <PrimaryButton
-                  label={cSaving ? "A criar…" : "Adicionar criança"}
-                  onPress={cSubmit(createChildSubmit)}
-                  disabled={cSaving}
-                  children={undefined}
+                  <SecondaryButton
+                    compact
+                    label="Remover"
+                    onPress={() => deleteChild(c.id)}
+                    children={undefined}
+                  />
+                </View>
+              </FlexibleCard>
+            ))}
+
+            {/* WhiteCard: Form criar/editar */}
+            <FlexibleCard
+              title={editingChild ? "Editar criança" : "Adicionar criança"}
+              backgroundColor={theme.colors.surface}
+              elevation={0}
+              padding={12}
+              style={{
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: theme.colors.outlineVariant,
+              }}
+            >
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>Nome</Text>
+              <Controller
+                control={cCtrl}
+                name="name"
+                render={({ field: { value, onChange } }) => (
+                  <TextInput
+                    value={value}
+                    onChangeText={onChange}
+                    placeholder="Nome"
+                    style={{
+                      borderWidth: 1,
+                      borderColor: theme.colors.outlineVariant,
+                      borderRadius: 8,
+                      padding: 12,
+                      color: theme.colors.onSurface,
+                    }}
+                  />
+                )}
+              />
+
+              <Text
+                style={{ marginTop: 12, color: theme.colors.onSurfaceVariant }}
+              >
+                Data de nascimento
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowBirth(true)}
+                style={{
+                  borderWidth: 1,
+                  borderColor: theme.colors.outlineVariant,
+                  borderRadius: 8,
+                  padding: 12,
+                }}
+              >
+                <Text style={{ color: theme.colors.onSurface }}>
+                  {birthDateValue
+                    ? new Intl.DateTimeFormat("pt-PT", {
+                        dateStyle: "medium",
+                      }).format(birthDateValue)
+                    : "Selecionar…"}
+                </Text>
+              </TouchableOpacity>
+
+              {showBirth && (
+                <DateTimePicker
+                  mode="date"
+                  value={birthDateValue || new Date()}
+                  onChange={(_, date) => {
+                    if (!date) return;
+                    cSet("birthDate", date);
+                    if (Platform.OS !== "ios") setShowBirth(false);
+                  }}
                 />
               )}
-            </View>
+
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                <SecondaryButton
+                  compact
+                  label="Masculino"
+                  onPress={() => cSet("gender", "M" as any)}
+                  children={undefined}
+                />
+                <SecondaryButton
+                  compact
+                  label="Feminino"
+                  onPress={() => cSet("gender", "F" as any)}
+                  children={undefined}
+                />
+              </View>
+
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                {editingChild ? (
+                  <>
+                    <PrimaryButton
+                      compact
+                      label={cSaving ? "A guardar…" : "Guardar alterações"}
+                      onPress={cSubmit(updateChildSubmit)}
+                      disabled={cSaving}
+                      children={undefined}
+                    />
+                    <SecondaryButton
+                      compact
+                      label="Cancelar"
+                      onPress={() => {
+                        setEditingChild(null);
+                        cReset();
+                      }}
+                      children={undefined}
+                    />
+                  </>
+                ) : (
+                  <PrimaryButton
+                    compact
+                    label={cSaving ? "A criar…" : "Adicionar criança"}
+                    onPress={cSubmit(createChildSubmit)}
+                    disabled={cSaving}
+                    children={undefined}
+                  />
+                )}
+              </View>
+            </FlexibleCard>
           </View>
-        </View>
+        </FlexibleCard>
       </ScrollView>
     </Background>
   );

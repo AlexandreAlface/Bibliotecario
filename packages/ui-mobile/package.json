@@ -14,22 +14,22 @@
     "watch": "tsc -p tsconfig.build.json -w"
   },
   "dependencies": {
-    "@bibliotecario/tokens": "file:../tokens",
-    "expo-linear-gradient": "^14.1.5"
+    "@bibliotecario/tokens": "file:../tokens"
   },
   "peerDependencies": {
     "expo-font": "*",
-    "react": ">=19.0.0 <20",
-    "react-dom": ">=19.0.0 <20",
-    "react-native": ">=0.76 <0.80",
+    "expo-linear-gradient": ">=14",
+    "react": "19.1.0",
+    "react-dom": ">=19.1.0 <20",
+    "react-native": "0.81.4",
     "react-native-paper": "^5",
     "react-native-reanimated": ">=3"
   },
   "peerDependenciesMeta": {
-    "react-dom": {
+    "react": {
       "optional": true
     },
-    "react": {
+    "react-dom": {
       "optional": true
     },
     "react-native": {
@@ -43,12 +43,17 @@
     },
     "expo-font": {
       "optional": true
+    },
+    "expo-linear-gradient": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "rimraf": "^6.0.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "react": "19.1.0",
+    "react-native": "0.81.4"
   },
   "overrides": {}
 }

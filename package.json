@@ -6,19 +6,15 @@
     "packages/*"
   ],
   "scripts": {
-
-    "dev":   "nodemon -r dotenv/config src/index.js",
+    "dev": "nodemon -r dotenv/config src/index.js",
     "start": "npx tsx src/index.ts",
-    
     "seed:api": "npm -w apps/api run seed",
     "seed:api:csv": "npm -w apps/api run seed:csv",
     "seed:api:badges": "npm -w apps/api run seed:badges",
-
     "prisma:generate": "npm -w apps/api run prisma:generate",
     "prisma:push": "npm -w apps/api run prisma:push",
     "prisma:migrate": "npm -w apps/api run prisma:migrate",
     "prisma:studio": "npm -sw apps/api run prisma:studio -- --port 5556",
-
     "dev:mobile": "npm -w apps/mobile run start",
     "dev:mobile:tunnel": "npm -w apps/mobile run start:tunnel",
     "dev:web": "npm -w @bibliotecario/apps-web run dev",
@@ -33,7 +29,11 @@
   "devDependencies": {
     "vite": "^5.4.19"
   },
-    "overrides": {
-    
+  "overrides": {
+    "expo": "~54.0.6",
+    "expo-router": "~6.0.3",
+    "@expo/metro-runtime": "^6.1.2",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   }
 }
