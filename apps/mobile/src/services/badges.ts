@@ -1,34 +1,40 @@
-import { api } from './api';
+// src/services/badges.ts
+import { request } from "./api";
 
-export type BadgeLite = {
-  id: string;               // "childId_badgeId"
+export type Badge = {
+  id: number;
+  name: string;
+  type: string;               // ex.: "SELO" | "TROFÉU"
+  criteria?: string | null;
+};
+
+export type BadgeAssignment = {
+  id: string;                 // `${childId}_${badgeId}`
   childId: number;
   childName?: string | null;
   badgeId: number;
-  name: string;
-  type: string;             // "STAMP" | "TROFÉU" | ...
+  name?: string | null;
+  type?: string | null;
   criteria?: string | null;
   assignedAt?: string | null; // ISO
 };
 
-type Options = {
-  childId?: number;
-  childIds?: number[];
-  familyId?: number;
+export const badgesApi = {
+  listCatalog: () =>
+    request<Badge[]>("/badges", { method: "GET" }),
+
+  assignments: (params: {
+    familyId?: number;
+    childId?: number;
+    childIds?: number[];
+    limit?: number;
+  }) => {
+    const qs: string[] = [];
+    if (params.familyId) qs.push(`familyId=${encodeURIComponent(params.familyId)}`);
+    if (params.childId) qs.push(`childId=${encodeURIComponent(params.childId)}`);
+    if (params.childIds?.length) qs.push(`childIds=${encodeURIComponent(params.childIds.join(","))}`);
+    if (params.limit) qs.push(`limit=${encodeURIComponent(params.limit)}`);
+    const suf = qs.length ? `?${qs.join("&")}` : "";
+    return request<BadgeAssignment[]>(`/badge-assignments${suf}`, { method: "GET" });
+  },
 };
-
-export async function getBadgesRecent(
-  limit = 12,
-  opts: Options = {}
-): Promise<BadgeLite[]> {
-  const params: Record<string, string> = { limit: String(limit) };
-  if (opts.childId) params.childId = String(opts.childId);
-  if (opts.childIds?.length) params.childIds = opts.childIds.join(',');
-  if (opts.familyId) params.familyId = String(opts.familyId);
-
-  const qs = new URLSearchParams(params).toString();
-  const url = `/badges/assignments${qs ? `?${qs}` : ''}`;
-
-  const data = await api<BadgeLite[]>(url); // GET por omissão
-  return Array.isArray(data) ? data : [];
-}

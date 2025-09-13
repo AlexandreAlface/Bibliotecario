@@ -193,12 +193,12 @@ model ChildPreference {
   embedding   Unsupported("vector(1536)")?
   updatedAt   DateTime                     @updatedAt
 
-  child Child @relation(fields: [childId], references: [id])
+  child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
 }
 
 // Associação N:N entre Child e User (família)
 model ChildFamily {
-  child    Child @relation(fields: [childId], references: [id])
+  child    Child @relation(fields: [childId], references: [id], onDelete: Cascade)
   childId  Int // FK → Child.id
   family   User  @relation(fields: [familyId], references: [id])
   familyId Int // FK → User.id (role = FAMÍLIA)
@@ -208,20 +208,20 @@ model ChildFamily {
 
 // -------------------- Reading --------------------
 model Reading {
-  id         Int      @id @default(autoincrement())
-  child      Child    @relation(fields: [childId], references: [id])
-  childId    Int
-  book       Book     @relation(fields: [bookIsbn], references: [isbn])
-  bookIsbn   String
-  startedAt  DateTime?
-  finishedAt DateTime?
-  reservation   BookReservation? @relation(fields: [reservationId], references: [id])
+  id            Int              @id @default(autoincrement())
+  child         Child            @relation(fields: [childId], references: [id], onDelete: Cascade)
+  childId       Int
+  book          Book             @relation(fields: [bookIsbn], references: [isbn])
+  bookIsbn      String
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  reservation   BookReservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
   reservationId Int?
-  ratings    Rating[]
+  ratings       Rating[]
 
+  @@unique([childId, bookIsbn]) // 👈 APENAS UMA leitura por (criança, livro)
   @@index([childId, finishedAt])
   @@index([childId, bookIsbn, finishedAt])
-  @@unique([childId, bookIsbn])          // 👈 APENAS UMA leitura por (criança, livro)
 }
 
 model Rating {
@@ -229,23 +229,23 @@ model Rating {
   user    User   @relation(fields: [userId], references: [id]) // quem registou
   userId  Int
   // 👇 para que criança vale a avaliação (opcional)
-  child   Child? @relation(fields: [childId], references: [id])
+  child   Child? @relation(fields: [childId], references: [id], onDelete: SetNull)
   childId Int?
 
   book     Book   @relation(fields: [bookIsbn], references: [isbn])
   bookIsbn String
 
   // 👇 opcional: liga à sessão de leitura
-  reading   Reading? @relation(fields: [readingId], references: [id])
+  reading   Reading? @relation(fields: [readingId], references: [id], onDelete: SetNull)
   readingId Int?
 
   stars   Int
   comment String?
   ratedAt DateTime @default(now())
 
+  @@unique([userId, childId, bookIsbn])
   @@index([childId])
   @@index([bookIsbn])
-  @@unique([userId, childId, bookIsbn])
 }
 
 // Definição de selos e troféus
@@ -260,7 +260,7 @@ model Badge {
 
 // Associação entre Badge e Child
 model BadgeAssignment {
-  child      Child    @relation(fields: [childId], references: [id])
+  child      Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
   childId    Int // FK → Child.id
   badge      Badge    @relation(fields: [badgeId], references: [id])
   badgeId    Int // FK → Badge.id
@@ -288,7 +288,7 @@ model Consultation {
   librarian   User @relation("ConsultationsAsLibrarian", fields: [librarianId], references: [id])
   librarianId Int
 
-  child   Child? @relation(fields: [childId], references: [id])
+  child   Child? @relation(fields: [childId], references: [id], onDelete: SetNull)
   childId Int?
 
   library   Library? @relation(fields: [libraryId], references: [id])
@@ -408,16 +408,16 @@ model EventReservation {
 
 // Reservas de livros
 model BookReservation {
-  id         Int      @id @default(autoincrement())
-  child      Child    @relation(fields: [childId], references: [id])
+  id         Int       @id @default(autoincrement())
+  child      Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
   childId    Int
-  book       Book     @relation(fields: [bookIsbn], references: [isbn])
+  book       Book      @relation(fields: [bookIsbn], references: [isbn])
   bookIsbn   String
-  reservedAt DateTime @default(now())
+  reservedAt DateTime  @default(now())
   readings   Reading[]
 
+  @@unique([childId, bookIsbn]) // 👈 APENAS UMA reserva por (criança, livro)
   @@index([childId, bookIsbn, reservedAt])
-  @@unique([childId, bookIsbn])          // 👈 APENAS UMA reserva por (criança, livro)
 }
 
 // Tabela de newsletters

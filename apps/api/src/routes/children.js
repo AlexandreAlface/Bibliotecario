@@ -8,7 +8,12 @@ const router = Router();
 // helper para validar pertença da criança à família logada
 async function assertBelongsToFamily(childId, familyId) {
   const link = await prisma.childFamily.findUnique({
-    where: { childId_familyId: { childId: Number(childId), familyId: Number(familyId) } },
+    where: {
+      childId_familyId: {
+        childId: Number(childId),
+        familyId: Number(familyId),
+      },
+    },
   });
   if (!link) throw Object.assign(new Error("not_found"), { status: 404 });
 }
@@ -23,10 +28,12 @@ function parseBirthDate(input) {
 router.post("/children", requireAuth, async (req, res, next) => {
   try {
     const { name, birthDate, gender, readerProfile } = req.body || {};
-    if (!name?.trim()) return res.status(400).json({ error: "Nome obrigatório" });
+    if (!name?.trim())
+      return res.status(400).json({ error: "Nome obrigatório" });
 
     // birthDate é obrigatório no schema → se não vier, inventamos uma data aproximada (6 anos atrás)
-    const bd = parseBirthDate(birthDate) ?? new Date(new Date().getFullYear() - 6, 0, 1);
+    const bd =
+      parseBirthDate(birthDate) ?? new Date(new Date().getFullYear() - 6, 0, 1);
 
     const child = await prisma.child.create({
       data: {
@@ -64,7 +71,8 @@ router.patch("/children/:id", requireAuth, async (req, res, next) => {
       if (bd) data.birthDate = bd;
     }
     if ("gender" in req.body) data.gender = req.body.gender || null;
-    if ("readerProfile" in req.body) data.readerProfile = req.body.readerProfile || null;
+    if ("readerProfile" in req.body)
+      data.readerProfile = req.body.readerProfile || null;
 
     const child = await prisma.child.update({ where: { id: childId }, data });
 
@@ -88,11 +96,7 @@ router.delete("/children/:id", requireAuth, async (req, res, next) => {
     const childId = Number(req.params.id);
     await assertBelongsToFamily(childId, req.user.sub);
 
-    // remove o vínculo e a criança (ajusta para soft-delete se preferires)
-    await prisma.childFamily.delete({
-      where: { childId_familyId: { childId, familyId: Number(req.user.sub) } },
-    });
-    await prisma.child.delete({ where: { id: childId } });
+    await prisma.child.delete({ where: { id: childId } }); // 🎉 sem limpeza manual
 
     res.status(204).end();
   } catch (e) {

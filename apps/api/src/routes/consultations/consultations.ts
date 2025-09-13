@@ -101,7 +101,7 @@ r.post("/", withUser, requireFamilyOrLibrarian, async (req, res) => {
 });
 
 /** ---------- Ações ---------- */
-r.post("/:id/confirm",  withUser, requireFamilyOrLibrarian, async (req, res) => {
+r.post("/:id/confirm", withUser, requireFamilyOrLibrarian, async (req, res) => {
   const id = Number(req.params.id);
   const c = await prisma.consultation.update({
     where: { id },
@@ -140,14 +140,19 @@ r.post("/:id/cancel", withUser, requireFamilyOrLibrarian, async (req, res) => {
   res.json(c);
 });
 
-r.post("/:id/complete", withUser, requireFamilyOrLibrarian, async (req, res) => {
-  const id = Number(req.params.id);
-  const c = await prisma.consultation.update({
-    where: { id },
-    data: { status: "COMPLETED", events: { create: { type: "COMPLETED" } } },
-  });
-  res.json(c);
-});
+r.post(
+  "/:id/complete",
+  withUser,
+  requireFamilyOrLibrarian,
+  async (req, res) => {
+    const id = Number(req.params.id);
+    const c = await prisma.consultation.update({
+      where: { id },
+      data: { status: "COMPLETED", events: { create: { type: "COMPLETED" } } },
+    });
+    res.json(c);
+  }
+);
 
 /** ---------- Listagens ---------- */
 // GET /api/consultations/all  (debug/QA)
@@ -286,5 +291,144 @@ r.get("/next", withUser, requireFamilyOrLibrarian, async (req, res) => {
       .json({ error: e?.message ?? "failed to list next consultations" });
   }
 });
+
+// GET /api/consultations/librarians?libraryId=123
+r.get("/librarians", withUser, requireFamilyOrLibrarian, async (req, res) => {
+  try {
+    const libraryId = req.query.libraryId
+      ? Number(req.query.libraryId)
+      : undefined;
+
+    const librarians = await prisma.user.findMany({
+      where: {
+        userRoles: { some: { roleId: 2 } }, // ⬅️ só roleId=2
+        ...(Number.isFinite(libraryId)
+          ? { userLibraries: { some: { libraryId } } }
+          : {}),
+      },
+      select: { id: true, fullName: true },
+      orderBy: { fullName: "asc" },
+    });
+
+    res.json(librarians.map((u) => ({ id: u.id, name: u.fullName })));
+  } catch (e: any) {
+    console.error(e);
+    res.status(400).json({ error: e?.message ?? "failed to list librarians" });
+  }
+});
+
+// GET /api/consultations/slots?from&to&libraryId&librarianId&onlyBookable=true
+r.get("/slots", async (req, res) => {
+  try {
+    const fromStr = String(req.query.from || "");
+    const toStr = String(req.query.to || "");
+    const from = new Date(fromStr);
+    const to = new Date(toStr);
+    if (isNaN(+from) || isNaN(+to)) {
+      return res
+        .status(400)
+        .json({ error: "from e to (ISO) são obrigatórios" });
+    }
+
+    const onlyBookable = String(req.query.onlyBookable ?? "true") === "true";
+    const now = new Date();
+
+    const librarianId = req.query.librarianId
+      ? Number(req.query.librarianId)
+      : undefined;
+    const libraryId = req.query.libraryId
+      ? Number(req.query.libraryId)
+      : undefined;
+
+    const items = await prisma.consultationSlot.findMany({
+      where: {
+        status: $Enums.SlotStatus.OPEN,
+        startAt: { gte: onlyBookable ? (from > now ? from : now) : from }, // ⬅️ só futuro
+        endAt: { lte: to },
+        ...(Number.isFinite(librarianId) ? { librarianId } : {}),
+        ...(Number.isFinite(libraryId) ? { libraryId } : {}),
+      },
+      orderBy: { startAt: "asc" },
+      select: {
+        id: true,
+        startAt: true,
+        endAt: true,
+        status: true,
+        librarianId: true,
+        librarian: { select: { fullName: true } },
+        libraryId: true,
+        library: { select: { name: true } },
+      },
+    });
+
+    const mapped = items.map((s) => ({
+      id: s.id,
+      startAt: s.startAt,
+      endAt: s.endAt,
+      status: s.status,
+      librarianId: s.librarianId,
+      librarianName: s.librarian?.fullName ?? null,
+      librarianAvatarUrl: null as string | null,
+      libraryId: s.libraryId ?? undefined,
+      libraryName: s.library?.name ?? undefined,
+    }));
+
+    res.json(mapped);
+  } catch (e: any) {
+    console.error(e);
+    res.status(400).json({ error: e?.message ?? "failed to list slots" });
+  }
+});
+
+// GET /api/consultations/librarians/with-open-slots?from&to&libraryId
+r.get(
+  "/librarians/with-open-slots",
+  withUser,
+  requireFamilyOrLibrarian,
+  async (req, res) => {
+    try {
+      const fromStr = String(req.query.from || "");
+      const toStr = String(req.query.to || "");
+      const from = new Date(fromStr);
+      const to = new Date(toStr);
+      if (isNaN(+from) || isNaN(+to)) {
+        return res
+          .status(400)
+          .json({ error: "from e to (ISO) são obrigatórios" });
+      }
+
+      const now = new Date();
+      const effFrom = from > now ? from : now; // só futuro
+      const libraryId = req.query.libraryId
+        ? Number(req.query.libraryId)
+        : undefined;
+
+      const librarians = await prisma.user.findMany({
+        where: {
+          userRoles: { some: { roleId: 2 } },
+          consultationSlots: {
+            some: {
+              status: $Enums.SlotStatus.OPEN,
+              startAt: { gte: effFrom },
+              endAt: { lte: to },
+              ...(Number.isFinite(libraryId) ? { libraryId } : {}),
+            },
+          },
+        },
+        select: { id: true, fullName: true },
+        orderBy: { fullName: "asc" },
+      });
+
+      res.json(librarians.map((u) => ({ id: u.id, name: u.fullName })));
+    } catch (e: any) {
+      console.error(e);
+      res
+        .status(400)
+        .json({
+          error: e?.message ?? "failed to list librarians with open slots",
+        });
+    }
+  }
+);
 
 export default r;

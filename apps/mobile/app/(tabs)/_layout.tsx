@@ -64,7 +64,7 @@ const MENU_CRIANCA: RouteName[] = [
   "avaliacoes",   // 👈 novo
   "sugestoes",
   "conquistas",
-  "agenda",
+  "consultas",
 ];
 
 /* ---- Custom TabBar 100% compatível iOS/Android (usa navigation.navigate) ---- */

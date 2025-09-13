@@ -1,12 +1,14 @@
 // apps/mobile/src/types.ts
+
+export type Gender = "M" | "F" | "O" | null;
+
 export type Child = {
   id: number;
   name: string;
-  birthDate?: string | null;
-  gender?: string | null;
+  birthDate: string;
+  gender?: Gender;
   readerProfile?: string | null;
-  avatarUrl?: string | null;
-};
+}
 
 export type UserMe = {
   id: number;              // = familyId

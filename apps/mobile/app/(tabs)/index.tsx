@@ -17,10 +17,7 @@ import {
   getProximosEventos,
 } from "src/services/events";
 import { BookLite, getSugestoes } from "src/services/books";
-import {
-  ReadingLite,
-  getLeiturasAtuais,
-} from "src/services/readings";
+import { ReadingLite, getLeiturasAtuais } from "src/services/readings";
 import { TABBAR_HEIGHT } from "./_layout";
 
 const PLACEHOLDER = "https://picsum.photos/seed/placeholder/800/600";
@@ -35,7 +32,9 @@ function extractRoles(u: any): string[] {
   if (!u) return [];
   if (Array.isArray(u.roles) && u.roles.length) return u.roles as string[];
   if (Array.isArray(u.userRoles)) {
-    return u.userRoles.map((ur: any) => ur?.role?.name).filter(Boolean) as string[];
+    return u.userRoles
+      .map((ur: any) => ur?.role?.name)
+      .filter(Boolean) as string[];
   }
   return [];
 }
@@ -229,7 +228,11 @@ function ActingChildBanner({
           backgroundColor: theme.colors.primaryContainer,
         }}
       >
-        <Icon name="account-child-circle" size={22} color={theme.colors.primary} />
+        <Icon
+          name="account-child-circle"
+          size={22}
+          color={theme.colors.primary}
+        />
       </View>
 
       <View style={{ flex: 1 }}>
@@ -314,7 +317,12 @@ export default function Landing() {
       } catch {
         setEventos([
           { id: 99, title: "Hora do conto", date: "Hoje", time: "11:00" },
-          { id: 100, title: "Oficina de Leitura", date: "Amanhã", time: "15:00" },
+          {
+            id: 100,
+            title: "Oficina de Leitura",
+            date: "Amanhã",
+            time: "15:00",
+          },
         ]);
       }
 
@@ -341,7 +349,13 @@ export default function Landing() {
         } else {
           setLeituras([
             { id: 1, childId: 1, isbn: "x", title: "O Pequeno Príncipe" },
-            { id: 2, childId: 2, isbn: "y", title: "Diário de um Banana", date: "10/07" },
+            {
+              id: 2,
+              childId: 2,
+              isbn: "y",
+              title: "Diário de um Banana",
+              date: "10/07",
+            },
           ]);
           setSugestoes(null);
         }
@@ -350,19 +364,29 @@ export default function Landing() {
   }, [role, user?.actingChild?.id, user?.children?.length]);
 
   // botões compactos
-  const btnStyle = { height: 36, borderRadius: 10, justifyContent: "center" } as const;
-  const btnLabel = { fontSize: 13, fontWeight: "700", letterSpacing: 0.2 } as const;
+  const btnStyle = {
+    height: 36,
+    borderRadius: 10,
+    justifyContent: "center",
+  } as const;
+  const btnLabel = {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  } as const;
 
   const canActAsChild =
-    !user?.actingChild && Array.isArray(user?.children) && user!.children!.length > 0;
+    !user?.actingChild &&
+    Array.isArray(user?.children) &&
+    user!.children!.length > 0;
 
   // dados para “Leitura em progresso / Livro em destaque”
   const heroTitle =
-    role === "CRIANÇA" ? sugestoes?.[0]?.title ?? "Descobre novas aventuras"
-                        : leituras?.[0]?.title ?? "Continua a tua leitura";
+    role === "CRIANÇA"
+      ? sugestoes?.[0]?.title ?? "Descobre novas aventuras"
+      : leituras?.[0]?.title ?? "Continua a tua leitura";
   const heroCover =
-    role === "CRIANÇA" ? sugestoes?.[0]?.coverUrl
-                        : leituras?.[0]?.coverUrl;
+    role === "CRIANÇA" ? sugestoes?.[0]?.coverUrl : leituras?.[0]?.coverUrl;
 
   return (
     <Background>
@@ -376,7 +400,10 @@ export default function Landing() {
       >
         {/* Banner de “a atuar como criança” */}
         {user?.actingChild && (
-          <ActingChildBanner name={user.actingChild.name} onClear={clearChild} />
+          <ActingChildBanner
+            name={user.actingChild.name}
+            onClear={clearChild}
+          />
         )}
 
         {/* Header */}
@@ -413,7 +440,9 @@ export default function Landing() {
               title="Consultas"
               subtitle={
                 consultas?.[0]
-                  ? `${consultas[0].date}${consultas[0].time ? " • " + consultas[0].time : ""}`
+                  ? `${consultas[0].date}${
+                      consultas[0].time ? " • " + consultas[0].time : ""
+                    }`
                   : "Próximas marcações"
               }
               imageUrl={IMG_CONSULTAS}
@@ -422,17 +451,25 @@ export default function Landing() {
 
             <CategoryTile
               title={eventos?.[0]?.title || "Eventos"}
-              subtitle={`${eventos?.[0]?.date || ""}${eventos?.[0]?.time ? " • " + eventos[0].time : ""}`}
+              subtitle={`${eventos?.[0]?.date || ""}${
+                eventos?.[0]?.time ? " • " + eventos[0].time : ""
+              }`}
               imageUrl={eventos?.[0]?.imageUrl || PLACEHOLDER}
               onPress={goToEventos}
             />
 
             <CategoryTile
               title={role === "CRIANÇA" ? "Sugestões" : "Leituras atuais"}
-              subtitle={role === "CRIANÇA" ? (sugestoes?.[0]?.title || "")
-                                            : (leituras?.[0]?.title || "")}
-              imageUrl={role === "CRIANÇA" ? (sugestoes?.[0]?.coverUrl || PLACEHOLDER)
-                                            : (leituras?.[0]?.coverUrl || PLACEHOLDER)}
+              subtitle={
+                role === "CRIANÇA"
+                  ? sugestoes?.[0]?.title || ""
+                  : leituras?.[0]?.title || ""
+              }
+              imageUrl={
+                role === "CRIANÇA"
+                  ? sugestoes?.[0]?.coverUrl || PLACEHOLDER
+                  : leituras?.[0]?.coverUrl || PLACEHOLDER
+              }
               onPress={goToLeiturasOrSugestoes}
             />
           </View>
@@ -442,7 +479,11 @@ export default function Landing() {
         <Section title="Para ti">
           <View style={{ gap: 12 }}>
             <ProgramCard
-              title={role === "CRIANÇA" ? "Livro em destaque" : "Leitura em progresso"}
+              title={
+                role === "CRIANÇA"
+                  ? "Livro em destaque"
+                  : "Leitura em progresso"
+              }
               subtitle={heroTitle}
               imageUrl={heroCover}
               cta={role === "CRIANÇA" ? "Ver sugestões" : "Ver leituras"}
@@ -450,7 +491,9 @@ export default function Landing() {
             />
             <ProgramCard
               title={eventos?.[1]?.title || "Próximo evento"}
-              subtitle={`${eventos?.[1]?.date || ""}${eventos?.[1]?.time ? " • " + eventos[1].time : ""}`}
+              subtitle={`${eventos?.[1]?.date || ""}${
+                eventos?.[1]?.time ? " • " + eventos[1].time : ""
+              }`}
               imageUrl={eventos?.[1]?.imageUrl}
               cta="Ver evento"
               onPress={goToEventos}
@@ -465,9 +508,13 @@ export default function Landing() {
             subtitle="3 livros numa semana · Streak diário"
             backgroundColor={theme.colors.secondaryContainer}
             footer={
-              <PrimaryButton fullWidth style={btnStyle} labelStyle={btnLabel} onPress={goToConquistas}>
-                Ver conquistas
-              </PrimaryButton>
+              <PrimaryButton
+                label="Ver conquistas"
+                fullWidth
+                style={btnStyle}
+                labelStyle={btnLabel}
+                onPress={goToConquistas}
+              />
             }
           />
         </Section>
@@ -478,9 +525,13 @@ export default function Landing() {
             subtitle="Ler antes de dormir ajuda a acalmar a mente…"
             backgroundColor={theme.colors.secondaryContainer}
             footer={
-              <PrimaryButton fullWidth style={btnStyle} labelStyle={btnLabel} onPress={goToFeed}>
-                Abrir feed
-              </PrimaryButton>
+              <PrimaryButton
+                label="Abrir feed"
+                fullWidth
+                style={btnStyle}
+                labelStyle={btnLabel}
+                onPress={goToFeed}
+              />
             }
           />
         </Section>

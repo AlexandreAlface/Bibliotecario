@@ -1,31 +1,37 @@
-// apps/mobile/app/(tabs)/consultas.tsx
-// - WhiteCard: um para filtros/ação + cada item da lista em card
-// - Botões compactos: compact
-// - Mantém children={undefined}
-
 import * as React from "react";
 import {
   View,
   Text,
-  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  RefreshControl,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "react-native-paper";
+import { useRouter } from "expo-router";
+import DateTimePicker from "@react-native-community/datetimepicker";
+
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import {
   PrimaryButton,
   SecondaryButton,
 } from "@bibliotecario/ui-mobile/components/Buttons/Buttons";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
-import { useTheme } from "react-native-paper";
+
 import { useAuth } from "src/contexts/AuthContext";
-import { consultationsApi, ConsultationLite } from "src/services/consultations";
+import { ConsultationLite } from "src/services/consultations";
 
 type TabKey = "next" | "past";
-type Chip = { id: number | null; name: string };
+export type Status =
+  | "PENDING"
+  | "CONFIRMED"
+  | "DECLINED"
+  | "CANCELLED"
+  | "COMPLETED"
+  | undefined;
 
-function fmt(d?: string | null) {
+function fmtDateTime(d?: string | null) {
   if (!d) return "";
   const dt = new Date(d);
   return new Intl.DateTimeFormat("pt-PT", {
@@ -34,210 +40,537 @@ function fmt(d?: string | null) {
   }).format(dt);
 }
 
+/** ---------- Chips genéricos (usam tema) ---------- */
+function PillChip({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        backgroundColor: active
+          ? theme.colors.primary
+          : theme.colors.secondaryContainer,
+        borderWidth: active ? 0 : 1,
+        borderColor: theme.colors.outlineVariant,
+      }}
+    >
+      <Text
+        style={{
+          color: active
+            ? theme.colors.onPrimary
+            : theme.colors.onSecondaryContainer,
+          fontWeight: "600",
+        }}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+/** ---------- Cores fixas por estado (sem theme) ---------- */
+const STATUS_STYLE: Record<
+  Exclude<Status, undefined>,
+  { label: string; bg: string; fg: string; accent: string }
+> = {
+  CONFIRMED: {
+    label: "Confirmada",
+    bg: "#DCFCE7", // verde claro
+    fg: "#166534", // verde escuro
+    accent: "#22C55E", // verde vivo
+  },
+  PENDING: {
+    label: "Pendente",
+    bg: "#FFEDD5", // laranja claro
+    fg: "#9A3412", // laranja escuro
+    accent: "#F59E0B", // laranja vivo
+  },
+  DECLINED: {
+    label: "Recusada",
+    bg: "#FEE2E2", // vermelho claro
+    fg: "#991B1B", // vermelho escuro
+    accent: "#EF4444", // vermelho vivo
+  },
+  CANCELLED: {
+    label: "Cancelada",
+    bg: "#E5E7EB", // cinzento claro
+    fg: "#374151", // cinzento escuro
+    accent: "#9CA3AF", // cinzento médio
+  },
+  COMPLETED: {
+    label: "Concluída",
+    bg: "#DBEAFE", // azul claro
+    fg: "#1E3A8A", // azul escuro
+    accent: "#3B82F6", // azul vivo
+  },
+};
+
+function statusMeta(status?: Status) {
+  const key = (status ?? "PENDING") as Exclude<Status, undefined>;
+  return STATUS_STYLE[key];
+}
+
+/** ---------- Chip de Estado (cores fixas) ---------- */
+function StatusPill({
+  status,
+  active,
+  onPress,
+}: {
+  status: Exclude<Status, undefined>;
+  active: boolean;
+  onPress: () => void;
+}) {
+  const s = STATUS_STYLE[status];
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 20,
+        backgroundColor: active ? s.bg : "#FFFFFF",
+        borderWidth: 1,
+        borderColor: s.accent,
+      }}
+    >
+      <Text
+        style={{
+          fontWeight: "700",
+          color: active ? s.fg : s.accent,
+        }}
+      >
+        {s.label}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+/** -------------------------------------------------- */
+
 export default function ConsultasScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { user } = useAuth();
 
+  const actingChildId = user?.actingChild?.id ?? null;
+
   const [tab, setTab] = React.useState<TabKey>("next");
-  const [childId, setChildId] = React.useState<number | null>(null);
+
+  // filtros de estado (multi-seleção)
+  const STATUS_OPTIONS: { key: Exclude<Status, undefined>; label: string }[] = [
+    { key: "PENDING", label: STATUS_STYLE.PENDING.label },
+    { key: "CONFIRMED", label: STATUS_STYLE.CONFIRMED.label },
+    { key: "COMPLETED", label: STATUS_STYLE.COMPLETED.label },
+    { key: "CANCELLED", label: STATUS_STYLE.CANCELLED.label },
+    { key: "DECLINED", label: STATUS_STYLE.DECLINED.label },
+  ];
+  const defaultNext = new Set<Exclude<Status, undefined>>([
+    "PENDING",
+    "CONFIRMED",
+  ]);
+  const defaultPast = new Set<Exclude<Status, undefined>>([
+    "COMPLETED",
+    "CANCELLED",
+    "DECLINED",
+  ]);
+  const [selectedStatuses, setSelectedStatuses] = React.useState<
+    Set<Exclude<Status, undefined>>
+  >(new Set(defaultNext));
+
+  // filtros de data
+  const [fromDate, setFromDate] = React.useState<Date | null>(new Date());
+  const [toDate, setToDate] = React.useState<Date | null>(null);
+
   const [loading, setLoading] = React.useState(false);
+  const [refreshing, setRefreshing] = React.useState(false);
   const [items, setItems] = React.useState<ConsultationLite[]>([]);
 
-  const chips: Chip[] = [
-    { id: null, name: "Todos" },
-    ...(user?.children ?? []).map((c) => ({ id: c.id, name: c.name })),
-  ];
+  // sempre que muda a tab, ajusta defaults de estados e datas
+  React.useEffect(() => {
+    if (tab === "next") {
+      setSelectedStatuses(new Set(defaultNext));
+      setFromDate(new Date());
+      setToDate(null);
+    } else {
+      setSelectedStatuses(new Set(defaultPast));
+      setFromDate(null);
+      setToDate(new Date());
+    }
+  }, [tab]);
+
+  const buildQueryUrl = React.useCallback(
+    async (extra?: Record<string, any>) => {
+      const nowIso = new Date().toISOString();
+      const effectiveFrom = fromDate
+        ? fromDate.toISOString()
+        : tab === "next"
+        ? nowIso
+        : undefined;
+      const effectiveTo = toDate
+        ? toDate.toISOString()
+        : tab === "past"
+        ? nowIso
+        : undefined;
+
+      const statusParam =
+        selectedStatuses.size > 0
+          ? Array.from(selectedStatuses).join(",")
+          : undefined;
+
+      // força childId quando em modo criança; caso contrário, não envia (mostra todas as da família)
+      const effectiveChildId = actingChildId ?? undefined;
+
+      const params = {
+        familyId: user?.id,
+        childId: effectiveChildId,
+        status: statusParam,
+        from: effectiveFrom,
+        to: effectiveTo,
+        order: tab === "next" ? "asc" : "desc",
+        limit: 100,
+        ...(extra ?? {}),
+      };
+
+      const q = Object.entries(params)
+        .filter(([, v]) => v !== undefined && v !== null && v !== "")
+        .map(
+          ([k, v]) =>
+            `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
+        )
+        .join("&");
+
+      const { API_URL } = await import("src/services/api");
+      return `${API_URL}/consultations/all?${q}`;
+    },
+    [user?.id, actingChildId, selectedStatuses, fromDate, toDate, tab]
+  );
+
+  const load = React.useCallback(async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      const url = await buildQueryUrl();
+      const data = (await fetch(url, { credentials: "include" }).then((r) =>
+        r.json()
+      )) as ConsultationLite[];
+      setItems(Array.isArray(data) ? data : []);
+    } catch {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, buildQueryUrl]);
 
   React.useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (!user?.id) return;
-      setLoading(true);
-      try {
-        const nowIso = new Date().toISOString();
-        const params =
-          tab === "next"
-            ? {
-                familyId: user.id,
-                childId: childId ?? undefined,
-                status: "PENDING,CONFIRMED",
-                from: nowIso,
-                order: "asc",
-                limit: 100,
-              }
-            : {
-                familyId: user.id,
-                childId: childId ?? undefined,
-                to: nowIso,
-                order: "desc",
-                limit: 100,
-              };
+    load();
+  }, [load]);
 
-        const q = Object.entries(params)
-          .filter(([, v]) => v !== undefined && v !== null)
-          .map(
-            ([k, v]) =>
-              `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
-          )
-          .join("&");
-        const url = `/consultations/all?${q}`;
-        const { API_URL } = await import("src/services/api");
-        const data = (await fetch(API_URL + url, {
-          credentials: "include",
-        }).then((r) => r.json())) as ConsultationLite[];
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load]);
 
-        if (alive) setItems(data);
-      } catch (e) {
-        if (alive) setItems([]);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [tab, childId, user?.id]);
+  function toggleStatus(s: Exclude<Status, undefined>) {
+    setSelectedStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
+  }
+
+  function clearDates() {
+    setFromDate(null);
+    setToDate(null);
+  }
+
+  function setTodayRange() {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    setFromDate(start);
+    setToDate(end);
+  }
 
   return (
     <Background>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <Text
-          style={{
-            fontSize: 22,
-            fontWeight: "600",
-            color: theme.colors.onBackground,
-          }}
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
+      >
+        <ScrollView
+          contentContainerStyle={{ padding: 16, gap: 16 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
-          Consultas
-        </Text>
-
-        {/* WhiteCard: filtros e ações */}
-        <FlexibleCard
-          title="Filtros"
-          backgroundColor={theme.colors.surface}
-          elevation={1}
-          padding={14}
-          style={{ borderRadius: 12 }}
-        >
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 8 }}>
-            <SecondaryButton
-              compact
-              label="Próximas"
-              onPress={() => setTab("next")}
-              children={undefined}
-            />
-            <SecondaryButton
-              compact
-              label="Anteriores"
-              onPress={() => setTab("past")}
-              children={undefined}
-            />
-          </View>
-
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8 }}
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "600",
+              color: theme.colors.onBackground,
+            }}
           >
-            {chips.map((ch) => {
-              const active = (ch.id ?? null) === childId;
-              return (
-                <TouchableOpacity
-                  key={String(ch.id ?? "all")}
-                  onPress={() => setChildId(ch.id)}
-                  style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 12,
-                    borderRadius: 20,
-                    backgroundColor: active
-                      ? theme.colors.primary
-                      : theme.colors.secondaryContainer,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: active
-                        ? theme.colors.onPrimary
-                        : theme.colors.onSecondaryContainer,
-                    }}
-                  >
-                    {ch.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+            Consultas
+          </Text>
 
-          <View style={{ marginTop: 12 }}>
-            <PrimaryButton
-              compact
-              label="Agendar Consulta"
-              onPress={() => {
-                /* navegação para Agenda se necessário */
+          {/* WhiteCard: Filtros */}
+          <FlexibleCard
+            title="Filtros"
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={14}
+            style={{ borderRadius: 12 }}
+          >
+            {/* Tabs Próximas/Anteriores */}
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+              <PillChip
+                label="Próximas"
+                active={tab === "next"}
+                onPress={() => setTab("next")}
+              />
+              <PillChip
+                label="Anteriores"
+                active={tab === "past"}
+                onPress={() => setTab("past")}
+              />
+            </View>
+
+            {/* Filtro por estados (multi) — colorido por estado */}
+            <Text
+              style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}
+            >
+              Estados
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {STATUS_OPTIONS.map((opt) => (
+                <StatusPill
+                  key={opt.key}
+                  status={opt.key}
+                  active={selectedStatuses.has(opt.key)}
+                  onPress={() => toggleStatus(opt.key)}
+                />
+              ))}
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              <SecondaryButton
+                label="Limpar estados"
+                onPress={() => setSelectedStatuses(new Set())}
+              />
+              <SecondaryButton
+                label="Selecionar todos"
+                onPress={() =>
+                  setSelectedStatuses(new Set(STATUS_OPTIONS.map((o) => o.key)))
+                }
+              />
+            </View>
+
+            <View
+              style={{
+                height: 1,
+                backgroundColor: theme.colors.outlineVariant,
+                opacity: 0.6,
+                marginVertical: 12,
               }}
-              children={undefined}
             />
-          </View>
-        </FlexibleCard>
 
-        {/* WhiteCard: lista de consultas */}
-        <FlexibleCard
-          title={tab === "next" ? "Próximas" : "Anteriores"}
-          backgroundColor={theme.colors.surface}
-          elevation={1}
-          padding={12}
-          style={{ borderRadius: 12 }}
-        >
-          {loading ? (
-            <ActivityIndicator style={{ marginTop: 16 }} />
-          ) : (
-            <FlatList
-              data={items}
-              keyExtractor={(it) => String(it.id)}
-              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-              renderItem={({ item }) => (
-                <FlexibleCard
-                  backgroundColor={theme.colors.surface}
-                  elevation={0}
-                  padding={14}
+            {/* Datas lado-a-lado */}
+            <Text
+              style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}
+            >
+              Intervalo de datas
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                <DateTimePicker
+                  mode="date"
+                  value={fromDate ?? new Date()}
+                  onChange={(_, d) => d && setFromDate(d)}
+                />
+                <Text
                   style={{
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: theme.colors.outlineVariant,
+                    color: theme.colors.onSurfaceVariant,
+                    marginTop: 4,
+                    fontSize: 12,
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "600",
-                      color: theme.colors.onSurface,
-                    }}
-                  >
-                    {item.title || "Consulta"}
-                  </Text>
-                  <Text
-                    style={{
-                      marginTop: 4,
-                      color: theme.colors.onSurfaceVariant,
-                    }}
-                  >
-                    {fmt(item.startAt)}{" "}
-                    {item.librarianName ? `• ${item.librarianName}` : ""}
-                  </Text>
-                  <Text
-                    style={{
-                      marginTop: 2,
-                      color: theme.colors.onSurfaceVariant,
-                    }}
-                  >
-                    Estado: {item.status}
-                  </Text>
-                </FlexibleCard>
-              )}
-            />
-          )}
-        </FlexibleCard>
-      </ScrollView>
+                  {fromDate
+                    ? fmtDateTime(fromDate.toISOString())
+                    : "Sem início"}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <DateTimePicker
+                  mode="date"
+                  value={toDate ?? new Date()}
+                  onChange={(_, d) => d && setToDate(d)}
+                />
+                <Text
+                  style={{
+                    color: theme.colors.onSurfaceVariant,
+                    marginTop: 4,
+                    fontSize: 12,
+                  }}
+                >
+                  {toDate ? fmtDateTime(toDate.toISOString()) : "Sem fim"}
+                </Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              <SecondaryButton label="Limpar datas" onPress={clearDates} />
+              <SecondaryButton label="Hoje" onPress={setTodayRange} />
+            </View>
+
+            <View style={{ marginTop: 12, alignSelf: "flex-start" }}>
+              <PrimaryButton label="Aplicar filtros" onPress={load} />
+            </View>
+          </FlexibleCard>
+
+          {/* WhiteCard: Lista */}
+          <FlexibleCard
+            title={tab === "next" ? "Próximas" : "Anteriores"}
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={12}
+            style={{ borderRadius: 12 }}
+          >
+            {loading ? (
+              <ActivityIndicator style={{ marginTop: 16 }} />
+            ) : items.length === 0 ? (
+              <View style={{ alignItems: "center", paddingVertical: 20 }}>
+                <Text
+                  style={{
+                    color: theme.colors.onSurfaceVariant,
+                    marginBottom: 10,
+                    textAlign: "center",
+                  }}
+                >
+                  {tab === "next"
+                    ? "Sem consultas marcadas."
+                    : "Sem histórico de consultas."}
+                </Text>
+                <PrimaryButton
+                  label="Agendar Consulta"
+                  onPress={() => router.push("/agenda")}
+                />
+              </View>
+            ) : (
+              <View style={{ gap: 8 }}>
+                {items.map((item) => {
+                  const librarianName =
+                    (item as any)?.librarianName ??
+                    (item as any)?.librarian?.fullName ??
+                    "";
+                  const libraryName =
+                    (item as any)?.libraryName ??
+                    (item as any)?.library?.name ??
+                    "";
+                  const childName =
+                    (item as any)?.childName ??
+                    (item as any)?.child?.name ??
+                    "";
+                  const title =
+                    item.title ??
+                    (childName ? `Consulta de ${childName}` : "Consulta");
+
+                  const meta = statusMeta(item.status);
+
+                  return (
+                    <View
+                      key={String(item.id)}
+                      style={{
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: theme.colors.outlineVariant,
+                        backgroundColor: theme.colors.surface,
+                        overflow: "hidden",
+                      }}
+                    >
+                      {/* barra colorida por estado */}
+                      <View
+                        style={{ height: 4, backgroundColor: meta.accent }}
+                      />
+
+                      <View style={{ padding: 14 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            gap: 8,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 16,
+                              fontWeight: "600",
+                              color: theme.colors.onSurface,
+                              flex: 1,
+                            }}
+                          >
+                            {title}
+                          </Text>
+                          <View
+                            style={{
+                              paddingVertical: 4,
+                              paddingHorizontal: 10,
+                              borderRadius: 999,
+                              backgroundColor: meta.bg,
+                              alignSelf: "flex-start",
+                            }}
+                          >
+                            <Text style={{ color: meta.fg, fontSize: 12 }}>
+                              {meta.label}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <Text
+                          style={{
+                            marginTop: 6,
+                            color: theme.colors.onSurfaceVariant,
+                          }}
+                        >
+                          {fmtDateTime(item.startAt)}
+                          {librarianName ? ` • ${librarianName}` : ""}
+                          {libraryName ? ` • ${libraryName}` : ""}
+                        </Text>
+
+                        {!!childName && (
+                          <Text
+                            style={{
+                              marginTop: 2,
+                              color: theme.colors.onSurfaceVariant,
+                            }}
+                          >
+                            Criança: {childName}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </FlexibleCard>
+        </ScrollView>
+      </SafeAreaView>
     </Background>
   );
 }
