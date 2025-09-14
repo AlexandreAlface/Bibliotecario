@@ -18,8 +18,13 @@ import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import TuneRounded from "@mui/icons-material/TuneRounded";
 import StarRounded from "@mui/icons-material/StarRounded";
 import AutoStoriesRounded from "@mui/icons-material/AutoStoriesRounded";
-import { WhiteCard, AvatarSelect,   FilterBar,
-  type FilterDefinition, Paginator  } from "@bibliotecario/ui-web";
+import {
+  WhiteCard,
+  AvatarSelect,
+  FilterBar,
+  type FilterDefinition,
+  Paginator,
+} from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
 import {
   getLeiturasAtuais,
@@ -27,7 +32,6 @@ import {
   startReading,
   finishReading,
 } from "@/services/readings";
-
 
 type PendingRow = {
   isbn: string;
@@ -49,13 +53,16 @@ type HistoryRow = {
 };
 
 export default function ReadingsPage() {
-  const { user, asChild, selectedChildId, setSelectedChildId } =
-    useUserSession();
+  const { user, asChild } = useUserSession();
 
+  // 🎯 Em modo família, usamos um filtro LOCAL de criança (não altera active user)
+  const [localChildId, setLocalChildId] = useState<string>("");
+
+  // ID efetivo para chamadas: actingChild em modo criança; localChildId em família
   const childId = asChild
-    ? Number((user?.actingChild?.id as any) ?? (selectedChildId as any))
-    : selectedChildId
-    ? Number(selectedChildId)
+    ? Number((user?.actingChild?.id as any))
+    : localChildId
+    ? Number(localChildId)
     : undefined;
 
   const familyId = asChild ? undefined : Number(user?.id);
@@ -63,15 +70,18 @@ export default function ReadingsPage() {
   const [pending, setPending] = useState<PendingRow[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [toast, setToast] = useState<{
+    msg: string;
+    type: "success" | "error";
+  } | null>(null);
 
   const mustPickChild = !asChild && !childId;
 
   const childOptions =
     (user?.children || []).map((c: any) => ({
       id: String(c.id),
-      nome: c.name,
-      avatar: c.avatarUrl || undefined,
+      nome: c.name ?? "Criança",
+      avatar: (c as any).avatarUrl || undefined,
     })) ?? [];
 
   // ---------- Filtros + paginação (PENDING) ----------
@@ -85,7 +95,9 @@ export default function ReadingsPage() {
       ],
     },
   ];
-  const [pendingFilters, setPendingFilters] = useState<Record<string, string[]>>({
+  const [pendingFilters, setPendingFilters] = useState<
+    Record<string, string[]>
+  >({
     status: [], // vazio = todos
   });
   const pendingIcons = { status: <AutoStoriesRounded fontSize="small" /> };
@@ -122,7 +134,9 @@ export default function ReadingsPage() {
       ],
     },
   ];
-  const [historyFilters, setHistoryFilters] = useState<Record<string, string[]>>({
+  const [historyFilters, setHistoryFilters] = useState<
+    Record<string, string[]>
+  >({
     rating: [],
   });
   const historyIcons = { rating: <StarRounded fontSize="small" /> };
@@ -161,7 +175,9 @@ export default function ReadingsPage() {
       getLeiturasAtuais(200, { childId, familyId }),
     ]);
 
-    setPending(pRows.filter((r) => r.status === "reserved" || r.status === "reading"));
+    setPending(
+      pRows.filter((r) => r.status === "reserved" || r.status === "reading")
+    );
 
     const hRows: HistoryRow[] = hRaw.map((r: any) => ({
       id: Number(r.id),
@@ -198,16 +214,22 @@ export default function ReadingsPage() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Contexto em modo família */}
+      {/* Contexto em modo família (seletor LOCAL; não muda active user) */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
-          <Stack direction="row" alignItems="center" spacing={2} useFlexGap flexWrap="wrap">
-            <Typography fontWeight={900}>A atuar como</Typography>
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={2}
+            useFlexGap
+            flexWrap="wrap"
+          >
+            <Typography fontWeight={900}>Filtrar por criança</Typography>
             <AvatarSelect
               label="Escolher criança"
               options={childOptions}
-              value={selectedChildId}
-              onChange={(id) => setSelectedChildId(id)}
+              value={localChildId || undefined}
+              onChange={(id) => setLocalChildId(id ?? "")}
               minWidth={280}
             />
           </Stack>
@@ -216,7 +238,12 @@ export default function ReadingsPage() {
 
       {/* --------- LEITURAS EM CURSO --------- */}
       <WhiteCard sx={{ mb: 2 }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          sx={{ mb: 1 }}
+        >
           <Typography variant="h4" fontWeight={900}>
             Leituras em Curso
           </Typography>
@@ -227,7 +254,9 @@ export default function ReadingsPage() {
         <FilterBar
           filters={PENDING_FILTERS}
           selected={pendingFilters}
-          onChange={(id, values) => setPendingFilters((s) => ({ ...s, [id]: values }))}
+          onChange={(id, values) =>
+            setPendingFilters((s) => ({ ...s, [id]: values }))
+          }
           icons={pendingIcons}
           chipIcons={pendingIcons}
         />
@@ -251,7 +280,9 @@ export default function ReadingsPage() {
                     src={r.coverUrl || "/placeholder-book.jpg"}
                     alt={r.title}
                     onError={(e: any) => {
-                      if (!e.currentTarget.src.includes("placeholder-book.jpg")) {
+                      if (
+                        !e.currentTarget.src.includes("placeholder-book.jpg")
+                      ) {
                         e.currentTarget.src = "/placeholder-book.jpg";
                       }
                     }}
@@ -267,7 +298,10 @@ export default function ReadingsPage() {
                     <Typography fontWeight={900} noWrap title={r.title}>
                       {r.title}
                     </Typography>
-                    <Typography variant="caption" sx={{ opacity: 0.75, display: "block", mt: 0.5 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ opacity: 0.75, display: "block", mt: 0.5 }}
+                    >
                       {r.status === "reserved" ? "Reservado" : "A ler"}
                     </Typography>
                   </CardContent>
@@ -281,10 +315,16 @@ export default function ReadingsPage() {
                             setBusy(r.isbn);
                             await startReading(r.isbn, { childId, familyId });
                             await loadAll();
-                            setToast({ msg: "Leitura iniciada.", type: "success" });
+                            setToast({
+                              msg: "Leitura iniciada.",
+                              type: "success",
+                            });
                           } catch (e) {
                             console.error(e);
-                            setToast({ msg: "Não foi possível iniciar.", type: "error" });
+                            setToast({
+                              msg: "Não foi possível iniciar.",
+                              type: "error",
+                            });
                           } finally {
                             setBusy(null);
                           }
@@ -302,10 +342,16 @@ export default function ReadingsPage() {
                             setBusy(r.isbn);
                             await finishReading(r.isbn, { childId, familyId });
                             await loadAll();
-                            setToast({ msg: "Leitura terminada.", type: "success" });
+                            setToast({
+                              msg: "Leitura terminada.",
+                              type: "success",
+                            });
                           } catch (e) {
                             console.error(e);
-                            setToast({ msg: "Não foi possível terminar.", type: "error" });
+                            setToast({
+                              msg: "Não foi possível terminar.",
+                              type: "error",
+                            });
                           } finally {
                             setBusy(null);
                           }
@@ -334,11 +380,21 @@ export default function ReadingsPage() {
 
       {/* --------- HISTÓRICO --------- */}
       <WhiteCard>
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ mb: 1 }}
+        >
           <Typography variant="h5" fontWeight={900}>
             Histórico de leituras
           </Typography>
-          <Stack direction="row" alignItems="center" spacing={1} sx={{ opacity: 0.9 }}>
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1}
+            sx={{ opacity: 0.9 }}
+          >
             <TuneRounded fontSize="small" />
             <Typography variant="body2">Filtros</Typography>
           </Stack>
@@ -347,7 +403,9 @@ export default function ReadingsPage() {
         <FilterBar
           filters={HISTORY_FILTERS}
           selected={historyFilters}
-          onChange={(id, values) => setHistoryFilters((s) => ({ ...s, [id]: values }))}
+          onChange={(id, values) =>
+            setHistoryFilters((s) => ({ ...s, [id]: values }))
+          }
           icons={historyIcons}
           chipIcons={historyIcons}
         />
@@ -369,7 +427,9 @@ export default function ReadingsPage() {
                     src={row.coverUrl || "/placeholder-book.jpg"}
                     alt={row.title}
                     onError={(e: any) => {
-                      if (!e.currentTarget.src.includes("placeholder-book.jpg")) {
+                      if (
+                        !e.currentTarget.src.includes("placeholder-book.jpg")
+                      ) {
                         e.currentTarget.src = "/placeholder-book.jpg";
                       }
                     }}
@@ -393,7 +453,12 @@ export default function ReadingsPage() {
                     </Typography>
 
                     {typeof row.stars === "number" && (
-                      <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 0.5 }}>
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        spacing={0.5}
+                        sx={{ mt: 0.5 }}
+                      >
                         <Rating value={row.stars} readOnly size="small" />
                         <Typography variant="caption" sx={{ opacity: 0.7 }}>
                           {row.stars}/5

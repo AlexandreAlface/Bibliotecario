@@ -1,8 +1,11 @@
 // apps/mobile/app/(tabs)/index.tsx  (Landing)
 import * as React from "react";
-import { View, ScrollView, Image, Pressable } from "react-native";
-import { Text, useTheme } from "react-native-paper";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View, ScrollView, Image, Pressable, Alert } from "react-native";
+import { Text, useTheme, IconButton } from "react-native-paper";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
@@ -263,7 +266,7 @@ function ActingChildBanner({
 export default function Landing() {
   const theme = useTheme();
   const router = useRouter();
-  const { user, clearChild } = useAuth();
+  const { user, clearChild, logout } = useAuth();
   const insets = useSafeAreaInsets();
 
   const firstName = user?.fullName?.split(" ")[0] ?? "Leitor";
@@ -278,8 +281,8 @@ export default function Landing() {
 
   // ---- Navegações centralizadas ----
   const goToLeiturasOrSugestoes = React.useCallback(() => {
-    if (role === "CRIANÇA") router.push("/(tabs)/sugestoes");
-    else router.push("/(tabs)/leituras");
+    if (role === "CRIANÇA") router.push("/sugestoes");
+    else router.push("/leituras");
   }, [role, router]);
 
   const goToConsultas = React.useCallback(() => {
@@ -363,7 +366,6 @@ export default function Landing() {
     })();
   }, [role, user?.actingChild?.id, user?.children?.length]);
 
-  // botões compactos
   const btnStyle = {
     height: 36,
     borderRadius: 10,
@@ -380,7 +382,6 @@ export default function Landing() {
     Array.isArray(user?.children) &&
     user!.children!.length > 0;
 
-  // dados para “Leitura em progresso / Livro em destaque”
   const heroTitle =
     role === "CRIANÇA"
       ? sugestoes?.[0]?.title ?? "Descobre novas aventuras"
@@ -388,154 +389,186 @@ export default function Landing() {
   const heroCover =
     role === "CRIANÇA" ? sugestoes?.[0]?.coverUrl : leituras?.[0]?.coverUrl;
 
+  function confirmLogout() {
+    Alert.alert("Terminar sessão", "Queres mesmo sair?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Sair",
+        style: "destructive",
+        onPress: async () => {
+          await logout?.();
+          // ❌ não navegamos manualmente;
+          // o AuthGate manda para /auth/login assim que user === null
+        },
+      },
+    ]);
+  }
+
   return (
     <Background>
-      <ScrollView
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingTop: Math.max(insets.top + 10, 18),
-          paddingBottom: insets.bottom + TABBAR_HEIGHT + 12,
-          gap: 18,
-        }}
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
       >
-        {/* Banner de “a atuar como criança” */}
-        {user?.actingChild && (
-          <ActingChildBanner
-            name={user.actingChild.name}
-            onClear={clearChild}
-          />
-        )}
-
-        {/* Header */}
-        <View>
-          <Text
-            variant="titleLarge"
-            style={{ color: theme.colors.onSurface, fontWeight: "800" }}
-          >
-            Olá, {firstName}
-          </Text>
-        </View>
-
-        {/* Explorar */}
-        <Section title="Explorar">
+        <ScrollView
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingTop: 10, // SafeAreaView já trata do notch
+            paddingBottom: insets.bottom + TABBAR_HEIGHT + 12,
+            gap: 18,
+          }}
+        >
+          {/* Header compacto com logout */}
           <View
             style={{
               flexDirection: "row",
+              alignItems: "center",
               justifyContent: "space-between",
-              rowGap: 12,
-              flexWrap: "wrap",
             }}
           >
-            {/* família -> escolher criança */}
-            {canActAsChild && (
+            <Text
+              variant="titleLarge"
+              style={{ color: theme.colors.onSurface, fontWeight: "800" }}
+            >
+              Olá, {firstName}
+            </Text>
+
+            <IconButton
+              icon="logout"
+              onPress={confirmLogout}
+              accessibilityLabel="Terminar sessão"
+            />
+          </View>
+
+          {/* Banner de “a atuar como criança” */}
+          {user?.actingChild && (
+            <ActingChildBanner
+              name={user.actingChild.name}
+              onClear={clearChild}
+            />
+          )}
+
+          {/* Explorar */}
+          <Section title="Explorar">
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                rowGap: 12,
+                flexWrap: "wrap",
+              }}
+            >
+              {/* família -> escolher criança */}
+              {canActAsChild && (
+                <CategoryTile
+                  title="Entrar como criança"
+                  subtitle="Escolher perfil"
+                  imageUrl={IMG_CHILD_MODE}
+                  onPress={() => router.push("/choose-child")}
+                />
+              )}
+
               <CategoryTile
-                title="Entrar como criança"
-                subtitle="Escolher perfil"
-                imageUrl={IMG_CHILD_MODE}
-                onPress={() => router.push("/choose-child")}
+                title="Consultas"
+                subtitle={
+                  consultas?.[0]
+                    ? `${consultas[0].date}${
+                        consultas[0].time ? " • " + consultas[0].time : ""
+                      }`
+                    : "Próximas marcações"
+                }
+                imageUrl={IMG_CONSULTAS}
+                onPress={goToConsultas}
               />
-            )}
 
-            <CategoryTile
-              title="Consultas"
-              subtitle={
-                consultas?.[0]
-                  ? `${consultas[0].date}${
-                      consultas[0].time ? " • " + consultas[0].time : ""
-                    }`
-                  : "Próximas marcações"
-              }
-              imageUrl={IMG_CONSULTAS}
-              onPress={goToConsultas}
-            />
-
-            <CategoryTile
-              title={eventos?.[0]?.title || "Eventos"}
-              subtitle={`${eventos?.[0]?.date || ""}${
-                eventos?.[0]?.time ? " • " + eventos[0].time : ""
-              }`}
-              imageUrl={eventos?.[0]?.imageUrl || PLACEHOLDER}
-              onPress={goToEventos}
-            />
-
-            <CategoryTile
-              title={role === "CRIANÇA" ? "Sugestões" : "Leituras atuais"}
-              subtitle={
-                role === "CRIANÇA"
-                  ? sugestoes?.[0]?.title || ""
-                  : leituras?.[0]?.title || ""
-              }
-              imageUrl={
-                role === "CRIANÇA"
-                  ? sugestoes?.[0]?.coverUrl || PLACEHOLDER
-                  : leituras?.[0]?.coverUrl || PLACEHOLDER
-              }
-              onPress={goToLeiturasOrSugestoes}
-            />
-          </View>
-        </Section>
-
-        {/* Para ti */}
-        <Section title="Para ti">
-          <View style={{ gap: 12 }}>
-            <ProgramCard
-              title={
-                role === "CRIANÇA"
-                  ? "Livro em destaque"
-                  : "Leitura em progresso"
-              }
-              subtitle={heroTitle}
-              imageUrl={heroCover}
-              cta={role === "CRIANÇA" ? "Ver sugestões" : "Ver leituras"}
-              onPress={goToLeiturasOrSugestoes}
-            />
-            <ProgramCard
-              title={eventos?.[1]?.title || "Próximo evento"}
-              subtitle={`${eventos?.[1]?.date || ""}${
-                eventos?.[1]?.time ? " • " + eventos[1].time : ""
-              }`}
-              imageUrl={eventos?.[1]?.imageUrl}
-              cta="Ver evento"
-              onPress={goToEventos}
-            />
-          </View>
-        </Section>
-
-        {/* Blocos finais */}
-        <Section title="Conquistas Recentes">
-          <FlexibleCard
-            title="Primeira Leitura"
-            subtitle="3 livros numa semana · Streak diário"
-            backgroundColor={theme.colors.secondaryContainer}
-            footer={
-              <PrimaryButton
-                label="Ver conquistas"
-                fullWidth
-                style={btnStyle}
-                labelStyle={btnLabel}
-                onPress={goToConquistas}
+              <CategoryTile
+                title={eventos?.[0]?.title || "Eventos"}
+                subtitle={`${eventos?.[0]?.date || ""}${
+                  eventos?.[0]?.time ? " • " + eventos[0].time : ""
+                }`}
+                imageUrl={eventos?.[0]?.imageUrl || PLACEHOLDER}
+                onPress={goToEventos}
               />
-            }
-          />
-        </Section>
 
-        <Section title="Feed de Notícias & Dicas">
-          <FlexibleCard
-            title="Biblioterapia"
-            subtitle="Ler antes de dormir ajuda a acalmar a mente…"
-            backgroundColor={theme.colors.secondaryContainer}
-            footer={
-              <PrimaryButton
-                label="Abrir feed"
-                fullWidth
-                style={btnStyle}
-                labelStyle={btnLabel}
-                onPress={goToFeed}
+              <CategoryTile
+                title={role === "CRIANÇA" ? "Sugestões" : "Leituras atuais"}
+                subtitle={
+                  role === "CRIANÇA"
+                    ? sugestoes?.[0]?.title || ""
+                    : leituras?.[0]?.title || ""
+                }
+                imageUrl={
+                  role === "CRIANÇA"
+                    ? sugestoes?.[0]?.coverUrl || PLACEHOLDER
+                    : leituras?.[0]?.coverUrl || PLACEHOLDER
+                }
+                onPress={goToLeiturasOrSugestoes}
               />
-            }
-          />
-        </Section>
-      </ScrollView>
+            </View>
+          </Section>
+
+          {/* Para ti */}
+          <Section title="Para ti">
+            <View style={{ gap: 12 }}>
+              <ProgramCard
+                title={
+                  role === "CRIANÇA"
+                    ? "Livro em destaque"
+                    : "Leitura em progresso"
+                }
+                subtitle={heroTitle}
+                imageUrl={heroCover}
+                cta={role === "CRIANÇA" ? "Ver sugestões" : "Ver leituras"}
+                onPress={goToLeiturasOrSugestoes}
+              />
+              <ProgramCard
+                title={eventos?.[1]?.title || "Próximo evento"}
+                subtitle={`${eventos?.[1]?.date || ""}${
+                  eventos?.[1]?.time ? " • " + eventos[1].time : ""
+                }`}
+                imageUrl={eventos?.[1]?.imageUrl}
+                cta="Ver evento"
+                onPress={goToEventos}
+              />
+            </View>
+          </Section>
+
+          {/* Blocos finais */}
+          <Section title="Conquistas Recentes">
+            <FlexibleCard
+              title="Primeira Leitura"
+              subtitle="3 livros numa semana · Streak diário"
+              backgroundColor={theme.colors.secondaryContainer}
+              footer={
+                <PrimaryButton
+                  label="Ver conquistas"
+                  fullWidth
+                  style={btnStyle}
+                  labelStyle={btnLabel}
+                  onPress={goToConquistas}
+                />
+              }
+            />
+          </Section>
+
+          <Section title="Feed de Notícias & Dicas">
+            <FlexibleCard
+              title="Biblioterapia"
+              subtitle="Ler antes de dormir ajuda a acalmar a mente…"
+              backgroundColor={theme.colors.secondaryContainer}
+              footer={
+                <PrimaryButton
+                  label="Abrir feed"
+                  fullWidth
+                  style={btnStyle}
+                  labelStyle={btnLabel}
+                  onPress={goToFeed}
+                />
+              }
+            />
+          </Section>
+        </ScrollView>
+      </SafeAreaView>
     </Background>
   );
 }

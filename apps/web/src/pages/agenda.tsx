@@ -1,8 +1,9 @@
 // apps/web/src/pages/agenda.tsx
 import { useEffect, useMemo, useState } from "react";
 import { WhiteCard, RouteLink, AvatarSelect } from "@bibliotecario/ui-web";
+import type { AvatarOption } from "@bibliotecario/ui-web";
 import {
-  Avatar, // 👈 adicionado
+  Avatar,
   Box,
   Chip,
   Container,
@@ -178,62 +179,67 @@ function ConsultaRow({ c, onClick }: { c: ConsultaLite; onClick: () => void }) {
 /* =================== Página =================== */
 export default function AgendasPage() {
   const theme = useTheme();
-  const { user, asChild, selectedChildId, setSelectedChildId, actAsChild } =
-    useUserSession();
+  // ⚠️ Não usamos selectedChildId/setSelectedChildId aqui.
+  const { user, asChild } = useUserSession();
+
+  // filtro LOCAL (modo família): não altera contexto global
+  const [localChildId, setLocalChildId] = useState<string | undefined>(undefined);
 
   const [monthRef, setMonthRef] = useState(startOfDay(new Date()));
   const [consultasRaw, setConsultasRaw] = useState<ConsultaLite[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(fmtYMD(new Date()));
   const [focused, setFocused] = useState<ConsultaLite | null>(null);
 
-  // opções base (usado só em modo família)
-  const childBaseOptions = (user?.children || []).map((c) => ({
+  // opções base (usado só em modo família) — garantir sempre nome:string e avatar?:string
+  const childBaseOptions: AvatarOption[] = (user?.children || []).map((c) => ({
     id: String(c.id),
-    nome: c.name,
-    avatar: (c as any).avatarUrl || undefined,
+    nome: c.name ?? "",
+    avatar: (c as any).avatarUrl ?? undefined,
   }));
-  const selectOptions = [{ id: "", nome: "Todos os filhos" }, ...childBaseOptions];
+  const selectOptions: AvatarOption[] = [
+    { id: "", nome: "Todos os filhos", avatar: undefined },
+    ...childBaseOptions,
+  ];
 
-  // Carregar consultas (família; filtra por criança somente se houver filtro)
+  // Carregar consultas:
+  // - Modo criança → por actingChild
+  // - Modo família → por família; opcionalmente filtrar por localChildId
   useEffect(() => {
     (async () => {
-      const famIdNum = Number(user?.id);
-      if (!Number.isFinite(famIdNum)) return;
-
-      const rawId =
-        (asChild ? (user?.actingChild?.id as any) : undefined) ??
-        (selectedChildId as any);
-      const hasChild =
-        rawId !== undefined && rawId !== null && String(rawId) !== "";
-      const activeChildId = hasChild ? Number(rawId) : NaN;
-
-      const opts: { familyId?: number; childId?: number } = { familyId: famIdNum };
-      if (Number.isFinite(activeChildId)) opts.childId = activeChildId;
-
       try {
-        const items = await getNextConsultas(60, opts);
+        let items: ConsultaLite[] = [];
+        if (asChild) {
+          const cid = Number((user?.actingChild?.id as any) ?? NaN);
+          if (!Number.isFinite(cid)) {
+            setConsultasRaw([]);
+            return;
+          }
+          items = await getNextConsultas(60, { childId: cid });
+        } else {
+          const famId = Number(user?.id);
+          if (!Number.isFinite(famId)) {
+            setConsultasRaw([]);
+            return;
+          }
+          const opts: { familyId: number; childId?: number } = { familyId: famId };
+          if (localChildId && localChildId !== "") {
+            const cid = Number(localChildId);
+            if (Number.isFinite(cid)) opts.childId = cid;
+          }
+          items = await getNextConsultas(60, opts);
+        }
         setConsultasRaw(items);
       } catch (e) {
         console.error("Falha a carregar consultas:", e);
         setConsultasRaw([]);
       }
     })();
-  }, [asChild, user?.actingChild?.id, selectedChildId, user?.id]);
-
-  // filtragem por criança quando em MODO FAMÍLIA (opcional)
-  const consultas = useMemo(() => {
-    if (asChild) return consultasRaw;
-    const cid = selectedChildId ? Number(selectedChildId) : NaN;
-    if (Number.isFinite(cid)) {
-      return consultasRaw.filter((c) => Number((c as any).childId) === cid);
-    }
-    return consultasRaw;
-  }, [asChild, consultasRaw, selectedChildId]);
+  }, [asChild, user?.actingChild?.id, user?.id, localChildId]);
 
   // Agrupar por dia (YYYY-MM-DD)
   const byDay = useMemo(() => {
     const map = new Map<string, ConsultaLite[]>();
-    for (const c of consultas) {
+    for (const c of consultasRaw) {
       const k = fmtYMD(c.scheduledAt || c.date);
       if (!k) continue;
       const arr = map.get(k) || [];
@@ -241,26 +247,25 @@ export default function AgendasPage() {
       map.set(k, arr);
     }
     return map;
-  }, [consultas]);
+  }, [consultasRaw]);
 
-  // Salta para a 1ª consulta se o dia atual estiver vazio
+  // Se o dia atual estiver vazio, salta para a 1ª consulta
   useEffect(() => {
-    if (!consultas.length) return;
-    const sorted = [...consultas].sort(
+    if (!consultasRaw.length) return;
+    const sorted = [...consultasRaw].sort(
       (a, b) =>
         new Date(a.scheduledAt || a.date || 0).getTime() -
         new Date(b.scheduledAt || b.date || 0).getTime()
     );
     const firstISO = sorted[0]?.scheduledAt || sorted[0]?.date;
     if (!firstISO) return;
-
     const ymd = fmtYMD(firstISO);
     const hasTodayItems = (byDay.get(selectedDate) || []).length > 0;
     if (!hasTodayItems) {
       setSelectedDate(ymd);
       setMonthRef(startOfDay(new Date(ymd)));
     }
-  }, [consultas, byDay, selectedDate]);
+  }, [consultasRaw, byDay, selectedDate]);
 
   // cor da “bolinha” por estado
   const dotColor = (status?: string) => {
@@ -304,7 +309,7 @@ export default function AgendasPage() {
 
   useEffect(() => {
     setFocused(dayList[0] ?? null);
-  }, [selectedDate, dayList.length]);
+  }, [selectedDate, dayList.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const goPrev = () => {
     const d = new Date(monthRef);
@@ -332,18 +337,15 @@ export default function AgendasPage() {
       </Typography>
 
       {/* -------- Topo: criança -------- */}
-      {/* Modo FAMÍLIA → seletor normal */}
+      {/* Modo FAMÍLIA → seletor local (não muda active user) */}
       {!asChild && !!user?.children?.length && (
         <WhiteCard sx={{ mb: 2 }}>
           <CardHeader title="Escolher criança" />
           <AvatarSelect
             label="Filtrar por criança"
             options={selectOptions}
-            value={selectedChildId ?? ""}
-            onChange={async (id: string) => {
-              const eff = id && String(id).length ? String(id) : "";
-              setSelectedChildId(eff);
-            }}
+            value={localChildId ?? ""}           // "" = todos
+            onChange={(id?: string) => setLocalChildId(id)}
             minWidth={320}
           />
         </WhiteCard>

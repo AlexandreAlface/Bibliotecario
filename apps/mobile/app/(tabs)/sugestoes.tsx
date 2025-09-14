@@ -1,9 +1,7 @@
-// apps/mobile/app/(tabs)/sugestoes.tsx
 import SelectChild from "@bibliotecario/ui-mobile/components/Avatars/SelectChild";
 import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, View, RefreshControl } from "react-native";
 import {
-  Appbar,
   Button,
   Card,
   Chip,
@@ -12,6 +10,7 @@ import {
   Snackbar,
   Text,
   useTheme,
+  IconButton,
 } from "react-native-paper";
 import { useAuth } from "src/contexts/AuthContext";
 import {
@@ -22,7 +21,10 @@ import {
 import { reserveBook } from "src/services/reservations";
 import { router, usePathname } from "expo-router";
 import { Background, LinkText } from "@bibliotecario/ui-mobile";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { TABBAR_HEIGHT } from "./_layout";
 
 type BookLite = {
@@ -31,7 +33,6 @@ type BookLite = {
   coverUrl?: string | null;
   score?: number;
   why?: string[];
-  // ⬇️ novo: estado vindo do servidor (opcional) e última data terminada
   status?: "none" | "reserved" | "reading" | "finished";
   lastFinished?: string | null;
 };
@@ -96,14 +97,12 @@ export default function SugestoesTab() {
     type: "success" | "error";
   } | null>(null);
 
-  // loading por ISBN para evitar duplo-clique
   const [busyByIsbn, setBusyByIsbn] = useState<Record<string, boolean>>({});
-  // estado deduzido localmente após reservar: 'reserved' | 'reading'
   const [statusByIsbn, setStatusByIsbn] = useState<
     Record<string, "reserved" | "reading">
   >({});
 
-  const dedupedItems = React.useMemo<BookLite[]>(() => {
+  const dedupedItems = useMemo<BookLite[]>(() => {
     const seen = new Set<string>();
     const out: BookLite[] = [];
     for (const it of items) {
@@ -127,7 +126,6 @@ export default function SugestoesTab() {
     if (!childId) return;
     setLoading(true);
     try {
-      // se o service já suporta options extra como { excludeOpen: true }, podes passar aqui.
       const data = await getSugestoesPerfil(12, { childId });
       setItems(data as any);
       setMode("perfil");
@@ -154,9 +152,7 @@ export default function SugestoesTab() {
         setSnack({ msg: "Escolhe a criança primeiro.", type: "error" });
         return;
       }
-      // evitar cliques múltiplos
       setBusyByIsbn((m) => ({ ...m, [isbn]: true }));
-      // assinatura correta: (childId: number, isbn: string)
       await reserveBook(childId, isbn);
       setStatusByIsbn((m) => ({ ...m, [isbn]: "reserved" }));
       setSnack({
@@ -203,12 +199,10 @@ export default function SugestoesTab() {
           backgroundColor: theme.colors.background,
           borderRadius: 16,
           padding: 16,
-          // sombra iOS
           shadowColor: "#000",
           shadowOpacity: 0.06,
           shadowRadius: 12,
           shadowOffset: { width: 0, height: 4 },
-          // elevação Android
           elevation: 2,
         },
         style,
@@ -220,230 +214,242 @@ export default function SugestoesTab() {
 
   return (
     <Background>
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        refreshControl={
-          <RefreshControl
-            refreshing={loading}
-            onRefresh={() =>
-              mode === "perfil" ? loadPerfil() : handleQuizFinish()
-            }
-          />
-        }
-        contentContainerStyle={{
-          paddingTop: Math.max(insets.top + 8),
-          paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
-          paddingHorizontal: 16,
-          rowGap: 16,
-        }}
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
       >
-        {/* WHITE CARD #1 — Header + links + seletor */}
-        <CardContainer>
-          <Appbar.Header
-            mode="small"
-            style={{
-              backgroundColor: "transparent",
-              elevation: 0,
-              paddingHorizontal: 0,
-            }}
-          >
-            <Appbar.Content title="Sugestões de Leitura" subtitle={subtitle} />
-            <Appbar.Action
-              icon="refresh"
-              disabled={loading || !childId}
-              onPress={() =>
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          refreshControl={
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={() =>
                 mode === "perfil" ? loadPerfil() : handleQuizFinish()
               }
             />
-            <Button
-              mode="contained"
-              icon="help-circle-outline"
-              onPress={() => setQuizOpen(true)}
-              disabled={!childId}
-            >
-              Fazer quiz
-            </Button>
-          </Appbar.Header>
+          }
+          contentContainerStyle={{
+            padding: 16,
+            gap: 16,
+            paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
+          }}
+        >
+          {/* CARD #1 — Header compacto (2 linhas) + links + seletor */}
+          <CardContainer>
+            {/* Linha 1: Título ocupa 100% */}
+            <Text variant="headlineSmall" style={{ fontWeight: "900" }}>
+              Sugestões de Leitura
+            </Text>
 
-          {/* Links sublinhados */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              columnGap: 8,
-              marginTop: 4,
-            }}
-          >
-            <LinkText
-              underline
-              size="sm"
-              onPress={() => router.push("/(tabs)/sugestoes")}
-              style={onQuiz ? { fontWeight: "700" } : { opacity: 0.85 }}
-            >
-              Quiz
-            </LinkText>
-            <Text>·</Text>
-            <LinkText
-              underline
-              size="sm"
-              onPress={() => router.push("/(tabs)/sugestoes-categorias")}
-              style={onCategorias ? { fontWeight: "700" } : { opacity: 0.85 }}
-            >
-              Categorias
-            </LinkText>
-          </View>
-
-          {/* Seletor de criança (obrigatório se não há actingChild) */}
-          {!actingChildId && (
-            <View style={{ rowGap: 10, marginTop: 12 }}>
-              <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
-                Escolhe a criança
-              </Text>
-              <SelectChild
-                label="Selecionar criança"
-                placeholder="Escolhe um perfil"
-                options={(user?.children ?? []).map((c: any) => ({
-                  id: String(c.id),
-                  name: c.name,
-                  avatarUri: c.avatarUrl || undefined,
-                }))}
-                value={selectedChildId}
-                onChange={(id?: string) => setSelectedChildId(id)}
-                clearable
-                disabled={!user?.children?.length}
-                menuMaxHeight={360}
-              />
-              {!childId && (
-                <Text style={{ opacity: 0.7 }}>
-                  Seleciona uma criança para veres sugestões e poderes reservar.
-                </Text>
-              )}
-            </View>
-          )}
-        </CardContainer>
-
-        {/* WHITE CARD #2 — Grelha de sugestões */}
-        <CardContainer>
-          {dedupedItems.length === 0 ? (
-            <View style={{ paddingVertical: 12 }}>
-              <Text style={{ opacity: 0.7 }}>
-                {childId
-                  ? "Sem resultados. Experimenta o quiz para explorar novos livros."
-                  : "Seleciona uma criança para começar."}
-              </Text>
-            </View>
-          ) : (
+            {/* Linha 2: Subtítulo à esquerda + ações à direita */}
             <View
               style={{
                 flexDirection: "row",
-                flexWrap: "wrap",
+                alignItems: "center",
                 justifyContent: "space-between",
+                gap: 8,
+                marginTop: 4,
               }}
             >
-              {dedupedItems.map((item) => {
-                const btnBusy = !!busyByIsbn[item.isbn];
-                // ⬇️ estado vindo do servidor (se o service devolver), com fallback ao override local
-                const serverStatus = (item as any).status as
-                  | "reserved"
-                  | "reading"
-                  | "finished"
-                  | "none"
-                  | undefined;
-                const localOverride = statusByIsbn[item.isbn]; // 'reserved' | 'reading' | undefined
-                const effectiveStatus = (localOverride || serverStatus) as
-                  | "reserved"
-                  | "reading"
-                  | "finished"
-                  | "none"
-                  | undefined;
-
-                const disabled =
-                  !childId ||
-                  btnBusy ||
-                  effectiveStatus === "reserved" ||
-                  effectiveStatus === "reading";
-
-                const label =
-                  effectiveStatus === "reserved"
-                    ? "Reservado"
-                    : effectiveStatus === "reading"
-                    ? "A ler"
-                    : effectiveStatus === "finished"
-                    ? "Reservar de novo"
-                    : "Reservar";
-
-                return (
-                  <Card
-                    key={item.isbn}
-                    style={{ width: "48%", marginBottom: 12 }}
-                  >
-                    <Card.Cover
-                      source={
-                        item.coverUrl
-                          ? { uri: item.coverUrl }
-                          : require("../../assets/placeholder-book.png")
-                      }
-                      resizeMode="cover"
-                      style={{ height: 200 }}
-                    />
-                    <Card.Content>
-                      <Text
-                        variant="titleSmall"
-                        numberOfLines={2}
-                        style={{ marginTop: 8 }}
-                      >
-                        {item.title}
-                      </Text>
-                      {typeof item.score === "number" ? (
-                        <Text variant="labelSmall" style={{ opacity: 0.6 }}>
-                          score {item.score.toFixed(3)}
-                        </Text>
-                      ) : null}
-
-                      {/* motivo (reco) */}
-                      {item.why?.length ? (
-                        <Chip
-                          compact
-                          style={{ marginTop: 6 }}
-                          icon="information-outline"
-                        >
-                          {item.why[0]}
-                        </Chip>
-                      ) : null}
-
-                      {/* marcador "Já lido" quando o servidor indicar finished */}
-                      {serverStatus === "finished" && (
-                        <Chip compact style={{ marginTop: 6 }} icon="check">
-                          Já lido
-                        </Chip>
-                      )}
-                    </Card.Content>
-                    <Card.Actions>
-                      <Button
-                        onPress={() => onReserve(item.isbn)}
-                        disabled={disabled}
-                        loading={btnBusy}
-                      >
-                        {label}
-                      </Button>
-                    </Card.Actions>
-                  </Card>
-                );
-              })}
+              <Text
+                style={{ opacity: 0.7, flex: 1, marginRight: 8 }}
+                numberOfLines={2}
+              >
+                {subtitle}
+              </Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+              >
+                <IconButton
+                  icon="refresh"
+                  disabled={loading || !childId}
+                  onPress={() =>
+                    mode === "perfil" ? loadPerfil() : handleQuizFinish()
+                  }
+                />
+                <Button
+                  mode="contained"
+                  icon="help-circle-outline"
+                  onPress={() => setQuizOpen(true)}
+                  disabled={!childId}
+                >
+                  Fazer quiz
+                </Button>
+              </View>
             </View>
-          )}
-        </CardContainer>
 
+            {/* Links sublinhados */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                columnGap: 8,
+                marginTop: 8,
+              }}
+            >
+              <LinkText
+                underline
+                size="sm"
+                onPress={() => router.push("/(tabs)/sugestoes")}
+                style={onQuiz ? { fontWeight: "700" } : { opacity: 0.85 }}
+              >
+                Quiz
+              </LinkText>
+              <Text>·</Text>
+              <LinkText
+                underline
+                size="sm"
+                onPress={() => router.push("/(tabs)/sugestoes-categorias")}
+                style={onCategorias ? { fontWeight: "700" } : { opacity: 0.85 }}
+              >
+                Categorias
+              </LinkText>
+            </View>
+
+            {/* Seletor de criança (só se não houver actingChild) */}
+            {!actingChildId && (
+              <View style={{ rowGap: 10, marginTop: 12 }}>
+                <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
+                  Escolhe a criança
+                </Text>
+                <SelectChild
+                  label="Selecionar criança"
+                  placeholder="Escolhe um perfil"
+                  options={(user?.children ?? []).map((c: any) => ({
+                    id: String(c.id),
+                    name: c.name,
+                    avatarUri: c.avatarUrl || undefined,
+                  }))}
+                  value={selectedChildId}
+                  onChange={(id?: string) => setSelectedChildId(id)}
+                  clearable
+                  disabled={!user?.children?.length}
+                  menuMaxHeight={360}
+                />
+                {!childId && (
+                  <Text style={{ opacity: 0.7 }}>
+                    Seleciona uma criança para veres sugestões e poderes
+                    reservar.
+                  </Text>
+                )}
+              </View>
+            )}
+          </CardContainer>
+
+          {/* CARD #2 — Grelha de sugestões */}
+          <CardContainer>
+            {dedupedItems.length === 0 ? (
+              <View style={{ paddingVertical: 12 }}>
+                <Text style={{ opacity: 0.7 }}>
+                  {childId
+                    ? "Sem resultados. Experimenta o quiz para explorar novos livros."
+                    : "Seleciona uma criança para começar."}
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  justifyContent: "space-between",
+                }}
+              >
+                {dedupedItems.map((item) => {
+                  const btnBusy = !!busyByIsbn[item.isbn];
+                  const serverStatus = (item as any).status as
+                    | "reserved"
+                    | "reading"
+                    | "finished"
+                    | "none"
+                    | undefined;
+                  const localOverride = statusByIsbn[item.isbn];
+                  const effectiveStatus = (localOverride || serverStatus) as
+                    | "reserved"
+                    | "reading"
+                    | "finished"
+                    | "none"
+                    | undefined;
+
+                  const disabled =
+                    !childId ||
+                    btnBusy ||
+                    effectiveStatus === "reserved" ||
+                    effectiveStatus === "reading";
+                  const label =
+                    effectiveStatus === "reserved"
+                      ? "Reservado"
+                      : effectiveStatus === "reading"
+                      ? "A ler"
+                      : effectiveStatus === "finished"
+                      ? "Reservar de novo"
+                      : "Reservar";
+
+                  return (
+                    <Card
+                      key={item.isbn}
+                      style={{ width: "48%", marginBottom: 12 }}
+                    >
+                      <Card.Cover
+                        source={
+                          item.coverUrl
+                            ? { uri: item.coverUrl }
+                            : require("../../assets/placeholder-book.png")
+                        }
+                        resizeMode="cover"
+                        style={{ height: 200 }}
+                      />
+                      <Card.Content>
+                        <Text
+                          variant="titleSmall"
+                          numberOfLines={2}
+                          style={{ marginTop: 8 }}
+                        >
+                          {item.title}
+                        </Text>
+                        {typeof item.score === "number" ? (
+                          <Text variant="labelSmall" style={{ opacity: 0.6 }}>
+                            score {item.score.toFixed(3)}
+                          </Text>
+                        ) : null}
+                        {item.why?.length ? (
+                          <Chip
+                            compact
+                            style={{ marginTop: 6 }}
+                            icon="information-outline"
+                          >
+                            {item.why[0]}
+                          </Chip>
+                        ) : null}
+                        {serverStatus === "finished" && (
+                          <Chip compact style={{ marginTop: 6 }} icon="check">
+                            Já lido
+                          </Chip>
+                        )}
+                      </Card.Content>
+                      <Card.Actions>
+                        <Button
+                          onPress={() => onReserve(item.isbn)}
+                          disabled={disabled}
+                          loading={btnBusy}
+                        >
+                          {label}
+                        </Button>
+                      </Card.Actions>
+                    </Card>
+                  );
+                })}
+              </View>
+            )}
+          </CardContainer>
+        </ScrollView>
+
+        {/* Snackbar em Portal */}
         <Portal>
-          {/* Snackbar */}
           <Snackbar
             visible={!!snack}
             onDismiss={() => setSnack(null)}
             duration={2500}
-            action={{
-              label: "Fechar",
-              onPress: () => setSnack(null),
-            }}
+            action={{ label: "Fechar", onPress: () => setSnack(null) }}
             style={
               snack?.type === "success"
                 ? { backgroundColor: "#2e7d32" }
@@ -455,7 +461,7 @@ export default function SugestoesTab() {
             {snack?.msg}
           </Snackbar>
         </Portal>
-      </ScrollView>
+      </SafeAreaView>
 
       {/* Quiz modal */}
       <Portal>

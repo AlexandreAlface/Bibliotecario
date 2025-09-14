@@ -1,7 +1,8 @@
+// src/layouts/AppLayout.tsx
 import { useMemo, useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { GradientBackground, SidebarMenu } from "@bibliotecario/ui-web";
-import { Box } from "@mui/material";
+import { Box, GlobalStyles } from "@mui/material";
 import {
   Home,
   Wand2,
@@ -10,53 +11,51 @@ import {
   CalendarCheck2,
   UsersRound,
   Stars,
-  Book, // ⬅️ ícone para “Avaliar leituras”
+  Book,
+  LogOut,
 } from "lucide-react";
 import { useUserSession } from "../contexts/UserSession";
 
 const SIDEBAR_OPEN = 260;
 const SIDEBAR_CLOSED = 64;
 
+// largura máxima desejada para desktop largo (27")
+const CONTENT_MAX_PX = 1680; // ajusta p.ex. 1760/1800
+const SIDE_PAD = "clamp(16px, 2.2vw, 48px)";
+
 export default function AppLayout() {
   const { user, asChild } = useUserSession();
-  const [menuOpen, setMenuOpen] = useState(true); // começa aberto
+  const [menuOpen, setMenuOpen] = useState(true);
   const location = useLocation();
-  const navigate = useNavigate();
 
   const familyName = user?.fullName ?? "Família";
   const roleLabel = (user?.roles?.[0] ?? "").toString();
 
-  // highlight simples pela rota atual
   const is = (path: string) =>
     location.pathname === path || location.pathname.startsWith(`${path}/`);
 
-  const menuItems = useMemo(
-    () =>
-      asChild
-        ? [
-            { label: "Início", icon: <Home />, href: "/" },
-            { label: "Sugestões", icon: <Wand2 />, href: "/suggestions" },
-            { label: "Leituras", icon: <Book />, href: "/reading" }, // ⬅️ novo
-            { label: "Avaliar leituras", icon: <Stars />, href: "/reviews" }, // ⬅️ novo
-            { label: "Conquistas", icon: <Trophy />, href: "/achievements" },
-            { label: "Agenda", icon: <CalendarDays />, href: "/agenda" },
-          ].map((i) => ({ ...i, selected: is(i.href) }))
-        : [
-            { label: "Início", icon: <Home />, href: "/" },
-            { label: "Sugestões", icon: <Wand2 />, href: "/suggestions" },
-            { label: "Leituras", icon: <Book />, href: "/reading" }, // ⬅️ novo
-            { label: "Avaliar leituras", icon: <Stars />, href: "/reviews" }, // ⬅️ novo
-            { label: "Conquistas", icon: <Trophy />, href: "/achievements" },
-            { label: "Agenda", icon: <CalendarDays />, href: "/agenda" },
-            {
-              label: "Consultas",
-              icon: <CalendarCheck2 />,
-              href: "/consultas",
-            },
-            { label: "Família", icon: <UsersRound />, href: "/familia" },
-          ].map((i) => ({ ...i, selected: is(i.href) })),
-    [asChild, location.pathname]
-  );
+  const baseItems = [
+    { label: "Início", icon: <Home />, href: "/" },
+    { label: "Sugestões", icon: <Wand2 />, href: "/suggestions" },
+    { label: "Leituras", icon: <Book />, href: "/reading" },
+    { label: "Avaliar leituras", icon: <Stars />, href: "/reviews" },
+    { label: "Conquistas", icon: <Trophy />, href: "/achievements" },
+    { label: "Agenda", icon: <CalendarDays />, href: "/agenda" },
+    { label: "Trocar de perfil", icon: <UsersRound />, href: "/profiles" },
+  ];
+
+  const extraItems = asChild
+    ? []
+    : [
+        { label: "Consultas", icon: <CalendarCheck2 />, href: "/consultas" },
+        { label: "Família", icon: <UsersRound />, href: "/familia" },
+      ];
+
+  const menuItems = [
+    ...baseItems,
+    ...extraItems,
+    { label: "Sair", icon: <LogOut />, href: "/auth/logout" },
+  ].map((i) => ({ ...i, selected: is(i.href) }));
 
   const headerTitle =
     asChild && user?.actingChild
@@ -69,35 +68,64 @@ export default function AppLayout() {
     [menuOpen]
   );
 
+  const actingAvatarUrl =
+    asChild && user?.actingChild
+      ? user?.children?.find(
+          (c) => Number(c.id) === Number(user.actingChild!.id)
+        )?.avatarUrl || undefined
+      : undefined;
+
   return (
     <GradientBackground>
+      {/* ⬇⬇⬇ OVERRIDE GLOBAL DE CONTAINER (mata o cap de 1200px) */}
+      <GlobalStyles
+        styles={{
+          // por defeito, deixa o Container ocupar a largura total
+          ".MuiContainer-root": { maxWidth: "none" },
+
+          // se alguma página usar explicitamente lg/xl,
+          // aumenta os limites globais
+          "@media (min-width:1200px)": {
+            ".MuiContainer-maxWidthLg": { maxWidth: "1360px" }, // opcional
+          },
+          "@media (min-width:1536px)": {
+            ".MuiContainer-maxWidthXl": { maxWidth: `${CONTENT_MAX_PX}px` },
+          },
+        }}
+      />
+      {/* ⬆⬆⬆ */}
+
       <SidebarMenu
         open={menuOpen}
         onToggle={(open) => setMenuOpen(open)}
         items={menuItems}
-        headerTitle={headerTitle}
+        headerTitle={headerTitle!}
         headerSubtitle={headerSubtitle}
-        headerAvatarUrl={
-          asChild ? user?.actingChild?.avatarUrl ?? undefined : undefined
-        }
-        sx={{
-          bgcolor: "background.paper",
-          zIndex: (t) => t.zIndex.drawer,
-        }}
+        headerAvatarUrl={actingAvatarUrl}
+        sx={{ bgcolor: "background.paper", zIndex: (t) => t.zIndex.drawer }}
       />
 
+      {/* Área de conteúdo à direita da sidebar */}
       <Box
+        component="main"
         sx={{
           ml: `${sidebarWidth}px`,
+          minHeight: "100vh",
+          width: `calc(100vw - ${sidebarWidth}px)`,
+          px: SIDE_PAD,
           transition: (t) =>
             t.transitions.create("margin-left", {
               duration: t.transitions.duration.shorter,
             }),
         }}
       >
-        <Outlet />
+        {/* Faixa central fluida até um máximo */}
+        <Box
+          sx={{ mx: "auto", width: "100%", maxWidth: `${CONTENT_MAX_PX}px` }}
+        >
+          <Outlet />
+        </Box>
       </Box>
     </GradientBackground>
   );
 }
-;

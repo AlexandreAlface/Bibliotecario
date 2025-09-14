@@ -1,4 +1,3 @@
-// apps/web/src/app/router.tsx
 import { createBrowserRouter, Outlet } from "react-router-dom";
 import AppLayout from "../layouts/AppLayout";
 import { UserSessionProvider } from "../contexts/UserSession";
@@ -10,17 +9,20 @@ import SuggestionsPage from "@/pages/suggestions";
 import AchievementsPage from "@/pages/achievements";
 import AgendasPage from "@/pages/agenda";
 import ConsultasPage from "@/pages/consultas";
+import ReviewsPage from "@/pages/reviews";
+import ReadingsPage from "@/pages/readings";
+import SuggestionsByCategoriesPage from "@/pages/suggestions-categories";
 
-// páginas auth
+// auth
 import Login from "@/pages/auth/Login";
 import CreateAccount from "@/pages/auth/CreateAccount";
 import CreateProfilesPage from "@/pages/auth/CreateProfilesPage";
-import SuggestionsByCategoriesPage from "@/pages/suggestions-categories";
-import ReviewsPage from "@/pages/reviews";
-import ReadingsPage from "@/pages/readings";
+import Logout from "@/pages/Logout";
 
-// Layout simples para as rotas de auth (sem sidebar)
-// (se quiseres, troca por um componente em src/layouts/AuthLayout.tsx)
+// NEW
+import ProfilesPage from "@/pages/profiles";
+
+// Layout simples p/ Auth
 function AuthLayout() {
   return <Outlet />;
 }
@@ -34,7 +36,18 @@ export const router = createBrowserRouter([
       { path: "login", element: <Login /> },
       { path: "create-account", element: <CreateAccount /> },
       { path: "create-profiles", element: <CreateProfilesPage /> },
+      { path: "logout", element: <Logout /> },
     ],
+  },
+
+  // PERFIS (sem sidebar) — mas com sessão
+  {
+    element: (
+      <UserSessionProvider>
+        <Outlet />
+      </UserSessionProvider>
+    ),
+    children: [{ path: "/profiles", element: <ProfilesPage /> }],
   },
 
   // Rotas da aplicação (com AppLayout e menu)
@@ -49,14 +62,14 @@ export const router = createBrowserRouter([
       { path: "suggestions", element: <SuggestionsPage /> },
       { path: "reviews", element: <ReviewsPage /> },
       { path: "reading", element: <ReadingsPage /> },
-      { path: "suggestions-categories", element: <SuggestionsByCategoriesPage /> },
+      {
+        path: "suggestions-categories",
+        element: <SuggestionsByCategoriesPage />,
+      },
       { path: "achievements", element: <AchievementsPage /> },
       { path: "agenda", element: <AgendasPage /> },
       { path: "consultas", element: <ConsultasPage /> },
       { path: "familia", element: <FamiliaPage /> },
     ],
   },
-
-  // (opcional) 404
-  // { path: "*", element: <NotFoundPage /> },
 ]);

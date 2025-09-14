@@ -2,7 +2,6 @@
 import * as React from "react";
 import { ScrollView, View, Image, StyleSheet } from "react-native";
 import {
-  Appbar,
   Button,
   Text,
   TextInput,
@@ -10,11 +9,14 @@ import {
   ActivityIndicator,
   useTheme,
   Snackbar,
-  Chip, // ⬅️ filtros
-  TouchableRipple, // ⬅️ mini-card
-  Divider, // ⬅️ separador entre cards
+  Chip,
+  TouchableRipple,
+  Divider,
 } from "react-native-paper";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { Background } from "@bibliotecario/ui-mobile";
 import SelectChild from "@bibliotecario/ui-mobile/components/Avatars/SelectChild";
 import { useAuth } from "src/contexts/AuthContext";
@@ -102,7 +104,7 @@ function StarRow({
   );
 }
 
-/* ---------- Card de avaliação (agora com RowCard) ---------- */
+/* ---------- Card de avaliação ---------- */
 type WhiteEvaluationCardProps = {
   title: string;
   finishedAt?: string | null;
@@ -132,7 +134,7 @@ const WhiteEvaluationCard: React.FC<WhiteEvaluationCardProps> = ({
 
   return (
     <RowCard>
-      {/* Linha 1: Título (esq) + Data (dir, apagada) */}
+      {/* Linha 1: Título + Data */}
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
         <Text
           numberOfLines={2}
@@ -152,7 +154,7 @@ const WhiteEvaluationCard: React.FC<WhiteEvaluationCardProps> = ({
         <StarRow value={stars} onChange={onChangeStars} />
       </View>
 
-      {/* Linha 3: Capa + Comentário lado a lado */}
+      {/* Linha 3: Capa + Comentário */}
       <View
         style={{
           flexDirection: "row",
@@ -178,13 +180,12 @@ const WhiteEvaluationCard: React.FC<WhiteEvaluationCardProps> = ({
             onChangeText={onChangeComment}
             multiline
             numberOfLines={4}
-            // garante altura e alinhamento do texto no topo
             contentStyle={{ minHeight: 96, textAlignVertical: "top" }}
           />
         </View>
       </View>
 
-      {/* Linha 4: Botão Guardar à direita */}
+      {/* Linha 4: Botão Guardar */}
       <View
         style={{
           flexDirection: "row",
@@ -214,7 +215,7 @@ function toChildId(val: unknown): number | undefined {
   }
   if (typeof val === "object") {
     // @ts-ignore
-    const anyId = val.id ?? val.value ?? val.key;
+    const anyId = (val as any).id ?? (val as any).value ?? (val as any).key;
     return toChildId(anyId);
   }
   return undefined;
@@ -222,7 +223,7 @@ function toChildId(val: unknown): number | undefined {
 
 /* ===================== Screen ===================== */
 export default function AvaliacoesTab() {
-  const { user, actAsChild } = useAuth();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
 
   const actingChildId = (user as any)?.actingChild?.id
@@ -243,7 +244,7 @@ export default function AvaliacoesTab() {
   const familyIdForAuth =
     Number((user as any)?.family?.id) ||
     Number((user as any)?.families?.[0]?.id) ||
-    Number((user as any)?.id) || // último recurso
+    Number((user as any)?.id) ||
     undefined;
 
   const [items, setItems] = React.useState<FinishedReading[]>([]);
@@ -261,7 +262,7 @@ export default function AvaliacoesTab() {
   } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
-  // filtros (como na web/leituras): Com avaliação / Sem avaliação
+  // filtros: Com avaliação / Sem avaliação
   const [ratingFilter, setRatingFilter] = React.useState<
     ("rated" | "unrated")[]
   >([]);
@@ -284,7 +285,6 @@ export default function AvaliacoesTab() {
       const finished = await getLeiturasTerminadas(50, { childId });
       setItems(finished);
 
-      // pré-preenche drafts (edição)
       setStarsDraft((m) => {
         const next = { ...m };
         for (const r of finished)
@@ -337,7 +337,7 @@ export default function AvaliacoesTab() {
         stars,
         comment: comment || undefined,
         childId,
-        familyId: familyIdForAuth, // para o resolveChildId / contexto
+        familyId: familyIdForAuth,
       });
       setSnack({ msg: "Avaliação guardada!", type: "success" });
       setItems((arr) =>
@@ -347,7 +347,6 @@ export default function AvaliacoesTab() {
       );
     } catch (e: any) {
       console.error(e);
-      // o service já mapeia 'reading_not_finished' para uma mensagem amigável
       setSnack({
         msg: e?.message || "Falha ao guardar a avaliação.",
         type: "error",
@@ -359,175 +358,185 @@ export default function AvaliacoesTab() {
 
   return (
     <Background>
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{
-          paddingTop: Math.max(insets.top + 8),
-          paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
-          paddingHorizontal: 16,
-          rowGap: 16,
-        }}
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
       >
-        {/* WHITE CARD SUPERIOR — Header + SelectChild */}
-        <WhiteCard>
-          <Appbar.Header
-            mode="small"
-            style={{
-              backgroundColor: "transparent",
-              elevation: 0,
-              paddingHorizontal: 0,
-            }}
-          >
-            <Appbar.Content
-              title="Avaliações"
-              subtitle="Avalia (ou edita) leituras terminadas"
-            />
-            <Appbar.Action
-              icon="refresh"
-              disabled={loading || !childId}
-              onPress={load}
-            />
-          </Appbar.Header>
-
-          {!actingChildId && (
-            <View style={{ rowGap: 10, marginTop: 8 }}>
-              <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
-                Escolhe a criança
-              </Text>
-              <SelectChild
-                label="Selecionar criança"
-                placeholder="Escolhe um perfil"
-                options={(user?.children ?? []).map((c: any) => ({
-                  id: String(c.id),
-                  name: c.name,
-                  avatarUri: c.avatarUrl || undefined,
-                }))}
-                value={selectedChildId}
-                onChange={(val: any) => {
-                  const id = toChildId(val);
-                  setSelectedChildId(id ? String(id) : undefined);
-                }}
-                clearable
-                disabled={!user?.children?.length}
-                menuMaxHeight={360}
-              />
-              {!childId && (
-                <Text style={{ opacity: 0.7 }}>
-                  Seleciona uma criança para veres as leituras terminadas.
-                </Text>
-              )}
-            </View>
-          )}
-        </WhiteCard>
-
-        {/* Estado / Mensagens */}
-        {error ? (
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{
+            padding: 16,
+            gap: 16,
+            paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
+          }}
+        >
+          {/* WHITE CARD SUPERIOR — Header compacto + SelectChild */}
           <WhiteCard>
-            <Text>{error}</Text>
-          </WhiteCard>
-        ) : loading ? (
-          <View style={{ paddingVertical: 12 }}>
-            <ActivityIndicator />
-          </View>
-        ) : !childId ? (
-          <WhiteCard>
-            <Text style={{ opacity: 0.7 }}>
-              Seleciona uma criança para começar.
-            </Text>
-          </WhiteCard>
-        ) : items.length === 0 ? (
-          <WhiteCard>
-            <Text style={{ opacity: 0.7 }}>
-              Sem leituras terminadas para avaliar.
-            </Text>
-          </WhiteCard>
-        ) : (
-          // ------ Secção principal com lista + filtros ------
-          <WhiteCard>
-            <Text variant="titleLarge" style={{ fontWeight: "900" }}>
-              Avaliar leituras
-            </Text>
-
-            {/* chips por baixo do título */}
+            {/* header compacto */}
             <View
               style={{
                 flexDirection: "row",
-                flexWrap: "wrap",
-                gap: 8,
-                marginTop: 8,
-                marginBottom: 8,
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
               }}
             >
-              <Chip
-                mode={ratingFilter.includes("rated") ? "flat" : "outlined"}
-                selected={ratingFilter.includes("rated")}
-                onPress={() =>
-                  setRatingFilter((s) =>
-                    s.includes("rated")
-                      ? s.filter((x) => x !== "rated")
-                      : [...s, "rated"]
-                  )
-                }
-                icon="star"
-              >
-                Com avaliação
-              </Chip>
-              <Chip
-                mode={ratingFilter.includes("unrated") ? "flat" : "outlined"}
-                selected={ratingFilter.includes("unrated")}
-                onPress={() =>
-                  setRatingFilter((s) =>
-                    s.includes("unrated")
-                      ? s.filter((x) => x !== "unrated")
-                      : [...s, "unrated"]
-                  )
-                }
-                icon="star-outline"
-              >
-                Sem avaliação
-              </Chip>
+              <View style={{ flex: 1 }}>
+                <Text variant="titleLarge" style={{ fontWeight: "900" }}>
+                  Avaliações
+                </Text>
+                <Text style={{ opacity: 0.7, marginTop: 2 }}>
+                  Avalia (ou edita) leituras terminadas
+                </Text>
+              </View>
+              <IconButton
+                icon="refresh"
+                disabled={loading || !childId}
+                onPress={load}
+              />
             </View>
 
-            <View style={{ rowGap: 10 }}>
-              {filteredItems.map((item, idx) => {
-                const draftStars = starsDraft[item.isbn];
-                const draftComment = commentDraft[item.isbn];
-                const effectiveStars = draftStars ?? item.stars ?? 0;
-                const effectiveComment = draftComment ?? item.comment ?? "";
-
-                return (
-                  <View key={`${item.childId}-${item.isbn}`}>
-                    <WhiteEvaluationCard
-                      title={item.title}
-                      finishedAt={item.finishedAt}
-                      coverUrl={item.coverUrl}
-                      stars={effectiveStars}
-                      comment={effectiveComment}
-                      saving={savingIsbn === item.isbn}
-                      onChangeStars={(v) =>
-                        setStarsDraft((m) => ({ ...m, [item.isbn]: v }))
-                      }
-                      onChangeComment={(t) =>
-                        setCommentDraft((m) => ({ ...m, [item.isbn]: t }))
-                      }
-                      onSave={() => onSave(item)}
-                    />
-                    {idx < filteredItems.length - 1 && (
-                      <Divider
-                        style={{
-                          marginHorizontal: 4,
-                          marginTop: 10,
-                          opacity: 0.15,
-                        }}
-                      />
-                    )}
-                  </View>
-                );
-              })}
-            </View>
+            {/* seletor de criança (omitido se estiver a atuar como criança) */}
+            {!actingChildId && (
+              <View style={{ rowGap: 10, marginTop: 12 }}>
+                <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
+                  Escolhe a criança
+                </Text>
+                <SelectChild
+                  label="Selecionar criança"
+                  placeholder="Escolhe um perfil"
+                  options={(user?.children ?? []).map((c: any) => ({
+                    id: String(c.id),
+                    name: c.name,
+                    avatarUri: c.avatarUrl || undefined,
+                  }))}
+                  value={selectedChildId}
+                  onChange={(val: any) => {
+                    const id = toChildId(val);
+                    setSelectedChildId(id ? String(id) : undefined);
+                  }}
+                  clearable
+                  disabled={!user?.children?.length}
+                  menuMaxHeight={360}
+                />
+                {!childId && (
+                  <Text style={{ opacity: 0.7 }}>
+                    Seleciona uma criança para veres as leituras terminadas.
+                  </Text>
+                )}
+              </View>
+            )}
           </WhiteCard>
-        )}
-      </ScrollView>
+
+          {/* Estado / Mensagens */}
+          {error ? (
+            <WhiteCard>
+              <Text>{error}</Text>
+            </WhiteCard>
+          ) : loading ? (
+            <View style={{ paddingVertical: 12 }}>
+              <ActivityIndicator />
+            </View>
+          ) : !childId ? (
+            <WhiteCard>
+              <Text style={{ opacity: 0.7 }}>
+                Seleciona uma criança para começar.
+              </Text>
+            </WhiteCard>
+          ) : items.length === 0 ? (
+            <WhiteCard>
+              <Text style={{ opacity: 0.7 }}>
+                Sem leituras terminadas para avaliar.
+              </Text>
+            </WhiteCard>
+          ) : (
+            /* ------ Secção principal com lista + filtros ------ */
+            <WhiteCard>
+              <Text variant="titleLarge" style={{ fontWeight: "900" }}>
+                Avaliar leituras
+              </Text>
+
+              {/* chips por baixo do título */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginTop: 8,
+                  marginBottom: 8,
+                }}
+              >
+                <Chip
+                  mode={ratingFilter.includes("rated") ? "flat" : "outlined"}
+                  selected={ratingFilter.includes("rated")}
+                  onPress={() =>
+                    setRatingFilter((s) =>
+                      s.includes("rated")
+                        ? s.filter((x) => x !== "rated")
+                        : [...s, "rated"]
+                    )
+                  }
+                  icon="star"
+                >
+                  Com avaliação
+                </Chip>
+                <Chip
+                  mode={ratingFilter.includes("unrated") ? "flat" : "outlined"}
+                  selected={ratingFilter.includes("unrated")}
+                  onPress={() =>
+                    setRatingFilter((s) =>
+                      s.includes("unrated")
+                        ? s.filter((x) => x !== "unrated")
+                        : [...s, "unrated"]
+                    )
+                  }
+                  icon="star-outline"
+                >
+                  Sem avaliação
+                </Chip>
+              </View>
+
+              <View style={{ rowGap: 10 }}>
+                {filteredItems.map((item, idx) => {
+                  const draftStars = starsDraft[item.isbn];
+                  const draftComment = commentDraft[item.isbn];
+                  const effectiveStars = draftStars ?? item.stars ?? 0;
+                  const effectiveComment = draftComment ?? item.comment ?? "";
+
+                  return (
+                    <View key={`${item.childId}-${item.isbn}`}>
+                      <WhiteEvaluationCard
+                        title={item.title}
+                        finishedAt={item.finishedAt}
+                        coverUrl={item.coverUrl}
+                        stars={effectiveStars}
+                        comment={effectiveComment}
+                        saving={savingIsbn === item.isbn}
+                        onChangeStars={(v) =>
+                          setStarsDraft((m) => ({ ...m, [item.isbn]: v }))
+                        }
+                        onChangeComment={(t) =>
+                          setCommentDraft((m) => ({ ...m, [item.isbn]: t }))
+                        }
+                        onSave={() => onSave(item)}
+                      />
+                      {idx < filteredItems.length - 1 && (
+                        <Divider
+                          style={{
+                            marginHorizontal: 4,
+                            marginTop: 10,
+                            opacity: 0.15,
+                          }}
+                        />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </WhiteCard>
+          )}
+        </ScrollView>
+      </SafeAreaView>
 
       {/* TOAST */}
       <Snackbar

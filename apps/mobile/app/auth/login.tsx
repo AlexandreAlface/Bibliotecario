@@ -24,7 +24,6 @@ import { authApi } from "src/services/auth";
 
 import { useAuth } from "src/contexts/AuthContext";
 
-
 const schema = z.object({
   email: z
     .string()
@@ -39,8 +38,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function Login() {
-const { login } = useAuth();
-
+  const { login } = useAuth();
   const router = useRouter();
   const theme = useTheme();
   const [showPass, setShowPass] = React.useState(false);
@@ -54,7 +52,8 @@ const { login } = useAuth();
   async function onSubmit(values: { email: string; password: string }) {
     try {
       await login(values.email, values.password);
-      router.replace("/(tabs)");
+      // ❌ não faças router.replace() aqui
+      // O AuthGate no _layout redireciona automaticamente para "/"
     } catch (e: any) {
       Alert.alert("Falha no login", e?.message || "Tenta novamente.");
     }
@@ -193,7 +192,6 @@ const { login } = useAuth();
                 label="Entrar"
                 onPress={handleSubmit(onSubmit)}
                 disabled={formState.isSubmitting}
-                children={undefined}
               />
             </View>
 

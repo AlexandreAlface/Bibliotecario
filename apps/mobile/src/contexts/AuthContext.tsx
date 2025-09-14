@@ -1,6 +1,5 @@
-// src/contexts/AuthContext.tsx
-import React from 'react';
-import { authApi } from 'src/services/auth';
+import React from "react";
+import { authApi } from "src/services/auth";
 
 type ChildLite = { id: number; name: string; avatarUrl?: string | null };
 type UserShape = {
@@ -14,6 +13,7 @@ type UserShape = {
 
 type Ctx = {
   user: UserShape | null;
+  ready: boolean; // 👈 novo
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -38,16 +38,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  React.useEffect(() => { refresh(); }, [refresh]);
+  React.useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   async function login(email: string, password: string) {
     await authApi.login(email, password);
-    await refresh(); // ← carrega roles + children + actingChild
+    await refresh(); // carrega user/roles/children
   }
 
   async function logout() {
     await authApi.logout();
     setUser(null);
+    // não navegamos aqui: o _layout_ redireciona automaticamente
   }
 
   async function actAsChild(childId: number) {
@@ -61,7 +64,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, refresh, actAsChild, clearChild }}>
+    <AuthContext.Provider
+      value={{ user, ready, login, logout, refresh, actAsChild, clearChild }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -69,6 +74,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export const useAuth = () => {
   const ctx = React.useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 };

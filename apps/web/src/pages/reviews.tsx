@@ -37,17 +37,19 @@ type Row = {
 };
 
 export default function ReviewsPage() {
-  const { user, asChild, selectedChildId, setSelectedChildId } =
-    useUserSession();
+  const { user, asChild } = useUserSession();
 
-  // childId: usa actingChild se existir; em modo família precisa de escolha
+  // 🎯 Em modo família, o seletor é LOCAL (não altera o active user)
+  const [localChildId, setLocalChildId] = useState<string>("");
+
+  // childId efetivo para chamadas: actingChild em modo criança; localChildId em família
   const childId = asChild
-    ? Number((user?.actingChild?.id as any) ?? (selectedChildId as any))
-    : selectedChildId
-    ? Number(selectedChildId)
+    ? Number(user?.actingChild?.id as any)
+    : localChildId
+    ? Number(localChildId)
     : undefined;
 
-  // ⚠️ MESMA LÓGICA DO MOBILE — header de auth para as reviews
+  // header de auth para reviews (igual ao mobile)
   const familyIdForAuth =
     Number((user as any)?.family?.id) ||
     Number((user as any)?.families?.[0]?.id) ||
@@ -84,6 +86,7 @@ export default function ReviewsPage() {
     () => rows.filter((r) => r.status === "finished"),
     [rows]
   );
+
   const filtered = useMemo(() => {
     const sel = filters.rating || [];
     if (sel.length === 0 || sel.length === 2) return finished;
@@ -103,10 +106,10 @@ export default function ReviewsPage() {
   useEffect(() => setPage(1), [JSON.stringify(filters), finished.length]);
 
   async function load() {
-    if (!childId) return; // não disparamos sem criança
+    if (!childId) return; // não disparamos sem criança (família)
     const data = await listPendingRatings({
       childId,
-      familyId: familyIdForAuth, // ← header x-user-id (igual ao mobile)
+      familyId: familyIdForAuth, // header x-user-id
       limit: 200,
     });
 
@@ -133,8 +136,8 @@ export default function ReviewsPage() {
   const childOptions =
     (user?.children || []).map((c: any) => ({
       id: String(c.id),
-      nome: c.name,
-      avatar: c.avatarUrl || undefined,
+      nome: c.name ?? "Criança",
+      avatar: (c as any).avatarUrl || undefined,
     })) ?? [];
 
   if (mustPickChild) {
@@ -151,8 +154,8 @@ export default function ReviewsPage() {
           <AvatarSelect
             label="Escolher criança"
             options={childOptions}
-            value={selectedChildId}
-            onChange={(id) => setSelectedChildId(id)}
+            value={localChildId || undefined}
+            onChange={(id) => setLocalChildId(id ?? "")}
             minWidth={280}
           />
         </WhiteCard>
@@ -162,6 +165,7 @@ export default function ReviewsPage() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* Contexto em modo família (filtro LOCAL; não muda active user) */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
           <Stack
@@ -171,12 +175,12 @@ export default function ReviewsPage() {
             useFlexGap
             flexWrap="wrap"
           >
-            <Typography fontWeight={900}>A atuar como</Typography>
+            <Typography fontWeight={900}>Filtrar por criança</Typography>
             <AvatarSelect
               label="Escolher criança"
               options={childOptions}
-              value={selectedChildId}
-              onChange={(id) => setSelectedChildId(id)}
+              value={localChildId || undefined}
+              onChange={(id) => setLocalChildId(id ?? "")}
               minWidth={280}
             />
           </Stack>
@@ -212,7 +216,7 @@ export default function ReviewsPage() {
           <Typography sx={{ opacity: 0.75 }}>
             {childId
               ? "Sem resultados para os filtros aplicados."
-              : "Escolhe a criança para ver leituras terminadas."}
+              : "Escolhe uma criança para ver leituras terminadas."}
           </Typography>
         ) : (
           <>
@@ -297,7 +301,7 @@ export default function ReviewsPage() {
                                 stars: starsToSend,
                                 comment: commentToSend,
                               },
-                              { childId, familyId: familyIdForAuth } // ← header x-user-id
+                              { childId, familyId: familyIdForAuth } // header x-user-id
                             );
                             setToast({
                               msg: hasExisting

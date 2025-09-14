@@ -1,4 +1,4 @@
-// apps/web/src/pages/conquistas.tsx
+// apps/web/src/pages/achievements.tsx
 import { useEffect, useMemo, useState } from "react";
 import { WhiteCard, AvatarSelect } from "@bibliotecario/ui-web";
 import {
@@ -46,7 +46,6 @@ function SectionHeader({
   );
 }
 
-// substitui o teu BadgeCard por este
 function BadgeCard({
   badge,
   earnedAt,
@@ -74,7 +73,6 @@ function BadgeCard({
         "&:hover": { bgcolor: isEarned ? "success.main" : "action.hover" },
         transition: "background-color .15s ease",
       }}
-      // ao passar o rato sobre o cartão ainda vês o critério completo
       title={badge.criteria || ""}
     >
       <Stack direction="row" spacing={1.25} alignItems="center">
@@ -87,14 +85,13 @@ function BadgeCard({
             {badge.name}
           </Typography>
 
-          {/* SELos: mostra critério truncado; TROFÉUS: apenas “ver critério” com tooltip */}
           {!isTrophy && !!badge.criteria && (
             <Typography
               variant="caption"
               sx={{
                 opacity: 0.85,
                 display: "-webkit-box",
-                WebkitLineClamp: 1, // se quiseres 2 linhas, mete 2
+                WebkitLineClamp: 1,
                 WebkitBoxOrient: "vertical",
                 overflow: "hidden",
               }}
@@ -127,14 +124,24 @@ function BadgeCard({
 
 /* =================== Página =================== */
 export default function AchievementsPage() {
-  const { user, asChild, selectedChildId, setSelectedChildId, actAsChild } =
-    useUserSession();
+  // ⚠️ Só lemos user/asChild; a seleção aqui é LOCAL
+  const { user, asChild } = useUserSession();
 
-  // child ativo: em modo criança usamos o actingChild; em modo família é a seleção
+  // seleção local para modo família (não mexe no contexto global)
+  const [localChildId, setLocalChildId] = useState<string | undefined>(
+    undefined
+  );
+
+  // quando muda entre modo criança/família limpamos o filtro local
+  useEffect(() => {
+    if (!asChild) setLocalChildId(undefined);
+  }, [asChild]);
+
+  // ID ativo: actingChild em modo criança; localChildId em modo família
   const activeChildId = useMemo(() => {
     if (asChild) return Number((user as any)?.actingChild?.id);
-    return selectedChildId ? Number(selectedChildId) : NaN;
-  }, [asChild, user?.actingChild?.id, selectedChildId]);
+    return localChildId ? Number(localChildId) : NaN;
+  }, [asChild, user?.actingChild?.id, localChildId]);
 
   const [badges, setBadges] = useState<Badge[]>([]);
   const [assignments, setAssignments] = useState<BadgeAssignment[]>([]);
@@ -142,11 +149,12 @@ export default function AchievementsPage() {
   const [focusedId, setFocusedId] = useState<number | null>(null);
 
   // opções para o seletor (apenas em modo família)
-  const childOptions = (user?.children || []).map((c) => ({
-    id: String(c.id),
-    nome: c.name,
-    avatar: (c as any).avatarUrl || undefined,
-  }));
+  const childOptions =
+    (user?.children || []).map((c) => ({
+      id: String(c.id),
+      nome: c.name ?? "Criança", // garantir string
+      avatar: (c as any).avatarUrl ?? undefined,
+    })) ?? [];
 
   /* carregar catálogo de badges 1x */
   useEffect(() => {
@@ -183,10 +191,9 @@ export default function AchievementsPage() {
     return m;
   }, [assignments]);
 
-  // Se não houver catálogo, mostrar só as conquistadas (a partir dos assignments)
+  // catálogo (fallback quando não há /badges)
   const catalog: Badge[] = useMemo(() => {
     if (badges.length) return badges;
-    // construir catálogo mínimo a partir dos assignments (quando API não tiver /badges)
     const seen = new Set<number>();
     const s: Badge[] = [];
     for (const a of assignments) {
@@ -205,18 +212,30 @@ export default function AchievementsPage() {
   }, [badges, assignments]);
 
   const groups = useMemo(() => {
-    const stamps = catalog.filter(
-      (b) => String(b.type).toUpperCase() === "STAMP"
-    );
-    const trophies = catalog.filter(
-      (b) => String(b.type).toUpperCase() === "TROFÉU"
-    );
+    const normType = (t: any) =>
+      String(t ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase();
+    const stamps = catalog.filter((b) => normType(b.type) === "STAMP");
+    const trophies = catalog.filter((b) => normType(b.type).includes("TROF"));
     return { stamps, trophies };
   }, [catalog]);
 
-  // contadores
   const countEarned = (arr: Badge[]) =>
     arr.filter((b) => earnedById.has(b.id)).length;
+
+  // detalhe selecionado
+  const focusedBadge = useMemo(
+    () =>
+      focusedId != null
+        ? catalog.find((b) => b.id === focusedId) ?? null
+        : null,
+    [catalog, focusedId]
+  );
+  const focusedEarnedAt = focusedBadge
+    ? earnedById.get(focusedBadge.id)
+    : undefined;
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -228,24 +247,21 @@ export default function AchievementsPage() {
         Conquistas
       </Typography>
 
-      {/* Seletor de criança — só em modo família */}
+      {/* Seletor de criança — só em modo família (apenas filtra, não muda active user) */}
       {!asChild && !!user?.children?.length && (
         <WhiteCard sx={{ mb: 2 }}>
           <SectionHeader title="Escolher criança" />
           <AvatarSelect
             label="Filtrar por criança"
             options={childOptions}
-            value={selectedChildId ?? ""}
-            onChange={async (id) => {
-              const eff = id && String(id).length ? String(id) : "";
-              setSelectedChildId(eff);
-            }}
+            value={localChildId}
+            onChange={(id) => setLocalChildId(id)}
             minWidth={320}
           />
         </WhiteCard>
       )}
 
-      {/* Em modo criança, não mostrar seletor; mostrar info do perfil ativo */}
+      {/* Em modo criança, mostra apenas info do perfil ativo */}
       {asChild && (
         <WhiteCard sx={{ mb: 2 }}>
           <SectionHeader title="A atuar como" />
@@ -259,7 +275,7 @@ export default function AchievementsPage() {
         </WhiteCard>
       )}
 
-      {/* Stats/Resumo */}
+      {/* Resumo */}
       <WhiteCard sx={{ mb: 2 }}>
         <SectionHeader title="Resumo" />
         <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
@@ -289,7 +305,7 @@ export default function AchievementsPage() {
       </WhiteCard>
 
       <Stack spacing={2}>
-        {/* SELos */}
+        {/* Selos */}
         <WhiteCard>
           <SectionHeader title="Selos" />
           {groups.stamps.length ? (
@@ -342,55 +358,51 @@ export default function AchievementsPage() {
         </WhiteCard>
       </Stack>
 
-      {/* Detalhe opcional no fim (quando o utilizador clica num badge) */}
+      {/* Detalhe da conquista */}
       {focusedId != null && (
         <WhiteCard sx={{ mt: 2 }}>
           <SectionHeader title="Detalhe da conquista" />
-          {(() => {
-            const badge = catalog.find((b) => b.id === focusedId);
-            if (!badge) return <Typography>Badge não encontrado.</Typography>;
-            const earnedAt = earnedById.get(badge.id);
-
-            return (
-              <Stack spacing={1}>
-                <Typography variant="h6" fontWeight={900}>
-                  {badge.name}
-                </Typography>
-                <Stack direction="row" spacing={1} alignItems="center">
+          {!focusedBadge ? (
+            <Typography>Badge não encontrado.</Typography>
+          ) : (
+            <Stack spacing={1}>
+              <Typography variant="h6" fontWeight={900}>
+                {focusedBadge.name}
+              </Typography>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Chip
+                  icon={
+                    String(focusedBadge.type).toUpperCase().includes("TROF") ? (
+                      <EmojiEventsRounded />
+                    ) : (
+                      <VerifiedRounded />
+                    )
+                  }
+                  label={focusedBadge.type}
+                  variant="outlined"
+                />
+                {focusedEarnedAt ? (
                   <Chip
-                    icon={
-                      badge.type === "TROFÉU" ? (
-                        <EmojiEventsRounded />
-                      ) : (
-                        <VerifiedRounded />
-                      )
-                    }
-                    label={badge.type}
-                    variant="outlined"
+                    color="success"
+                    icon={<CheckCircleRounded />}
+                    label={`Conquistado em ${new Date(
+                      focusedEarnedAt
+                    ).toLocaleDateString("pt-PT")}`}
                   />
-                  {earnedAt ? (
-                    <Chip
-                      color="success"
-                      icon={<CheckCircleRounded />}
-                      label={`Conquistado em ${new Date(
-                        earnedAt
-                      ).toLocaleDateString("pt-PT")}`}
-                    />
-                  ) : (
-                    <Chip label="Por conquistar" />
-                  )}
-                </Stack>
-                {!!badge.criteria && (
-                  <>
-                    <Divider sx={{ my: 1 }} />
-                    <Typography sx={{ opacity: 0.9 }}>
-                      {badge.criteria}
-                    </Typography>
-                  </>
+                ) : (
+                  <Chip label="Por conquistar" />
                 )}
               </Stack>
-            );
-          })()}
+              {!!focusedBadge.criteria && (
+                <>
+                  <Divider sx={{ my: 1 }} />
+                  <Typography sx={{ opacity: 0.9 }}>
+                    {focusedBadge.criteria}
+                  </Typography>
+                </>
+              )}
+            </Stack>
+          )}
         </WhiteCard>
       )}
     </Container>

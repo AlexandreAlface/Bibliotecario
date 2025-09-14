@@ -2,7 +2,6 @@
 import * as React from "react";
 import { ScrollView, View, Image, StyleSheet } from "react-native";
 import {
-  Appbar,
   Button,
   Chip,
   ActivityIndicator,
@@ -14,7 +13,7 @@ import {
   Divider,
 } from "react-native-paper";
 import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Background } from "@bibliotecario/ui-mobile";
 import SelectChild from "@bibliotecario/ui-mobile/components/Avatars/SelectChild";
@@ -116,7 +115,7 @@ type HistoryRow = {
   childName?: string | null;
   stars?: number | null;
   comment?: string | null;
-  status: HistoryStatus; // 👈 novo
+  status: HistoryStatus;
 };
 
 function isPendingStatus(s: PendingRatingRow["status"]): s is PendingStatus {
@@ -146,12 +145,10 @@ export default function LeiturasTab() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
 
-  // actingChild se existir
   const actingChildId = (user as any)?.actingChild?.id
     ? Number((user as any).actingChild.id)
     : undefined;
 
-  // pré-seleção (primeiro filho) se não houver actingChild
   const firstChildId =
     !actingChildId && user?.children?.length
       ? Number(user.children[0].id)
@@ -161,7 +158,6 @@ export default function LeiturasTab() {
     string | undefined
   >(firstChildId ? String(firstChildId) : undefined);
 
-  // 👇 a seleção manda; se não houver, cai para actingChild
   const childId = selectedChildId ? Number(selectedChildId) : actingChildId;
 
   const familyIdForAuth =
@@ -179,7 +175,7 @@ export default function LeiturasTab() {
     type: "success" | "error";
   } | null>(null);
 
-  // filtros — debaixo do título
+  // filtros
   const [pendingFilter, setPendingFilter] = React.useState<PendingStatus[]>([]);
   const [historyFilter, setHistoryFilter] = React.useState<
     ("rated" | "unrated")[]
@@ -209,17 +205,15 @@ export default function LeiturasTab() {
     }
     setLoading(true);
     try {
-      // pendentes (reservado / a ler)
       const pRows = await listPendingRatings({
         childId,
         limit: 80,
-        userId: familyIdForAuth, // <- para trazer as tuas estrelas
+        userId: familyIdForAuth,
       });
       setPending(
         pRows.filter((r) => r.status === "reserved" || r.status === "reading")
       );
 
-      // histórico
       const hRaw = await getLeiturasAtuais(200, { childId });
 
       const hRows: HistoryRow[] = (hRaw as (ReadingLite & any)[]).map((r) => {
@@ -241,8 +235,6 @@ export default function LeiturasTab() {
         };
       });
 
-      // 👇 histórico NÃO inclui reservas (ficam na secção de cima)
-      // Se também quiseres remover “A ler”, troca o filtro para (row.status === "finished")
       setHistory(hRows.filter((row) => row.status !== "reserved"));
     } catch (e) {
       console.error(e);
@@ -256,7 +248,6 @@ export default function LeiturasTab() {
     loadAll();
   }, [childId]);
 
-  // ações
   const onStart = async (isbn: string) => {
     if (!childId) {
       setSnack({ msg: "Escolhe a criança primeiro.", type: "error" });
@@ -293,32 +284,52 @@ export default function LeiturasTab() {
     }
   };
 
-  // Sem crianças — igual à web: orientar
+  // Sem crianças — com SafeArea
   if (!user?.children?.length) {
     return (
       <Background>
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={{
-            paddingTop: Math.max(insets.top + 8),
-            paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
-            paddingHorizontal: 16,
-            rowGap: 16,
-          }}
+        <SafeAreaView
+          style={{ flex: 1, backgroundColor: "transparent" }}
+          edges={["top"]}
         >
-          <WhiteCard>
-            <Text>
-              Para usar as leituras, adiciona uma criança à tua família.
-            </Text>
-            <Button
-              mode="contained"
-              style={{ marginTop: 12 }}
-              onPress={() => router.push("/familias")}
-            >
-              Gerir família
-            </Button>
-          </WhiteCard>
-        </ScrollView>
+          <ScrollView
+            contentInsetAdjustmentBehavior="automatic"
+            contentContainerStyle={{
+              padding: 16,
+              gap: 16,
+              paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
+            }}
+          >
+            <WhiteCard>
+              <Text>
+                Para usar as leituras, adiciona uma criança à tua família.
+              </Text>
+              <Button
+                mode="contained"
+                style={{ marginTop: 12 }}
+                onPress={() => router.push("/familias")}
+              >
+                Gerir família
+              </Button>
+            </WhiteCard>
+          </ScrollView>
+        </SafeAreaView>
+
+        <Snackbar
+          visible={!!snack}
+          onDismiss={() => setSnack(null)}
+          duration={2500}
+          action={{ label: "Fechar", onPress: () => setSnack(null) }}
+          style={
+            snack?.type === "success"
+              ? { backgroundColor: "#2e7d32" }
+              : snack?.type === "error"
+              ? { backgroundColor: "#c62828" }
+              : undefined
+          }
+        >
+          {snack?.msg}
+        </Snackbar>
       </Background>
     );
   }
@@ -337,350 +348,361 @@ export default function LeiturasTab() {
 
   return (
     <Background>
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{
-          paddingTop: Math.max(insets.top + 8),
-          paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
-          paddingHorizontal: 16,
-          rowGap: 16,
-        }}
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
       >
-        {/* WHITE CARD #1 — Header + seletor */}
-        <WhiteCard>
-          <Appbar.Header
-            mode="small"
-            style={{
-              backgroundColor: "transparent",
-              elevation: 0,
-              paddingHorizontal: 0,
-            }}
-          >
-            <Appbar.Content
-              title="Leituras"
-              subtitle="Reservas, leituras em curso e histórico"
-            />
-            <Appbar.Action
-              icon="refresh"
-              disabled={loading || !childId}
-              onPress={loadAll}
-            />
-          </Appbar.Header>
-
-          {/* SelectChild (só se não há actingChild) */}
-          {!actingChildId && (
-            <View style={{ rowGap: 10, marginTop: 8 }}>
-              <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
-                Escolhe a criança
-              </Text>
-              <SelectChild
-                label="Selecionar criança"
-                placeholder="Escolhe um perfil"
-                options={(user?.children ?? []).map((c: any) => ({
-                  id: String(c.id),
-                  name: c.name,
-                  avatarUri: c.avatarUrl || undefined,
-                }))}
-                value={selectedChildId}
-                onChange={(val: any) => {
-                  const id = toChildId(val);
-                  setSelectedChildId(id ? String(id) : undefined);
-                }}
-                clearable
-                disabled={!user?.children?.length}
-                menuMaxHeight={360}
-              />
-              {!childId && (
-                <Text style={{ opacity: 0.7 }}>
-                  Seleciona uma criança para veres leituras e reservas.
+        <ScrollView
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{
+            padding: 16,
+            gap: 16,
+            paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
+          }}
+        >
+          {/* WHITE CARD #1 — Header compacto + seletor */}
+          <WhiteCard>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text variant="titleLarge" style={{ fontWeight: "900" }}>
+                  Leituras
                 </Text>
-              )}
+                <Text style={{ opacity: 0.7, marginTop: 2 }}>
+                  Reservas, leituras em curso e histórico
+                </Text>
+              </View>
+              <IconButton
+                icon="refresh"
+                disabled={loading || !childId}
+                onPress={loadAll}
+              />
             </View>
-          )}
-        </WhiteCard>
 
-        {/* WHITE CARD #2 — Leituras em curso (pendentes) */}
-        <WhiteCard>
-          <Text variant="titleLarge" style={{ fontWeight: "900" }}>
-            Leituras em Curso
-          </Text>
+            {/* SelectChild (só se não há actingChild) */}
+            {!actingChildId && (
+              <View style={{ rowGap: 10, marginTop: 12 }}>
+                <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
+                  Escolhe a criança
+                </Text>
+                <SelectChild
+                  label="Selecionar criança"
+                  placeholder="Escolhe um perfil"
+                  options={(user?.children ?? []).map((c: any) => ({
+                    id: String(c.id),
+                    name: c.name,
+                    avatarUri: c.avatarUrl || undefined,
+                  }))}
+                  value={selectedChildId}
+                  onChange={(val: any) => {
+                    const id = toChildId(val);
+                    setSelectedChildId(id ? String(id) : undefined);
+                  }}
+                  clearable
+                  disabled={!user?.children?.length}
+                  menuMaxHeight={360}
+                />
+                {!childId && (
+                  <Text style={{ opacity: 0.7 }}>
+                    Seleciona uma criança para veres leituras e reservas.
+                  </Text>
+                )}
+              </View>
+            )}
+          </WhiteCard>
 
-          {/* ⬇️ Chips IMEDIATAMENTE abaixo do título */}
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: 8,
-              marginTop: 8,
-              marginBottom: 8,
-            }}
-          >
-            <Chip
-              mode={pendingFilter.includes("reserved") ? "flat" : "outlined"}
-              selected={pendingFilter.includes("reserved")}
-              onPress={() =>
-                setPendingFilter((s) =>
-                  s.includes("reserved")
-                    ? s.filter((x) => x !== "reserved")
-                    : [...s, "reserved"]
-                )
-              }
-              icon="bookmark-outline"
-            >
-              Reservado
-            </Chip>
-            <Chip
-              mode={pendingFilter.includes("reading") ? "flat" : "outlined"}
-              selected={pendingFilter.includes("reading")}
-              onPress={() =>
-                setPendingFilter((s) =>
-                  s.includes("reading")
-                    ? s.filter((x) => x !== "reading")
-                    : [...s, "reading"]
-                )
-              }
-              icon="book-open-page-variant"
-            >
-              A ler
-            </Chip>
-          </View>
-
-          {mustPickChild ? (
-            <Text style={{ opacity: 0.75 }}>
-              Escolhe a criança para veres reservas e leituras em curso.
+          {/* WHITE CARD #2 — Leituras em curso (pendentes) */}
+          <WhiteCard>
+            <Text variant="titleLarge" style={{ fontWeight: "900" }}>
+              Leituras em Curso
             </Text>
-          ) : loading ? (
-            <ActivityIndicator />
-          ) : filteredPending.length === 0 ? (
-            <Text style={{ opacity: 0.75 }}>
-              Não há reservas por iniciar nem leituras por terminar.
-            </Text>
-          ) : (
-            <View style={{ rowGap: 10 }}>
-              {filteredPending.map((r, idx) => (
-                <View key={r.isbn}>
-                  <RowCard>
-                    <Image
-                      source={{ uri: r.coverUrl ?? undefined }}
-                      style={{
-                        width: 64,
-                        height: 96,
-                        borderRadius: 8,
-                        marginRight: 12,
-                        backgroundColor: theme.colors.surfaceVariant,
-                      }}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <Text
-                          numberOfLines={2}
-                          style={{ fontWeight: "700", flex: 1 }}
-                        >
-                          {r.title}
-                        </Text>
-                        <Chip
-                          compact
-                          mode="flat"
-                          style={{ alignSelf: "flex-start" }}
-                          icon={r.status === "reserved" ? "bookmark-outline" : "book-open-page-variant"}
-                        >
-                          {r.status === "reserved" ? "Reservado" : "A ler"}
-                        </Chip>
-                      </View>
 
-                      {typeof r.stars === "number" && (
-                        <StarsDisplay value={r.stars} />
-                      )}
-
-                      <View
-                        style={{ flexDirection: "row", gap: 8, marginTop: 8 }}
-                      >
-                        {r.status === "reserved" ? (
-                          <Button
-                            mode="contained"
-                            compact
-                            onPress={() => onStart(r.isbn)}
-                            loading={busyIsbn === r.isbn}
-                            disabled={!!busyIsbn}
-                          >
-                            Começar
-                          </Button>
-                        ) : (
-                          <Button
-                            mode="outlined"
-                            compact
-                            onPress={() => onFinish(r.isbn)}
-                            loading={busyIsbn === r.isbn}
-                            disabled={!!busyIsbn}
-                          >
-                            Terminar
-                          </Button>
-                        )}
-                      </View>
-                    </View>
-                  </RowCard>
-
-                  {/* separador subtil entre cards */}
-                  {idx < filteredPending.length - 1 && (
-                    <Divider
-                      style={{
-                        marginHorizontal: 4,
-                        marginTop: 10,
-                        opacity: 0.15,
-                      }}
-                    />
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
-        </WhiteCard>
-
-        {/* WHITE CARD #3 — Histórico */}
-        <WhiteCard>
-          <Text variant="titleLarge" style={{ fontWeight: "900" }}>
-            Histórico de leituras
-          </Text>
-
-          {/* ⬇️ Chips IMEDIATAMENTE abaixo do título */}
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: 8,
-              marginTop: 8,
-              marginBottom: 8,
-            }}
-          >
-            <Chip
-              mode={historyFilter.includes("rated") ? "flat" : "outlined"}
-              selected={historyFilter.includes("rated")}
-              onPress={() =>
-                setHistoryFilter((s) =>
-                  s.includes("rated")
-                    ? s.filter((x) => x !== "rated")
-                    : [...s, "rated"]
-                )
-              }
-              icon="star"
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 8,
+                marginTop: 8,
+                marginBottom: 8,
+              }}
             >
-              Com avaliação
-            </Chip>
-            <Chip
-              mode={historyFilter.includes("unrated") ? "flat" : "outlined"}
-              selected={historyFilter.includes("unrated")}
-              onPress={() =>
-                setHistoryFilter((s) =>
-                  s.includes("unrated")
-                    ? s.filter((x) => x !== "unrated")
-                    : [...s, "unrated"]
-                )
-              }
-              icon="star-outline"
-            >
-              Sem avaliação
-            </Chip>
-          </View>
-
-          {loading ? (
-            <ActivityIndicator />
-          ) : (historyFilter.length
-              ? history.filter((h) =>
-                  historyFilter.includes(
-                    typeof h.stars === "number" ? "rated" : "unrated"
+              <Chip
+                mode={pendingFilter.includes("reserved") ? "flat" : "outlined"}
+                selected={pendingFilter.includes("reserved")}
+                onPress={() =>
+                  setPendingFilter((s) =>
+                    s.includes("reserved")
+                      ? s.filter((x) => x !== "reserved")
+                      : [...s, "reserved"]
                   )
-                )
-              : history
-            ).length === 0 ? (
-            <Text style={{ opacity: 0.75 }}>
-              {childId
-                ? "Sem resultados para os filtros aplicados."
-                : "Escolhe uma criança para ver o histórico."}
+                }
+                icon="bookmark-outline"
+              >
+                Reservado
+              </Chip>
+              <Chip
+                mode={pendingFilter.includes("reading") ? "flat" : "outlined"}
+                selected={pendingFilter.includes("reading")}
+                onPress={() =>
+                  setPendingFilter((s) =>
+                    s.includes("reading")
+                      ? s.filter((x) => x !== "reading")
+                      : [...s, "reading"]
+                  )
+                }
+                icon="book-open-page-variant"
+              >
+                A ler
+              </Chip>
+            </View>
+
+            {mustPickChild ? (
+              <Text style={{ opacity: 0.75 }}>
+                Escolhe a criança para veres reservas e leituras em curso.
+              </Text>
+            ) : loading ? (
+              <ActivityIndicator />
+            ) : filteredPending.length === 0 ? (
+              <Text style={{ opacity: 0.75 }}>
+                Não há reservas por iniciar nem leituras por terminar.
+              </Text>
+            ) : (
+              <View style={{ rowGap: 10 }}>
+                {filteredPending.map((r, idx) => (
+                  <View key={r.isbn}>
+                    <RowCard>
+                      <Image
+                        source={{ uri: r.coverUrl ?? undefined }}
+                        style={{
+                          width: 64,
+                          height: 96,
+                          borderRadius: 8,
+                          marginRight: 12,
+                          backgroundColor: theme.colors.surfaceVariant,
+                        }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <Text
+                            numberOfLines={2}
+                            style={{ fontWeight: "700", flex: 1 }}
+                          >
+                            {r.title}
+                          </Text>
+                          <Chip
+                            compact
+                            mode="flat"
+                            style={{ alignSelf: "flex-start" }}
+                            icon={
+                              r.status === "reserved"
+                                ? "bookmark-outline"
+                                : "book-open-page-variant"
+                            }
+                          >
+                            {r.status === "reserved" ? "Reservado" : "A ler"}
+                          </Chip>
+                        </View>
+
+                        {typeof r.stars === "number" && (
+                          <StarsDisplay value={r.stars} />
+                        )}
+
+                        <View
+                          style={{ flexDirection: "row", gap: 8, marginTop: 8 }}
+                        >
+                          {r.status === "reserved" ? (
+                            <Button
+                              mode="contained"
+                              compact
+                              onPress={() => onStart(r.isbn)}
+                              loading={busyIsbn === r.isbn}
+                              disabled={!!busyIsbn}
+                            >
+                              Começar
+                            </Button>
+                          ) : (
+                            <Button
+                              mode="outlined"
+                              compact
+                              onPress={() => onFinish(r.isbn)}
+                              loading={busyIsbn === r.isbn}
+                              disabled={!!busyIsbn}
+                            >
+                              Terminar
+                            </Button>
+                          )}
+                        </View>
+                      </View>
+                    </RowCard>
+
+                    {idx < filteredPending.length - 1 && (
+                      <Divider
+                        style={{
+                          marginHorizontal: 4,
+                          marginTop: 10,
+                          opacity: 0.15,
+                        }}
+                      />
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+          </WhiteCard>
+
+          {/* WHITE CARD #3 — Histórico */}
+          <WhiteCard>
+            <Text variant="titleLarge" style={{ fontWeight: "900" }}>
+              Histórico de leituras
             </Text>
-          ) : (
-            <View style={{ rowGap: 10 }}>
-              {(historyFilter.length
+
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 8,
+                marginTop: 8,
+                marginBottom: 8,
+              }}
+            >
+              <Chip
+                mode={historyFilter.includes("rated") ? "flat" : "outlined"}
+                selected={historyFilter.includes("rated")}
+                onPress={() =>
+                  setHistoryFilter((s) =>
+                    s.includes("rated")
+                      ? s.filter((x) => x !== "rated")
+                      : [...s, "rated"]
+                  )
+                }
+                icon="star"
+              >
+                Com avaliação
+              </Chip>
+              <Chip
+                mode={historyFilter.includes("unrated") ? "flat" : "outlined"}
+                selected={historyFilter.includes("unrated")}
+                onPress={() =>
+                  setHistoryFilter((s) =>
+                    s.includes("unrated")
+                      ? s.filter((x) => x !== "unrated")
+                      : [...s, "unrated"]
+                  )
+                }
+                icon="star-outline"
+              >
+                Sem avaliação
+              </Chip>
+            </View>
+
+            {loading ? (
+              <ActivityIndicator />
+            ) : (historyFilter.length
                 ? history.filter((h) =>
                     historyFilter.includes(
                       typeof h.stars === "number" ? "rated" : "unrated"
                     )
                   )
                 : history
-              ).map((row, idx, arr) => (
-                <View key={row.id}>
-                  <RowCard>
-                    <Image
-                      source={{ uri: row.coverUrl ?? undefined }}
-                      style={{
-                        width: 64,
-                        height: 96,
-                        borderRadius: 8,
-                        marginRight: 12,
-                        backgroundColor: theme.colors.surfaceVariant,
-                      }}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <View
+              ).length === 0 ? (
+              <Text style={{ opacity: 0.75 }}>
+                {childId
+                  ? "Sem resultados para os filtros aplicados."
+                  : "Escolhe uma criança para ver o histórico."}
+              </Text>
+            ) : (
+              <View style={{ rowGap: 10 }}>
+                {(historyFilter.length
+                  ? history.filter((h) =>
+                      historyFilter.includes(
+                        typeof h.stars === "number" ? "rated" : "unrated"
+                      )
+                    )
+                  : history
+                ).map((row, idx, arr) => (
+                  <View key={row.id}>
+                    <RowCard>
+                      <Image
+                        source={{ uri: row.coverUrl ?? undefined }}
                         style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
+                          width: 64,
+                          height: 96,
+                          borderRadius: 8,
+                          marginRight: 12,
+                          backgroundColor: theme.colors.surfaceVariant,
                         }}
-                      >
-                        <Text numberOfLines={2} style={{ fontWeight: "700", flex: 1 }}>
-                          {row.title}
-                        </Text>
-                        {/* 👇 etiqueta de estado no histórico */}
-                        <Chip
-                          compact
-                          mode="outlined"
-                          icon={statusIcon[row.status]}
-                          style={{ alignSelf: "flex-start" }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
                         >
-                          {statusLabel[row.status]}
-                        </Chip>
+                          <Text
+                            numberOfLines={2}
+                            style={{ fontWeight: "700", flex: 1 }}
+                          >
+                            {row.title}
+                          </Text>
+                          <Chip
+                            compact
+                            mode="outlined"
+                            icon={statusIcon[row.status]}
+                            style={{ alignSelf: "flex-start" }}
+                          >
+                            {statusLabel[row.status]}
+                          </Chip>
+                        </View>
+
+                        <Text style={{ opacity: 0.7, marginTop: 2 }}>
+                          {row.date
+                            ? new Date(row.date).toLocaleDateString("pt-PT")
+                            : row.childName ?? ""}
+                        </Text>
+
+                        <StarsDisplay value={row.stars} />
+
+                        {!!row.comment && (
+                          <Text
+                            style={{ opacity: 0.85, marginTop: 4 }}
+                            numberOfLines={2}
+                          >
+                            “{row.comment}”
+                          </Text>
+                        )}
                       </View>
+                    </RowCard>
 
-                      <Text style={{ opacity: 0.7, marginTop: 2 }}>
-                        {row.date
-                          ? new Date(row.date).toLocaleDateString("pt-PT")
-                          : row.childName ?? ""}
-                      </Text>
-
-                      <StarsDisplay value={row.stars} />
-
-                      {!!row.comment && (
-                        <Text
-                          style={{ opacity: 0.85, marginTop: 4 }}
-                          numberOfLines={2}
-                        >
-                          “{row.comment}”
-                        </Text>
-                      )}
-                    </View>
-                  </RowCard>
-
-                  {idx < arr.length - 1 && (
-                    <Divider
-                      style={{
-                        marginHorizontal: 4,
-                        marginTop: 10,
-                        opacity: 0.15,
-                      }}
-                    />
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
-        </WhiteCard>
-      </ScrollView>
+                    {idx < arr.length - 1 && (
+                      <Divider
+                        style={{
+                          marginHorizontal: 4,
+                          marginTop: 10,
+                          opacity: 0.15,
+                        }}
+                      />
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+          </WhiteCard>
+        </ScrollView>
+      </SafeAreaView>
 
       {/* Snackbar */}
       <Snackbar

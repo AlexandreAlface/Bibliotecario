@@ -25,7 +25,7 @@ export default function Login() {
   async function onSubmit(values: FormData) {
     try {
       await login(values.email, values.password); // seta user via /auth/me
-      window.location.href = "/";                 // cai no index com sessão
+      window.location.href = "/profiles";                // cai no index com sessão
     } catch (e: any) {
       alert(e?.response?.data?.error || e?.message || "Falha no login.");
     }

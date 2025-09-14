@@ -5,7 +5,6 @@ import {
   NotificationBell,
   PrimaryButton,
   RouteLink,
-  AvatarSelect,
 } from "@bibliotecario/ui-web";
 import {
   Avatar,
@@ -24,7 +23,7 @@ import Grid from "@mui/material/GridLegacy";
 import { useUserSession } from "../contexts/UserSession";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
-import { StarRounded, WorkspacePremiumRounded } from "@mui/icons-material";
+import { StarRounded } from "@mui/icons-material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
 
@@ -542,14 +541,7 @@ function SuggestionCard({
 /** ---------- Página ---------- */
 export default function LandingPage() {
   const theme = useTheme();
-  const {
-    user,
-    asChild,
-    selectedChildId,
-    setSelectedChildId,
-    actAsChild,
-    exitChild,
-  } = useUserSession();
+  const { user, asChild, selectedChildId, clearChild } = useUserSession();
 
   const [badges, setBadges] = useState<BadgeLite[]>([]);
   const [eventos, setEventos] = useState<EventItem[]>([]);
@@ -655,12 +647,6 @@ export default function LandingPage() {
 
   const familyName = user?.fullName ?? "Família";
   const roleLabel = (user?.roles?.[0] ?? "").toString();
-
-  const childOptions = (user?.children || []).map((c) => ({
-    id: String(c.id),
-    nome: c.name,
-    avatar: c.avatarUrl || undefined,
-  }));
 
   const HeroTitle = useMemo(
     () => (
@@ -768,30 +754,15 @@ export default function LandingPage() {
 
             <Divider flexItem orientation="vertical" sx={{ mx: 0.5 }} />
 
-            <AvatarSelect
-              label={asChild ? "A atuar como" : "Escolher criança"}
-              options={childOptions}
-              value={selectedChildId}
-              onChange={async (id) => {
-                setSelectedChildId(id);
-                if (asChild) await actAsChild(id);
-              }}
-              minWidth={240}
-            />
+            {/* Link para a gestão de perfis (em vez de trocar aqui) */}
+            <RouteLink href="/familia">Gerir perfis</RouteLink>
 
             <Box sx={{ flex: 1 }} />
-            {asChild ? (
-              <PrimaryButton onClick={exitChild}>
-                Sair do modo criança
-              </PrimaryButton>
-            ) : (
-              <PrimaryButton
-                onClick={() => actAsChild(Number(selectedChildId))}
-                disabled={!selectedChildId}
-              >
-                Entrar como criança
-              </PrimaryButton>
-            )}
+            {/* {asChild && (
+              // <PrimaryButton onClick={clearChild}>
+              //   Sair do modo criança
+              // </PrimaryButton>
+            )} */}
           </Stack>
         </WhiteCard>
       )}

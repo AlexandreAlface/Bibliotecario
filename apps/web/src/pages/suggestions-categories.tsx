@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { WhiteCard, PrimaryButton, RouteLink, AvatarSelect } from "@bibliotecario/ui-web";
+import {
+  WhiteCard,
+  PrimaryButton,
+  RouteLink,
+  AvatarSelect,
+} from "@bibliotecario/ui-web";
 import {
   Box,
   Chip,
@@ -51,8 +56,13 @@ function normalizeBooks(payload: any): BookLite[] {
 }
 // ⬇️ dedupe por ISBN
 function dedupeByIsbn(list: BookLite[]) {
-  const seen = new Set<string>(); const out: BookLite[] = [];
-  for (const it of list) { if (!it?.isbn || seen.has(it.isbn)) continue; seen.add(it.isbn); out.push(it); }
+  const seen = new Set<string>();
+  const out: BookLite[] = [];
+  for (const it of list) {
+    if (!it?.isbn || seen.has(it.isbn)) continue;
+    seen.add(it.isbn);
+    out.push(it);
+  }
   return out;
 }
 
@@ -147,7 +157,11 @@ function SuggestionCard({
       )}
       <Box sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 0.25 }}>
         {Array.from({ length: 5 }).map((_, i) => (
-          <StarRounded key={i} fontSize="small" sx={{ opacity: i < 4 ? 1 : 0.35 }} />
+          <StarRounded
+            key={i}
+            fontSize="small"
+            sx={{ opacity: i < 4 ? 1 : 0.35 }}
+          />
         ))}
       </Box>
       <Button
@@ -165,13 +179,18 @@ function SuggestionCard({
 
 /* ------------ página ------------ */
 export default function SuggestionsByCategoriesPage() {
-  const { user, asChild, selectedChildId, setSelectedChildId } = useUserSession();
+  const { user, asChild } = useUserSession();
 
-  // Em modo criança usa a criança ativa; em modo família é OBRIGATÓRIO escolher uma criança
+  // 🧭 Em modo família, a escolha da criança é LOCAL (não muda o utilizador ativo)
+  const [localChildId, setLocalChildId] = useState<string>("");
+
+  // Em modo criança usa a criança ativa; em modo família é OBRIGATÓRIO escolher uma criança (local)
   const childId = asChild
-    ? Number((user?.actingChild?.id as any) ?? (selectedChildId as any))
-    : (selectedChildId ? Number(selectedChildId) : undefined);
-  const familyId = asChild ? undefined : Number(user?.id);
+    ? Number((user?.actingChild?.id as any))
+    : localChildId
+    ? Number(localChildId)
+    : undefined;
+  const familyId = asChild ? undefined : (Number(user?.id) || undefined);
 
   const mustPickChild = !asChild && !childId;
 
@@ -179,26 +198,41 @@ export default function SuggestionsByCategoriesPage() {
   const [items, setItems] = useState<BookLite[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [toast, setToast] = useState<{
+    msg: string;
+    type: "success" | "error";
+  } | null>(null);
 
   // ⬇️ flags por ISBN
   const [busyByIsbn, setBusyByIsbn] = useState<Record<string, boolean>>({});
-  const [reservedByIsbn, setReservedByIsbn] = useState<Record<string, boolean>>({});
+  const [reservedByIsbn, setReservedByIsbn] = useState<Record<string, boolean>>(
+    {}
+  );
 
-  const subtitle = useMemo(() => "Escolhe categorias para afinar as sugestões", []);
+  const subtitle = useMemo(
+    () => "Escolhe categorias para afinar as sugestões",
+    []
+  );
 
   // opções para o AvatarSelect
   const childOptions =
-    (user?.children || []).map((c) => ({
+    (user?.children || []).map((c: any) => ({
       id: String(c.id),
-      nome: c.name,
-      avatar: c.avatarUrl || undefined,
+      nome: String(c.name ?? "Criança"),
+      avatar: c.avatarUrl ?? undefined,
     })) ?? [];
 
+  // Limpa resultados e estados quando troca a criança
   useEffect(() => {
-    if (mustPickChild) return; // bloqueia até haver criança
+    setItems(null);
+    setBusyByIsbn({});
+    setReservedByIsbn({});
+  }, [childId]);
+
+  // Carrega sugestões iniciais (perfil) quando há criança válida
+  useEffect(() => {
+    if (mustPickChild) return;
     (async () => {
-      if (items) return;
       setLoading(true);
       try {
         const raw = await getSugestoesPerfil(12, { childId, familyId });
@@ -244,7 +278,7 @@ export default function SuggestionsByCategoriesPage() {
     }
     try {
       setBusyByIsbn((m) => ({ ...m, [isbn]: true }));
-      await reserveBook(isbn, { childId }); // ✅ só childId
+      await reserveBook(isbn, { childId }); // ✅ apenas childId (não mexe no modo/utente)
       setReservedByIsbn((m) => ({ ...m, [isbn]: true }));
       setToast({ msg: "Reserva efetuada!", type: "success" });
     } catch (e: any) {
@@ -276,9 +310,13 @@ export default function SuggestionsByCategoriesPage() {
             {subtitle}
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.25 }}>
-            <RouteLink href="/suggestions" weight={600}>Quiz</RouteLink>
+            <RouteLink href="/suggestions" weight={600}>
+              Quiz
+            </RouteLink>
             {" · "}
-            <RouteLink href="/suggestions-categories" weight={600}>Categorias</RouteLink>
+            <RouteLink href="/suggestions-categories" weight={600}>
+              Categorias
+            </RouteLink>
           </Typography>
 
           <Typography sx={{ mt: 1.5, mb: 2, opacity: 0.8 }}>
@@ -288,8 +326,8 @@ export default function SuggestionsByCategoriesPage() {
           <AvatarSelect
             label="Escolher criança"
             options={childOptions}
-            value={selectedChildId}
-            onChange={(id) => setSelectedChildId(id)}
+            value={localChildId || undefined}
+            onChange={(id) => setLocalChildId(id ?? "")}
             minWidth={280}
           />
         </WhiteCard>
@@ -299,16 +337,22 @@ export default function SuggestionsByCategoriesPage() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Barra de contexto em modo família */}
+      {/* Barra de contexto em modo família (filtro LOCAL; não muda active user) */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
-          <Stack direction="row" alignItems="center" spacing={2} useFlexGap flexWrap="wrap">
-            <Typography fontWeight={900}>A atuar como</Typography>
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={2}
+            useFlexGap
+            flexWrap="wrap"
+          >
+            <Typography fontWeight={900}>Filtrar por criança</Typography>
             <AvatarSelect
               label="Escolher criança"
               options={childOptions}
-              value={selectedChildId}
-              onChange={(id) => setSelectedChildId(id)}
+              value={localChildId || undefined}
+              onChange={(id) => setLocalChildId(id ?? "")}
               minWidth={280}
             />
           </Stack>
@@ -317,18 +361,32 @@ export default function SuggestionsByCategoriesPage() {
 
       <WhiteCard>
         {/* Cabeçalho */}
-        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ mb: 1 }}
+        >
           <Box>
-            <Typography variant="h4" fontWeight={900}>Sugestões de Leitura</Typography>
-            <Typography variant="body2" sx={{ opacity: 0.75 }}>{subtitle}</Typography>
+            <Typography variant="h4" fontWeight={900}>
+              Sugestões de Leitura
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.75 }}>
+              {subtitle}
+            </Typography>
             <Typography variant="body2" sx={{ mt: 0.25 }}>
-              <RouteLink href="/suggestions" weight={600}>Quiz</RouteLink>
+              <RouteLink href="/suggestions" weight={600}>
+                Quiz
+              </RouteLink>
               {" · "}
-              <RouteLink href="/suggestions-categories" weight={600}>Categorias</RouteLink>
+              <RouteLink href="/suggestions-categories" weight={600}>
+                Categorias
+              </RouteLink>
             </Typography>
             {!!updatedAt && (
               <Typography variant="caption" sx={{ opacity: 0.6 }}>
-                Última atualização: {new Date(updatedAt).toLocaleString("pt-PT")}
+                Última atualização:{" "}
+                {new Date(updatedAt).toLocaleString("pt-PT")}
               </Typography>
             )}
           </Box>
@@ -363,7 +421,10 @@ export default function SuggestionsByCategoriesPage() {
                   variant={filters.ageRange === a ? "filled" : "outlined"}
                   color={filters.ageRange === a ? "primary" : "default"}
                   onClick={() =>
-                    setFilters((f) => ({ ...f, ageRange: f.ageRange === a ? undefined : a }))
+                    setFilters((f) => ({
+                      ...f,
+                      ageRange: f.ageRange === a ? undefined : a,
+                    }))
                   }
                 />
               ))}
@@ -376,13 +437,23 @@ export default function SuggestionsByCategoriesPage() {
               Géneros
             </Typography>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-              {["Aventura", "Fantasia", "Mistério", "Humor", "Ciência", "Animais", "Clássicos"].map((g) => (
+              {[
+                "Aventura",
+                "Fantasia",
+                "Mistério",
+                "Humor",
+                "Ciência",
+                "Animais",
+                "Clássicos",
+              ].map((g) => (
                 <Chip
                   key={g}
                   label={g}
                   variant={filters.genres.includes(g) ? "filled" : "outlined"}
                   color={filters.genres.includes(g) ? "primary" : "default"}
-                  onClick={() => setFilters((f) => ({ ...f, genres: toggle(f.genres, g) }))}
+                  onClick={() =>
+                    setFilters((f) => ({ ...f, genres: toggle(f.genres, g) }))
+                  }
                 />
               ))}
             </Stack>
@@ -405,7 +476,9 @@ export default function SuggestionsByCategoriesPage() {
                   label={label}
                   variant={filters.format.includes(k) ? "filled" : "outlined"}
                   color={filters.format.includes(k) ? "primary" : "default"}
-                  onClick={() => setFilters((f) => ({ ...f, format: toggle(f.format, k) }))}
+                  onClick={() =>
+                    setFilters((f) => ({ ...f, format: toggle(f.format, k) }))
+                  }
                 />
               ))}
             </Stack>
@@ -423,7 +496,9 @@ export default function SuggestionsByCategoriesPage() {
                   label={o[0].toUpperCase() + o.slice(1)}
                   variant={filters.goals.includes(o) ? "filled" : "outlined"}
                   color={filters.goals.includes(o) ? "primary" : "default"}
-                  onClick={() => setFilters((f) => ({ ...f, goals: toggle(f.goals, o) }))}
+                  onClick={() =>
+                    setFilters((f) => ({ ...f, goals: toggle(f.goals, o) }))
+                  }
                 />
               ))}
             </Stack>
@@ -447,7 +522,10 @@ export default function SuggestionsByCategoriesPage() {
                   variant={filters.moment === k ? "filled" : "outlined"}
                   color={filters.moment === k ? "primary" : "default"}
                   onClick={() =>
-                    setFilters((f) => ({ ...f, moment: f.moment === k ? undefined : k }))
+                    setFilters((f) => ({
+                      ...f,
+                      moment: f.moment === k ? undefined : k,
+                    }))
                   }
                 />
               ))}
@@ -457,14 +535,25 @@ export default function SuggestionsByCategoriesPage() {
           <Stack direction="row" spacing={1}>
             <Button
               onClick={() => {
-                const reset: Filters = { genres: [], format: [], goals: [], ageRange: undefined, moment: undefined };
+                const reset: Filters = {
+                  genres: [],
+                  format: [],
+                  goals: [],
+                  ageRange: undefined,
+                  moment: undefined,
+                };
                 setFilters(reset);
                 saveFilters(reset);
               }}
             >
               Limpar filtros
             </Button>
-            <Button variant="contained" onClick={applyFilters} disabled={loading} sx={{ borderRadius: 2 }}>
+            <Button
+              variant="contained"
+              onClick={applyFilters}
+              disabled={loading}
+              sx={{ borderRadius: 2 }}
+            >
               Ver resultados
             </Button>
           </Stack>
@@ -473,7 +562,9 @@ export default function SuggestionsByCategoriesPage() {
         <Divider sx={{ my: 2 }} />
 
         {/* Resultados */}
-        {loading && <Typography sx={{ opacity: 0.7 }}>A preparar sugestões…</Typography>}
+        {loading && (
+          <Typography sx={{ opacity: 0.7 }}>A preparar sugestões…</Typography>
+        )}
 
         {!loading && items && items.length > 0 && (
           <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
@@ -491,7 +582,9 @@ export default function SuggestionsByCategoriesPage() {
         )}
 
         {!loading && items && items.length === 0 && (
-          <Typography sx={{ opacity: 0.7 }}>Sem resultados. Ajusta os filtros e tenta novamente.</Typography>
+          <Typography sx={{ opacity: 0.7 }}>
+            Sem resultados. Ajusta os filtros e tenta novamente.
+          </Typography>
         )}
       </WhiteCard>
 

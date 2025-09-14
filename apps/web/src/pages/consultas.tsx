@@ -6,6 +6,7 @@ import {
   AvatarSelect,
   PrimaryButton,
 } from "@bibliotecario/ui-web";
+import type { AvatarOption } from "@bibliotecario/ui-web";
 import {
   Avatar,
   Box,
@@ -89,29 +90,21 @@ function SlotChip({
       variant={selected ? "filled" : "outlined"}
       label={`${timeLabel(slot.startAt)}–${timeLabel(slot.endAt)}`}
       onClick={onSelect}
-      sx={{
-        mr: 0.75,
-        mb: 0.75,
-        borderRadius: 2,
-      }}
+      sx={{ mr: 0.75, mb: 0.75, borderRadius: 2 }}
     />
   );
 }
 
 /* =================== Página =================== */
 export default function ConsultasPage() {
-  const {
-    user,
-    asChild,
-    selectedChildId,
-    setSelectedChildId,
-    actAsChild,
-    exitChild,
-  } = useUserSession();
+  const { user, asChild, clearChild } = useUserSession();
+
+  // 🎯 Filtro LOCAL de criança (modo família). Não altera o contexto global.
+  const [localChildId, setLocalChildId] = useState<string>("");
 
   // --- estado
   const [dayRef, setDayRef] = useState(startOfDay(new Date()));
-  const [slotsAll, setSlotsAll] = useState<SlotLite[]>([]); // todos os slots do dia
+  const [slotsAll, setSlotsAll] = useState<SlotLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<SlotLite | null>(null);
   const [justBooked, setJustBooked] = useState<ConsultaLite | null>(null);
@@ -119,14 +112,18 @@ export default function ConsultasPage() {
   // filtro por bibliotecário ("" = todos)
   const [selectedLibrarianId, setSelectedLibrarianId] = useState<string>("");
 
-  const childOptions = (user?.children || []).map((c) => ({
+  // opções de filhos (tipadas)
+  const childOptions: AvatarOption[] = (user?.children || []).map((c) => ({
     id: String(c.id),
-    nome: c.name,
-    avatar: (c as any).avatarUrl || undefined,
+    nome: c.name ?? "",
+    avatar: (c as any).avatarUrl ?? undefined,
   }));
-  const selectOptions = [{ id: "", nome: "Todos os filhos" }, ...childOptions];
+  const selectOptions: AvatarOption[] = [
+    { id: "", nome: "Todos os filhos", avatar: undefined },
+    ...childOptions,
+  ];
 
-  // carregar slots abertos para o dia selecionado (todas as bibs e todos os bibliotecários)
+  // carregar slots do dia
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -149,24 +146,26 @@ export default function ConsultasPage() {
     })();
   }, [dayRef, selectedLibrarianId]);
 
-  // opções de bibliotecário (deduzidas dos slots do dia)
-  const librarianOptions = useMemo(() => {
+  // opções de bibliotecário (tipadas)
+  const librarianOptions: AvatarOption[] = useMemo(() => {
     const seen = new Set<number>();
-    const opts = slotsAll
-      .filter((s) => {
-        if (seen.has(s.librarianId)) return false;
-        seen.add(s.librarianId);
-        return true;
-      })
-      .map((s) => ({
+    const opts: AvatarOption[] = [];
+    for (const s of slotsAll) {
+      if (seen.has(s.librarianId)) continue;
+      seen.add(s.librarianId);
+      opts.push({
         id: String(s.librarianId),
         nome: s.librarianName || "Bibliotecário",
         avatar: s.librarianAvatarUrl || undefined,
-      }));
-    return [{ id: "", nome: "Todos os bibliotecários" }, ...opts];
+      });
+    }
+    return [
+      { id: "", nome: "Todos os bibliotecários", avatar: undefined },
+      ...opts,
+    ];
   }, [slotsAll]);
 
-  // aplica o filtro por bibliotecário em memória
+  // aplica filtro por bibliotecário
   const slots = useMemo(() => {
     if (!selectedLibrarianId) return slotsAll;
     return slotsAll.filter(
@@ -181,20 +180,19 @@ export default function ConsultasPage() {
     items: SlotLite[];
   };
 
-  // agrupar por bibliotecário (já com slots filtrados)
+  // agrupar por bibliotecário
   const grouped = useMemo<Group[]>(() => {
     const map = new Map<number, Group>();
 
     for (const s of slots) {
       const k = s.librarianId;
-
       let g = map.get(k);
       if (!g) {
         g = {
           librarianId: k,
           librarianName: s.librarianName || "Bibliotecário",
           librarianAvatarUrl: s.librarianAvatarUrl ?? null,
-          items: [] as SlotLite[],
+          items: [],
         };
         map.set(k, g);
       }
@@ -228,8 +226,8 @@ export default function ConsultasPage() {
     if (!selectedSlot) return;
     const familyId = Number(user?.id);
     const childIdNum =
-      selectedChildId && String(selectedChildId).length
-        ? Number(selectedChildId)
+      localChildId && String(localChildId).length
+        ? Number(localChildId)
         : undefined;
 
     if (!Number.isFinite(familyId)) {
@@ -279,25 +277,21 @@ export default function ConsultasPage() {
           <Typography sx={{ mb: 1 }}>
             Esta página é para a <b>família</b>. Estás em modo criança.
           </Typography>
-          <PrimaryButton onClick={exitChild}>
+          <PrimaryButton onClick={clearChild}>
             Sair do modo criança
           </PrimaryButton>
         </WhiteCard>
       )}
 
-      {/* Seletor de criança (família decide para quem marca) */}
-      {!!user?.children?.length && (
+      {/* Seletor de criança (família decide para quem marca) — filtro LOCAL */}
+      {!asChild && !!user?.children?.length && (
         <WhiteCard sx={{ mb: 2 }}>
           <CardHeader title="Escolher criança" />
           <AvatarSelect
             label="Marcar para"
             options={selectOptions}
-            value={selectedChildId ?? ""}
-            onChange={async (id) => {
-              const eff = id && String(id).length ? id : "";
-              if (asChild && eff) await actAsChild(eff);
-              setSelectedChildId(eff);
-            }}
+            value={localChildId ?? ""}            // "" = nenhum / todos
+            onChange={(id?: string) => setLocalChildId(id ?? "")}
             minWidth={320}
           />
         </WhiteCard>
@@ -360,7 +354,7 @@ export default function ConsultasPage() {
             <AvatarSelect
               label="Bibliotecário"
               options={librarianOptions}
-              value={selectedLibrarianId}
+              value={selectedLibrarianId || undefined}
               onChange={(id) => {
                 setSelectedLibrarianId(id ?? "");
                 setSelectedSlot(null);
@@ -449,7 +443,11 @@ export default function ConsultasPage() {
                     icon={<CalendarMonthRounded fontSize="small" />}
                     label={new Date(selectedSlot.startAt).toLocaleDateString(
                       "pt-PT",
-                      { day: "2-digit", month: "2-digit", year: "numeric" }
+                      {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      }
                     )}
                   />
                   <Chip
@@ -460,42 +458,27 @@ export default function ConsultasPage() {
                   />
                 </Stack>
 
-                {!!selectedChildId ? (
-                  <Typography sx={{ mb: 1 }}>
-                    Marcar para:{" "}
-                    <b>
-                      {
-                        childOptions.find(
-                          (c) => c.id === String(selectedChildId)
-                        )?.nome
-                      }
-                    </b>
-                  </Typography>
+                {!!localChildId ? (
+                  <>
+                    <Typography sx={{ mb: 1 }}>
+                      Marcar para:{" "}
+                      <b>
+                        {childOptions.find((c) => c.id === localChildId)?.nome}
+                      </b>
+                    </Typography>
+                    <PrimaryButton onClick={reservar} disabled={loading}>
+                      Reservar
+                    </PrimaryButton>
+                  </>
                 ) : (
-                  <Tooltip
-                    title={
-                      !selectedChildId
-                        ? "Escolhe a criança acima para reservar"
-                        : ""
-                    }
-                  >
+                  <Tooltip title="Escolhe a criança acima para reservar">
                     <span>
-                      <PrimaryButton
-                        onClick={reservar}
-                        disabled={loading || !selectedChildId}
-                      >
+                      <PrimaryButton onClick={reservar} disabled>
                         Reservar
                       </PrimaryButton>
                     </span>
                   </Tooltip>
                 )}
-
-                <PrimaryButton
-                  onClick={reservar}
-                  disabled={loading || !selectedChildId}
-                >
-                  Reservar
-                </PrimaryButton>
 
                 {!!selectedSlot.libraryName && (
                   <Typography
