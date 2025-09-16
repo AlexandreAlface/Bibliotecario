@@ -20,12 +20,12 @@ import {
 } from "@mui/material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import { StarRounded } from "@mui/icons-material";
-import { useUserSession } from "../contexts/UserSession";
+import { useUserSession } from "../../contexts/UserSession";
 import {
   getSugestoesQuiz,
   type QuizAnswer,
   getSugestoesPerfil,
-} from "../services/books";
+} from "../../services/books";
 import { reserveBook } from "@/services/reservation";
 
 /* ------------ tipos ------------ */

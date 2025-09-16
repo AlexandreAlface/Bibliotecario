@@ -17,6 +17,7 @@ import reservationsRouter from "./routes/reservations.js";
 import readingsRouter from "./routes/readings.js";
 import ratingsRouter from "./routes/ratings.js";
 import slots from "./routes/consultations/slots.js";
+import proposals from "./routes/consultations/proposals.js";
 import consultations from "./routes/consultations/consultations.js";
 import badgesEngineRouter from "./routes/badges-engine";
 import { withUser } from "./middlewares/auth.js";
@@ -66,6 +67,7 @@ app.use("/api", withUser);
 
 app.use("/api/consultations", consultations); // /api/consultations/...
 app.use("/api/consultations", slots); // /api/consultations/slots, /api/consultations/librarians/:id/slots, etc.
+app.use("/api", proposals);
 app.use("/api", eventsRouter);
 app.use("/api", booksRouter);
 app.use("/api/badge-assignments", badgeAssignmentsRouter);

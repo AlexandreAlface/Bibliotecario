@@ -6,11 +6,14 @@ import {
   ActivityIndicator,
   ScrollView,
   RefreshControl,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "react-native-paper";
 import { useRouter } from "expo-router";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import {
@@ -86,33 +89,33 @@ const STATUS_STYLE: Record<
 > = {
   CONFIRMED: {
     label: "Confirmada",
-    bg: "#DCFCE7", // verde claro
-    fg: "#166534", // verde escuro
-    accent: "#22C55E", // verde vivo
+    bg: "#DCFCE7",
+    fg: "#166534",
+    accent: "#22C55E",
   },
   PENDING: {
     label: "Pendente",
-    bg: "#FFEDD5", // laranja claro
-    fg: "#9A3412", // laranja escuro
-    accent: "#F59E0B", // laranja vivo
+    bg: "#FFEDD5",
+    fg: "#9A3412",
+    accent: "#F59E0B",
   },
   DECLINED: {
     label: "Recusada",
-    bg: "#FEE2E2", // vermelho claro
-    fg: "#991B1B", // vermelho escuro
-    accent: "#EF4444", // vermelho vivo
+    bg: "#FEE2E2",
+    fg: "#991B1B",
+    accent: "#EF4444",
   },
   CANCELLED: {
     label: "Cancelada",
-    bg: "#E5E7EB", // cinzento claro
-    fg: "#374151", // cinzento escuro
-    accent: "#9CA3AF", // cinzento médio
+    bg: "#E5E7EB",
+    fg: "#374151",
+    accent: "#9CA3AF",
   },
   COMPLETED: {
     label: "Concluída",
-    bg: "#DBEAFE", // azul claro
-    fg: "#1E3A8A", // azul escuro
-    accent: "#3B82F6", // azul vivo
+    bg: "#DBEAFE",
+    fg: "#1E3A8A",
+    accent: "#3B82F6",
   },
 };
 
@@ -166,7 +169,7 @@ export default function ConsultasScreen() {
 
   const [tab, setTab] = React.useState<TabKey>("next");
 
-  // filtros de estado (multi-seleção)
+  // estados selecionáveis
   const STATUS_OPTIONS: { key: Exclude<Status, undefined>; label: string }[] = [
     { key: "PENDING", label: STATUS_STYLE.PENDING.label },
     { key: "CONFIRMED", label: STATUS_STYLE.CONFIRMED.label },
@@ -187,15 +190,17 @@ export default function ConsultasScreen() {
     Set<Exclude<Status, undefined>>
   >(new Set(defaultNext));
 
-  // filtros de data
+  // datas (controladas) + visibilidade dos pickers
   const [fromDate, setFromDate] = React.useState<Date | null>(new Date());
   const [toDate, setToDate] = React.useState<Date | null>(null);
+  const [showFromPicker, setShowFromPicker] = React.useState(false);
+  const [showToPicker, setShowToPicker] = React.useState(false);
 
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const [items, setItems] = React.useState<ConsultationLite[]>([]);
 
-  // sempre que muda a tab, ajusta defaults de estados e datas
+  // alternar tab ajusta defaults
   React.useEffect(() => {
     if (tab === "next") {
       setSelectedStatuses(new Set(defaultNext));
@@ -227,7 +232,6 @@ export default function ConsultasScreen() {
           ? Array.from(selectedStatuses).join(",")
           : undefined;
 
-      // força childId quando em modo criança; caso contrário, não envia (mostra todas as da família)
       const effectiveChildId = actingChildId ?? undefined;
 
       const params = {
@@ -351,7 +355,7 @@ export default function ConsultasScreen() {
               />
             </View>
 
-            {/* Filtro por estados (multi) — colorido por estado */}
+            {/* Estados */}
             <Text
               style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}
             >
@@ -390,19 +394,53 @@ export default function ConsultasScreen() {
               }}
             />
 
-            {/* Datas lado-a-lado */}
+            {/* Datas (controladas; pickers só abrem ao tocar) */}
             <Text
               style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}
             >
               Intervalo de datas
             </Text>
+
             <View style={{ flexDirection: "row", gap: 8 }}>
+              {/* FROM */}
               <View style={{ flex: 1 }}>
-                <DateTimePicker
-                  mode="date"
-                  value={fromDate ?? new Date()}
-                  onChange={(_, d) => d && setFromDate(d)}
-                />
+                <TouchableOpacity
+                  onPress={() => setShowFromPicker(true)}
+                  style={{
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: theme.colors.outlineVariant,
+                    backgroundColor: theme.colors.surface,
+                  }}
+                >
+                  <Text style={{ color: theme.colors.onSurface }}>
+                    {fromDate
+                      ? fmtDateTime(fromDate.toISOString())
+                      : "Sem início"}
+                  </Text>
+                </TouchableOpacity>
+
+                {showFromPicker && (
+                  <DateTimePicker
+                    mode="date"
+                    value={fromDate ?? new Date()}
+                    display={Platform.OS === "ios" ? "spinner" : "calendar"}
+                    onChange={(event: DateTimePickerEvent, date?: Date) => {
+                      if (Platform.OS === "android") setShowFromPicker(false);
+                      if (event.type === "set" && date) {
+                        const newFrom = new Date(date);
+                        setFromDate(newFrom);
+                        // manter coerência: from <= to
+                        if (toDate && newFrom > toDate) {
+                          setToDate(newFrom);
+                        }
+                      }
+                    }}
+                  />
+                )}
+
                 <Text
                   style={{
                     color: theme.colors.onSurfaceVariant,
@@ -415,12 +453,45 @@ export default function ConsultasScreen() {
                     : "Sem início"}
                 </Text>
               </View>
+
+              {/* TO */}
               <View style={{ flex: 1 }}>
-                <DateTimePicker
-                  mode="date"
-                  value={toDate ?? new Date()}
-                  onChange={(_, d) => d && setToDate(d)}
-                />
+                <TouchableOpacity
+                  onPress={() => setShowToPicker(true)}
+                  style={{
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: theme.colors.outlineVariant,
+                    backgroundColor: theme.colors.surface,
+                  }}
+                >
+                  <Text style={{ color: theme.colors.onSurface }}>
+                    {toDate
+                      ? fmtDateTime(toDate.toISOString())
+                      : "Sem fim"}
+                  </Text>
+                </TouchableOpacity>
+
+                {showToPicker && (
+                  <DateTimePicker
+                    mode="date"
+                    value={toDate ?? new Date()}
+                    display={Platform.OS === "ios" ? "spinner" : "calendar"}
+                    minimumDate={fromDate ?? undefined}
+                    onChange={(event: DateTimePickerEvent, date?: Date) => {
+                      if (Platform.OS === "android") setShowToPicker(false);
+                      if (event.type === "set" && date) {
+                        const newTo = new Date(date);
+                        setToDate(
+                          fromDate && newTo < fromDate ? fromDate : newTo
+                        );
+                      }
+                    }}
+                  />
+                )}
+
                 <Text
                   style={{
                     color: theme.colors.onSurfaceVariant,
@@ -503,11 +574,7 @@ export default function ConsultasScreen() {
                         overflow: "hidden",
                       }}
                     >
-                      {/* barra colorida por estado */}
-                      <View
-                        style={{ height: 4, backgroundColor: meta.accent }}
-                      />
-
+                      <View style={{ height: 4, backgroundColor: meta.accent }} />
                       <View style={{ padding: 14 }}>
                         <View
                           style={{

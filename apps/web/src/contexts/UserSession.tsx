@@ -29,11 +29,15 @@ type Ctx = {
   user: UserShape | null;
   loading: boolean;
 
-  // Perfil atual (estilo Netflix)
+  // Flags de papel
+  isFamily: boolean;
+  isLibrarian: boolean;
+  isAdmin: boolean;
+
+  // Perfil atual (apenas famílias)
   asChild: boolean;
   currentChildId: number | null;
 
-  // Shims de compatibilidade (páginas antigas usam isto)
   selectedChildId: number | null;
   setSelectedChildId: (id: string | number | null | undefined) => Promise<void>;
 
@@ -42,6 +46,12 @@ type Ctx = {
   clearChild: () => Promise<void>;
   logout: () => Promise<void>;
 };
+
+function hasRole(user: UserShape | null, ...roles: string[]) {
+  if (!user?.roles) return false;
+  const set = new Set(user.roles.map((r) => r.toUpperCase()));
+  return roles.some((r) => set.has(r.toUpperCase()));
+}
 
 const UserSessionContext = React.createContext<Ctx | null>(null);
 
@@ -123,23 +133,36 @@ export function UserSessionProvider({
     }
   }
 
-  const asChild = !!user?.actingChild?.id;
-  const currentChildId = user?.actingChild?.id ?? null;
+  const isFamily = hasRole(user, "FAMILY", "FAMÍLIA");
+  const isLibrarian = hasRole(
+    user,
+    "LIBRARIAN",
+    "BIBLIOTECÁRIO",
+    "BIBLIOTECARIO"
+  );
+  const isAdmin = hasRole(user, "ADMIN");
+
+  const asChild = isFamily && !!user?.actingChild?.id;
+  const currentChildId = asChild ? user!.actingChild!.id! : null;
 
   // Shims: mantêm as tuas páginas atuais a compilar e a funcionar
   const selectedChildId = currentChildId;
   const setSelectedChildId = React.useCallback(
     async (id: string | number | null | undefined) => {
+      if (!isFamily) return; // bibliotecário/admin não tem perfis de criança
       if (id == null || id === "") return clearChild();
       const n = typeof id === "string" ? Number(id) : id;
       return actAsChild(n);
     },
-    []
+    [isFamily]
   );
 
   const value: Ctx = {
     user,
     loading,
+    isFamily,
+    isLibrarian,
+    isAdmin,
     asChild,
     currentChildId,
     selectedChildId,

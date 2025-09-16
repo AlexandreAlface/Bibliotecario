@@ -24,6 +24,32 @@ export type WebUser = {
   address?: string | null;
 };
 
+// ----------------- Helpers de normalização (NOVO) -----------------
+function stripDiacritics(s: string): string {
+  return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+export function canonicalizeRole(role: string): string {
+  return stripDiacritics(role).toUpperCase().trim();
+}
+export function hasRole(user: WebUser | null | undefined, ...roles: string[]) {
+  if (!user?.roles) return false;
+  const set = new Set(user.roles.map(canonicalizeRole));
+  return roles.map(canonicalizeRole).some((r) => set.has(r));
+}
+export const isLibrarian = (u?: WebUser | null) =>
+  hasRole(u, "LIBRARIAN", "BIBLIOTECARIO", "BIBLIOTECÁRIO");
+export const isFamily = (u?: WebUser | null) =>
+  hasRole(u, "FAMILY", "FAMILIA", "FAMÍLIA");
+export const isAdmin = (u?: WebUser | null) => hasRole(u, "ADMIN");
+
+/** Rota sugerida após login (NOVO) */
+export function pickLandingRoute(u: WebUser | null | undefined): string {
+  if (!u) return "/auth/login";
+  if (isLibrarian(u) || isAdmin(u)) return "/librarian/consultas/pendentes";
+  return "/";
+}
+
+// ----------------- Normalizadores existentes -----------------
 function normalizeChild(raw: any): WebChild {
   return {
     id: Number(raw?.id ?? raw?.childId ?? raw?.kidId ?? 0),
@@ -50,7 +76,9 @@ function normalizeUser(raw: any): WebUser {
     raw?.perfis ??
     [];
   const roles = Array.isArray(rawRoles)
-    ? rawRoles.map((r: any) => String(r?.name ?? r?.role?.name ?? r))
+    ? rawRoles
+        .map((r: any) => String(r?.name ?? r?.role?.name ?? r))
+        .filter(Boolean)
     : [];
 
   // children podem vir embrulhados (ChildFamily, profiles, etc.)
@@ -90,6 +118,8 @@ function normalizeUser(raw: any): WebUser {
   };
 }
 
+// -- API helpers --------------------------------------------------------------
+
 export async function updateMe(patch: {
   fullName?: string;
   email?: string;
@@ -108,8 +138,6 @@ export async function updateMe(patch: {
   return normalizeUser(data ?? {});
 }
 
-// -- API helpers --------------------------------------------------------------
-
 export async function getMe(): Promise<WebUser> {
   const { data } = await api.get("/auth/me");
   return normalizeUser(data ?? {});
@@ -117,6 +145,7 @@ export async function getMe(): Promise<WebUser> {
 
 export async function login(email: string, password: string) {
   await api.post("/auth/login", { email, password });
+  // devolve o utilizador normalizado para o caller decidir o redirect
   return getMe();
 }
 

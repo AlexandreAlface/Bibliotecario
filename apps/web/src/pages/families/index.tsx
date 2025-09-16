@@ -20,25 +20,25 @@ import {
   IconButton,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
-import { useUserSession } from "../contexts/UserSession";
+import { useUserSession } from "../../contexts/UserSession";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import { StarRounded } from "@mui/icons-material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
 
-import { getLeiturasAtuais } from "../services/readings";
-import type { BookLite as ReadingBookLite } from "../services/readings";
+import { getLeiturasAtuais } from "../../services/readings";
+import type { BookLite as ReadingBookLite } from "../../services/readings";
 
-import { getProximosEventos } from "../services/events";
-import { getSugestoesPerfil } from "../services/books";
-import type { BookLite as SuggestionBookLite } from "../services/books";
-import { getNextConsultas, type ConsultaLite } from "../services/consultations";
-import { getBadgesRecent, type BadgeLite } from "../services/badges";
+import { getProximosEventos } from "../../services/events";
+import { getSugestoesPerfil } from "../../services/books";
+import type { BookLite as SuggestionBookLite } from "../../services/books";
+import { getNextConsultas, type ConsultaLite } from "../../services/consultations";
+import { getBadgesRecent, type BadgeLite } from "../../services/badges";
 import EmojiEventsRounded from "@mui/icons-material/EmojiEventsRounded";
 
 // Placeholder para eventos sem imagem
-import EVENT_PLACEHOLDER from "../assets/placeholder-event.jpg";
+import EVENT_PLACEHOLDER from "../../assets/placeholder-event.jpg";
 
 const TOP_CARD_H = "clamp(360px, 50vh, 440px)";
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { $Enums, PrismaClient, SlotStatus } from "@prisma/client";
-import { requireRole, ROLES } from "../../middlewares/auth";
+import { requireRole, ROLES, withUser } from "../../middlewares/auth";
 
 const prisma = new PrismaClient();
 const r = Router();
@@ -37,13 +37,27 @@ r.post(
   async (req: any, res) => {
     try {
       const librarianId = Number(req.params.librarianId);
+
+      // carrega bibliotecas associadas ao bibliotecário
+      const links = await prisma.userLibrary.findMany({
+        where: { userId: librarianId },
+        select: { libraryId: true },
+      });
+      const defaultLibraryId = links.length === 1 ? links[0].libraryId : null; // só auto-preenche se houver 1
+
       const items = (req.body?.slots ?? []).map((s: any) => ({
         librarianId,
         startAt: new Date(s.startAt),
         endAt: new Date(s.endAt),
-        libraryId: s.libraryId ?? null,
+        libraryId: s.libraryId != null ? s.libraryId : defaultLibraryId ?? null, // 👈 auto-preenche aqui
         status: s.status ?? SlotStatus.OPEN,
       }));
+
+      // (opcional) se houver várias bibliotecas e faltarem libraryId explícitos, podes forçar erro:
+      // if (links.length > 1 && items.some(i => i.libraryId == null)) {
+      //   return res.status(400).json({ error: "multiple_libraries_require_explicit_libraryId" });
+      // }
+
       const created = await prisma.consultationSlot.createMany({
         data: items,
         skipDuplicates: true,
@@ -145,5 +159,32 @@ r.get("/slots", async (req, res) => {
     res.status(400).json({ error: e?.message ?? "failed to list slots" });
   }
 });
+
+r.get(
+  "/librarians/:librarianId/libraries",
+  withUser,
+  requireRole(ROLES.LIBRARIAN, ROLES.ADMIN),
+  async (req, res) => {
+    try {
+      const librarianId = Number(req.params.librarianId);
+      const isAdmin = req.user?.roles?.includes(ROLES.ADMIN) === true;
+      if (!isAdmin && req.user?.id !== librarianId) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+
+      const links = await prisma.userLibrary.findMany({
+        where: { userId: librarianId },
+        select: { library: { select: { id: true, name: true } } },
+        orderBy: { libraryId: "asc" },
+      });
+
+      const libs = links.map((l) => l.library).filter(Boolean);
+      res.json(libs);
+    } catch (e: any) {
+      console.error(e);
+      res.status(400).json({ error: e?.message ?? "failed to list libraries" });
+    }
+  }
+);
 
 export default r;

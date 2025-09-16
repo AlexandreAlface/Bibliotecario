@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -16,7 +17,9 @@ import {
   SecondaryButton,
 } from "@bibliotecario/ui-mobile/components/Buttons/Buttons";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerEvent, // ← CORRETO (em vez de AndroidEvent)
+} from "@react-native-community/datetimepicker";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -104,6 +107,7 @@ export default function AgendaScreen() {
     handleSubmit,
     setValue,
     watch,
+    getValues,
     formState: { isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema) as Resolver<FormData>,
@@ -125,47 +129,53 @@ export default function AgendaScreen() {
   const [slots, setSlots] = React.useState<Slot[]>([]);
   const [loading, setLoading] = React.useState(false);
 
-  // Carregar bibliotecários com OPEN slots no intervalo (roleId=2)
+  // controla apresentação dos pickers
+  const [showFromPicker, setShowFromPicker] = React.useState(false);
+  const [showToPicker, setShowToPicker] = React.useState(false);
+
+  // Carregar bibliotecários com OPEN slots
   async function refreshLibrarians() {
     try {
       const now = new Date();
-      const fromIso = maxDate(startOfDay(from), now).toISOString();
-      const toIso = endOfDay(to).toISOString();
+      const fromIso = maxDate(startOfDay(getValues("from")), now).toISOString();
+      const toIso = endOfDay(getValues("to")).toISOString();
       const list = await usersApi.listLibrariansWithOpenSlots({
         from: fromIso,
         to: toIso,
       });
       setLibrarians(list);
       // limpar seleção se deixou de estar disponível
-      const current = watch("librarianId");
+      const current = getValues("librarianId");
       if (current && !list.some((l) => l.id === current)) {
         setValue("librarianId", undefined, { shouldValidate: true });
       }
-    } catch (e) {
+    } catch {
       setLibrarians([]);
     }
   }
 
   React.useEffect(() => {
-    refreshLibrarians(); /* on mount */
+    refreshLibrarians(); // mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   React.useEffect(() => {
-    refreshLibrarians(); /* quando mudam datas */
+    refreshLibrarians(); // datas
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to]);
 
   async function loadSlots() {
     setLoading(true);
     try {
       const now = new Date();
-      const fromIso = maxDate(startOfDay(from), now).toISOString(); // ⬅️ nunca no passado
-      const toIso = endOfDay(to).toISOString();
+      const fromIso = maxDate(startOfDay(getValues("from")), now).toISOString();
+      const toIso = endOfDay(getValues("to")).toISOString();
       const data = await consultationsApi.searchSlots({
         from: fromIso,
         to: toIso,
         librarianId: librarianFilter || undefined,
       });
       setSlots(data);
-      const chosen = watch("slotId");
+      const chosen = getValues("slotId");
       if (chosen && !data.some((s) => s.id === chosen)) {
         setValue("slotId", undefined, { shouldValidate: true });
       }
@@ -197,13 +207,18 @@ export default function AgendaScreen() {
         familyId: user.id,
         childId: v.childId,
         slotId: v.slotId,
-        librarianId: slot.librarianId, // backend exige
+        librarianId: slot.librarianId,
       });
       Alert.alert("Sucesso", "Consulta criada.");
     } catch (e: any) {
       Alert.alert("Erro", e?.message ?? "Falha ao criar consulta");
     }
   };
+
+  // limites de data
+  const today = startOfDay(new Date());
+  const minFrom = today;
+  const minTo = startOfDay(from > today ? from : today);
 
   return (
     <Background>
@@ -258,7 +273,7 @@ export default function AgendaScreen() {
               }}
             />
 
-            {/* Bibliotecário (dinâmico; roleId=2; só com slots OPEN no intervalo) */}
+            {/* Bibliotecário */}
             <Text
               style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}
             >
@@ -295,23 +310,59 @@ export default function AgendaScreen() {
               }}
             />
 
-            {/* Datas lado-a-lado */}
+            {/* Datas lado-a-lado (pickers controlados) */}
             <Text
               style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}
             >
               Procurar horários entre
             </Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
+              {/* FROM */}
               <View style={{ flex: 1 }}>
                 <Controller
                   control={control}
                   name="from"
                   render={({ field: { value, onChange } }) => (
-                    <DateTimePicker
-                      mode="date"
-                      value={value}
-                      onChange={(_, d) => d && onChange(d)}
-                    />
+                    <>
+                      <TouchableOpacity
+                        onPress={() => setShowFromPicker(true)}
+                        style={{
+                          paddingVertical: 10,
+                          paddingHorizontal: 12,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: theme.colors.outlineVariant,
+                          backgroundColor: theme.colors.surface,
+                        }}
+                      >
+                        <Text style={{ color: theme.colors.onSurface }}>
+                          {fmt(maxDate(startOfDay(value), today))}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {showFromPicker && (
+                        <DateTimePicker
+                          mode="date"
+                          value={value}
+                          display={Platform.OS === "ios" ? "spinner" : "calendar"}
+                          minimumDate={minFrom}
+                          onChange={(event: DateTimePickerEvent, date?: Date) => {
+                            if (Platform.OS === "android") {
+                              setShowFromPicker(false); // fecha sempre no Android
+                            }
+                            if (event.type === "set" && date) {
+                              const newFrom = startOfDay(date);
+                              onChange(newFrom);
+                              if (newFrom > to) {
+                                setValue("to", endOfDay(newFrom), {
+                                  shouldValidate: true,
+                                });
+                              }
+                            }
+                          }}
+                        />
+                      )}
+                    </>
                   )}
                 />
                 <Text
@@ -321,19 +372,52 @@ export default function AgendaScreen() {
                     fontSize: 12,
                   }}
                 >
-                  {fmt(maxDate(startOfDay(from), new Date()))}
+                  {fmt(maxDate(startOfDay(from), today))}
                 </Text>
               </View>
+
+              {/* TO */}
               <View style={{ flex: 1 }}>
                 <Controller
                   control={control}
                   name="to"
                   render={({ field: { value, onChange } }) => (
-                    <DateTimePicker
-                      mode="date"
-                      value={value}
-                      onChange={(_, d) => d && onChange(d)}
-                    />
+                    <>
+                      <TouchableOpacity
+                        onPress={() => setShowToPicker(true)}
+                        style={{
+                          paddingVertical: 10,
+                          paddingHorizontal: 12,
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: theme.colors.outlineVariant,
+                          backgroundColor: theme.colors.surface,
+                        }}
+                      >
+                        <Text style={{ color: theme.colors.onSurface }}>
+                          {fmt(endOfDay(value))}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {showToPicker && (
+                        <DateTimePicker
+                          mode="date"
+                          value={value}
+                          display={Platform.OS === "ios" ? "spinner" : "calendar"}
+                          minimumDate={minTo}
+                          onChange={(event: DateTimePickerEvent, date?: Date) => {
+                            if (Platform.OS === "android") {
+                              setShowToPicker(false);
+                            }
+                            if (event.type === "set" && date) {
+                              const newTo = endOfDay(date);
+                              const safeTo = newTo < from ? endOfDay(from) : newTo;
+                              onChange(safeTo);
+                            }
+                          }}
+                        />
+                      )}
+                    </>
                   )}
                 />
                 <Text

@@ -8,6 +8,8 @@ import {
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import { pickLandingRoute } from "@/services/auth"; // 👈 NOVO
 
 const schema = z.object({
   email: z.string().min(1, "Obrigatório").email("Formato inválido"),
@@ -16,6 +18,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export default function Login() {
+  const navigate = useNavigate();
   const { login } = useAuth();
   const { control, handleSubmit, formState } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -24,8 +27,12 @@ export default function Login() {
 
   async function onSubmit(values: FormData) {
     try {
-      await login(values.email, values.password); // seta user via /auth/me
-      window.location.href = "/profiles";                // cai no index com sessão
+      // o teu useAuth.login deve devolver o utilizador normalizado (via /auth/me)
+      const user = await login(values.email, values.password);
+
+      // decide rota de destino pelo papel do utilizador
+      const next = pickLandingRoute(user); // bibliotecário/admin -> /librarian/consultas/pendentes, família -> "/"
+      navigate(next, { replace: true });
     } catch (e: any) {
       alert(e?.response?.data?.error || e?.message || "Falha no login.");
     }
@@ -87,8 +94,13 @@ export default function Login() {
               }}
             />
 
-            <PrimaryButton type="submit" fullWidth disabled={formState.isSubmitting} sx={{ mb: 3 }}>
-              Entrar
+            <PrimaryButton
+              type="submit"
+              fullWidth
+              disabled={formState.isSubmitting}
+              sx={{ mb: 3 }}
+            >
+              {formState.isSubmitting ? "A entrar…" : "Entrar"}
             </PrimaryButton>
           </Box>
 

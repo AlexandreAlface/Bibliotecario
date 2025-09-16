@@ -1,7 +1,7 @@
 // apps/api/src/routes/consultations/consultations.ts
 import { Router } from "express";
-import { $Enums, PrismaClient } from "@prisma/client";
-import { requireFamilyOrLibrarian, withUser } from "../../middlewares/auth";
+import { $Enums, ConsultationStatus, PrismaClient } from "@prisma/client";
+import { requireFamilyOrLibrarian, requireRole, ROLES, withUser } from "../../middlewares/auth";
 
 const prisma = new PrismaClient();
 const r = Router();
@@ -430,5 +430,66 @@ r.get(
     }
   }
 );
+
+r.post("/:id/confirm", withUser, requireRole(ROLES.LIBRARIAN, ROLES.ADMIN), async (req, res) => {
+  const id = Number(req.params.id);
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const c = await tx.consultation.findUnique({
+        where: { id },
+        include: { slot: true },
+      });
+      if (!c) return res.status(404).json({ error: "not found" });
+
+      // só o bibliotecário dono (ou admin) confirma
+      const isAdmin = req.user?.roles?.includes(ROLES.ADMIN) === true;
+      if (!isAdmin && req.user?.id !== c.librarianId) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+
+      if (!c.startAt || !c.endAt) {
+        return res.status(400).json({ error: "consulta sem horário para confirmar" });
+      }
+
+      // conflito com outras CONFIRMED
+      const conflict = await tx.consultation.findFirst({
+        where: {
+          librarianId: c.librarianId,
+          status: ConsultationStatus.CONFIRMED,
+          startAt: { lt: c.endAt },
+          endAt:   { gt: c.startAt },
+          id: { not: c.id },
+        },
+        select: { id: true, startAt: true, endAt: true, familyId: true },
+      });
+      if (conflict) {
+        return res.status(409).json({ error: "conflict", conflict });
+      }
+
+      // marca slot BOOKED (se existir) e confirma
+      if (c.slotId) {
+        await tx.consultationSlot.update({ where: { id: c.slotId }, data: { status: "BOOKED" } });
+      }
+
+      const updated = await tx.consultation.update({
+        where: { id: c.id },
+        data: { status: ConsultationStatus.CONFIRMED, events: { create: { type: "CONFIRMED", actorId: req.user?.id } } },
+      });
+
+      return updated;
+    });
+
+    if (result && !("error" in (result as any))) return res.json(result);
+  } catch (e: any) {
+    const msg = String(e?.message || "");
+    if (/unique|constraint|slotId|startAt.*endAt/i.test(msg)) {
+      return res.status(409).json({ error: "concurrency" });
+    }
+    console.error(e);
+  }
+
+  return res.status(400).json({ error: "failed to confirm" });
+});
 
 export default r;

@@ -25,17 +25,17 @@ import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 
-import { useUserSession } from "../contexts/UserSession";
-import { getLeiturasAtuais, type BookLite } from "../services/readings";
-import { getBadgesRecent, type BadgeLite } from "../services/badges";
-import { getNextConsultas, type ConsultaLite } from "../services/consultations";
-import { getSugestoesPerfil } from "../services/books";
+import { useUserSession } from "../../contexts/UserSession";
+import { getLeiturasAtuais, type BookLite } from "../../services/readings";
+import { getBadgesRecent, type BadgeLite } from "../../services/badges";
+import { getNextConsultas, type ConsultaLite } from "../../services/consultations";
+import { getSugestoesPerfil } from "../../services/books";
 import { getMe, updateMe } from "@/services/auth";
 import {
   createChild,
   updateChild as updateChildSvc,
   deleteChild as deleteChildSvc,
-} from "../services/children";
+} from "../../services/children";
 
 /* ---------------- helpers ---------------- */
 function ageFrom(birth?: string | Date | null) {

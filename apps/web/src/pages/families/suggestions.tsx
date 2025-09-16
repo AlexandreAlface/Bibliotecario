@@ -28,12 +28,12 @@ import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import QuizRounded from "@mui/icons-material/QuizRounded";
 import ReplayRounded from "@mui/icons-material/ReplayRounded";
 import { StarRounded } from "@mui/icons-material";
-import { useUserSession } from "../contexts/UserSession";
+import { useUserSession } from "../../contexts/UserSession";
 import {
   getSugestoesPerfil,
   getSugestoesQuiz,
   type QuizAnswer,
-} from "../services/books";
+} from "../../services/books";
 import { reserveBook } from "@/services/reservation";
 
 type BookLite = {

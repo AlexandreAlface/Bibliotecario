@@ -1,26 +1,35 @@
 import { createBrowserRouter, Outlet } from "react-router-dom";
 import AppLayout from "../layouts/AppLayout";
 import { UserSessionProvider } from "../contexts/UserSession";
+import { RequireRole } from "@/routes/RequireRole"; // 👈 guard por papel
 
-// páginas app
-import LandingPage from "../pages";
-import FamiliaPage from "@/pages/familia";
-import SuggestionsPage from "@/pages/suggestions";
-import AchievementsPage from "@/pages/achievements";
-import AgendasPage from "@/pages/agenda";
-import ConsultasPage from "@/pages/consultas";
-import ReviewsPage from "@/pages/reviews";
-import ReadingsPage from "@/pages/readings";
-import SuggestionsByCategoriesPage from "@/pages/suggestions-categories";
+// páginas app (família)
+import LandingPage from "../pages/families";
+import FamiliaPage from "@/pages/families/familia";
+import SuggestionsPage from "@/pages/families/suggestions";
+import AchievementsPage from "@/pages/families/achievements";
+import AgendasPage from "@/pages/families/agenda";
+import ConsultasPage from "@/pages/families/consultas";
+import ReviewsPage from "@/pages/families/reviews";
+import ReadingsPage from "@/pages/families/readings";
+import SuggestionsByCategoriesPage from "@/pages/families/suggestions-categories";
 
 // auth
 import Login from "@/pages/auth/Login";
 import CreateAccount from "@/pages/auth/CreateAccount";
 import CreateProfilesPage from "@/pages/auth/CreateProfilesPage";
-import Logout from "@/pages/Logout";
+import Logout from "@/pages/families/Logout";
 
 // NEW
 import ProfilesPage from "@/pages/profiles";
+import LibrarianHome from "@/pages/librarian/Home";
+import LibrarianConsultasPendentes from "@/pages/librarian/ConsultasPendentes";
+import LibrarianAgenda from "@/pages/librarian/Agenda";
+import LibrarianFamilias from "@/pages/librarian/Familias";
+import LibrarianSlots from "@/pages/librarian/Slots";
+
+// --- NOVO: páginas do bibliotecário ---
+
 
 // Layout simples p/ Auth
 function AuthLayout() {
@@ -28,7 +37,7 @@ function AuthLayout() {
 }
 
 export const router = createBrowserRouter([
-  // Rotas de autenticação (sem AppLayout / sem menu)
+  // ---------------- Auth (sem AppLayout) ----------------
   {
     path: "/auth",
     element: <AuthLayout />,
@@ -40,17 +49,19 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // PERFIS (sem sidebar) — mas com sessão
+  // ---------------- Perfis (sem sidebar), só FAMÍLIA ----------------
   {
     element: (
       <UserSessionProvider>
-        <Outlet />
+        <RequireRole roles={["FAMILY", "FAMÍLIA"]}>
+          <Outlet />
+        </RequireRole>
       </UserSessionProvider>
     ),
     children: [{ path: "/profiles", element: <ProfilesPage /> }],
   },
 
-  // Rotas da aplicação (com AppLayout e menu)
+  // ---------------- App (com AppLayout) ----------------
   {
     element: (
       <UserSessionProvider>
@@ -58,18 +69,33 @@ export const router = createBrowserRouter([
       </UserSessionProvider>
     ),
     children: [
+      // ----- Área Família (rotas existentes) -----
       { index: true, element: <LandingPage /> },
       { path: "suggestions", element: <SuggestionsPage /> },
       { path: "reviews", element: <ReviewsPage /> },
       { path: "reading", element: <ReadingsPage /> },
-      {
-        path: "suggestions-categories",
-        element: <SuggestionsByCategoriesPage />,
-      },
+      { path: "suggestions-categories", element: <SuggestionsByCategoriesPage /> },
       { path: "achievements", element: <AchievementsPage /> },
       { path: "agenda", element: <AgendasPage /> },
       { path: "consultas", element: <ConsultasPage /> },
       { path: "familia", element: <FamiliaPage /> },
+
+      // ----- Área Bibliotecário (NOVO) -----
+      {
+        path: "librarian",
+        element: (
+          <RequireRole roles={["LIBRARIAN", "BIBLIOTECÁRIO", "BIBLIOTECARIO", "ADMIN"]}>
+            <Outlet />
+          </RequireRole>
+        ),
+        children: [
+          { index: true, element: <LibrarianHome /> },
+          { path: "consultas/pendentes", element: <LibrarianConsultasPendentes /> },
+          { path: "agenda", element: <LibrarianAgenda /> },
+          { path: "familias", element: <LibrarianFamilias /> },
+          { path: "slots", element: <LibrarianSlots /> },
+        ],
+      },
     ],
   },
 ]);

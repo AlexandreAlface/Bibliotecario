@@ -26,13 +26,13 @@ import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 
-import { useUserSession } from "../contexts/UserSession";
+import { useUserSession } from "../../contexts/UserSession";
 import {
   type ConsultaLite,
   type SlotLite,
   listOpenSlots,
   createConsultationWithSlot,
-} from "../services/consultations";
+} from "../../services/consultations";
 
 /* ---------- utils ---------- */
 function startOfDay(d: Date) {

@@ -24,7 +24,7 @@ import {
   Paginator,
 } from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
-import { listPendingRatings, submitRating } from "../services/readings";
+import { listPendingRatings, submitRating } from "../../services/readings";
 
 type Row = {
   isbn: string;

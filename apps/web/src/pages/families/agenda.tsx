@@ -1,6 +1,6 @@
 // apps/web/src/pages/agenda.tsx
 import { useEffect, useMemo, useState } from "react";
-import { WhiteCard, RouteLink, AvatarSelect } from "@bibliotecario/ui-web";
+import { WhiteCard, RouteLink, AvatarSelect, PrimaryButton, SecondaryButton } from "@bibliotecario/ui-web";
 import type { AvatarOption } from "@bibliotecario/ui-web";
 import {
   Avatar,
@@ -19,9 +19,17 @@ import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import TodayRounded from "@mui/icons-material/TodayRounded";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import CancelRounded from "@mui/icons-material/CancelRounded";
 
-import { useUserSession } from "../contexts/UserSession";
-import { getNextConsultas, type ConsultaLite } from "../services/consultations";
+import { useUserSession } from "../../contexts/UserSession";
+import {
+  getNextConsultas,
+  type ConsultaLite,
+  listFamilyProposals,
+  acceptProposal,
+  declineProposal,
+} from "../../services/consultations";
 
 const STATUS_CFG: Record<
   string,
@@ -53,7 +61,7 @@ function parts(iso?: string) {
   };
 }
 
-/* ---------- Header util ---------- */
+/* ---------- helpers de UI ---------- */
 function CardHeader({
   title,
   action,
@@ -179,18 +187,61 @@ function ConsultaRow({ c, onClick }: { c: ConsultaLite; onClick: () => void }) {
 /* =================== Página =================== */
 export default function AgendasPage() {
   const theme = useTheme();
-  // ⚠️ Não usamos selectedChildId/setSelectedChildId aqui.
   const { user, asChild } = useUserSession();
 
-  // filtro LOCAL (modo família): não altera contexto global
-  const [localChildId, setLocalChildId] = useState<string | undefined>(undefined);
+  // filtro LOCAL (modo família)
+  const [localChildId, setLocalChildId] = useState<string | undefined>(
+    undefined
+  );
 
   const [monthRef, setMonthRef] = useState(startOfDay(new Date()));
   const [consultasRaw, setConsultasRaw] = useState<ConsultaLite[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(fmtYMD(new Date()));
   const [focused, setFocused] = useState<ConsultaLite | null>(null);
 
-  // opções base (usado só em modo família) — garantir sempre nome:string e avatar?:string
+  // ---- propostas de reagendamento (família) ----
+  const [proposals, setProposals] = useState<any[]>([]);
+  const [loadingProps, setLoadingProps] = useState(false);
+  const [errProps, setErrProps] = useState<string | null>(null);
+
+  const fDate = new Intl.DateTimeFormat("pt-PT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  const fTime = new Intl.DateTimeFormat("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const fmtRange = (a?: string, b?: string) => {
+    if (!a || !b) return "Sem horário";
+    const A = new Date(a),
+      B = new Date(b);
+    return `${fDate.format(A)}, ${fTime.format(A)} — ${fTime.format(B)}`;
+  };
+
+  useEffect(() => {
+    (async () => {
+      const famId = Number(user?.id);
+      if (!Number.isFinite(famId)) return;
+      try {
+        setLoadingProps(true);
+        const res = await listFamilyProposals(famId, {
+          status: "PENDING",
+          limit: 50,
+        });
+        setProposals(res?.items || []);
+        setErrProps(null);
+      } catch (e: any) {
+        setErrProps(e?.message || "Falha a carregar propostas");
+        setProposals([]);
+      } finally {
+        setLoadingProps(false);
+      }
+    })();
+  }, [user?.id]);
+
+  // opções base (usado só em modo família)
   const childBaseOptions: AvatarOption[] = (user?.children || []).map((c) => ({
     id: String(c.id),
     nome: c.name ?? "",
@@ -202,8 +253,6 @@ export default function AgendasPage() {
   ];
 
   // Carregar consultas:
-  // - Modo criança → por actingChild
-  // - Modo família → por família; opcionalmente filtrar por localChildId
   useEffect(() => {
     (async () => {
       try {
@@ -221,7 +270,9 @@ export default function AgendasPage() {
             setConsultasRaw([]);
             return;
           }
-          const opts: { familyId: number; childId?: number } = { familyId: famId };
+          const opts: { familyId: number; childId?: number } = {
+            familyId: famId,
+          };
           if (localChildId && localChildId !== "") {
             const cid = Number(localChildId);
             if (Number.isFinite(cid)) opts.childId = cid;
@@ -288,7 +339,8 @@ export default function AgendasPage() {
     const total = dEnd.getDate();
 
     const cells: { ymd: string; inMonth: boolean }[] = [];
-    for (let i = 0; i < firstWeekday; i++) cells.push({ ymd: "", inMonth: false });
+    for (let i = 0; i < firstWeekday; i++)
+      cells.push({ ymd: "", inMonth: false });
     for (let day = 1; day <= total; day++) {
       const d = new Date(d0);
       d.setDate(day);
@@ -332,19 +384,125 @@ export default function AgendasPage() {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Título */}
-      <Typography variant="h3" fontWeight={900} sx={{ mb: 2, letterSpacing: 0.3 }}>
+      <Typography
+        variant="h3"
+        fontWeight={900}
+        sx={{ mb: 2, letterSpacing: 0.3 }}
+      >
         {titleLeft}
       </Typography>
 
+      {/* ---- Pedidos de reagendamento ---- */}
+      <WhiteCard sx={{ mb: 2 }}>
+        <CardHeader title="Pedidos de reagendamento" />
+        {errProps && (
+          <Typography color="error" sx={{ mb: 1 }}>
+            {errProps}
+          </Typography>
+        )}
+        {loadingProps && (
+          <Typography sx={{ opacity: 0.7 }}>A carregar…</Typography>
+        )}
+        {!loadingProps && proposals.length === 0 && (
+          <Typography sx={{ opacity: 0.7 }}>
+            Sem propostas pendentes.
+          </Typography>
+        )}
+
+        <Stack spacing={1.25}>
+          {proposals.map((p) => {
+            const who =
+              p.proposedBy === "LIBRARIAN"
+                ? "Proposta do bibliotecário"
+                : p.proposedBy === "FAMILY"
+                ? "Proposta da família"
+                : "Proposta do sistema";
+
+            const title = p.consultation?.child?.name
+              ? `Consulta de ${p.consultation.child.name}`
+              : `Consulta com ${
+                  p.consultation?.librarian?.fullName ?? "bibliotecário"
+                }`;
+
+            return (
+              <Box
+                key={p.id}
+                sx={{
+                  p: 1.25,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 2,
+                  flexWrap: "wrap",
+                }}
+              >
+                <Box minWidth={220}>
+                  <Typography fontWeight={900}>{title}</Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    {who}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.25 }}>
+                    {fmtRange(p.toStartAt, p.toEndAt)}
+                  </Typography>
+                </Box>
+
+                <Stack direction="row" spacing={1}>
+                  <PrimaryButton
+                    onClick={async () => {
+                      try {
+                        await acceptProposal(p.id);
+                        const famId = Number(user?.id);
+                        const res = await listFamilyProposals(famId, {
+                          status: "PENDING",
+                          limit: 50,
+                        });
+                        setProposals(res?.items || []);
+                      } catch (e: any) {
+                        alert(e?.message || "Falha ao aceitar.");
+                      }
+                    }}
+                    startIcon={<CheckCircleRounded />}
+                  >
+                    Aceitar
+                  </PrimaryButton>
+
+                  <SecondaryButton
+                    onClick={async () => {
+                      try {
+                        await declineProposal(p.id);
+                        const famId = Number(user?.id);
+                        const res = await listFamilyProposals(famId, {
+                          status: "PENDING",
+                          limit: 50,
+                        });
+                        setProposals(res?.items || []);
+                      } catch (e: any) {
+                        alert(e?.message || "Falha ao recusar.");
+                      }
+                    }}
+                    startIcon={<CancelRounded />}
+                    variant="outlined"
+                  >
+                    Recusar
+                  </SecondaryButton>
+                </Stack>
+              </Box>
+            );
+          })}
+        </Stack>
+      </WhiteCard>
+
       {/* -------- Topo: criança -------- */}
-      {/* Modo FAMÍLIA → seletor local (não muda active user) */}
       {!asChild && !!user?.children?.length && (
         <WhiteCard sx={{ mb: 2 }}>
           <CardHeader title="Escolher criança" />
           <AvatarSelect
             label="Filtrar por criança"
             options={selectOptions}
-            value={localChildId ?? ""}           // "" = todos
+            value={localChildId ?? ""} // "" = todos
             onChange={(id?: string) => setLocalChildId(id)}
             minWidth={320}
           />
@@ -395,7 +553,10 @@ export default function AgendasPage() {
               }}
             >
               {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((h) => (
-                <Box key={h} sx={{ px: 1, py: 0.5, opacity: 0.7, fontWeight: 700 }}>
+                <Box
+                  key={h}
+                  sx={{ px: 1, py: 0.5, opacity: 0.7, fontWeight: 700 }}
+                >
                   {h}
                 </Box>
               ))}
@@ -442,7 +603,8 @@ export default function AgendasPage() {
                             opacity: 0.9,
                           }}
                           title={`${it.title} — ${
-                            STATUS_CFG[(it.status || "").toUpperCase()]?.label ?? it.status
+                            STATUS_CFG[(it.status || "").toUpperCase()]
+                              ?.label ?? it.status
                           }`}
                         />
                       );
@@ -473,7 +635,9 @@ export default function AgendasPage() {
 
         {/* Coluna 2: Lista do dia */}
         <Grid item xs={12} md={3}>
-          <WhiteCard sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+          <WhiteCard
+            sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+          >
             <CardHeader
               title={new Date(selectedDate).toLocaleDateString("pt-PT", {
                 weekday: "long",
@@ -494,13 +658,22 @@ export default function AgendasPage() {
               }}
             >
               {dayList.length ? (
-                <Stack spacing={1.25} divider={<Divider sx={{ borderColor: "divider" }} />}>
+                <Stack
+                  spacing={1.25}
+                  divider={<Divider sx={{ borderColor: "divider" }} />}
+                >
                   {dayList.map((c) => (
-                    <ConsultaRow key={c.id} c={c} onClick={() => setFocused(c)} />
+                    <ConsultaRow
+                      key={c.id}
+                      c={c}
+                      onClick={() => setFocused(c)}
+                    />
                   ))}
                 </Stack>
               ) : (
-                <Typography sx={{ opacity: 0.7 }}>Sem consultas neste dia.</Typography>
+                <Typography sx={{ opacity: 0.7 }}>
+                  Sem consultas neste dia.
+                </Typography>
               )}
             </Box>
           </WhiteCard>
@@ -516,28 +689,41 @@ export default function AgendasPage() {
                   {focused.title}
                 </Typography>
 
-                <Stack direction="row" spacing={1} sx={{ mb: 1.5 }} useFlexGap flexWrap="wrap">
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  sx={{ mb: 1.5 }}
+                  useFlexGap
+                  flexWrap="wrap"
+                >
                   <Chip
                     icon={<CalendarMonthRounded fontSize="small" />}
-                    label={new Date(focused.scheduledAt || focused.date || "").toLocaleDateString(
-                      "pt-PT",
-                      { day: "2-digit", month: "2-digit", year: "numeric" }
-                    )}
+                    label={new Date(
+                      focused.scheduledAt || focused.date || ""
+                    ).toLocaleDateString("pt-PT", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    })}
                   />
                   <Chip
                     icon={<AccessTimeRounded fontSize="small" />}
-                    label={new Date(focused.scheduledAt || focused.date || "").toLocaleTimeString(
-                      "pt-PT",
-                      { hour: "2-digit", minute: "2-digit" }
-                    )}
+                    label={new Date(
+                      focused.scheduledAt || focused.date || ""
+                    ).toLocaleTimeString("pt-PT", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   />
                   {!!focused.status && (
                     <Chip
                       label={
-                        STATUS_CFG[(focused.status || "").toUpperCase()]?.label || focused.status
+                        STATUS_CFG[(focused.status || "").toUpperCase()]
+                          ?.label || focused.status
                       }
                       color={
-                        STATUS_CFG[(focused.status || "").toUpperCase()]?.color || "default"
+                        STATUS_CFG[(focused.status || "").toUpperCase()]
+                          ?.color || "default"
                       }
                       variant="outlined"
                     />
@@ -550,10 +736,14 @@ export default function AgendasPage() {
                   </Typography>
                 )}
 
-                <RouteLink href="/consultas">Abrir página de consultas</RouteLink>
+                <RouteLink href="/consultas">
+                  Abrir página de consultas
+                </RouteLink>
               </>
             ) : (
-              <Typography sx={{ opacity: 0.7 }}>Selecione uma consulta.</Typography>
+              <Typography sx={{ opacity: 0.7 }}>
+                Selecione uma consulta.
+              </Typography>
             )}
           </WhiteCard>
         </Grid>

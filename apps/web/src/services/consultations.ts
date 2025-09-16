@@ -213,3 +213,140 @@ export async function createConsultationWithSlot(payload: {
   });
   return data as ConsultaLite;
 }
+
+export async function listLibrarianProposals(
+  librarianId: number,
+  { page = 1, limit = 20, status = "PENDING" } = {}
+) {
+  const url = `${API_BASE}/librarians/${librarianId}/proposals?status=${status}&page=${page}&limit=${limit}`;
+  return fetchJson(url); // 👈 antes era fetch(...)
+}
+
+export async function checkLibrarianConflict(
+  librarianId: number,
+  {
+    startAt,
+    endAt,
+    excludeConsultationId,
+  }: {
+    startAt: string | Date;
+    endAt: string | Date;
+    excludeConsultationId?: number;
+  }
+) {
+  const s = typeof startAt === "string" ? startAt : startAt.toISOString();
+  const e = typeof endAt === "string" ? endAt : endAt.toISOString();
+  const q = new URLSearchParams({ startAt: s, endAt: e });
+  if (excludeConsultationId)
+    q.set("excludeConsultationId", String(excludeConsultationId));
+  const url = `${API_BASE}/librarians/${librarianId}/conflicts?${q.toString()}`;
+  return fetchJson(url); // 👈 antes era fetch(...)
+}
+
+export async function listPendingConsultationsForLibrarian(
+  librarianId: number,
+  { limit = 100, from }: { limit?: number; from?: string } = {}
+) {
+  const url = `${API_BASE}/consultations/all?${qs({
+    limit,
+    order: "asc",
+    status: "PENDING",
+    librarianId,
+    from: from ?? new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString(), // última semana por defeito
+  })}`;
+  return fetchJson(url);
+}
+
+export async function confirmConsultation(id: number) {
+  const url = `${API_BASE}/consultations/${id}/confirm`;
+  return fetchJson(url, { method: "POST" });
+}
+
+export async function declineConsultation(id: number) {
+  const url = `${API_BASE}/consultations/${id}/decline`;
+  return fetchJson(url, { method: "POST" });
+}
+
+/** Cria uma proposta (por ex. bibliotecário propõe um slot) */
+export async function createProposalForConsultation(
+  consultationId: number,
+  payload: {
+    toStartAt: string;
+    toEndAt: string;
+    message?: string;
+    proposedBy?: "LIBRARIAN" | "FAMILY" | "SYSTEM";
+  }
+) {
+  const url = `${API_BASE}/consultations/${consultationId}/proposals`;
+  return fetchJson(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      proposedBy: payload.proposedBy ?? "LIBRARIAN",
+      ...payload,
+    }),
+  });
+}
+
+export async function acceptProposal(proposalId: number) {
+  const url = `${API_BASE}/consultations/proposals/${proposalId}/accept`;
+  return fetchJson(url, { method: "POST" });
+}
+
+export async function declineProposal(proposalId: number) {
+  const url = `${API_BASE}/consultations/proposals/${proposalId}/decline`;
+  return fetchJson(url, { method: "POST" });
+}
+
+export async function listFamilyProposals(
+  familyId: number,
+  { page = 1, limit = 20, status = "PENDING" } = {}
+) {
+  const url = `${API_BASE}/consultations/families/${familyId}/proposals?status=${status}&page=${page}&limit=${limit}`;
+  return fetchJson(url);
+}
+
+/* --------- gestão de slots (bibliotecário) --------- */
+export async function listLibrarianSlots(
+  librarianId: number,
+  params: { from: string; to: string }
+) {
+  const url = `${API_BASE}/consultations/librarians/${librarianId}/slots?${qs(
+    params
+  )}`;
+  return fetchJson(url);
+}
+
+export async function bulkCreateSlots(
+  librarianId: number,
+  slots: Array<{
+    startAt: string;
+    endAt: string;
+    libraryId?: number;
+    status?: "OPEN" | "BLOCKED";
+  }>
+) {
+  const url = `${API_BASE}/consultations/librarians/${librarianId}/slots/bulk`;
+  return fetchJson(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slots }),
+  });
+}
+
+export async function updateSlotStatus(
+  slotId: number,
+  status: "OPEN" | "BLOCKED"
+) {
+  const url = `${API_BASE}/consultations/slots/${slotId}`;
+  return fetchJson(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function listLibrarianLibraries(librarianId: number) {
+  const url = `${API_BASE}/consultations/librarians/${librarianId}/libraries`;
+  return fetchJson(url) as Promise<Array<{ id: number; name: string }>>;
+}

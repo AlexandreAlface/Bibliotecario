@@ -15,13 +15,13 @@ import EmojiEventsRounded from "@mui/icons-material/EmojiEventsRounded";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 
-import { useUserSession } from "../contexts/UserSession";
+import { useUserSession } from "../../contexts/UserSession";
 import {
   listBadges,
   listBadgeAssignments,
   type Badge,
   type BadgeAssignment,
-} from "../services/badges";
+} from "../../services/badges";
 
 /* --- UI helpers --- */
 function SectionHeader({
