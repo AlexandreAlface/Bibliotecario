@@ -25,6 +25,7 @@ import { recomputeAllChildren } from "./services/badgesEngine.js";
 import badgesRouter from './routes/badges.js';
 import usersRouter from "./routes/users.js";
 import childrenRouter from "./routes/children.js";
+import librarianFamilies from "./routes/families";
 
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL não carregada. Verifica apps/api/.env");
@@ -67,7 +68,7 @@ app.use("/api", withUser);
 
 app.use("/api/consultations", consultations); // /api/consultations/...
 app.use("/api/consultations", slots); // /api/consultations/slots, /api/consultations/librarians/:id/slots, etc.
-app.use("/api", proposals);
+app.use("/api/consultations", proposals);
 app.use("/api", eventsRouter);
 app.use("/api", booksRouter);
 app.use("/api/badge-assignments", badgeAssignmentsRouter);
@@ -79,6 +80,7 @@ app.use("/api/badges", badgesEngineRouter);
 app.use('/api/badges', badgesRouter);
 app.use("/api/users", usersRouter);
 app.use("/api", childrenRouter);
+app.use("/api/librarian", librarianFamilies);
 
 /* --------- Ingestão RSS --------- */
 (async () => {

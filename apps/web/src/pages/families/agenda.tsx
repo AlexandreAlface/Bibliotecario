@@ -1,6 +1,12 @@
-// apps/web/src/pages/agenda.tsx
-import { useEffect, useMemo, useState } from "react";
-import { WhiteCard, RouteLink, AvatarSelect, PrimaryButton, SecondaryButton } from "@bibliotecario/ui-web";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { flushSync } from "react-dom";
+import {
+  WhiteCard,
+  RouteLink,
+  AvatarSelect,
+  PrimaryButton,
+  SecondaryButton,
+} from "@bibliotecario/ui-web";
 import type { AvatarOption } from "@bibliotecario/ui-web";
 import {
   Avatar,
@@ -12,6 +18,14 @@ import {
   Stack,
   Typography,
   useTheme,
+  Skeleton,
+  Tooltip,
+  Dialog,
+  Button,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
@@ -29,7 +43,12 @@ import {
   listFamilyProposals,
   acceptProposal,
   declineProposal,
+  listOpenSlots,
+  createProposalForConsultation,
+  cancelConsultation,
+  getConsultation,
 } from "../../services/consultations";
+import type { SlotLite } from "../../services/consultations";
 
 const STATUS_CFG: Record<
   string,
@@ -190,10 +209,7 @@ export default function AgendasPage() {
   const { user, asChild } = useUserSession();
 
   // filtro LOCAL (modo família)
-  const [localChildId, setLocalChildId] = useState<string | undefined>(
-    undefined
-  );
-
+  const [localChildId, setLocalChildId] = useState<string | undefined>();
   const [monthRef, setMonthRef] = useState(startOfDay(new Date()));
   const [consultasRaw, setConsultasRaw] = useState<ConsultaLite[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(fmtYMD(new Date()));
@@ -203,6 +219,83 @@ export default function AgendasPage() {
   const [proposals, setProposals] = useState<any[]>([]);
   const [loadingProps, setLoadingProps] = useState(false);
   const [errProps, setErrProps] = useState<string | null>(null);
+
+  // diálogo de contra-proposta (controlado)
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogData, setDialogData] = useState<{
+    consultationId: number;
+    librarianId: number;
+    declineProposalId?: number;
+  } | null>(null);
+
+  const [busyProposal, setBusyProposal] = useState<number | null>(null);
+  const [busyDetail, setBusyDetail] = useState<"reschedule" | "cancel" | null>(
+    null
+  );
+
+  // diálogo de cancelamento (custom)
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<ConsultaLite | null>(null);
+
+  const openRescheduleDialog = useCallback(
+    (
+      consultationId: number,
+      librarianId: number,
+      declineProposalId?: number
+    ) => {
+      console.debug("[dialog] open request", {
+        consultationId,
+        librarianId,
+        declineProposalId,
+      });
+      flushSync(() => {
+        setDialogData({ consultationId, librarianId, declineProposalId });
+        setDialogOpen(true);
+      });
+      console.debug("[dialog] opened ->", {
+        nextOpen: true,
+        nextLib: librarianId,
+      });
+    },
+    []
+  );
+
+  async function reloadFamilyProposals() {
+    const famId = Number(user?.id);
+    if (!Number.isFinite(famId)) return setProposals([]);
+    const res = await listFamilyProposals(famId, {
+      status: "PENDING",
+      limit: 50,
+    });
+    setProposals(res?.items || []);
+  }
+
+  // recarregar calendário/lista
+  async function reloadConsultas() {
+    try {
+      let items: ConsultaLite[] = [];
+      if (asChild) {
+        const cid = Number((user?.actingChild?.id as any) ?? NaN);
+        if (!Number.isFinite(cid)) return setConsultasRaw([]);
+        items = await getNextConsultas(60, { childId: cid });
+      } else {
+        const famId = Number(user?.id);
+        if (!Number.isFinite(famId)) return setConsultasRaw([]);
+        const opts: { familyId: number; childId?: number } = {
+          familyId: famId,
+        };
+        if (localChildId && localChildId !== "") {
+          const cid = Number(localChildId);
+          if (Number.isFinite(cid)) opts.childId = cid;
+        }
+        items = await getNextConsultas(60, opts);
+      }
+      setConsultasRaw(items);
+    } catch (e) {
+      console.error("Falha a carregar consultas:", e);
+      setConsultasRaw([]);
+    }
+  }
 
   const fDate = new Intl.DateTimeFormat("pt-PT", {
     day: "2-digit",
@@ -241,7 +334,6 @@ export default function AgendasPage() {
     })();
   }, [user?.id]);
 
-  // opções base (usado só em modo família)
   const childBaseOptions: AvatarOption[] = (user?.children || []).map((c) => ({
     id: String(c.id),
     nome: c.name ?? "",
@@ -252,42 +344,11 @@ export default function AgendasPage() {
     ...childBaseOptions,
   ];
 
-  // Carregar consultas:
   useEffect(() => {
-    (async () => {
-      try {
-        let items: ConsultaLite[] = [];
-        if (asChild) {
-          const cid = Number((user?.actingChild?.id as any) ?? NaN);
-          if (!Number.isFinite(cid)) {
-            setConsultasRaw([]);
-            return;
-          }
-          items = await getNextConsultas(60, { childId: cid });
-        } else {
-          const famId = Number(user?.id);
-          if (!Number.isFinite(famId)) {
-            setConsultasRaw([]);
-            return;
-          }
-          const opts: { familyId: number; childId?: number } = {
-            familyId: famId,
-          };
-          if (localChildId && localChildId !== "") {
-            const cid = Number(localChildId);
-            if (Number.isFinite(cid)) opts.childId = cid;
-          }
-          items = await getNextConsultas(60, opts);
-        }
-        setConsultasRaw(items);
-      } catch (e) {
-        console.error("Falha a carregar consultas:", e);
-        setConsultasRaw([]);
-      }
-    })();
+    reloadConsultas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asChild, user?.actingChild?.id, user?.id, localChildId]);
 
-  // Agrupar por dia (YYYY-MM-DD)
   const byDay = useMemo(() => {
     const map = new Map<string, ConsultaLite[]>();
     for (const c of consultasRaw) {
@@ -300,7 +361,6 @@ export default function AgendasPage() {
     return map;
   }, [consultasRaw]);
 
-  // Se o dia atual estiver vazio, salta para a 1ª consulta
   useEffect(() => {
     if (!consultasRaw.length) return;
     const sorted = [...consultasRaw].sort(
@@ -318,7 +378,6 @@ export default function AgendasPage() {
     }
   }, [consultasRaw, byDay, selectedDate]);
 
-  // cor da “bolinha” por estado
   const dotColor = (status?: string) => {
     const s = (status || "").toUpperCase();
     if (s === "CONFIRMED") return theme.palette.success.main;
@@ -328,7 +387,6 @@ export default function AgendasPage() {
     return theme.palette.divider;
   };
 
-  // dias do mês
   const month = useMemo(() => {
     const d0 = new Date(monthRef);
     d0.setDate(1);
@@ -381,9 +439,26 @@ export default function AgendasPage() {
 
   const titleLeft = "Agenda";
 
+  async function handleConfirmCancel(reason?: string) {
+    if (!cancelTarget) return;
+    try {
+      setBusyDetail("cancel");
+      console.debug("[cancel] POST /consultations/%s/cancel", cancelTarget.id);
+      await cancelConsultation(cancelTarget.id, reason);
+      await reloadConsultas();
+      await reloadFamilyProposals();
+      setCancelOpen(false);
+      setCancelTarget(null);
+      alert("Consulta cancelada.");
+    } catch (e: any) {
+      alert(e?.message || "Não foi possível cancelar a consulta.");
+    } finally {
+      setBusyDetail(null);
+    }
+  }
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Título */}
       <Typography
         variant="h3"
         fontWeight={900}
@@ -424,6 +499,9 @@ export default function AgendasPage() {
                   p.consultation?.librarian?.fullName ?? "bibliotecário"
                 }`;
 
+            const cId = p.consultation?.id;
+            const libId = p.consultation?.librarian?.id;
+
             return (
               <Box
                 key={p.id}
@@ -450,50 +528,148 @@ export default function AgendasPage() {
                 </Box>
 
                 <Stack direction="row" spacing={1}>
-                  <PrimaryButton
-                    onClick={async () => {
-                      try {
-                        await acceptProposal(p.id);
-                        const famId = Number(user?.id);
-                        const res = await listFamilyProposals(famId, {
-                          status: "PENDING",
-                          limit: 50,
-                        });
-                        setProposals(res?.items || []);
-                      } catch (e: any) {
-                        alert(e?.message || "Falha ao aceitar.");
-                      }
-                    }}
-                    startIcon={<CheckCircleRounded />}
-                  >
-                    Aceitar
-                  </PrimaryButton>
+                  {p.proposedBy === "LIBRARIAN" ? (
+                    <>
+                      <PrimaryButton
+                        onClick={async () => {
+                          try {
+                            setBusyProposal(p.id);
+                            await acceptProposal(p.id);
+                            await reloadFamilyProposals();
+                            await reloadConsultas();
+                            alert("Proposta aceite.");
+                          } catch (e: any) {
+                            alert(e?.message || "Falha ao aceitar.");
+                          } finally {
+                            setBusyProposal(null);
+                          }
+                        }}
+                        startIcon={<CheckCircleRounded />}
+                        disabled={busyProposal === p.id}
+                      >
+                        Aceitar
+                      </PrimaryButton>
 
-                  <SecondaryButton
-                    onClick={async () => {
-                      try {
-                        await declineProposal(p.id);
-                        const famId = Number(user?.id);
-                        const res = await listFamilyProposals(famId, {
-                          status: "PENDING",
-                          limit: 50,
-                        });
-                        setProposals(res?.items || []);
-                      } catch (e: any) {
-                        alert(e?.message || "Falha ao recusar.");
-                      }
-                    }}
-                    startIcon={<CancelRounded />}
-                    variant="outlined"
-                  >
-                    Recusar
-                  </SecondaryButton>
+                      <SecondaryButton
+                        onClick={() => {
+                          if (!cId || !libId) {
+                            alert(
+                              "Não foi possível identificar a consulta/bibliotecário."
+                            );
+                            return;
+                          }
+                          openRescheduleDialog(cId, Number(libId), p.id);
+                        }}
+                        disabled={busyProposal === p.id}
+                      >
+                        Propor outro horário
+                      </SecondaryButton>
+
+                      <SecondaryButton
+                        onClick={async () => {
+                          try {
+                            setBusyProposal(p.id);
+                            await declineProposal(p.id);
+                            await reloadFamilyProposals();
+                            alert("Proposta recusada.");
+                          } catch (e: any) {
+                            alert(e?.message || "Falha ao recusar.");
+                          } finally {
+                            setBusyProposal(null);
+                          }
+                        }}
+                        startIcon={<CancelRounded />}
+                        variant="outlined"
+                        disabled={busyProposal === p.id}
+                      >
+                        Recusar
+                      </SecondaryButton>
+                    </>
+                  ) : (
+                    <>
+                      <SecondaryButton
+                        onClick={() => {
+                          if (!cId || !libId) {
+                            alert(
+                              "Não foi possível identificar a consulta/bibliotecário."
+                            );
+                            return;
+                          }
+                          openRescheduleDialog(cId, Number(libId), p.id);
+                        }}
+                        disabled={busyProposal === p.id}
+                      >
+                        Editar horário
+                      </SecondaryButton>
+
+                      <SecondaryButton
+                        onClick={async () => {
+                          try {
+                            setBusyProposal(p.id);
+                            await declineProposal(p.id);
+                            await reloadFamilyProposals();
+                            alert("Proposta cancelada.");
+                          } catch (e: any) {
+                            alert(e?.message || "Falha ao cancelar proposta.");
+                          } finally {
+                            setBusyProposal(null);
+                          }
+                        }}
+                        startIcon={<CancelRounded />}
+                        variant="outlined"
+                        disabled={busyProposal === p.id}
+                      >
+                        Cancelar proposta
+                      </SecondaryButton>
+                    </>
+                  )}
                 </Stack>
               </Box>
             );
           })}
         </Stack>
       </WhiteCard>
+
+      {/* -------- Dialog para contra-proposta -------- */}
+      <SlotPickerDialog
+        open={dialogOpen}
+        librarianId={dialogData?.librarianId ?? 0}
+        onClose={() => {
+          setDialogOpen(false);
+          setDialogData(null);
+        }}
+        onPick={async (slot) => {
+          try {
+            if (dialogData?.declineProposalId) {
+              await declineProposal(dialogData.declineProposalId);
+            }
+            if (dialogData?.consultationId) {
+              await createProposalForConsultation(dialogData.consultationId, {
+                toStartAt: slot.startAt,
+                toEndAt: slot.endAt,
+                proposedBy: "FAMILY",
+              });
+            }
+            setDialogOpen(false);
+            setDialogData(null);
+            await reloadFamilyProposals();
+            alert("Proposta enviada.");
+          } catch (e: any) {
+            const m = String(e?.message || "");
+            if (m.includes("pending_proposal")) {
+              alert(
+                "Já existe uma proposta pendente. Cancele-a antes de propor outra."
+              );
+            } else if (m.includes("invalid_state")) {
+              alert("Esta consulta não pode ser reagendada.");
+            } else if (m.includes("invalid_dates")) {
+              alert("Intervalo inválido.");
+            } else {
+              alert("Não foi possível propor. Tente novamente.");
+            }
+          }
+        }}
+      />
 
       {/* -------- Topo: criança -------- */}
       {!asChild && !!user?.children?.length && (
@@ -730,10 +906,83 @@ export default function AgendasPage() {
                   )}
                 </Stack>
 
-                {!!focused.librarianName && (
+                {!!(focused as any)?.librarianName && (
                   <Typography sx={{ mb: 1.5 }}>
-                    Bibliotecário: <b>{focused.librarianName}</b>
+                    Bibliotecário: <b>{(focused as any).librarianName}</b>
                   </Typography>
+                )}
+
+                {["CONFIRMED", "PENDING"].includes(
+                  String(focused.status || "").toUpperCase()
+                ) && (
+                  <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+                    <Button
+                      type="button"
+                      variant="contained"
+                      onClick={async () => {
+                        console.log("CLICK reagendar", proposals.length);
+
+                        const hasPending = proposals.some(
+                          (p) =>
+                            p.consultation?.id === focused!.id &&
+                            String(p.status || "").toUpperCase() === "PENDING"
+                        );
+                        if (hasPending) {
+                          alert(
+                            "Já existe uma proposta pendente para esta consulta. Use a secção de 'Pedidos de reagendamento' acima para a editar ou cancelar."
+                          );
+                          return;
+                        }
+
+                        let libId =
+                          (focused as any).librarianId ??
+                          (focused as any)?.librarian?.id ??
+                          null;
+
+                        if (!libId) {
+                          try {
+                            setBusyDetail("reschedule");
+                            const full = await getConsultation(focused!.id);
+                            libId =
+                              full?.librarianId ?? full?.librarian?.id ?? null;
+                          } catch (e: any) {
+                            console.warn(
+                              "Falha a obter consulta completa:",
+                              e?.message || e
+                            );
+                          } finally {
+                            setBusyDetail(null);
+                          }
+                        }
+
+                        console.log("libId (final)", libId);
+                        if (!libId) {
+                          alert(
+                            "Não foi possível identificar o bibliotecário desta consulta."
+                          );
+                          return;
+                        }
+
+                        openRescheduleDialog(focused!.id, Number(libId));
+                      }}
+                      disabled={busyDetail === "reschedule"}
+                    >
+                      Reagendar
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      color="error"
+                      onClick={() => {
+                        setCancelTarget(focused);
+                        setCancelOpen(true);
+                      }}
+                      disabled={busyDetail === "cancel"}
+                    >
+                      Cancelar consulta
+                    </Button>
+                  </Stack>
                 )}
 
                 <RouteLink href="/consultas">
@@ -748,6 +997,307 @@ export default function AgendasPage() {
           </WhiteCard>
         </Grid>
       </Grid>
+
+      {/* ------- Dialog custom: confirmar cancelamento ------- */}
+      <ConfirmCancelDialog
+        open={cancelOpen}
+        title={cancelTarget?.title ?? "Consulta"}
+        whenISO={cancelTarget?.scheduledAt || cancelTarget?.date}
+        busy={busyDetail === "cancel"}
+        onClose={() => setCancelOpen(false)}
+        onConfirm={(reason?: string) => void handleConfirmCancel(reason)}
+      />
     </Container>
+  );
+}
+
+/* --------- Dialog: selector de slots (família propõe novo) --------- */
+function SlotPickerDialog({
+  open,
+  onClose,
+  librarianId,
+  onPick,
+}: {
+  open: boolean;
+  onClose: () => void;
+  librarianId: number;
+  onPick: (slot: { id: number; startAt: string; endAt: string }) => void;
+}) {
+  const [slots, setSlots] = useState<SlotLite[]>([]);
+  const [selected, setSelected] = useState<SlotLite | null>(null);
+
+  const [initialLoading, setInitialLoading] = useState(false);
+  const [moreLoading, setMoreLoading] = useState(false);
+  const [windowEnd, setWindowEnd] = useState<Date | null>(null);
+  const [noMore, setNoMore] = useState(false);
+
+  useEffect(() => {
+    console.debug("[SlotPickerDialog] render open:", open, "lib:", librarianId);
+  }, [open, librarianId]);
+
+  useEffect(() => {
+    if (!open || !librarianId) return;
+    (async () => {
+      setInitialLoading(true);
+      setSelected(null);
+      setNoMore(false);
+      const start = new Date();
+      const end = addDays(start, 14);
+      try {
+        const data = await listOpenSlots({
+          from: start.toISOString(),
+          to: end.toISOString(),
+          librarianId,
+        });
+        setSlots(data);
+        setWindowEnd(end);
+        setNoMore(data.length === 0);
+      } finally {
+        setInitialLoading(false);
+      }
+    })();
+  }, [open, librarianId]);
+
+  function addDays(d: Date, n: number) {
+    const x = new Date(d);
+    x.setDate(x.getDate() + n);
+    return x;
+  }
+
+  async function handleShowMore() {
+    if (!windowEnd || initialLoading || moreLoading || noMore) return;
+    setMoreLoading(true);
+    const from = new Date(windowEnd);
+    const to = addDays(from, 14);
+    try {
+      const more = await listOpenSlots({
+        from: from.toISOString(),
+        to: to.toISOString(),
+        librarianId,
+      });
+      setSlots((prev) => {
+        const map = new Map(prev.map((s) => [s.id, s]));
+        for (const s of more) map.set(s.id, s);
+        return Array.from(map.values()).sort(
+          (a, b) =>
+            new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+        );
+      });
+      setWindowEnd(to);
+      setNoMore(more.length === 0);
+    } finally {
+      setMoreLoading(false);
+    }
+  }
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, SlotLite[]>();
+    for (const s of slots) {
+      const key = new Date(s.startAt).toDateString();
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(s);
+    }
+    return Array.from(map.entries()).map(([key, arr]) => ({
+      key,
+      label: new Intl.DateTimeFormat("pt-PT", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }).format(new Date(arr[0].startAt)),
+      items: arr.sort(
+        (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+      ),
+    }));
+  }, [slots]);
+
+  const fmtTime = new Intl.DateTimeFormat("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="sm"
+      keepMounted
+      sx={{
+        "& .MuiBackdrop-root": { zIndex: (t) => t.zIndex.modal },
+        "& .MuiPaper-root": { zIndex: (t) => t.zIndex.modal + 1 },
+      }}
+    >
+      <Typography variant="h6" sx={{ px: 3, pt: 2, pb: 1 }}>
+        Escolher horário
+      </Typography>
+      <Box sx={{ px: 3, pb: 2 }}>
+        {initialLoading && (
+          <Stack spacing={1}>
+            <Skeleton height={20} width="40%" />
+            <Skeleton height={48} />
+            <Skeleton height={48} />
+          </Stack>
+        )}
+
+        {!initialLoading && grouped.length === 0 && (
+          <Typography sx={{ opacity: 0.8 }}>
+            Sem slots abertos nos próximos 14 dias.
+          </Typography>
+        )}
+
+        <Stack spacing={2}>
+          {grouped.map((g) => (
+            <WhiteCard key={g.key} sx={{ p: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                {g.label}
+              </Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap">
+                {g.items.map((s) => {
+                  const a = new Date(s.startAt);
+                  const b = new Date(s.endAt);
+                  const active = selected?.id === s.id;
+                  return (
+                    <Chip
+                      key={s.id}
+                      clickable
+                      onClick={() =>
+                        setSelected((prev) => (prev?.id === s.id ? null : s))
+                      }
+                      label={`${fmtTime.format(a)} — ${fmtTime.format(b)}`}
+                      variant={active ? "filled" : "outlined"}
+                      color={active ? "primary" : "default"}
+                      sx={{ mb: 1 }}
+                    />
+                  );
+                })}
+              </Stack>
+            </WhiteCard>
+          ))}
+        </Stack>
+
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mt: 2,
+          }}
+        >
+          <Tooltip
+            title={noMore ? "Sem mais resultados" : "Mostrar mais 14 dias"}
+          >
+            <span>
+              <IconButton
+                onClick={() => void handleShowMore()}
+                disabled={moreLoading || initialLoading || noMore}
+                aria-label="Mostrar mais 14 dias"
+              >
+                <CalendarMonthRounded />
+              </IconButton>
+            </span>
+          </Tooltip>
+
+          <Typography variant="body2" sx={{ opacity: 0.7 }}>
+            {selected
+              ? `Selecionado: ${new Intl.DateTimeFormat("pt-PT", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }).format(new Date(selected.startAt))} — ${fmtTime.format(
+                  new Date(selected.endAt)
+                )}`
+              : "Selecione um horário"}
+          </Typography>
+        </Box>
+
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ mt: 2, justifyContent: "flex-end" }}
+        >
+          <SecondaryButton onClick={onClose}>Cancelar</SecondaryButton>
+          <PrimaryButton
+            onClick={() => selected && onPick(selected)}
+            disabled={!selected}
+          >
+            Confirmar
+          </PrimaryButton>
+        </Stack>
+      </Box>
+    </Dialog>
+  );
+}
+
+/* --------- Dialog: confirmar cancelamento (custom) --------- */
+function ConfirmCancelDialog({
+  open,
+  onClose,
+  onConfirm,
+  busy,
+  title,
+  whenISO,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (reason?: string) => void;
+  busy?: boolean;
+  title: string;
+  whenISO?: string;
+}) {
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    if (open) setReason("");
+  }, [open]);
+
+  return (
+    <Dialog
+      open={open}
+      onClose={busy ? undefined : onClose}
+      maxWidth="xs"
+      fullWidth
+    >
+      <DialogTitle>Cancelar consulta</DialogTitle>
+      <DialogContent sx={{ pt: 1 }}>
+        <Typography sx={{ mb: 1.5 }}>
+          Tem a certeza que quer cancelar <b>{title}</b>
+          {whenISO
+            ? ` em ${new Date(whenISO).toLocaleDateString("pt-PT", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })} às ${new Date(whenISO).toLocaleTimeString("pt-PT", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}`
+            : ""}
+          ?
+        </Typography>
+        <TextField
+          label="Motivo (opcional)"
+          fullWidth
+          multiline
+          minRows={2}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Ex.: Impossibilidade de comparecer"
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={!!busy}>
+          Voltar
+        </Button>
+        <Button
+          onClick={() => onConfirm(reason?.trim() || undefined)}
+          color="error"
+          variant="contained"
+          disabled={!!busy}
+        >
+          {busy ? "A cancelar…" : "Confirmar cancelamento"}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }

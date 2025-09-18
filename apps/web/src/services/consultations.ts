@@ -12,6 +12,21 @@ export type ConsultaLite = {
   childId?: number;
 };
 
+export type ConsultationFull = {
+  id: number;
+  title?: string;
+  status: string;
+  requestedAt?: string;
+  startAt?: string | null;
+  endAt?: string | null;
+  family?: { id: number; fullName: string; email?: string };
+  librarian?: { id: number; fullName: string; email?: string };
+  child?: { id: number; name: string };
+  library?: { id: number; name: string };
+  slot?: { id: number; startAt: string; endAt: string; status: string } | null;
+  events?: { id: number; type: string; at: string; actorId?: number | null }[];
+};
+
 const API_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
   "http://localhost:3333/api";
@@ -70,12 +85,40 @@ async function fetchJson(url: string, init?: RequestInit) {
   }
 }
 
+function normalizeConsultas(arr: any[], limit?: number): ConsultaLite[] {
+  const list = (Array.isArray(arr) ? arr : [])
+    .map((c: any) => ({
+      id: Number(c.id),
+      title:
+        c.title ||
+        `Consulta de ${c?.child?.name ?? "criança"}${
+          c?.library?.name ? ` — ${c.library.name}` : ""
+        }`,
+      // muitas APIs usam startAt; outras scheduledAt ou date
+      date: c.startAt ?? c.date ?? c.scheduledAt ?? null,
+      scheduledAt: c.scheduledAt ?? c.startAt ?? c.date ?? null,
+      status: c.status,
+      familyId: c.familyId ?? c.family?.id,
+      childId: c.childId ?? c.child?.id,
+      // 🔴 garantir que vem o ID do bibliotecário
+      librarianId: c.librarianId ?? c.librarian?.id ?? null,
+      librarianName: c.librarianName ?? c.librarian?.fullName ?? undefined,
+    }))
+    .filter((c) => !!c.scheduledAt)
+    .sort(
+      (a, b) =>
+        new Date(a.scheduledAt as string).getTime() -
+        new Date(b.scheduledAt as string).getTime()
+    );
+
+  return typeof limit === "number" ? list.slice(0, limit) : list;
+}
+
 /* ------------------------- próximas consultas ------------------------- */
 export async function getNextConsultas(
   limit = 6,
   opts?: { familyId?: number; childId?: number; librarianId?: number }
 ): Promise<ConsultaLite[]> {
-  // 👇 evita 400 quando a sessão ainda não carregou
   const hasKey =
     Number.isFinite(opts?.familyId as number) ||
     Number.isFinite(opts?.librarianId as number);
@@ -88,15 +131,19 @@ export async function getNextConsultas(
     librarianId: opts?.librarianId,
   });
 
+  // 1) tenta /next e NORMALIZA
   try {
     const url = `${API_BASE}/consultations/next?${baseParams}`;
     const items = await fetchJson(url);
-    if (Array.isArray(items)) return items as ConsultaLite[];
+    if (Array.isArray(items)) {
+      // muitas vezes /next não traz librarianId — normalizamos aqui
+      return normalizeConsultas(items, limit);
+    }
   } catch (e) {
     console.debug("fallback /consultations/all por falha no /next:", e);
   }
 
-  // 2) fallback: /all (normaliza para ConsultaLite)
+  // 2) fallback /all e NORMALIZA (+ filtra estados úteis)
   const now = new Date();
   const monthStart = new Date(now);
   monthStart.setDate(1);
@@ -112,34 +159,14 @@ export async function getNextConsultas(
   })}`;
 
   const full = await fetchJson(urlAll);
+  return normalizeConsultas(full, limit).filter((c) =>
+    ["PENDING", "CONFIRMED"].includes(String(c.status || "").toUpperCase())
+  );
+}
 
-  const lite: ConsultaLite[] = (Array.isArray(full) ? full : [])
-    .filter((c: any) =>
-      ["PENDING", "CONFIRMED"].includes(String(c.status || "").toUpperCase())
-    )
-    .map((c: any) => ({
-      id: Number(c.id),
-      title:
-        c.title ||
-        `Consulta de ${c?.child?.name ?? "criança"}${
-          c?.library?.name ? ` — ${c.library.name}` : ""
-        }`,
-      date: c.startAt,
-      scheduledAt: c.startAt,
-      status: c.status,
-      familyId: c.familyId,
-      childId: c.childId,
-      librarianId: c.librarianId,
-      librarianName: c?.librarian?.fullName ?? undefined,
-    }))
-    .sort(
-      (a, b) =>
-        new Date(a.scheduledAt || a.date || 0).getTime() -
-        new Date(b.scheduledAt || b.date || 0).getTime()
-    )
-    .slice(0, limit);
-
-  return lite;
+export async function getConsultation(consultationId: number) {
+  const url = `${API_BASE}/consultations/${consultationId}`;
+  return fetchJson(url); // deve devolver { id, librarianId, librarian:{id,...}, ... }
 }
 
 /* ----------------------------- slots abertos ----------------------------- */
@@ -218,8 +245,12 @@ export async function listLibrarianProposals(
   librarianId: number,
   { page = 1, limit = 20, status = "PENDING" } = {}
 ) {
-  const url = `${API_BASE}/librarians/${librarianId}/proposals?status=${status}&page=${page}&limit=${limit}`;
-  return fetchJson(url); // 👈 antes era fetch(...)
+  const url =
+    `${API_BASE}/consultations/librarians/${librarianId}/proposals?` +
+    `status=${status}&page=${page}&limit=${limit}`;
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
 export async function checkLibrarianConflict(
@@ -239,8 +270,13 @@ export async function checkLibrarianConflict(
   const q = new URLSearchParams({ startAt: s, endAt: e });
   if (excludeConsultationId)
     q.set("excludeConsultationId", String(excludeConsultationId));
-  const url = `${API_BASE}/librarians/${librarianId}/conflicts?${q.toString()}`;
-  return fetchJson(url); // 👈 antes era fetch(...)
+
+  const res = await fetch(
+    `${API_BASE}/consultations/librarians/${librarianId}/conflicts?${q.toString()}`,
+    { credentials: "include" }
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
 export async function listPendingConsultationsForLibrarian(
@@ -257,6 +293,60 @@ export async function listPendingConsultationsForLibrarian(
   return fetchJson(url);
 }
 
+export async function getConsultationsHistory(params: {
+  limit?: number;
+  order?: "asc" | "desc";
+  from?: string; // ISO
+  to?: string;   // ISO
+  status?: string[]; // ConsultationStatus[]
+  familyId?: number;
+  librarianId?: number;
+  childId?: number;
+}): Promise<ConsultationFull[]> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set("limit", String(params.limit));
+  if (params.order) qs.set("order", params.order);
+  if (params.from) qs.set("from", params.from);
+  if (params.to) qs.set("to", params.to);
+  if (params.status?.length) qs.set("status", params.status.join(","));
+  if (params.familyId) qs.set("familyId", String(params.familyId));
+  if (params.librarianId) qs.set("librarianId", String(params.librarianId));
+  if (params.childId) qs.set("childId", String(params.childId));
+
+  const url = `/api/consultations/all?${qs.toString()}`;
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error || `Falha a carregar histórico (${res.status})`);
+  }
+  const raw = await res.json();
+
+  // mapeamento leve para o formato que a página espera
+  const items: ConsultationFull[] = (Array.isArray(raw) ? raw : []).map(
+    (c: any) => ({
+      id: c.id,
+      title:
+        c.child?.name
+          ? `Consulta de ${c.child.name}`
+          : c.librarian?.fullName
+          ? `Consulta com ${c.librarian.fullName}`
+          : "Consulta",
+      status: c.status,
+      requestedAt: c.requestedAt ?? undefined,
+      startAt: c.startAt ?? undefined,
+      endAt: c.endAt ?? undefined,
+      family: c.family ?? undefined,
+      librarian: c.librarian ?? undefined,
+      child: c.child ?? undefined,
+      library: c.library ?? undefined,
+      slot: c.slot ?? null,
+      events: c.events ?? [],
+    })
+  );
+
+  return items;
+}
+
 export async function confirmConsultation(id: number) {
   const url = `${API_BASE}/consultations/${id}/confirm`;
   return fetchJson(url, { method: "POST" });
@@ -267,35 +357,63 @@ export async function declineConsultation(id: number) {
   return fetchJson(url, { method: "POST" });
 }
 
+type ProposalPayload = {
+  // horário NOVO (obrigatório)
+  toStartAt: string;
+  toEndAt: string;
+  // horário ANTIGO (opcional — só quando é reagendamento)
+  fromStartAt?: string;
+  fromEndAt?: string;
+  // metadados
+  message?: string;
+  proposedBy?: "LIBRARIAN" | "FAMILY" | "SYSTEM";
+};
+
 /** Cria uma proposta (por ex. bibliotecário propõe um slot) */
 export async function createProposalForConsultation(
   consultationId: number,
-  payload: {
-    toStartAt: string;
-    toEndAt: string;
-    message?: string;
-    proposedBy?: "LIBRARIAN" | "FAMILY" | "SYSTEM";
-  }
+  payload: ProposalPayload
 ) {
   const url = `${API_BASE}/consultations/${consultationId}/proposals`;
   return fetchJson(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    // inclui os campos from* se vierem, e default para proposedBy
     body: JSON.stringify({
       proposedBy: payload.proposedBy ?? "LIBRARIAN",
-      ...payload,
+      toStartAt: payload.toStartAt,
+      toEndAt: payload.toEndAt,
+      ...(payload.fromStartAt ? { fromStartAt: payload.fromStartAt } : {}),
+      ...(payload.fromEndAt ? { fromEndAt: payload.fromEndAt } : {}),
+      ...(payload.message ? { message: payload.message } : {}),
     }),
   });
 }
 
-export async function acceptProposal(proposalId: number) {
-  const url = `${API_BASE}/consultations/proposals/${proposalId}/accept`;
-  return fetchJson(url, { method: "POST" });
+// apps/web/src/services/consultations.ts
+export async function cancelConsultation(
+  consultationId: number,
+  reason?: string
+) {
+  const url = `${API_BASE}/consultations/${consultationId}/cancel`; // ✅ usa API_BASE
+  return fetchJson(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
 }
 
+// mantém
+export async function acceptProposal(proposalId: number) {
+  return fetchJson(`${API_BASE}/consultations/proposals/${proposalId}/accept`, {
+    method: "POST",
+  });
+}
 export async function declineProposal(proposalId: number) {
-  const url = `${API_BASE}/consultations/proposals/${proposalId}/decline`;
-  return fetchJson(url, { method: "POST" });
+  return fetchJson(
+    `${API_BASE}/consultations/proposals/${proposalId}/decline`,
+    { method: "POST" }
+  );
 }
 
 export async function listFamilyProposals(

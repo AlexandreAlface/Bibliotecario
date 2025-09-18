@@ -38,6 +38,7 @@ import {
   CheckCircle2,
   XCircle,
 } from "lucide-react";
+import type { SlotLite } from "@/services/consultations";
 
 /* -------------------- helpers -------------------- */
 const fmtDate = new Intl.DateTimeFormat("pt-PT", {
@@ -49,7 +50,6 @@ const fmtTime = new Intl.DateTimeFormat("pt-PT", {
   hour: "2-digit",
   minute: "2-digit",
 });
-
 function fmtRange(start?: string | Date | null, end?: string | Date | null) {
   if (!start || !end) return "Sem horário";
   const a = new Date(start);
@@ -57,13 +57,7 @@ function fmtRange(start?: string | Date | null, end?: string | Date | null) {
   return `${fmtDate.format(a)}, ${fmtTime.format(a)} — ${fmtTime.format(b)}`;
 }
 
-function SectionHeader({
-  title,
-  count,
-}: {
-  title: string;
-  count: number;
-}) {
+function SectionHeader({ title, count }: { title: string; count: number }) {
   return (
     <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
       <Typography variant="subtitle1">{title}</Typography>
@@ -85,10 +79,8 @@ function LineCard({
   children: React.ReactNode;
   tone?: "default" | "warn" | "success";
 }) {
-  // usa uma chave tipada do palette (nada de string dinâmica)
   const paletteKey: "primary" | "warning" | "success" =
     tone === "warn" ? "warning" : tone === "success" ? "success" : "primary";
-
   return (
     <WhiteCard
       sx={{
@@ -142,13 +134,28 @@ export default function LibrarianConsultasPendentes() {
     load();
   }, [librarianId]);
 
+  // 1) PENDING com horário (família propôs)…
   const consultasComSlot = useMemo(
     () => consultas.filter((c) => c.startAt && c.endAt),
     [consultas]
   );
-  const consultasSemSlot = useMemo(
-    () => consultas.filter((c) => !c.startAt || !c.endAt),
-    [consultas]
+
+  // …mas se o bibliotecário já propôs reagendamento para essa consulta,
+  // ela sai desta lista e vai somente para “Propostas de reagendamento”.
+  const librarianPendingSet = useMemo(() => {
+    const set = new Set<number>();
+    for (const p of propostas) {
+      if (p?.proposedBy === "LIBRARIAN" && p?.consultation?.id) {
+        set.add(Number(p.consultation.id));
+      }
+    }
+    return set;
+  }, [propostas]);
+
+  const consultasComSlotSemPropDoBibliotecario = useMemo(
+    () =>
+      consultasComSlot.filter((c) => !librarianPendingSet.has(Number(c.id))),
+    [consultasComSlot, librarianPendingSet]
   );
 
   return (
@@ -160,6 +167,7 @@ export default function LibrarianConsultasPendentes() {
           {err}
         </Alert>
       )}
+
       {loading && (
         <WhiteCard>
           <Stack spacing={1}>
@@ -171,38 +179,17 @@ export default function LibrarianConsultasPendentes() {
         </WhiteCard>
       )}
 
-      {/* 1) Pedidos sem horário → propor slot */}
-      <section>
-        <SectionHeader
-          title="Novas solicitações (sem horário)"
-          count={consultasSemSlot.length}
-        />
-        {consultasSemSlot.length === 0 && !loading && (
-          <Empty>Sem pedidos por agendar.</Empty>
-        )}
-        <Stack spacing={2}>
-          {consultasSemSlot.map((c) => (
-            <PedidoSemSlotCard
-              key={c.id}
-              c={c}
-              librarianId={librarianId}
-              onChanged={load}
-            />
-          ))}
-        </Stack>
-      </section>
-
-      {/* 2) Pedidos com slot (família escolheu) → aceitar/recusar/reagendar */}
+      {/* ✅ Só esta secção fica: pedidos com slot, EXCLUINDO os que já têm proposta do bibliotecário */}
       <section>
         <SectionHeader
           title="Solicitações com proposta de horário"
-          count={consultasComSlot.length}
+          count={consultasComSlotSemPropDoBibliotecario.length}
         />
-        {consultasComSlot.length === 0 && !loading && (
+        {consultasComSlotSemPropDoBibliotecario.length === 0 && !loading && (
           <Empty>Sem pedidos com horário.</Empty>
         )}
         <Stack spacing={2}>
-          {consultasComSlot.map((c) => (
+          {consultasComSlotSemPropDoBibliotecario.map((c) => (
             <PedidoComSlotCard
               key={c.id}
               c={c}
@@ -213,7 +200,7 @@ export default function LibrarianConsultasPendentes() {
         </Stack>
       </section>
 
-      {/* 3) Propostas de reagendamento pendentes */}
+      {/* ✅ Todas as propostas pendentes (família e bibliotecário) */}
       <section>
         <SectionHeader
           title="Propostas de reagendamento"
@@ -237,78 +224,6 @@ export default function LibrarianConsultasPendentes() {
   );
 }
 
-/* --------- Card: pedido SEM slot → propor horário --------- */
-function PedidoSemSlotCard({
-  c,
-  librarianId,
-  onChanged,
-}: {
-  c: any;
-  librarianId: number;
-  onChanged: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <LineCard>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        alignItems={{ xs: "flex-start", sm: "center" }}
-        justifyContent="space-between"
-        spacing={2}
-      >
-        <Stack spacing={0.5}>
-          <Stack direction="row" alignItems="center" spacing={1}>
-            <Users size={18} />
-            <Typography variant="subtitle1">
-              {c.family?.fullName ?? `Família #${c.familyId}`}
-            </Typography>
-          </Stack>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <CalendarClock size={16} />
-            <Typography variant="body2" sx={{ opacity: 0.75 }}>
-              Sem horário •{" "}
-              {c.library?.name
-                ? `Biblioteca ${c.library.name}`
-                : "Biblioteca não definida"}
-            </Typography>
-          </Stack>
-        </Stack>
-
-        <Stack direction="row" spacing={1}>
-          <PrimaryButton onClick={() => setOpen(true)}>
-            Propor horário
-          </PrimaryButton>
-          <SecondaryButton
-            variant="outlined"
-            onClick={async () => {
-              await declineConsultation(c.id);
-              onChanged();
-            }}
-          >
-            Recusar
-          </SecondaryButton>
-        </Stack>
-      </Stack>
-
-      <SlotPickerDialog
-        open={open}
-        onClose={() => setOpen(false)}
-        librarianId={librarianId}
-        onPick={async (slot) => {
-          await createProposalForConsultation(c.id, {
-            toStartAt: slot.startAt,
-            toEndAt: slot.endAt,
-            proposedBy: "LIBRARIAN",
-          });
-          setOpen(false);
-          onChanged();
-        }}
-      />
-    </LineCard>
-  );
-}
-
 /* --------- Card: pedido COM slot → aceitar/recusar/reagendar --------- */
 function PedidoComSlotCard({
   c,
@@ -320,7 +235,7 @@ function PedidoComSlotCard({
   onChanged: () => void;
 }) {
   const [msg, setMsg] = useState<string | null>(null);
-  const [openReschedule, setOpenReschedule] = useState(false); // NOVO: dialog reagendar
+  const [openReschedule, setOpenReschedule] = useState(false);
 
   const start = c.startAt ? new Date(c.startAt) : null;
   const end = c.endAt ? new Date(c.endAt) : null;
@@ -380,10 +295,9 @@ function PedidoComSlotCard({
                 await confirmConsultation(c.id);
                 onChanged();
               } catch (e: any) {
-                const m =
-                  e?.message?.includes("conflict")
-                    ? "Conflito com outra consulta confirmada"
-                    : e?.message || "Erro";
+                const m = e?.message?.includes("conflict")
+                  ? "Conflito com outra consulta confirmada"
+                  : e?.message || "Erro";
                 setMsg(m);
               }
             }}
@@ -392,7 +306,6 @@ function PedidoComSlotCard({
             Aceitar
           </PrimaryButton>
 
-          {/* NOVO: Reagendar → abre selector de slots e cria proposal */}
           <SecondaryButton
             onClick={() => setOpenReschedule(true)}
             startIcon={<CalendarClock size={18} />}
@@ -426,9 +339,22 @@ function PedidoComSlotCard({
               proposedBy: "LIBRARIAN",
             });
             setOpenReschedule(false);
-            onChanged();
+            onChanged(); // refaz fetch → consulta sai desta lista e aparece em “Propostas…”
           } catch (e: any) {
-            setMsg(e?.message || "Erro ao propor novo horário");
+            const m = String(e?.message || "");
+            if (m.includes("pending_proposal_other_actor")) {
+              setMsg(
+                "Já existe proposta pendente da família. Aguarde a decisão ou peça para a recusarem."
+              );
+            } else if (m.includes("invalid_state")) {
+              setMsg(
+                "Esta consulta não pode ser reagendada (estado inválido)."
+              );
+            } else if (m.includes("invalid_dates")) {
+              setMsg("Intervalo inválido.");
+            } else {
+              setMsg("Erro ao propor novo horário");
+            }
           }
         }}
       />
@@ -447,8 +373,17 @@ function PropostaRow({
   onChanged: () => void;
 }) {
   const [msg, setMsg] = useState<string | null>(null);
-  const start = new Date(p.toStartAt),
-    end = new Date(p.toEndAt);
+
+  const fromStart = p.fromStartAt ? new Date(p.fromStartAt) : null;
+  const fromEnd = p.fromEndAt ? new Date(p.fromEndAt) : null;
+  const start = new Date(p.toStartAt);
+  const end = new Date(p.toEndAt);
+
+  const isFromFamily = p.proposedBy === "FAMILY";
+
+  // Nesta página, quem usa é o bibliotecário → só pode aceitar quando a proposta veio da família
+  const canAccept = isFromFamily;
+  const canDecline = true; // Ambos podem recusar/cancelar
 
   useEffect(() => {
     checkLibrarianConflict(librarianId, {
@@ -480,19 +415,42 @@ function PropostaRow({
             </Typography>
             <Chip
               size="small"
-              label={
-                p.proposedBy === "FAMILY"
-                  ? "Proposta da família"
-                  : "Proposta do bibliotecário"
-              }
+              label={isFromFamily ? "Proposta da família" : "Proposta do bibliotecário"}
               variant="outlined"
             />
+            {!canAccept && (
+              <Chip
+                size="small"
+                color="default"
+                variant="outlined"
+                label="A aguardar resposta da família"
+              />
+            )}
           </Stack>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Clock3 size={16} />
-            <Typography variant="body2" sx={{ opacity: 0.75 }}>
-              {fmtRange(start, end)}
-            </Typography>
+
+          {/* Horário antigo e novo */}
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            useFlexGap
+            flexWrap="wrap"
+          >
+            {fromStart && fromEnd && (
+              <Chip
+                size="small"
+                variant="outlined"
+                icon={<Clock3 size={16} />}
+                label={`Antigo: ${fmtRange(fromStart, fromEnd)}`}
+              />
+            )}
+            <Chip
+              size="small"
+              color="primary"
+              variant="outlined"
+              icon={<CalendarClock size={16} />}
+              label={`Proposto: ${fmtRange(start, end)}`}
+            />
             {msg && (
               <Chip
                 size="small"
@@ -505,36 +463,54 @@ function PropostaRow({
         </Stack>
 
         <Stack direction="row" spacing={1}>
-          <PrimaryButton
-            onClick={async () => {
-              try {
-                await acceptProposal(p.id);
-                onChanged();
-              } catch (e: any) {
-                setMsg(e?.message || "Erro");
-              }
-            }}
-            startIcon={<CheckCircle2 size={18} />}
-          >
-            Aceitar
-          </PrimaryButton>
-          <SecondaryButton
-            variant="outlined"
-            onClick={async () => {
-              await declineProposal(p.id);
-              onChanged();
-            }}
-            startIcon={<XCircle size={18} />}
-          >
-            Recusar
-          </SecondaryButton>
+          {canAccept && (
+            <PrimaryButton
+              onClick={async () => {
+                try {
+                  await acceptProposal(p.id);
+                  onChanged();
+                } catch (e: any) {
+                  // 403 vem do backend quando quem propôs tenta aceitar
+                  const m = String(e?.message || "");
+                  if (m.includes("forbidden")) {
+                    setMsg("Não pode aceitar a própria proposta.");
+                  } else if (m.includes("conflict")) {
+                    setMsg("Conflito com outra consulta confirmada");
+                  } else {
+                    setMsg(e?.message || "Erro");
+                  }
+                }
+              }}
+              startIcon={<CheckCircle2 size={18} />}
+            >
+              Aceitar
+            </PrimaryButton>
+          )}
+
+          {canDecline && (
+            <SecondaryButton
+              variant="outlined"
+              onClick={async () => {
+                try {
+                  await declineProposal(p.id);
+                  onChanged();
+                } catch (e: any) {
+                  setMsg(e?.message || "Erro ao cancelar/recusar");
+                }
+              }}
+              startIcon={<XCircle size={18} />}
+            >
+              {isFromFamily ? "Recusar" : "Cancelar proposta"}
+            </SecondaryButton>
+          )}
         </Stack>
       </Stack>
     </LineCard>
   );
 }
 
-/* --------- Dialog: selector de slots (agrupado por dia) --------- */
+
+/* --------- Dialog: selector de slots (com seleção + confirmar) --------- */
 function SlotPickerDialog({
   open,
   onClose,
@@ -546,36 +522,75 @@ function SlotPickerDialog({
   librarianId: number;
   onPick: (slot: { id: number; startAt: string; endAt: string }) => void;
 }) {
-  const [slots, setSlots] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [slots, setSlots] = useState<SlotLite[]>([]);
+  const [selected, setSelected] = useState<SlotLite | null>(null);
 
-  // janela de 14 dias (com “ver +14”)
-  const [days, setDays] = useState(14);
+  const [initialLoading, setInitialLoading] = useState(false);
+  const [moreLoading, setMoreLoading] = useState(false);
+  const [windowStart, setWindowStart] = useState<Date | null>(null);
+  const [windowEnd, setWindowEnd] = useState<Date | null>(null);
+  const [noMore, setNoMore] = useState(false);
 
   useEffect(() => {
-    async function run() {
-      if (!open) return;
-      setLoading(true);
-      const from = new Date();
-      const to = new Date();
-      to.setDate(to.getDate() + days);
+    if (!open) return;
+    setSlots([]);
+    setSelected(null);
+    setNoMore(false);
+
+    (async () => {
+      setInitialLoading(true);
+      const start = new Date();
+      const end = addDays(start, 14);
       try {
         const data = await listOpenSlots({
-          from: from.toISOString(),
-          to: to.toISOString(),
+          from: start.toISOString(),
+          to: end.toISOString(),
           librarianId,
         });
-        setSlots(data);
+        setSlots(dedupMerge([], data));
+        setWindowStart(start);
+        setWindowEnd(end);
+        setNoMore(data.length === 0);
       } finally {
-        setLoading(false);
+        setInitialLoading(false);
       }
-    }
-    run();
-  }, [open, librarianId, days]);
+    })();
+  }, [open, librarianId]);
 
-  // agrupar por dia
+  function addDays(d: Date, n: number) {
+    const x = new Date(d);
+    x.setDate(x.getDate() + n);
+    return x;
+  }
+  function dedupMerge(prev: SlotLite[], next: SlotLite[]) {
+    const map = new Map<number, SlotLite>();
+    for (const s of prev) map.set(Number(s.id), s);
+    for (const s of next) map.set(Number(s.id), s);
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+    );
+  }
+  async function handleShowMore() {
+    if (!windowEnd || moreLoading || initialLoading || noMore) return;
+    setMoreLoading(true);
+    const from = new Date(windowEnd);
+    const to = addDays(from, 14);
+    try {
+      const data = await listOpenSlots({
+        from: from.toISOString(),
+        to: to.toISOString(),
+        librarianId,
+      });
+      setSlots((prev: SlotLite[]) => dedupMerge(prev, data));
+      setWindowEnd(to);
+      setNoMore(data.length === 0);
+    } finally {
+      setMoreLoading(false);
+    }
+  }
+
   const grouped = useMemo(() => {
-    const map = new Map<string, any[]>();
+    const map = new Map<string, SlotLite[]>();
     for (const s of slots) {
       const d = new Date(s.startAt);
       const key = d.toDateString();
@@ -602,7 +617,7 @@ function SlotPickerDialog({
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Escolher horário</DialogTitle>
       <DialogContent dividers>
-        {loading && (
+        {initialLoading && slots.length === 0 && (
           <Stack spacing={1}>
             <Skeleton height={20} width="40%" />
             <Skeleton height={48} />
@@ -610,8 +625,16 @@ function SlotPickerDialog({
           </Stack>
         )}
 
-        {!loading && grouped.length === 0 && (
-          <Typography>Sem slots abertos nos próximos {days} dias.</Typography>
+        {!initialLoading && grouped.length === 0 && (
+          <Typography>
+            Sem slots abertos{" "}
+            {windowStart && windowEnd
+              ? `entre ${fmtDate.format(windowStart)} e ${fmtDate.format(
+                  windowEnd
+                )}`
+              : "nos próximos 14 dias"}
+            .
+          </Typography>
         )}
 
         <Stack spacing={2}>
@@ -622,14 +645,21 @@ function SlotPickerDialog({
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap">
                 {g.items.map((s) => {
+                  const isSelected = selected?.id === s.id;
                   const a = new Date(s.startAt);
                   const b = new Date(s.endAt);
                   return (
                     <Chip
                       key={s.id}
                       clickable
-                      onClick={() => onPick(s)}
+                      onClick={() =>
+                        setSelected((prev: SlotLite | null) =>
+                          prev?.id === s.id ? null : s
+                        )
+                      }
                       label={`${fmtTime.format(a)} — ${fmtTime.format(b)}`}
+                      variant={isSelected ? "filled" : "outlined"}
+                      color={isSelected ? "primary" : "default"}
                       sx={{ mb: 1 }}
                     />
                   );
@@ -639,18 +669,37 @@ function SlotPickerDialog({
           ))}
         </Stack>
 
-        {!loading && (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 2 }}>
-            <Tooltip title="Mostrar mais 14 dias">
-              <IconButton onClick={() => setDays((d) => d + 14)}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 2 }}>
+          <Tooltip
+            title={noMore ? "Sem mais resultados" : "Mostrar mais 14 dias"}
+          >
+            <span>
+              <IconButton
+                onClick={handleShowMore}
+                disabled={moreLoading || initialLoading || noMore}
+                aria-label="Mostrar mais 14 dias"
+              >
                 <CalendarClock />
               </IconButton>
-            </Tooltip>
-          </Box>
-        )}
+            </span>
+          </Tooltip>
+
+          <Typography variant="body2" sx={{ opacity: 0.7 }}>
+            {selected
+              ? `Selecionado: ${fmtRange(selected.startAt, selected.endAt)}`
+              : "Selecione um horário"}
+          </Typography>
+        </Box>
       </DialogContent>
+
       <DialogActions>
-        <SecondaryButton onClick={onClose}>Fechar</SecondaryButton>
+        <SecondaryButton onClick={onClose}>Cancelar</SecondaryButton>
+        <PrimaryButton
+          onClick={() => selected && onPick(selected)}
+          disabled={!selected || initialLoading || moreLoading}
+        >
+          Confirmar
+        </PrimaryButton>
       </DialogActions>
     </Dialog>
   );

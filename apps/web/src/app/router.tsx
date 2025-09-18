@@ -27,6 +27,7 @@ import LibrarianConsultasPendentes from "@/pages/librarian/ConsultasPendentes";
 import LibrarianAgenda from "@/pages/librarian/Agenda";
 import LibrarianFamilias from "@/pages/librarian/Familias";
 import LibrarianSlots from "@/pages/librarian/Slots";
+import HistoricoConsultasPage from "@/pages/librarian/historico";
 
 // --- NOVO: páginas do bibliotecário ---
 
@@ -94,6 +95,7 @@ export const router = createBrowserRouter([
           { path: "agenda", element: <LibrarianAgenda /> },
           { path: "familias", element: <LibrarianFamilias /> },
           { path: "slots", element: <LibrarianSlots /> },
+          { path: "historico", element: <HistoricoConsultasPage /> },
         ],
       },
     ],

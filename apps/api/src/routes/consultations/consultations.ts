@@ -1,11 +1,17 @@
 // apps/api/src/routes/consultations/consultations.ts
 import { Router } from "express";
 import { $Enums, ConsultationStatus, PrismaClient } from "@prisma/client";
-import { requireFamilyOrLibrarian, requireRole, ROLES, withUser } from "../../middlewares/auth";
+import {
+  requireFamilyOrLibrarian,
+  requireRole,
+  ROLES,
+  withUser,
+} from "../../middlewares/auth";
 
 const prisma = new PrismaClient();
 const r = Router();
 
+/* ======================== Criação ======================== */
 // POST /api/consultations
 r.post("/", withUser, requireFamilyOrLibrarian, async (req, res) => {
   try {
@@ -61,7 +67,7 @@ r.post("/", withUser, requireFamilyOrLibrarian, async (req, res) => {
             startAt: slot.startAt,
             endAt: slot.endAt,
             status: $Enums.ConsultationStatus.PENDING,
-            slot: { connect: { id: _slotId } }, // 1–1 via unique slotId
+            slot: { connect: { id: _slotId } },
             events: { create: [{ type: "REQUESTED" }] },
           },
         });
@@ -100,62 +106,9 @@ r.post("/", withUser, requireFamilyOrLibrarian, async (req, res) => {
   }
 });
 
-/** ---------- Ações ---------- */
-r.post("/:id/confirm", withUser, requireFamilyOrLibrarian, async (req, res) => {
-  const id = Number(req.params.id);
-  const c = await prisma.consultation.update({
-    where: { id },
-    data: { status: "CONFIRMED", events: { create: { type: "CONFIRMED" } } },
-  });
-  res.json(c);
-});
+/* ======================== Listagens / Queries específicas ======================== */
 
-r.post("/:id/decline", withUser, requireFamilyOrLibrarian, async (req, res) => {
-  const id = Number(req.params.id);
-  const c = await prisma.consultation.update({
-    where: { id },
-    data: { status: "DECLINED", events: { create: { type: "DECLINED" } } },
-  });
-  if (c.slotId) {
-    await prisma.consultationSlot.update({
-      where: { id: c.slotId },
-      data: { status: $Enums.SlotStatus.OPEN },
-    });
-  }
-  res.json(c);
-});
-
-r.post("/:id/cancel", withUser, requireFamilyOrLibrarian, async (req, res) => {
-  const id = Number(req.params.id);
-  const c = await prisma.consultation.update({
-    where: { id },
-    data: { status: "CANCELLED", events: { create: { type: "CANCELLED" } } },
-  });
-  if (c.slotId) {
-    await prisma.consultationSlot.update({
-      where: { id: c.slotId },
-      data: { status: $Enums.SlotStatus.OPEN },
-    });
-  }
-  res.json(c);
-});
-
-r.post(
-  "/:id/complete",
-  withUser,
-  requireFamilyOrLibrarian,
-  async (req, res) => {
-    const id = Number(req.params.id);
-    const c = await prisma.consultation.update({
-      where: { id },
-      data: { status: "COMPLETED", events: { create: { type: "COMPLETED" } } },
-    });
-    res.json(c);
-  }
-);
-
-/** ---------- Listagens ---------- */
-// GET /api/consultations/all  (debug/QA)
+// GET /api/consultations/all
 r.get("/all", withUser, requireFamilyOrLibrarian, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
@@ -217,10 +170,7 @@ r.get("/all", withUser, requireFamilyOrLibrarian, async (req, res) => {
   }
 });
 
-/** GET /api/consultations/next
- *  Próximas consultas (para landing): filtra por família OU bibliotecário.
- *  Query: limit, familyId, librarianId (um dos dois), from (default now)
- */
+/** GET /api/consultations/next */
 r.get("/next", withUser, requireFamilyOrLibrarian, async (req, res) => {
   try {
     const limit = Math.min(Number(req.query.limit) || 6, 50);
@@ -247,11 +197,11 @@ r.get("/next", withUser, requireFamilyOrLibrarian, async (req, res) => {
           $Enums.ConsultationStatus.CONFIRMED,
         ],
       },
-      startAt: { gte: now }, // sem pendentes sem data aqui
+      startAt: { gte: now },
     };
     if (Number.isFinite(familyId)) where.familyId = familyId;
     if (Number.isFinite(librarianId)) where.librarianId = librarianId;
-    if (Number.isFinite(childId)) where.childId = childId; // ⬅️ Filtro por criança
+    if (Number.isFinite(childId)) where.childId = childId;
 
     const items = await prisma.consultation.findMany({
       where,
@@ -277,10 +227,12 @@ r.get("/next", withUser, requireFamilyOrLibrarian, async (req, res) => {
       date: c.startAt?.toISOString(),
       scheduledAt: c.startAt?.toISOString(),
       status: c.status,
+      librarianId: c.librarian?.id ?? null,
       librarianName: c.librarian?.fullName ?? undefined,
       familyId: c.family?.id,
       childId: c.child?.id,
-      libraryName: c.library?.name,
+      libraryId: c.library?.id ?? undefined,
+      libraryName: c.library?.name ?? undefined,
     }));
 
     res.json(mapped);
@@ -292,7 +244,7 @@ r.get("/next", withUser, requireFamilyOrLibrarian, async (req, res) => {
   }
 });
 
-// GET /api/consultations/librarians?libraryId=123
+// GET /api/consultations/librarians
 r.get("/librarians", withUser, requireFamilyOrLibrarian, async (req, res) => {
   try {
     const libraryId = req.query.libraryId
@@ -301,7 +253,7 @@ r.get("/librarians", withUser, requireFamilyOrLibrarian, async (req, res) => {
 
     const librarians = await prisma.user.findMany({
       where: {
-        userRoles: { some: { roleId: 2 } }, // ⬅️ só roleId=2
+        userRoles: { some: { roleId: 2 } },
         ...(Number.isFinite(libraryId)
           ? { userLibraries: { some: { libraryId } } }
           : {}),
@@ -317,7 +269,7 @@ r.get("/librarians", withUser, requireFamilyOrLibrarian, async (req, res) => {
   }
 });
 
-// GET /api/consultations/slots?from&to&libraryId&librarianId&onlyBookable=true
+// GET /api/consultations/slots
 r.get("/slots", async (req, res) => {
   try {
     const fromStr = String(req.query.from || "");
@@ -343,7 +295,7 @@ r.get("/slots", async (req, res) => {
     const items = await prisma.consultationSlot.findMany({
       where: {
         status: $Enums.SlotStatus.OPEN,
-        startAt: { gte: onlyBookable ? (from > now ? from : now) : from }, // ⬅️ só futuro
+        startAt: { gte: onlyBookable ? (from > now ? from : now) : from },
         endAt: { lte: to },
         ...(Number.isFinite(librarianId) ? { librarianId } : {}),
         ...(Number.isFinite(libraryId) ? { libraryId } : {}),
@@ -380,7 +332,7 @@ r.get("/slots", async (req, res) => {
   }
 });
 
-// GET /api/consultations/librarians/with-open-slots?from&to&libraryId
+// GET /api/consultations/librarians/with-open-slots
 r.get(
   "/librarians/with-open-slots",
   withUser,
@@ -398,7 +350,7 @@ r.get(
       }
 
       const now = new Date();
-      const effFrom = from > now ? from : now; // só futuro
+      const effFrom = from > now ? from : now;
       const libraryId = req.query.libraryId
         ? Number(req.query.libraryId)
         : undefined;
@@ -422,74 +374,245 @@ r.get(
       res.json(librarians.map((u) => ({ id: u.id, name: u.fullName })));
     } catch (e: any) {
       console.error(e);
-      res
-        .status(400)
-        .json({
-          error: e?.message ?? "failed to list librarians with open slots",
-        });
+      res.status(400).json({
+        error: e?.message ?? "failed to list librarians with open slots",
+      });
     }
   }
 );
 
-r.post("/:id/confirm", withUser, requireRole(ROLES.LIBRARIAN, ROLES.ADMIN), async (req, res) => {
+/* ======================== Operações por ID (rotas genéricas ao fim) ======================== */
+
+/** ---------- Ações ---------- */
+
+// POST /api/consultations/:id/confirm
+r.post(
+  "/:id/confirm",
+  withUser,
+  requireRole(ROLES.LIBRARIAN, ROLES.ADMIN),
+  async (req, res) => {
+    const id = Number(req.params.id);
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const c = await tx.consultation.findUnique({
+          where: { id },
+          include: { slot: true },
+        });
+        if (!c) throw new Error("not found");
+
+        const isAdmin = req.user?.roles?.includes(ROLES.ADMIN) === true;
+        if (!isAdmin && req.user?.id !== c.librarianId) {
+          throw new Error("forbidden");
+        }
+
+        if (!c.startAt || !c.endAt) {
+          throw new Error("consulta sem horário para confirmar");
+        }
+
+        const conflict = await tx.consultation.findFirst({
+          where: {
+            librarianId: c.librarianId,
+            status: ConsultationStatus.CONFIRMED,
+            startAt: { lt: c.endAt },
+            endAt: { gt: c.startAt },
+            id: { not: c.id },
+          },
+          select: { id: true, startAt: true, endAt: true, familyId: true },
+        });
+        if (conflict) {
+          return res.status(409).json({ error: "conflict", conflict });
+        }
+
+        if (c.slotId) {
+          await tx.consultationSlot.update({
+            where: { id: c.slotId },
+            data: { status: "BOOKED" },
+          });
+        }
+
+        const updated = await tx.consultation.update({
+          where: { id: c.id },
+          data: {
+            status: ConsultationStatus.CONFIRMED,
+            events: { create: { type: "CONFIRMED", actorId: req.user?.id } },
+          },
+        });
+
+        return updated;
+      });
+
+      if (result && !("error" in (result as any))) return res.json(result);
+    } catch (e: any) {
+      const msg = String(e?.message || "");
+      if (msg === "forbidden")
+        return res.status(403).json({ error: "forbidden" });
+      if (msg === "not found")
+        return res.status(404).json({ error: "not found" });
+      if (/unique|constraint|slotId|startAt.*endAt/i.test(msg)) {
+        return res.status(409).json({ error: "concurrency" });
+      }
+      console.error(e);
+    }
+
+    return res.status(400).json({ error: "failed to confirm" });
+  }
+);
+
+// POST /api/consultations/:id/decline
+r.post("/:id/decline", withUser, requireFamilyOrLibrarian, async (req, res) => {
   const id = Number(req.params.id);
+  const c = await prisma.consultation.update({
+    where: { id },
+    data: { status: "DECLINED", events: { create: { type: "DECLINED" } } },
+  });
+  if (c.slotId) {
+    await prisma.consultationSlot.update({
+      where: { id: c.slotId },
+      data: { status: $Enums.SlotStatus.OPEN },
+    });
+  }
+  res.json(c);
+});
+
+// POST /api/consultations/:id/cancel  ✅ robusto (retorna 204)
+r.post("/:id/cancel", withUser, async (req: any, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id))
+    return res.status(400).json({ error: "invalid_id" });
+  const reason: string | undefined = req.body?.reason;
+
+  class ApiError extends Error {
+    code: number;
+    constructor(code: number, msg: string) {
+      super(msg);
+      this.code = code;
+    }
+  }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       const c = await tx.consultation.findUnique({
         where: { id },
         include: { slot: true },
       });
-      if (!c) return res.status(404).json({ error: "not found" });
+      if (!c) throw new ApiError(404, "not_found");
 
-      // só o bibliotecário dono (ou admin) confirma
+      // autorização: admin OU intervenientes
       const isAdmin = req.user?.roles?.includes(ROLES.ADMIN) === true;
-      if (!isAdmin && req.user?.id !== c.librarianId) {
-        return res.status(403).json({ error: "forbidden" });
+      const isLibrarian = req.user?.id === c.librarianId;
+      const isFamily = req.user?.id === c.familyId;
+      if (!isAdmin && !isLibrarian && !isFamily) {
+        throw new ApiError(403, "forbidden");
       }
 
-      if (!c.startAt || !c.endAt) {
-        return res.status(400).json({ error: "consulta sem horário para confirmar" });
+      // estados válidos
+      if (c.status === $Enums.ConsultationStatus.CANCELLED) {
+        throw new ApiError(409, "already_cancelled");
+      }
+      if (c.status === $Enums.ConsultationStatus.COMPLETED) {
+        throw new ApiError(409, "completed");
+      }
+      if (c.status === $Enums.ConsultationStatus.DECLINED) {
+        throw new ApiError(409, "invalid_state");
       }
 
-      // conflito com outras CONFIRMED
-      const conflict = await tx.consultation.findFirst({
-        where: {
-          librarianId: c.librarianId,
-          status: ConsultationStatus.CONFIRMED,
-          startAt: { lt: c.endAt },
-          endAt:   { gt: c.startAt },
-          id: { not: c.id },
-        },
-        select: { id: true, startAt: true, endAt: true, familyId: true },
-      });
-      if (conflict) {
-        return res.status(409).json({ error: "conflict", conflict });
-      }
-
-      // marca slot BOOKED (se existir) e confirma
+      // libertar slot se existir
       if (c.slotId) {
-        await tx.consultationSlot.update({ where: { id: c.slotId }, data: { status: "BOOKED" } });
+        await tx.consultationSlot.update({
+          where: { id: c.slotId },
+          data: { status: $Enums.SlotStatus.OPEN },
+        });
       }
 
-      const updated = await tx.consultation.update({
+      // cancelar e desassociar slot
+      await tx.consultation.update({
         where: { id: c.id },
-        data: { status: ConsultationStatus.CONFIRMED, events: { create: { type: "CONFIRMED", actorId: req.user?.id } } },
+        data: {
+          status: $Enums.ConsultationStatus.CANCELLED,
+          slotId: null,
+        },
       });
 
-      return updated;
+      // expirar propostas pendentes
+      const now = new Date();
+      await tx.consultationProposal.updateMany({
+        where: {
+          consultationId: c.id,
+          status: $Enums.ProposalStatus.PENDING,
+        },
+        data: { status: $Enums.ProposalStatus.EXPIRED, decidedAt: now },
+      });
+
+      // evento
+      await tx.consultationEvent.create({
+        data: {
+          consultationId: c.id,
+          type: "CONSULTATION_CANCELLED",
+          actorId: req.user?.id ?? null,
+          payload: { reason },
+        },
+      });
     });
 
-    if (result && !("error" in (result as any))) return res.json(result);
+    // sucesso -> 204 (o teu fetchJson trata 204 como [])
+    return res.status(204).end();
   } catch (e: any) {
+    if (e?.code && e?.message) {
+      return res.status(e.code).json({ error: e.message });
+    }
     const msg = String(e?.message || "");
     if (/unique|constraint|slotId|startAt.*endAt/i.test(msg)) {
       return res.status(409).json({ error: "concurrency" });
     }
     console.error(e);
+    return res.status(400).json({ error: e?.message ?? "error" });
   }
+});
 
-  return res.status(400).json({ error: "failed to confirm" });
+// POST /api/consultations/:id/complete
+r.post(
+  "/:id/complete",
+  withUser,
+  requireFamilyOrLibrarian,
+  async (req, res) => {
+    const id = Number(req.params.id);
+    const c = await prisma.consultation.update({
+      where: { id },
+      data: { status: "COMPLETED", events: { create: { type: "COMPLETED" } } },
+    });
+    res.json(c);
+  }
+);
+
+// GET /api/consultations/:id
+r.get("/:id", withUser, requireFamilyOrLibrarian, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id))
+    return res.status(400).json({ error: "invalid_id" });
+
+  const c = await prisma.consultation.findUnique({
+    where: { id },
+    include: {
+      family: { select: { id: true, fullName: true } },
+      librarian: { select: { id: true, fullName: true } },
+      child: { select: { id: true, name: true } },
+      library: { select: { id: true, name: true } },
+      slot: { select: { id: true, startAt: true, endAt: true, status: true } },
+    },
+  });
+  if (!c) return res.status(404).json({ error: "not_found" });
+
+  res.json({
+    id: c.id,
+    status: c.status,
+    startAt: c.startAt,
+    endAt: c.endAt,
+    familyId: c.familyId,
+    childId: c.childId,
+    librarianId: c.librarianId,
+    libraryId: c.libraryId,
+  });
 });
 
 export default r;

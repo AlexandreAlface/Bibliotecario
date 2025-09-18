@@ -14,6 +14,7 @@ import {
   Book,
   LogOut,
   ClipboardCheck,
+  History,
   Clock,
 } from "lucide-react";
 import { useUserSession } from "../contexts/UserSession";
@@ -22,7 +23,7 @@ const SIDEBAR_OPEN = 260;
 const SIDEBAR_CLOSED = 64;
 
 // largura máxima desejada para desktop largo (27")
-const CONTENT_MAX_PX = 1680;
+const CONTENT_MAX_PX = 1920;
 const SIDE_PAD = "clamp(16px, 2.2vw, 48px)";
 
 // --- tipos + helpers para seleção ativa ---
@@ -76,6 +77,7 @@ export default function AppLayout() {
     },
     { label: "Slots", icon: <Clock />, href: "/librarian/slots" }, // 👈 NOVO
     { label: "Agenda", icon: <CalendarDays />, href: "/librarian/agenda" },
+    { label: "Histórico", icon: <History />, href: "/librarian/historico" },
     { label: "Famílias", icon: <UsersRound />, href: "/librarian/familias" },
   ];
 
@@ -126,7 +128,7 @@ export default function AppLayout() {
         styles={{
           ".MuiContainer-root": { maxWidth: "none" },
           "@media (min-width:1200px)": {
-            ".MuiContainer-maxWidthLg": { maxWidth: "1360px" },
+            ".MuiContainer-maxWidthLg": { maxWidth: "1500px" },
           },
           "@media (min-width:1536px)": {
             ".MuiContainer-maxWidthXl": { maxWidth: `${CONTENT_MAX_PX}px` },

@@ -1,16 +1,879 @@
-import { Box, Typography } from "@mui/material";
-import { WhiteCard } from "@bibliotecario/ui-web";
+// apps/web/src/pages/librarian/Agenda.tsx
+import { useEffect, useMemo, useState } from "react";
+import {
+  WhiteCard,
+  PrimaryButton,
+  SecondaryButton,
+} from "@bibliotecario/ui-web";
+import {
+  Box,
+  Chip,
+  Container,
+  Dialog,
+  Divider,
+  IconButton,
+  Stack,
+  Typography,
+  Skeleton,
+  Button,
+  TextField,
+  useTheme,
+} from "@mui/material";
+import Grid from "@mui/material/GridLegacy";
+import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
+import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
+import TodayRounded from "@mui/icons-material/TodayRounded";
+import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
+import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import CancelRounded from "@mui/icons-material/CancelRounded";
+import BlockRounded from "@mui/icons-material/BlockRounded";
+import LockOpenRounded from "@mui/icons-material/LockOpenRounded";
 
-export default function LibrarianAgenda() {
+import { useUserSession } from "../../contexts/UserSession";
+import {
+  getNextConsultas,
+  type ConsultaLite,
+  listLibrarianSlots,
+  type SlotLite,
+  confirmConsultation,
+  declineConsultation,
+  cancelConsultation,
+  updateSlotStatus,
+} from "../../services/consultations";
+
+/* ---------------- utils/format ---------------- */
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function fmtYMD(d?: string | Date | null) {
+  if (!d) return "";
+  const x = typeof d === "string" ? new Date(d) : d;
+  return x.toISOString().slice(0, 10);
+}
+function parts(iso?: string) {
+  if (!iso) return { day: "—", mon: "—", time: "" };
+  const d = new Date(iso);
+  return {
+    day: d.toLocaleDateString("pt-PT", { day: "2-digit" }),
+    mon: d.toLocaleDateString("pt-PT", { month: "short" }),
+    time: d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }),
+  };
+}
+
+const STATUS_CFG: Record<
+  string,
+  { label: string; color: "success" | "warning" | "error" | "default" }
+> = {
+  CONFIRMED: { label: "Confirmado", color: "success" },
+  PENDING: { label: "Pendente", color: "warning" },
+  DECLINED: { label: "Recusado", color: "error" },
+  CANCELLED: { label: "Cancelado", color: "default" },
+};
+
+type DayItem =
+  | {
+      kind: "CONSULTA";
+      id: number;
+      title: string;
+      startAt: string;
+      endAt?: string;
+      status: string;
+      familyId?: number;
+      childId?: number;
+      librarianId?: number;
+      librarianName?: string;
+    }
+  | {
+      kind: "SLOT";
+      id: number;
+      startAt: string;
+      endAt: string;
+      status: "OPEN" | "BLOCKED" | "BOOKED";
+      librarianId: number;
+      libraryId?: number;
+      libraryName?: string;
+    };
+
+/* ---------------- components ---------------- */
+function CardHeader({
+  title,
+  action,
+}: {
+  title: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <Box sx={{ py: 3, display: "grid", gap: 2 }}>
-      <Typography variant="h5">Agenda do bibliotecário</Typography>
+    <Stack
+      direction="row"
+      alignItems="center"
+      justifyContent="space-between"
+      sx={{ mb: 1.25 }}
+    >
+      <Typography variant="h6" fontWeight={900}>
+        {title}
+      </Typography>
+      {action}
+    </Stack>
+  );
+}
 
-      <WhiteCard>
-        <Typography variant="body2">
-          (Stub) Aqui vamos mostrar os <b>slots</b> e as <b>consultas confirmadas</b> por dia/semana.
+function Dot({ color, title }: { color: string; title?: string }) {
+  return (
+    <Box
+      sx={{
+        width: 20,
+        height: 20,
+        borderRadius: "50%",
+        border: "2px solid",
+        borderColor: color,
+        bgcolor: color,
+        display: "inline-block",
+        mr: 0.5,
+        opacity: 0.9,
+      }}
+      title={title}
+    />
+  );
+}
+
+/* ------- Cancel Dialog (custom, sem popups nativos) ------- */
+function CancelDialog({
+  open,
+  onClose,
+  onConfirm,
+  busy,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: (reason?: string) => void | Promise<void>;
+  busy?: boolean;
+}) {
+  const [reason, setReason] = useState<string>("");
+
+  useEffect(() => {
+    if (!open) setReason("");
+  }, [open]);
+
+  return (
+    <Dialog
+      open={open}
+      onClose={busy ? undefined : onClose}
+      fullWidth
+      maxWidth="sm"
+    >
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+          Cancelar consulta
         </Typography>
-      </WhiteCard>
+        <Typography variant="body2" sx={{ mb: 2, opacity: 0.85 }}>
+          Tem a certeza que quer cancelar esta consulta? Pode indicar um motivo
+          (opcional).
+        </Typography>
+
+        <TextField
+          label="Motivo (opcional)"
+          fullWidth
+          multiline
+          minRows={2}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          sx={{ mb: 2 }}
+        />
+
+        <Stack direction="row" spacing={1} justifyContent="flex-end">
+          <SecondaryButton onClick={onClose} disabled={!!busy}>
+            Voltar
+          </SecondaryButton>
+          <PrimaryButton
+            color="error"
+            onClick={() => onConfirm(reason || undefined)}
+            disabled={!!busy}
+            startIcon={<CancelRounded />}
+          >
+            Confirmar cancelamento
+          </PrimaryButton>
+        </Stack>
+      </Box>
+    </Dialog>
+  );
+}
+
+/* ---------- Linha de item (consulta/slot) ---------- */
+function DayItemRow({
+  item,
+  onConfirm,
+  onDecline,
+  onAskCancel,
+  onToggleSlot,
+  busyId,
+}: {
+  item: DayItem;
+  onConfirm: (id: number) => void;
+  onDecline: (id: number) => void;
+  onAskCancel: (id: number) => void;
+  onToggleSlot: (id: number, next: "OPEN" | "BLOCKED") => void;
+  busyId: number | null;
+}) {
+  const iso = item.startAt;
+  const { day, mon, time: timeStr } = parts(iso);
+
+  if (item.kind === "CONSULTA") {
+    const cfg = STATUS_CFG[(item.status || "").toUpperCase()] || {
+      label: item.status,
+      color: "default",
+    };
+
+    const isBusy = busyId === item.id;
+
+    return (
+      <Box
+        sx={{
+          p: 1.25,
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 2.5,
+        }}
+      >
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          {/* date pill */}
+          <Box
+            sx={{
+              width: 68,
+              height: 68,
+              borderRadius: 3,
+              border: "1px solid",
+              borderColor: "divider",
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Box textAlign="center" sx={{ lineHeight: 1 }}>
+              <Typography fontWeight={900}>{day}</Typography>
+              <Typography
+                variant="caption"
+                sx={{ textTransform: "uppercase", opacity: 0.8 }}
+              >
+                {mon}
+              </Typography>
+              {!!timeStr && (
+                <Typography
+                  variant="caption"
+                  sx={{ display: "block", opacity: 0.8 }}
+                >
+                  {timeStr}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+
+          {/* conteúdo */}
+          <Box flex={1} minWidth={0}>
+            <Typography fontWeight={900} noWrap title={item.title}>
+              {item.title}
+            </Typography>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ mt: 0.5 }}
+              useFlexGap
+              flexWrap="wrap"
+            >
+              <Chip
+                size="small"
+                icon={<CalendarMonthRounded fontSize="small" />}
+                label={`${day} ${mon}`}
+              />
+              {!!timeStr && (
+                <Chip
+                  size="small"
+                  icon={<AccessTimeRounded fontSize="small" />}
+                  label={timeStr}
+                />
+              )}
+              {!!cfg.label && (
+                <Chip
+                  size="small"
+                  color={cfg.color}
+                  label={cfg.label}
+                  variant="outlined"
+                />
+              )}
+            </Stack>
+          </Box>
+
+          {/* ações por estado */}
+          {["PENDING"].includes((item.status || "").toUpperCase()) ? (
+            <Stack direction="row" spacing={1}>
+              <PrimaryButton
+                startIcon={<CheckCircleRounded />}
+                onClick={() => onConfirm(item.id)}
+                disabled={isBusy}
+              >
+                Confirmar
+              </PrimaryButton>
+              <SecondaryButton
+                startIcon={<CancelRounded />}
+                variant="outlined"
+                onClick={() => onDecline(item.id)}
+                disabled={isBusy}
+              >
+                Recusar
+              </SecondaryButton>
+            </Stack>
+          ) : ["CONFIRMED", "PENDING"].includes(
+              (item.status || "").toUpperCase()
+            ) ? (
+            <Stack direction="row" spacing={1}>
+              <SecondaryButton
+                startIcon={<CancelRounded />}
+                variant="outlined"
+                onClick={() => onAskCancel(item.id)}
+                disabled={isBusy}
+              >
+                Cancelar
+              </SecondaryButton>
+            </Stack>
+          ) : null}
+        </Stack>
+      </Box>
+    );
+  }
+
+  // SLOT
+  const a = new Date(item.startAt);
+  const b = new Date(item.endAt);
+  const timeRange = `${a.toLocaleTimeString("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })} — ${b.toLocaleTimeString("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+
+  const isOpen = item.status === "OPEN";
+  const isBusy = busyId === item.id;
+
+  return (
+    <Box
+      sx={{
+        p: 1.25,
+        border: "1px dashed",
+        borderColor: "divider",
+        borderRadius: 2.5,
+        bgcolor: isOpen ? "action.hover" : "transparent",
+      }}
+    >
+      <Stack direction="row" alignItems="center" spacing={1.5}>
+        <Chip
+          size="small"
+          label={`Slot ${
+            item.status === "BLOCKED" ? "bloqueado" : item.status.toLowerCase()
+          }`}
+          color={
+            item.status === "OPEN"
+              ? "info"
+              : item.status === "BLOCKED"
+              ? "default"
+              : "warning"
+          }
+          variant="outlined"
+        />
+        <Typography fontWeight={700} sx={{ mr: "auto" }}>
+          {timeRange} {!!item.libraryName && <>— {item.libraryName}</>}
+        </Typography>
+
+        {item.status !== "BOOKED" && (
+          <Stack direction="row" spacing={1}>
+            {isOpen ? (
+              <SecondaryButton
+                startIcon={<BlockRounded />}
+                variant="outlined"
+                onClick={() => onToggleSlot(item.id, "BLOCKED")}
+                disabled={isBusy}
+              >
+                Bloquear
+              </SecondaryButton>
+            ) : (
+              <PrimaryButton
+                startIcon={<LockOpenRounded />}
+                onClick={() => onToggleSlot(item.id, "OPEN")}
+                disabled={isBusy}
+              >
+                Abrir
+              </PrimaryButton>
+            )}
+          </Stack>
+        )}
+      </Stack>
     </Box>
+  );
+}
+
+/* =================== Página =================== */
+export default function LibrarianAgenda() {
+  const theme = useTheme();
+  const { user } = useUserSession();
+  const librarianId = Number(user?.id);
+  const [monthRef, setMonthRef] = useState(startOfDay(new Date()));
+  const [selectedDate, setSelectedDate] = useState<string>(fmtYMD(new Date()));
+
+  const [consultas, setConsultas] = useState<ConsultaLite[]>([]);
+  const [slots, setSlots] = useState<SlotLite[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  // busy id para desativar botões de um item específico
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  // cancel dialog state
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelId, setCancelId] = useState<number | null>(null);
+  const [cancelBusy, setCancelBusy] = useState<boolean>(false);
+
+  const goPrev = () => {
+    const d = new Date(monthRef);
+    d.setMonth(d.getMonth() - 1);
+    setMonthRef(startOfDay(d));
+  };
+  const goNext = () => {
+    const d = new Date(monthRef);
+    d.setMonth(d.getMonth() + 1);
+    setMonthRef(startOfDay(d));
+  };
+  const goToday = () => {
+    const today = startOfDay(new Date());
+    setMonthRef(today);
+    setSelectedDate(fmtYMD(today));
+  };
+
+  async function reloadAll() {
+    if (!Number.isFinite(librarianId)) return;
+    setLoading(true);
+    try {
+      // Consultas futuras (PENDING/CONFIRMED)
+      const cons = await getNextConsultas(120, { librarianId });
+
+      // Slots do mês corrente
+      const from = new Date(monthRef);
+      from.setDate(1);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(from);
+      to.setMonth(to.getMonth() + 1);
+      to.setDate(0);
+      to.setHours(23, 59, 59, 999);
+
+      const rawSlots = await listLibrarianSlots(librarianId, {
+        from: from.toISOString(),
+        to: to.toISOString(),
+      });
+
+      setConsultas(cons || []);
+      setSlots(Array.isArray(rawSlots) ? rawSlots : []);
+    } catch (e) {
+      console.error("Falha a carregar agenda do bibliotecário:", e);
+      setConsultas([]);
+      setSlots([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    reloadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [librarianId, monthRef]);
+
+  const dayItems = useMemo(() => {
+    const map = new Map<string, DayItem[]>();
+
+    // consultas -> DayItem
+    for (const c of consultas) {
+      const key = fmtYMD(c.scheduledAt || c.date);
+      if (!key) continue;
+      const it: DayItem = {
+        kind: "CONSULTA",
+        id: c.id,
+        title: c.title,
+        startAt: String(c.scheduledAt || c.date),
+        status: String(c.status || ""),
+        familyId: c.familyId,
+        childId: c.childId,
+        librarianId: c.librarianId,
+        librarianName: (c as any).librarianName,
+      };
+      map.set(key, [...(map.get(key) || []), it]);
+    }
+
+    // slots -> DayItem
+    for (const s of slots) {
+      const key = fmtYMD(s.startAt);
+      if (!key) continue;
+      const it: DayItem = {
+        kind: "SLOT",
+        id: s.id,
+        startAt: String(s.startAt),
+        endAt: String(s.endAt),
+        status: s.status,
+        librarianId: s.librarianId,
+        libraryId: s.libraryId,
+        libraryName: s.libraryName,
+      };
+      map.set(key, [...(map.get(key) || []), it]);
+    }
+
+    // sort por hora
+    for (const [k, arr] of map.entries()) {
+      arr.sort(
+        (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+      );
+      map.set(k, arr);
+    }
+    return map;
+  }, [consultas, slots]);
+
+  const month = useMemo(() => {
+    const d0 = new Date(monthRef);
+    d0.setDate(1);
+    const firstWeekday = (d0.getDay() + 6) % 7; // 0=Mon
+    const dEnd = new Date(d0);
+    dEnd.setMonth(dEnd.getMonth() + 1);
+    dEnd.setDate(0);
+    const total = dEnd.getDate();
+
+    const cells: { ymd: string; inMonth: boolean }[] = [];
+    for (let i = 0; i < firstWeekday; i++)
+      cells.push({ ymd: "", inMonth: false });
+    for (let day = 1; day <= total; day++) {
+      const d = new Date(d0);
+      d.setDate(day);
+      cells.push({ ymd: fmtYMD(d), inMonth: true });
+    }
+    while (cells.length % 7) cells.push({ ymd: "", inMonth: false });
+
+    return {
+      title: d0.toLocaleDateString("pt-PT", { month: "long", year: "numeric" }),
+      cells,
+    };
+  }, [monthRef]);
+
+  const todayFirstWithItems = useMemo(() => {
+    // tenta hoje senão o primeiro com items
+    const todayKey = fmtYMD(new Date());
+    if ((dayItems.get(todayKey) || []).length > 0) return todayKey;
+    for (const c of month.cells) {
+      if (c.inMonth && (dayItems.get(c.ymd) || []).length > 0) return c.ymd;
+    }
+    return selectedDate;
+  }, [dayItems, month.cells, selectedDate]);
+
+  useEffect(() => {
+    // se o dia selecionado não tiver items, salta para o primeiro com items
+    if ((dayItems.get(selectedDate) || []).length === 0) {
+      setSelectedDate(todayFirstWithItems);
+    }
+  }, [dayItems, todayFirstWithItems]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const itemsForSelected = useMemo(
+    () => dayItems.get(selectedDate) || [],
+    [dayItems, selectedDate]
+  );
+
+  // cores dos pontos no calendário
+  const dotColor = (it: DayItem, palette: any) => {
+    if (it.kind === "CONSULTA") {
+      const s = (it.status || "").toUpperCase();
+      if (s === "CONFIRMED") return palette.success.main;
+      if (s === "PENDING") return palette.warning.main;
+      if (s === "DECLINED") return palette.error.main;
+      if (s === "CANCELLED") return palette.grey[400];
+      return palette.divider;
+    } else {
+      if (it.status === "OPEN") return palette.info.main;
+      if (it.status === "BLOCKED") return palette.grey[500];
+      if (it.status === "BOOKED") return palette.text.secondary;
+      return palette.divider;
+    }
+  };
+
+  // handlers de ações
+  const handleConfirm = async (id: number) => {
+    try {
+      setBusyId(id);
+      await confirmConsultation(id);
+      await reloadAll();
+    } catch (e: any) {
+      alert(e?.message || "Falha ao confirmar.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const handleDecline = async (id: number) => {
+    try {
+      setBusyId(id);
+      await declineConsultation(id);
+      await reloadAll();
+    } catch (e: any) {
+      alert(e?.message || "Falha ao recusar.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const handleAskCancel = (id: number) => {
+    setCancelId(id);
+    setCancelOpen(true);
+  };
+  const handleDoCancel = async (reason?: string) => {
+    if (!cancelId) return;
+    try {
+      setCancelBusy(true);
+      await cancelConsultation(cancelId, reason);
+      setCancelOpen(false);
+      setCancelId(null);
+      await reloadAll();
+    } catch (e: any) {
+      alert(e?.message || "Não foi possível cancelar a consulta.");
+    } finally {
+      setCancelBusy(false);
+    }
+  };
+  const handleToggleSlot = async (slotId: number, next: "OPEN" | "BLOCKED") => {
+    try {
+      setBusyId(slotId);
+      await updateSlotStatus(slotId, next);
+      await reloadAll();
+    } catch (e: any) {
+      alert(e?.message || "Falha ao atualizar slot.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (!Number.isFinite(librarianId)) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Typography variant="h5" fontWeight={900} sx={{ mb: 2 }}>
+          Agenda do bibliotecário
+        </Typography>
+        <WhiteCard>
+          <Typography>Sem utilizador válido.</Typography>
+        </WhiteCard>
+      </Container>
+    );
+  }
+
+  return (
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Typography
+        variant="h3"
+        fontWeight={900}
+        sx={{ mb: 2, letterSpacing: 0.3 }}
+      >
+        Agenda do bibliotecário
+      </Typography>
+
+      <Grid container spacing={2}>
+        {/* Coluna 1: Calendário */}
+        <Grid item xs={12} md={6}>
+          <WhiteCard>
+            <CardHeader
+              title={month.title.charAt(0).toUpperCase() + month.title.slice(1)}
+              action={
+                <Stack direction="row" spacing={1}>
+                  <IconButton onClick={goPrev} aria-label="Mês anterior">
+                    <ChevronLeftRounded />
+                  </IconButton>
+                  <IconButton onClick={goNext} aria-label="Mês seguinte">
+                    <ChevronRightRounded />
+                  </IconButton>
+                  <IconButton onClick={goToday} aria-label="Hoje">
+                    <TodayRounded />
+                  </IconButton>
+                </Stack>
+              }
+            />
+
+            {/* Legenda */}
+            <Stack direction="row" spacing={2} sx={{ mb: 1, flexWrap: "wrap" }}>
+              <Chip
+                size="small"
+                label="Consulta confirmada"
+                color="success"
+                variant="outlined"
+              />
+              <Chip
+                size="small"
+                label="Consulta pendente"
+                color="warning"
+                variant="outlined"
+              />
+              <Chip
+                size="small"
+                label="Slot aberto"
+                color="info"
+                variant="outlined"
+              />
+              <Chip size="small" label="Slot bloqueado" variant="outlined" />
+            </Stack>
+
+            {/* grelha */}
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(7, 1fr)",
+                gap: 1,
+              }}
+            >
+              {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((h) => (
+                <Box
+                  key={h}
+                  sx={{ px: 1, py: 0.5, opacity: 0.7, fontWeight: 700 }}
+                >
+                  {h}
+                </Box>
+              ))}
+
+              {month.cells.map((c, i) => {
+                const items = c.ymd ? dayItems.get(c.ymd) ?? [] : [];
+                const isSelected = c.ymd === selectedDate;
+                const dayNum = c.ymd ? Number(c.ymd.split("-")[2]) : "";
+                const extra = Math.max(0, items.length - 3);
+
+                return (
+                  <Box
+                    key={i}
+                    onClick={() => c.inMonth && c.ymd && setSelectedDate(c.ymd)}
+                    sx={{
+                      p: 1,
+                      minHeight: 90,
+                      borderRadius: 3,
+                      border: "1px solid",
+                      borderColor: isSelected ? "primary.main" : "divider",
+                      opacity: c.inMonth ? 1 : 0.3,
+                      cursor: c.inMonth ? "pointer" : "default",
+                    }}
+                  >
+                    <Typography fontWeight={900} sx={{ mb: 0.5 }}>
+                      {dayNum}
+                    </Typography>
+
+                    {/* bolinhas coloridas por item */}
+                    {items.slice(0, 3).map((it, idx) => (
+                      <Dot
+                        key={idx}
+                        color={dotColor(it, theme.palette)}
+                        title={
+                          it.kind === "CONSULTA"
+                            ? `${it.title} — ${
+                                STATUS_CFG[(it.status || "").toUpperCase()]
+                                  ?.label ?? it.status
+                              }`
+                            : `Slot ${it.status.toLowerCase()}`
+                        }
+                      />
+                    ))}
+
+                    {items.length === 0 && (
+                      <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                        — livre
+                      </Typography>
+                    )}
+
+                    {extra > 0 && (
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{ ml: 0.25, opacity: 0.7 }}
+                      >
+                        +{extra}
+                      </Typography>
+                    )}
+                  </Box>
+                );
+              })}
+            </Box>
+          </WhiteCard>
+        </Grid>
+
+        {/* Coluna 2: Lista do dia */}
+        <Grid item xs={12} md={6}>
+          <WhiteCard
+            sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+          >
+            <CardHeader
+              title={new Date(selectedDate).toLocaleDateString("pt-PT", {
+                weekday: "long",
+                day: "2-digit",
+                month: "2-digit",
+              })}
+              action={
+                loading ? (
+                  <Skeleton width={120} />
+                ) : (
+                  <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                    {itemsForSelected.length} itens
+                  </Typography>
+                )
+              }
+            />
+            <Box
+              sx={{
+                flex: 1,
+                overflowY: "auto",
+                pr: 1,
+                "&::-webkit-scrollbar": { width: 6 },
+                "&::-webkit-scrollbar-thumb": {
+                  backgroundColor: "rgba(0,0,0,.15)",
+                  borderRadius: 8,
+                },
+              }}
+            >
+              {loading ? (
+                <Stack spacing={1.25}>
+                  <Skeleton height={86} />
+                  <Skeleton height={86} />
+                </Stack>
+              ) : itemsForSelected.length ? (
+                <Stack
+                  spacing={1.25}
+                  divider={<Divider sx={{ borderColor: "divider" }} />}
+                >
+                  {itemsForSelected.map((it) => (
+                    <DayItemRow
+                      key={`${it.kind}-${it.id}`}
+                      item={it}
+                      onConfirm={handleConfirm}
+                      onDecline={handleDecline}
+                      onAskCancel={handleAskCancel}
+                      onToggleSlot={handleToggleSlot}
+                      busyId={busyId}
+                    />
+                  ))}
+                </Stack>
+              ) : (
+                <Typography sx={{ opacity: 0.7 }}>
+                  Sem itens neste dia.
+                </Typography>
+              )}
+            </Box>
+          </WhiteCard>
+        </Grid>
+      </Grid>
+
+      {/* Cancel Dialog */}
+      <CancelDialog
+        open={cancelOpen}
+        onClose={() => {
+          if (!cancelBusy) {
+            setCancelOpen(false);
+            setCancelId(null);
+          }
+        }}
+        onConfirm={handleDoCancel}
+        busy={cancelBusy}
+      />
+    </Container>
   );
 }
