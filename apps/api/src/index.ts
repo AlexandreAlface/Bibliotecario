@@ -31,6 +31,11 @@ import librariesRouter from "./routes/libraries";
 import adminFeedsRouter from "./routes/adminFeeds";
 import adminEventsRouter from "./routes/adminEvents";
 import adminConsultationsRoutes from "./routes/adminConsultations";
+import adminSlotsRoutes from "./routes/adminSlots";
+import adminLibrariansRoutes from "./routes/adminLibrarians";
+import adminBlocksRoutes from "./routes/adminBlocks";
+import adminFamiliesRoutes from "./routes/adminFamilies";
+
 
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL não carregada. Verifica apps/api/.env");
@@ -89,6 +94,11 @@ app.use("/api", librariesRouter);
 app.use("/api", adminFeedsRouter);
 app.use("/api", adminEventsRouter);
 app.use("/api", adminConsultationsRoutes);
+app.use("/api", adminSlotsRoutes);
+app.use("/api", adminLibrariansRoutes);
+app.use("/api", adminBlocksRoutes);
+app.use("/api", adminFamiliesRoutes);
+
 
 /* --------- Ingestão RSS --------- */
 (async () => {

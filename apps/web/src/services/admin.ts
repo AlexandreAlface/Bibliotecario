@@ -49,6 +49,15 @@ export type ConsultationLite = {
   librarian?: { id: number; fullName: string; email?: string | null } | null;
 };
 
+export type SlotLite = {
+  id: number;
+  startAt: string;
+  endAt: string;
+  status: "OPEN" | "BOOKED" | "BLOCKED";
+  librarian: { id: number; fullName: string; email?: string | null };
+  consultationId?: number | null;
+};
+
 const API_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
   "http://localhost:3333/api";
@@ -210,4 +219,43 @@ export async function listLibraryConsultations(
   if (opts?.q) url.searchParams.set("q", opts.q);
   const res = await api(url.toString());
   return j<ConsultationLite[]>(res);
+}
+
+export async function listLibrarySlots(
+  libraryId: number,
+  opts?: {
+    from?: string;
+    to?: string;
+    statuses?: Array<"OPEN" | "BOOKED" | "BLOCKED">;
+    librarianId?: number | null;
+  }
+): Promise<SlotLite[]> {
+  const url = new URL(
+    `${API_BASE}/admin/libraries/${libraryId}/slots`,
+    location.origin
+  );
+  if (opts?.from) url.searchParams.set("from", opts.from);
+  if (opts?.to) url.searchParams.set("to", opts.to);
+  if (opts?.statuses?.length)
+    url.searchParams.set("status", opts.statuses.join(","));
+  if (opts?.librarianId)
+    url.searchParams.set("librarianId", String(opts.librarianId));
+  const res = await api(url.toString());
+  return j<SlotLite[]>(res);
+}
+
+export async function setSlotStatus(
+  libraryId: number,
+  slotId: number,
+  status: "OPEN" | "BLOCKED"
+) {
+  const res = await api(
+    `${API_BASE}/admin/libraries/${libraryId}/slots/${slotId}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    }
+  );
+  return j<{ id: number; status: "OPEN" | "BLOCKED" }>(res);
 }
