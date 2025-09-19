@@ -1,31 +1,36 @@
-// apps/api/src/index.js
 import "dotenv/config";
-import express from "express";
+
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import cron from "node-cron";
 
-import { fetchAndUpsertAllFeeds } from "./services/rssService.js";
-import eventsRouter from "./routes/events.js";
-import booksRouter from "./routes/books.js";
-import authRouter from "./routes/auth.js";
-import authChildRouter from "./routes/auth-child.js";
-import badgeAssignmentsRouter from "./routes/badge-assignments.js";
-import recommendationsRouter from "./routes/recommendations.js";
-import reservationsRouter from "./routes/reservations.js";
-import readingsRouter from "./routes/readings.js";
-import ratingsRouter from "./routes/ratings.js";
-import slots from "./routes/consultations/slots.js";
-import proposals from "./routes/consultations/proposals.js";
-import consultations from "./routes/consultations/consultations.js";
+// 👇 INTERNOS SEM .js
+import { fetchAndUpsertAllFeeds } from "./services/rssService";
+import eventsRouter from "./routes/events";
+import booksRouter from "./routes/books";
+import authRouter from "./routes/auth";
+import authChildRouter from "./routes/auth-child";
+import badgeAssignmentsRouter from "./routes/badge-assignments";
+import recommendationsRouter from "./routes/recommendations";
+import reservationsRouter from "./routes/reservations";
+import readingsRouter from "./routes/readings";
+import ratingsRouter from "./routes/ratings";
+import slots from "./routes/consultations/slots";
+import proposals from "./routes/consultations/proposals";
+import consultations from "./routes/consultations/consultations";
 import badgesEngineRouter from "./routes/badges-engine";
-import { withUser } from "./middlewares/auth.js";
-import { recomputeAllChildren } from "./services/badgesEngine.js";
-import badgesRouter from './routes/badges.js';
-import usersRouter from "./routes/users.js";
-import childrenRouter from "./routes/children.js";
-import librarianFamilies from "./routes/families";
+import { withUser } from "./middlewares/auth";
+import { recomputeAllChildren } from "./services/badgesEngine";
+import badgesRouter from "./routes/badges";
+import usersRouter from "./routes/users";
+import childrenRouter from "./routes/children";
+import librarianFamilies from "./routes/families"; // <<< sem /index.js
+import librariesRouter from "./routes/libraries";
+import adminFeedsRouter from "./routes/adminFeeds";
+import adminEventsRouter from "./routes/adminEvents";
+import adminConsultationsRoutes from "./routes/adminConsultations";
 
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL não carregada. Verifica apps/api/.env");
@@ -49,7 +54,6 @@ const allowedOrigins =
 app.use(
   cors({
     origin(origin, cb) {
-      // permitir chamadas sem Origin (apps nativas/curl) e as da lista
       if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
       return cb(new Error("Not allowed by CORS"));
     },
@@ -77,28 +81,32 @@ app.use("/api", reservationsRouter);
 app.use("/api/readings", readingsRouter);
 app.use("/api/ratings", ratingsRouter);
 app.use("/api/badges", badgesEngineRouter);
-app.use('/api/badges', badgesRouter);
+app.use("/api/badges", badgesRouter);
 app.use("/api/users", usersRouter);
 app.use("/api", childrenRouter);
 app.use("/api/librarian", librarianFamilies);
+app.use("/api", librariesRouter);
+app.use("/api", adminFeedsRouter);
+app.use("/api", adminEventsRouter);
+app.use("/api", adminConsultationsRoutes);
 
 /* --------- Ingestão RSS --------- */
 (async () => {
   try {
-    console.log("▶️  Ingestão manual de eventos RSS …");
-    await fetchAndUpsertAllFeeds();
-    await recomputeAllChildren();
-    console.log("✅  Ingestão concluída");
+    console.log("▶️  Ingestão inicial de eventos RSS …");
+    await fetchAndUpsertAllFeeds({ force: true }); // primeira vez ignora TTL
+    console.log("✅  Ingestão inicial concluída");
   } catch (e) {
     console.error("❌ Falha na ingestão inicial de RSS:", e);
   }
 })();
 
-// Cron às 00:00 de 2 em 2 dias
-cron.schedule("0 0 */2 * *", async () => {
+/* --------- Cron ---------
+   Corre de hora a hora; o TTL por feed evita fetchs desnecessários. */
+cron.schedule("0 * * * *", async () => {
   try {
-    console.log("⏰ Iniciando ingestão agendada de eventos RSS …");
-    await fetchAndUpsertAllFeeds();
+    console.log("⏰ Ingestão agendada de eventos RSS …");
+    await fetchAndUpsertAllFeeds(); // respeita TTL
     console.log("✅ Ingestão agendada concluída");
   } catch (e) {
     console.error("❌ Falha na ingestão agendada de RSS:", e);
@@ -113,11 +121,18 @@ cron.schedule("15 3 * * *", async () => {
 /* --------- 404 e errors --------- */
 app.use("/api", (_req, res) => res.status(404).json({ error: "not_found" }));
 
-app.use((err, _req, res, _next) => {
-  console.error("Unhandled error:", err);
-  const status = typeof err?.status === "number" ? err.status : 500;
-  res.status(status).json({ error: err?.message || "internal_error" });
-});
+app.use(
+  (
+    err: Error & { status?: number },
+    _req: Request,
+    res: Response,
+    _next: NextFunction
+  ) => {
+    console.error("Unhandled error:", err);
+    const status = typeof err?.status === "number" ? err.status : 500;
+    res.status(status).json({ error: err?.message || "internal_error" });
+  }
+);
 
 // Boot
 const PORT = Number(process.env.PORT || 3333);

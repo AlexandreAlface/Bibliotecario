@@ -93,6 +93,8 @@ model Library {
   // 👇 novos lados opostos
   consultations     Consultation[]
   consultationSlots ConsultationSlot[]
+
+  CulturalEvent CulturalEvent[]
 }
 
 // Associação N:N entre User e Library
@@ -378,21 +380,27 @@ model ConsultationProposal {
 
 // Eventos culturais (importados de RSS ou manualmente)
 model CulturalEvent {
-  id          Int       @id @default(autoincrement()) // PK: id_evento
+  id          Int       @id @default(autoincrement())
   feed        FeedRss?  @relation(fields: [feedId], references: [id])
-  feedId      Int? // FK → FeedRss.id (opcional)
+  feedId      Int?
   guid        String    @unique
-  title       String // título do evento
-  description String? // descrição
-  pubDate     DateTime? // pub_date
-  startDate   DateTime // data de início
-  endDate     DateTime? // data de fim
-  location    String? // localização
+  title       String
+  description String?
+  pubDate     DateTime?
+  startDate   DateTime
+  endDate     DateTime?
+  location    String?
   category    String?
-  capacity    Int? // capacidade
+  capacity    Int?
   imageUrl    String?
 
-  reservations EventReservation[] // relação 1:N → EventReservation
+  // 👇 NOVO: associação direta à biblioteca para eventos manuais
+  library     Library?  @relation(fields: [libraryId], references: [id])
+  libraryId   Int?
+
+  reservations EventReservation[]
+
+  @@index([libraryId, startDate])
 }
 
 // Reservas de eventos culturais

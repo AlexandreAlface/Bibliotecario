@@ -16,6 +16,8 @@ import {
   ClipboardCheck,
   History,
   Clock,
+  BarChart3,
+  Rss,
 } from "lucide-react";
 import { useUserSession } from "../contexts/UserSession";
 
@@ -48,7 +50,7 @@ function pickActive(pathname: string, items: Item[]) {
 }
 
 export default function AppLayout() {
-    const { user, asChild, isFamily, isLibrarian, isAdmin } = useUserSession();
+  const { user, asChild, isFamily, isLibrarian, isAdmin } = useUserSession();
   const [menuOpen, setMenuOpen] = useState(true);
   const location = useLocation();
 
@@ -86,11 +88,14 @@ export default function AppLayout() {
     {
       label: "Bibliotecários",
       icon: <UsersRound />,
-      href: "/admin/librarians",
+      href: "/admin/bibliotecarios",
     },
-    { label: "Famílias", icon: <UsersRound />, href: "/admin/families" },
+    { label: "Famílias", icon: <UsersRound />, href: "/admin/familias" },
     { label: "Slots globais", icon: <Clock />, href: "/admin/slots" },
-    { label: "Eventos & Feeds", icon: <CalendarDays />, href: "/admin/events" },
+    { label: "Propostas", icon: <ClipboardCheck />, href: "/admin/propostas" },
+    { label: "Eventos", icon: <CalendarDays />, href: "/admin/eventos" },
+    { label: "Feeds", icon: <Rss />, href: "/admin/feeds" },
+    { label: "Métricas", icon: <BarChart3 />, href: "/admin/metricas" },
   ];
 
   const rawItems = isAdmin
@@ -113,13 +118,17 @@ export default function AppLayout() {
 
   // ------- Cabeçalho -------
   const familyName = user?.fullName ?? "Família";
-  const headerTitle = isLibrarian
+  const headerTitle = isAdmin
+    ? user?.fullName || "Administrador"
+    : isLibrarian
     ? user?.fullName || "Bibliotecário"
     : asChild && user?.actingChild
     ? user.actingChild.name!
     : `Família ${familyName}`;
 
-  const headerSubtitle = isLibrarian
+  const headerSubtitle = isAdmin
+    ? "Administrador"
+    : isLibrarian
     ? "Bibliotecário"
     : asChild
     ? "Modo criança"

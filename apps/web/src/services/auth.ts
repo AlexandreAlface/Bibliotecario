@@ -26,7 +26,9 @@ export type WebUser = {
 
 // ----------------- Helpers de normalização (NOVO) -----------------
 function stripDiacritics(s: string): string {
-  return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 export function canonicalizeRole(role: string): string {
   return stripDiacritics(role).toUpperCase().trim();
@@ -43,9 +45,11 @@ export const isFamily = (u?: WebUser | null) =>
 export const isAdmin = (u?: WebUser | null) => hasRole(u, "ADMIN");
 
 /** Rota sugerida após login (NOVO) */
-export function pickLandingRoute(u: WebUser | null | undefined): string {
-  if (!u) return "/auth/login";
-  if (isLibrarian(u) || isAdmin(u)) return "/librarian/consultas/pendentes";
+export function pickLandingRoute(user: any) {
+  if (hasAnyRole(user, "ADMIN", "ADMINISTRADOR", "ADMINISTRATOR", "ROLE_ADMIN"))
+    return "/admin";
+  if (hasAnyRole(user, "LIBRARIAN", "BIBLIOTECARIO", "BIBLIOTECÁRIO"))
+    return "/librarian/consultas/pendentes";
   return "/";
 }
 
@@ -117,6 +121,62 @@ function normalizeUser(raw: any): WebUser {
     address,
   };
 }
+
+export function normalizeRoleNames(user: any): string[] {
+  const set = new Set<string>();
+  const add = (v: any) => {
+    if (!v) return;
+    const s = String(v)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // remove acentos
+      .toUpperCase()
+      .trim();
+    if (s) set.add(s);
+  };
+
+  // 1) roles como array de strings/objetos
+  if (Array.isArray(user?.roles)) {
+    for (const r of user.roles)
+      add(typeof r === "string" ? r : r?.name ?? r?.role ?? r);
+  }
+
+  // 2) userRoles estilo Prisma (UserRole -> Role.name)
+  if (Array.isArray(user?.userRoles)) {
+    for (const ur of user.userRoles)
+      add(ur?.role?.name ?? ur?.roleName ?? ur?.name);
+  }
+
+  // 3) outras variantes comuns
+  if (Array.isArray(user?.roles?.items)) {
+    for (const r of user.roles.items)
+      add(typeof r === "string" ? r : r?.name ?? r);
+  }
+
+  return Array.from(set);
+}
+
+export function hasAnyRole(user: any, ...wanted: string[]) {
+  const roles = normalizeRoleNames(user);
+  const W = new Set(
+    wanted.map((w) =>
+      String(w)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toUpperCase()
+        .trim()
+    )
+  );
+  const alias: Record<string, string> = {
+    BIBLIOTECARIO: "LIBRARIAN",
+    FAMILIA: "FAMILY",
+    ADMINISTRADOR: "ADMIN",
+    ADMINISTRATOR: "ADMIN",
+    ROLE_ADMIN: "ADMIN",
+  };
+  return roles.some((r) => W.has(r) || (alias[r] && W.has(alias[r])));
+}
+
+/** Para decidir a rota de aterragem após login. */
 
 // -- API helpers --------------------------------------------------------------
 

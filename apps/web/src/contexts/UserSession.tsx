@@ -1,6 +1,7 @@
 // apps/web/src/contexts/UserSession.tsx
 import React from "react";
 import * as auth from "@/services/auth";
+import { normalizeRoleNames } from "@/services/auth";
 
 // ---- Tipos ----
 type ChildLite = {
@@ -61,21 +62,44 @@ type Ctx = {
 };
 
 function hasRole(user: UserShape | null, ...roles: string[]) {
-  if (!user?.roles) return false;
-  const set = new Set(user.roles.map((r) => r.toUpperCase()));
-  return roles.some((r) => set.has(r.toUpperCase()));
+  if (!user) return false;
+  const current = new Set(
+    (user.roles && user.roles.length
+      ? user.roles
+      : normalizeRoleNames(user)
+    ).map((r) => String(r).toUpperCase())
+  );
+  return roles.some((r) => {
+    const R = String(r).toUpperCase();
+    // sinónimos rápidos
+    if (R === "ADMIN")
+      return (
+        current.has("ADMIN") ||
+        current.has("ADMINISTRADOR") ||
+        current.has("ADMINISTRATOR") ||
+        current.has("ROLE_ADMIN")
+      );
+    if (R === "LIBRARIAN")
+      return (
+        current.has("LIBRARIAN") ||
+        current.has("BIBLIOTECARIO") ||
+        current.has("BIBLIOTECÁRIO")
+      );
+    if (R === "FAMILY")
+      return (
+        current.has("FAMILY") ||
+        current.has("FAMILIA") ||
+        current.has("FAMÍLIA")
+      );
+    return current.has(R);
+  });
 }
 
 const UserSessionContext = React.createContext<Ctx | null>(null);
 
 // ---- Helper robusto para carregar /auth/me ----
 async function fetchCurrentUser(): Promise<UserShape | null> {
-  const anyAuth = auth as any;
-  if (typeof anyAuth.me === "function") return anyAuth.me();
-  if (typeof anyAuth.getMe === "function") return anyAuth.getMe();
-  if (typeof anyAuth.profile === "function") return anyAuth.profile();
-  if (typeof anyAuth.current === "function") return anyAuth.current();
-
+  // … (mantém o teu “detector” de função me/getMe/etc.)
   const base =
     (import.meta as any).env?.VITE_API_URL ||
     (window as any).__API_BASE__ ||
@@ -92,8 +116,11 @@ async function fetchCurrentUser(): Promise<UserShape | null> {
     throw new Error(`/auth/me falhou: ${res.status}`);
   }
 
-  const data = await res.json();
-  return data as UserShape;
+  const raw = await res.json();
+  // 👇 Normaliza/garante roles:string[] para o resto da app
+  const roles = normalizeRoleNames(raw);
+  const data = { ...(raw as any), roles } as UserShape;
+  return data;
 }
 
 export function UserSessionProvider({
