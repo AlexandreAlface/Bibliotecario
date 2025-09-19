@@ -1,12 +1,18 @@
-// apps\web\src\contexts\UserSession.tsx
+// apps/web/src/contexts/UserSession.tsx
 import React from "react";
-import * as auth from "@/services/auth"; // importa tudo (login, logout, actAsChild, ...)
+import * as auth from "@/services/auth";
 
 // ---- Tipos ----
 type ChildLite = {
   id: number;
   name?: string | null;
   avatarUrl?: string | null;
+};
+
+// 👇 novo: mapeamento das bibliotecas do utilizador
+type UserLibraryLite = {
+  libraryId: number;
+  library?: { id: number; name: string };
 };
 
 type UserShape = {
@@ -23,6 +29,10 @@ type UserShape = {
     name?: string | null;
     avatarUrl?: string | null;
   } | null;
+
+  // 👇 novos campos (muitos backends já devolvem algo assim)
+  userLibraries?: UserLibraryLite[];
+  libraryId?: number; // fallback direto, se existir
 };
 
 type Ctx = {
@@ -33,6 +43,9 @@ type Ctx = {
   isFamily: boolean;
   isLibrarian: boolean;
   isAdmin: boolean;
+
+  // Biblioteca corrente (para admin e, se quiseres, para bibliotecário)
+  currentLibraryId: number | null;
 
   // Perfil atual (apenas famílias)
   asChild: boolean;
@@ -55,16 +68,14 @@ function hasRole(user: UserShape | null, ...roles: string[]) {
 
 const UserSessionContext = React.createContext<Ctx | null>(null);
 
-// ---- Helper robusto para carregar /auth/me, mesmo que o serviço não exporte "me" ----
+// ---- Helper robusto para carregar /auth/me ----
 async function fetchCurrentUser(): Promise<UserShape | null> {
-  // tenta funções que possam existir no teu services/auth
   const anyAuth = auth as any;
   if (typeof anyAuth.me === "function") return anyAuth.me();
   if (typeof anyAuth.getMe === "function") return anyAuth.getMe();
   if (typeof anyAuth.profile === "function") return anyAuth.profile();
   if (typeof anyAuth.current === "function") return anyAuth.current();
 
-  // fallback via fetch direto
   const base =
     (import.meta as any).env?.VITE_API_URL ||
     (window as any).__API_BASE__ ||
@@ -77,7 +88,6 @@ async function fetchCurrentUser(): Promise<UserShape | null> {
   });
 
   if (!res.ok) {
-    // 401/403 -> sem sessão
     if (res.status === 401 || res.status === 403) return null;
     throw new Error(`/auth/me falhou: ${res.status}`);
   }
@@ -116,7 +126,6 @@ export function UserSessionProvider({
   }
 
   async function clearChild() {
-    // tenta ambos os nomes comuns
     if (typeof (auth as any).clearActingChild === "function") {
       await (auth as any).clearActingChild();
     } else if (typeof (auth as any).clearChild === "function") {
@@ -140,16 +149,25 @@ export function UserSessionProvider({
     "BIBLIOTECÁRIO",
     "BIBLIOTECARIO"
   );
-  const isAdmin = hasRole(user, "ADMIN");
+  // 👇 aceita sinónimos comuns para admin
+  const isAdmin = hasRole(user, "ADMIN", "ADMINISTRATOR", "ADMINISTRADOR");
 
   const asChild = isFamily && !!user?.actingChild?.id;
   const currentChildId = asChild ? user!.actingChild!.id! : null;
 
-  // Shims: mantêm as tuas páginas atuais a compilar e a funcionar
+  // 👇 biblioteca corrente (admin)
+  const currentLibraryId = React.useMemo(() => {
+    const direct = Number((user as any)?.libraryId);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    const first = Number(user?.userLibraries?.[0]?.libraryId);
+    return Number.isFinite(first) && first > 0 ? first : null;
+  }, [user]);
+
+  // Shims: mantém páginas atuais
   const selectedChildId = currentChildId;
   const setSelectedChildId = React.useCallback(
     async (id: string | number | null | undefined) => {
-      if (!isFamily) return; // bibliotecário/admin não tem perfis de criança
+      if (!isFamily) return;
       if (id == null || id === "") return clearChild();
       const n = typeof id === "string" ? Number(id) : id;
       return actAsChild(n);
@@ -163,6 +181,7 @@ export function UserSessionProvider({
     isFamily,
     isLibrarian,
     isAdmin,
+    currentLibraryId,
     asChild,
     currentChildId,
     selectedChildId,

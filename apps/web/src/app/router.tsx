@@ -1,7 +1,8 @@
+// apps/web/src/routes/router.tsx
 import { createBrowserRouter, Outlet } from "react-router-dom";
 import AppLayout from "../layouts/AppLayout";
 import { UserSessionProvider } from "../contexts/UserSession";
-import { RequireRole } from "@/routes/RequireRole"; // 👈 guard por papel
+import { RequireRole } from "@/routes/RequireRole";
 
 // páginas app (família)
 import LandingPage from "../pages/families";
@@ -20,8 +21,10 @@ import CreateAccount from "@/pages/auth/CreateAccount";
 import CreateProfilesPage from "@/pages/auth/CreateProfilesPage";
 import Logout from "@/pages/families/Logout";
 
-// NEW
+// perfis (família)
 import ProfilesPage from "@/pages/profiles";
+
+// --- Bibliotecário ---
 import LibrarianHome from "@/pages/librarian/Home";
 import LibrarianConsultasPendentes from "@/pages/librarian/ConsultasPendentes";
 import LibrarianAgenda from "@/pages/librarian/Agenda";
@@ -29,8 +32,16 @@ import LibrarianFamilias from "@/pages/librarian/Familias";
 import LibrarianSlots from "@/pages/librarian/Slots";
 import HistoricoConsultasPage from "@/pages/librarian/historico";
 
-// --- NOVO: páginas do bibliotecário ---
 
+// --- Admin (NOVO) ---
+import AdminHome from "@/pages/admin/Home";
+import AdminLibrarians from "@/pages/admin/Librarians";
+import AdminFamilies from "@/pages/admin/Families";
+import AdminSlotsGlobal from "@/pages/admin/Slots";
+import AdminEvents from "@/pages/admin/Events";
+import AdminBacklog from "@/pages/admin/Backlog";
+import AdminMetrics from "@/pages/admin/Metrics";
+import AdminFeeds from "@/pages/admin/Feeds";
 
 // Layout simples p/ Auth
 function AuthLayout() {
@@ -70,32 +81,60 @@ export const router = createBrowserRouter([
       </UserSessionProvider>
     ),
     children: [
-      // ----- Área Família (rotas existentes) -----
+      // ----- Área Família -----
       { index: true, element: <LandingPage /> },
       { path: "suggestions", element: <SuggestionsPage /> },
       { path: "reviews", element: <ReviewsPage /> },
       { path: "reading", element: <ReadingsPage /> },
-      { path: "suggestions-categories", element: <SuggestionsByCategoriesPage /> },
+      {
+        path: "suggestions-categories",
+        element: <SuggestionsByCategoriesPage />,
+      },
       { path: "achievements", element: <AchievementsPage /> },
       { path: "agenda", element: <AgendasPage /> },
       { path: "consultas", element: <ConsultasPage /> },
       { path: "familia", element: <FamiliaPage /> },
 
-      // ----- Área Bibliotecário (NOVO) -----
+      // ----- Área Bibliotecário -----
       {
         path: "librarian",
         element: (
-          <RequireRole roles={["LIBRARIAN", "BIBLIOTECÁRIO", "BIBLIOTECARIO", "ADMIN"]}>
+          <RequireRole
+            roles={["LIBRARIAN", "BIBLIOTECÁRIO", "BIBLIOTECARIO", "ADMIN"]}
+          >
             <Outlet />
           </RequireRole>
         ),
         children: [
           { index: true, element: <LibrarianHome /> },
-          { path: "consultas/pendentes", element: <LibrarianConsultasPendentes /> },
+          {
+            path: "consultas/pendentes",
+            element: <LibrarianConsultasPendentes />,
+          },
           { path: "agenda", element: <LibrarianAgenda /> },
           { path: "familias", element: <LibrarianFamilias /> },
           { path: "slots", element: <LibrarianSlots /> },
           { path: "historico", element: <HistoricoConsultasPage /> },
+        ],
+      },
+
+      // ----- Área Admin (NOVO) -----
+      {
+        path: "admin",
+        element: (
+          <RequireRole roles={["ADMIN", "ADMINISTRATOR", "ADMINISTRADOR"]}>
+            <Outlet />
+          </RequireRole>
+        ),
+        children: [
+          { index: true, element: <AdminHome /> }, // dashboard
+          { path: "bibliotecarios", element: <AdminLibrarians /> }, // gerir bibliotecários
+          { path: "familias", element: <AdminFamilies /> }, // famílias (read-only)
+          { path: "slots", element: <AdminSlotsGlobal /> }, // bloqueios/slots globais
+          { path: "propostas", element: <AdminBacklog /> }, // backlog de propostas
+          { path: "eventos", element: <AdminEvents /> }, // eventos
+          { path: "feeds", element: <AdminFeeds /> }, // feeds RSS
+          { path: "metricas", element: <AdminMetrics /> }, // métricas & gráficos
         ],
       },
     ],

@@ -48,7 +48,7 @@ function pickActive(pathname: string, items: Item[]) {
 }
 
 export default function AppLayout() {
-  const { user, asChild, isFamily, isLibrarian } = useUserSession();
+    const { user, asChild, isFamily, isLibrarian, isAdmin } = useUserSession();
   const [menuOpen, setMenuOpen] = useState(true);
   const location = useLocation();
 
@@ -81,7 +81,23 @@ export default function AppLayout() {
     { label: "Famílias", icon: <UsersRound />, href: "/librarian/familias" },
   ];
 
-  const rawItems = isLibrarian ? librarianMenu : familyMenu;
+  const adminMenu: Item[] = [
+    { label: "Painel", icon: <Home />, href: "/admin", exact: true },
+    {
+      label: "Bibliotecários",
+      icon: <UsersRound />,
+      href: "/admin/librarians",
+    },
+    { label: "Famílias", icon: <UsersRound />, href: "/admin/families" },
+    { label: "Slots globais", icon: <Clock />, href: "/admin/slots" },
+    { label: "Eventos & Feeds", icon: <CalendarDays />, href: "/admin/events" },
+  ];
+
+  const rawItems = isAdmin
+    ? adminMenu
+    : isLibrarian
+    ? librarianMenu
+    : familyMenu;
 
   // calcula qual href está ativo (não inclui “Sair” na conta)
   const activeHref = pickActive(location.pathname, rawItems);

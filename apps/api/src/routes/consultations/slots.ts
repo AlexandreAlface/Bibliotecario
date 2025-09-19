@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { $Enums, PrismaClient, SlotStatus } from "@prisma/client";
+import { PrismaClient, SlotStatus } from "@prisma/client";
+import { $Enums } from "@prisma/client";
 import { requireRole, ROLES, withUser } from "../../middlewares/auth";
 
 const prisma = new PrismaClient();
