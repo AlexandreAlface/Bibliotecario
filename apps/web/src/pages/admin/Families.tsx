@@ -1,5 +1,5 @@
 // apps/web/src/pages/admin/Families.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Autocomplete,
   Avatar,
@@ -24,7 +24,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-// 👇 usar lucide para evitar problemas de cache/MIME do @mui/icons-material
+// lucide (evita problemas de MIME do @mui/icons-material)
 import {
   Info,
   Mail,
@@ -77,7 +77,6 @@ const initials = (s?: string) =>
     .join("")
     .toUpperCase();
 
-// API base (igual ao services/)
 const API_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
   "http://localhost:3333/api";
@@ -93,7 +92,8 @@ async function fetchFamiliesAdvanced(params: {
   hasChildren?: "all" | "true" | "false";
   limit?: number;
   cursor?: number | null;
-  expandChildren?: boolean; // 👈 novo
+  expandChildren?: boolean;
+  signal?: AbortSignal;
 }): Promise<FamiliesResponse> {
   const {
     libraryId,
@@ -105,7 +105,8 @@ async function fetchFamiliesAdvanced(params: {
     hasChildren = "all",
     limit = 25,
     cursor,
-    expandChildren = true, // 👈 ativo por omissão
+    expandChildren = true,
+    signal,
   } = params;
 
   const url = new URL(
@@ -122,9 +123,9 @@ async function fetchFamiliesAdvanced(params: {
     url.searchParams.set("ageMax", String(ageMax));
   if (hasChildren !== "all") url.searchParams.set("hasChildren", hasChildren);
   if (cursor) url.searchParams.set("cursor", String(cursor));
-  if (expandChildren) url.searchParams.set("expand", "children"); // 👈 sugestão para o backend
+  if (expandChildren) url.searchParams.set("expand", "children");
 
-  const res = await fetch(url.toString(), { credentials: "include" });
+  const res = await fetch(url.toString(), { credentials: "include", signal });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
@@ -181,9 +182,8 @@ export default function AdminFamilies() {
     (async () => {
       try {
         setLibsLoading(true);
-        const libs = await listMyLibraries(); // [{id,name}]
+        const libs = await listMyLibraries();
         setLibraries(libs || []);
-        // preseleciona 1ª; fallback para a do utilizador (caso antigo)
         const fallback =
           Number(
             (user?.userLibraries?.[0]?.libraryId as any) ??
@@ -214,11 +214,13 @@ export default function AdminFamilies() {
     "all"
   );
 
-  const filtersActive = useMemo(() => {
-    return Boolean(
-      q || childQ || gender || ageMin || ageMax || hasChildren !== "all"
-    );
-  }, [q, childQ, gender, ageMin, ageMax, hasChildren]);
+  const filtersActive = useMemo(
+    () =>
+      Boolean(
+        q || childQ || gender || ageMin || ageMax || hasChildren !== "all"
+      ),
+    [q, childQ, gender, ageMin, ageMax, hasChildren]
+  );
 
   function clearFilters() {
     setQ("");
@@ -235,11 +237,16 @@ export default function AdminFamilies() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function search(reset = true) {
+  // evita que respostas antigas substituam as novas
+  const reqSeq = useRef(0);
+
+  async function search(reset = true, signal?: AbortSignal) {
     if (!libraryId) return;
     try {
       setLoading(true);
       setErr(null);
+      const seq = ++reqSeq.current;
+
       const res = await fetchFamiliesAdvanced({
         libraryId,
         q,
@@ -250,25 +257,39 @@ export default function AdminFamilies() {
         hasChildren,
         limit: 25,
         cursor: reset ? null : cursor,
+        signal,
       });
+
+      // ignora se entretanto foi feito outro pedido
+      if (seq !== reqSeq.current) return;
 
       const normalized = (res.items || []).map(normalizeFamily);
       setItems((prev) => (reset ? normalized : [...prev, ...normalized]));
       setCursor(res.nextCursor ?? null);
     } catch (e: any) {
+      if (e?.name === "AbortError") return; // cancelado: ignorar
       setErr(e?.message || "Falha a carregar.");
     } finally {
       setLoading(false);
     }
   }
 
-  // carrega ao trocar biblioteca
+  // ✅ AUTO-APLICAR FILTROS (debounce 350ms)
   useEffect(() => {
-    setItems([]);
+    if (!libraryId) return;
     setCursor(null);
-    if (libraryId) void search(true);
+
+    const controller = new AbortController();
+    const t = setTimeout(() => {
+      void search(true, controller.signal);
+    }, 100);
+
+    return () => {
+      controller.abort();
+      clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [libraryId]);
+  }, [libraryId, q, childQ, gender, ageMin, ageMax, hasChildren]);
 
   // ---- Expand de detalhes por família ----
   const [openIds, setOpenIds] = useState<Set<number>>(new Set());
@@ -342,7 +363,6 @@ export default function AdminFamilies() {
               placeholder="Pesquisar por nome/email/telefone/morada…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && search(true)}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -356,14 +376,12 @@ export default function AdminFamilies() {
               label="Filho (nome)"
               value={childQ}
               onChange={(e) => setChildQ(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && search(true)}
               sx={{ minWidth: 220 }}
             />
             <TextField
               label="Género (filho)"
               value={gender}
               onChange={(e) => setGender(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && search(true)}
               sx={{ minWidth: 200 }}
             />
           </Stack>
@@ -399,29 +417,28 @@ export default function AdminFamilies() {
               <ToggleButton value="false">Sem filhos</ToggleButton>
             </ToggleButtonGroup>
 
-            <Button
+            {/* Botões continuam úteis, mas já não são necessários */}
+            {/* <Button
               variant="contained"
               onClick={() => void search(true)}
               disabled={!libraryId || loading}
             >
               Aplicar filtros
-            </Button>
+            </Button> */}
             <Button
               variant="text"
-              onClick={() => {
-                clearFilters();
-                void search(true);
-              }}
+              onClick={() => clearFilters()}
               disabled={!filtersActive || loading}
             >
               Limpar
             </Button>
 
             <Tooltip
-              title="Filtra famílias desta biblioteca. 
+              title={`Filtra famílias desta biblioteca.
 • 'Filho (nome)' e 'Género' procuram nos filhos.
 • Idade mínima/máxima calculam por data de nascimento.
-• 'Com/Sem filhos' filtra pelo número de filhos."
+• 'Com/Sem filhos' filtra pelo número de filhos.
+(Os filtros aplicam-se automaticamente.)`}
             >
               <IconButton sx={{ ml: 0.5 }}>
                 <Info size={18} />

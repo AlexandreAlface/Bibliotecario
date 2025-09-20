@@ -62,6 +62,7 @@ export default function AppLayout() {
     { label: "Avaliar leituras", icon: <Stars />, href: "/reviews" },
     { label: "Conquistas", icon: <Trophy />, href: "/achievements" },
     { label: "Agenda", icon: <CalendarDays />, href: "/agenda" },
+    { label: "Eventos", icon: <CalendarDays />, href: "/eventos" },
     // “Trocar de perfil” só faz sentido para famílias
     ...(isFamily
       ? [{ label: "Trocar de perfil", icon: <UsersRound />, href: "/profiles" }]

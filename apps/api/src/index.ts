@@ -35,6 +35,9 @@ import adminSlotsRoutes from "./routes/adminSlots";
 import adminLibrariansRoutes from "./routes/adminLibrarians";
 import adminBlocksRoutes from "./routes/adminBlocks";
 import adminFamiliesRoutes from "./routes/adminFamilies";
+import adminLibrariansRouter from "./routes/admin.librarians";
+import { adminMetricsRouter } from "./routes/adminMetrics";
+import culturalEventsRouter from "./routes/culturalEvents";
 
 
 if (!process.env.DATABASE_URL) {
@@ -98,6 +101,9 @@ app.use("/api", adminSlotsRoutes);
 app.use("/api", adminLibrariansRoutes);
 app.use("/api", adminBlocksRoutes);
 app.use("/api", adminFamiliesRoutes);
+app.use("/api", adminLibrariansRouter);
+app.use("/api", adminMetricsRouter);
+app.use("/api", culturalEventsRouter);
 
 
 /* --------- Ingestão RSS --------- */

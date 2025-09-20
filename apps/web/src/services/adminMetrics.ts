@@ -11,6 +11,13 @@ export type MetricsFilters = {
   libraryId?: number;
 };
 
+export type AdminMetrics = {
+  weeklyConsultations: { week: string; count: number }[];
+  slotUtilization: { date: string; percent: number }[];
+  activeLibrarians: number;
+  familiesServed: number;
+};
+
 export async function loadMetricsData({ from, to, libraryId }: MetricsFilters) {
   const [cons, openSlots] = await Promise.all([
     getConsultationsHistory({
@@ -47,7 +54,6 @@ function apiBase() {
   return String(base).replace(/\/$/, "");
 }
 
-
 /**
  * Lista as bibliotecas às quais o admin pertence (para o selector da página de métricas).
  * Tenta vários endpoints comuns e faz fallback a /auth/me.
@@ -64,4 +70,14 @@ export async function listMyLibraries(): Promise<LibraryLite[]> {
     id: Number(x.id),
     name: String(x.name),
   }));
+}
+
+export async function getAdminMetrics(
+  libraryId: number
+): Promise<AdminMetrics> {
+  const res = await fetch(`${apiBase()}/admin/libraries/${libraryId}/metrics`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error((await res.text()) || "metrics_failed");
+  return res.json();
 }

@@ -42,6 +42,7 @@ import AdminEvents from "@/pages/admin/Events";
 import AdminBacklog from "@/pages/admin/Backlog";
 import AdminMetrics from "@/pages/admin/Metrics";
 import AdminFeeds from "@/pages/admin/Feeds";
+import FamilyEventsPage from "@/pages/families/events";
 
 // Layout simples p/ Auth
 function AuthLayout() {
@@ -94,6 +95,7 @@ export const router = createBrowserRouter([
       { path: "agenda", element: <AgendasPage /> },
       { path: "consultas", element: <ConsultasPage /> },
       { path: "familia", element: <FamiliaPage /> },
+      { path: "eventos", element: <FamilyEventsPage /> },
 
       // ----- Área Bibliotecário -----
       {
