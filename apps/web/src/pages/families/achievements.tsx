@@ -134,7 +134,7 @@ export default function AchievementsPage() {
 
   // quando muda entre modo criança/família limpamos o filtro local
   useEffect(() => {
-    if (!asChild) setLocalChildId(undefined);
+    if (asChild) setLocalChildId(undefined);
   }, [asChild]);
 
   // ID ativo: actingChild em modo criança; localChildId em modo família

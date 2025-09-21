@@ -63,7 +63,7 @@ export const router = createBrowserRouter([
   },
 
   // ---------------- Perfis (sem sidebar), só FAMÍLIA ----------------
-  {
+    {
     element: (
       <UserSessionProvider>
         <RequireRole roles={["FAMILY", "FAMÍLIA"]}>

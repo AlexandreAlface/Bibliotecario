@@ -1,6 +1,5 @@
-// src/layouts/AppLayout.tsx
-import { useMemo, useState, type JSX } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState, type JSX } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { GradientBackground, SidebarMenu } from "@bibliotecario/ui-web";
 import { Box, GlobalStyles } from "@mui/material";
 import {
@@ -24,35 +23,71 @@ import { useUserSession } from "../contexts/UserSession";
 const SIDEBAR_OPEN = 260;
 const SIDEBAR_CLOSED = 64;
 
-// largura máxima desejada para desktop largo (27")
 const CONTENT_MAX_PX = 1920;
 const SIDE_PAD = "clamp(16px, 2.2vw, 48px)";
 
-// --- tipos + helpers para seleção ativa ---
 type Item = { label: string; icon: JSX.Element; href: string; exact?: boolean };
 
-const norm = (s: string) => (s === "/" ? "/" : s.replace(/\/+$/, "")); // remove barra final (exceto "/")
+const norm = (s: string) => (s === "/" ? "/" : s.replace(/\/+$/, ""));
 
 function pickActive(pathname: string, items: Item[]) {
   const pn = norm(pathname);
-
-  // 1) se houver item com exact=true e match exato, ganha
   const exact = items.find((i) => i.exact && norm(i.href) === pn);
   if (exact) return norm(exact.href);
-
-  // 2) caso geral: escolher o prefixo mais longo que casa
   const match = items
     .map((i) => ({ ...i, hrefN: norm(i.href) }))
     .filter((i) => pn === i.hrefN || pn.startsWith(i.hrefN + "/"))
     .sort((a, b) => b.hrefN.length - a.hrefN.length)[0];
-
   return match ? match.hrefN : undefined;
 }
 
 export default function AppLayout() {
-  const { user, asChild, isFamily, isLibrarian, isAdmin } = useUserSession();
+  const { user, loading, asChild, isFamily, isLibrarian, isAdmin } =
+    useUserSession();
   const [menuOpen, setMenuOpen] = useState(true);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Guard: só família com filhos e SEM escolha prévia é redirecionada para /profiles
+  useEffect(() => {
+    if (loading) return;
+
+    // Staff nunca é forçado a perfis
+    if (isAdmin || isLibrarian) return;
+
+    // Não-família: ignora guard
+    if (!isFamily) return;
+
+    // Criança ativa? marcar e sair
+    if (asChild) {
+      sessionStorage.setItem("familyMode", "0");
+      return;
+    }
+
+    // Família (sem criança ativa)
+    const choseFamilyMode = sessionStorage.getItem("familyMode") === "1";
+    const hasKids = (user?.children?.length ?? 0) > 0;
+    const mustPickProfile = hasKids && !choseFamilyMode;
+
+    if (!mustPickProfile) return;
+
+    const p = location.pathname;
+    const allowed =
+      p.startsWith("/profiles") ||
+      p.startsWith("/familia") ||
+      p.startsWith("/auth");
+
+    if (!allowed) navigate("/profiles", { replace: true });
+  }, [
+    loading,
+    isAdmin,
+    isLibrarian,
+    isFamily,
+    asChild,
+    user?.children?.length,
+    location.pathname,
+    navigate,
+  ]);
 
   // ------- Menus por papel -------
   const familyMenu: Item[] = [
@@ -63,11 +98,9 @@ export default function AppLayout() {
     { label: "Conquistas", icon: <Trophy />, href: "/achievements" },
     { label: "Agenda", icon: <CalendarDays />, href: "/agenda" },
     { label: "Eventos", icon: <CalendarDays />, href: "/eventos" },
-    // “Trocar de perfil” só faz sentido para famílias
     ...(isFamily
       ? [{ label: "Trocar de perfil", icon: <UsersRound />, href: "/profiles" }]
       : []),
-    // Se não quiseres “Consultas” para família, apaga a linha abaixo
     { label: "Consultas", icon: <CalendarCheck2 />, href: "/consultas" },
   ];
 
@@ -78,7 +111,7 @@ export default function AppLayout() {
       icon: <ClipboardCheck />,
       href: "/librarian/consultas/pendentes",
     },
-    { label: "Slots", icon: <Clock />, href: "/librarian/slots" }, // 👈 NOVO
+    { label: "Slots", icon: <Clock />, href: "/librarian/slots" },
     { label: "Agenda", icon: <CalendarDays />, href: "/librarian/agenda" },
     { label: "Histórico", icon: <History />, href: "/librarian/historico" },
     { label: "Famílias", icon: <UsersRound />, href: "/librarian/familias" },
@@ -105,7 +138,6 @@ export default function AppLayout() {
     ? librarianMenu
     : familyMenu;
 
-  // calcula qual href está ativo (não inclui “Sair” na conta)
   const activeHref = pickActive(location.pathname, rawItems);
   const menuItems = [
     ...rawItems.map(({ label, icon, href }) => ({
@@ -149,7 +181,6 @@ export default function AppLayout() {
 
   return (
     <GradientBackground>
-      {/* OVERRIDE GLOBAL DE CONTAINER (mata o cap de 1200px) */}
       <GlobalStyles
         styles={{
           ".MuiContainer-root": { maxWidth: "none" },
@@ -172,7 +203,6 @@ export default function AppLayout() {
         sx={{ bgcolor: "background.paper", zIndex: (t) => t.zIndex.drawer }}
       />
 
-      {/* Área de conteúdo à direita da sidebar */}
       <Box
         component="main"
         sx={{

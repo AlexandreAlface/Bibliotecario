@@ -1,30 +1,19 @@
-// apps/web/src/pages/profiles/index.tsx
+// apps/web/src/pages/profiles/ProfilesPage.tsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Box,
-  Card,
-  CardActionArea,
-  Avatar,
-  Typography,
-  Button,
-} from "@mui/material";
+import { Box, Card, CardActionArea, Avatar, Typography, Button } from "@mui/material";
 import { useUserSession } from "@/contexts/UserSession";
-import { GradientBackground } from "@bibliotecario/ui-web";
+import { GradientBackground, RouteLink } from "@bibliotecario/ui-web";
 
 export default function ProfilesPage() {
-  const { user, actAsChild, clearChild } = useUserSession();
+  const { user, actAsChild, clearChild, isAdmin, isLibrarian } = useUserSession();
   const navigate = useNavigate();
 
-  const roles = Array.isArray(user?.roles) ? user!.roles : [];
-  const isStaff = roles.includes("ADMIN") || roles.includes("BIBLIOTECARIO");
-
-  // Staff/bibliotecário vai direto à landing
-  React.useEffect(() => {
-    if (isStaff) navigate("/", { replace: true });
-  }, [isStaff, navigate]);
+  const isStaff = isAdmin || isLibrarian;
+  const children = user?.children ?? [];
 
   async function pickFamilyMode() {
+    // ✅ Sem mexer diretamente no sessionStorage — o provider trata de tudo
     await clearChild();
     navigate("/", { replace: true });
   }
@@ -33,8 +22,6 @@ export default function ProfilesPage() {
     await actAsChild(childId);
     navigate("/", { replace: true });
   }
-
-  const children = user?.children ?? [];
 
   return (
     <GradientBackground>
@@ -49,15 +36,10 @@ export default function ProfilesPage() {
         }}
       >
         <Box sx={{ width: "100%", maxWidth: 1200 }}>
-          <Typography
-            variant="h4"
-            align="center"
-            sx={{ fontWeight: 800, mb: 4 }}
-          >
+          <Typography variant="h4" align="center" sx={{ fontWeight: 800, mb: 4 }}>
             Quem está a ver?
           </Typography>
 
-          {/* CSS Grid responsivo, com itens centrados em cada célula */}
           <Box
             sx={{
               display: "grid",
@@ -68,7 +50,7 @@ export default function ProfilesPage() {
                 md: "repeat(4, minmax(0, 1fr))",
                 lg: "repeat(5, minmax(0, 1fr))",
               },
-              justifyItems: "center", // 👈 centra os cartões dentro da coluna
+              justifyItems: "center",
               alignItems: "stretch",
             }}
           >
@@ -78,10 +60,7 @@ export default function ProfilesPage() {
                 onClick={pickFamilyMode}
                 sx={{ p: 3, display: "flex", flexDirection: "column", gap: 2 }}
               >
-                <Avatar
-                  sx={{ width: 96, height: 96, fontSize: 36 }}
-                  alt="Família"
-                >
+                <Avatar sx={{ width: 96, height: 96, fontSize: 36 }} alt="Família">
                   F
                 </Avatar>
                 <Typography align="center" fontWeight={700}>
@@ -92,24 +71,12 @@ export default function ProfilesPage() {
 
             {/* Perfis das crianças */}
             {children.map((c) => (
-              <Card
-                key={c.id}
-                elevation={3}
-                sx={{ borderRadius: 3, width: 220 }}
-              >
+              <Card key={c.id} elevation={3} sx={{ borderRadius: 3, width: 220 }}>
                 <CardActionArea
                   onClick={() => pickChild(Number(c.id))}
-                  sx={{
-                    p: 3,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 2,
-                  }}
+                  sx={{ p: 3, display: "flex", flexDirection: "column", gap: 2 }}
                 >
-                  <Avatar
-                    src={c.avatarUrl ?? undefined}
-                    sx={{ width: 96, height: 96, fontSize: 36 }}
-                  >
+                  <Avatar src={c.avatarUrl ?? undefined} sx={{ width: 96, height: 96, fontSize: 36 }}>
                     {(c.name || "?").slice(0, 1).toUpperCase()}
                   </Avatar>
                   <Typography align="center" fontWeight={700}>
@@ -120,7 +87,7 @@ export default function ProfilesPage() {
             ))}
           </Box>
 
-          {/* Sem crianças? Mostrar CTA para criar */}
+          {/* Sem crianças? CTA para criar (apenas não-staff) */}
           {children.length === 0 && !isStaff && (
             <Box sx={{ mt: 4, textAlign: "center" }}>
               <Typography sx={{ opacity: 0.75, mb: 2 }}>
@@ -131,6 +98,10 @@ export default function ProfilesPage() {
               </Button>
             </Box>
           )}
+
+          <Box sx={{ mt: 3, textAlign: "center" }}>
+            <RouteLink href="/">Voltar</RouteLink>
+          </Box>
         </Box>
       </Box>
     </GradientBackground>

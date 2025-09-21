@@ -33,7 +33,10 @@ import type { BookLite as ReadingBookLite } from "../../services/readings";
 import { getProximosEventos } from "../../services/events";
 import { getSugestoesPerfil } from "../../services/books";
 import type { BookLite as SuggestionBookLite } from "../../services/books";
-import { getNextConsultas, type ConsultaLite } from "../../services/consultations";
+import {
+  getNextConsultas,
+  type ConsultaLite,
+} from "../../services/consultations";
 import { getBadgesRecent, type BadgeLite } from "../../services/badges";
 import EmojiEventsRounded from "@mui/icons-material/EmojiEventsRounded";
 
@@ -562,9 +565,9 @@ export default function LandingPage() {
           .map((c) => Number(c.id))
           .filter((n) => Number.isFinite(n)) ?? [];
 
-      const currentChildId = Number(
-        (user?.actingChild?.id as any) ?? (selectedChildId as any)
-      );
+      const currentChildId = asChild
+        ? Number(user?.actingChild?.id)
+        : Number(selectedChildId ?? NaN);
 
       const userIdNum = Number(user?.id);
 
@@ -614,9 +617,11 @@ export default function LandingPage() {
   // gerar sugestões on-demand
   async function generateSuggestions() {
     if (!asChild) return;
-    const cid = Number(
-      (user?.actingChild?.id as any) ?? (selectedChildId as any)
-    );
+
+    const cid = asChild
+      ? Number(user?.actingChild?.id)
+      : Number(selectedChildId ?? NaN);
+
     if (!cid) return;
 
     setSugLoading(true);

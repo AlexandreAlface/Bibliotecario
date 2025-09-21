@@ -1,4 +1,4 @@
-// src/routes/auth.js
+// apps/web/src/routes/auth.js
 import { Router } from "express";
 import { prisma } from "../prisma.js";
 import bcrypt from "bcryptjs";
@@ -28,7 +28,7 @@ function signToken(payload) {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" });
 }
 
-// ◀️ Exportar (nomeado) o middleware que faltava
+// ◀️ middleware auth (exportado e usado noutros ficheiros)
 export function requireAuth(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: "Não autenticado" });
@@ -143,7 +143,7 @@ router.post("/login", async (req, res, next) => {
   }
 });
 
-// GET /api/auth/me  (⚠️ atenção ao path; fica /api/auth/me)
+// GET /api/auth/me
 router.get("/me", requireAuth, async (req, res, next) => {
   try {
     const u = await prisma.user.findUnique({
@@ -184,11 +184,13 @@ router.get("/me", requireAuth, async (req, res, next) => {
     if (actingId) {
       const child = children.find((c) => c.id === actingId) || null;
       if (child) {
+        // ✅ NÃO substituir os roles: manter os de família e acrescentar "CRIANÇA"
+        const rolesWithChild = Array.from(new Set([...roles, "CRIANÇA"]));
         return res.json({
           id: u.id,
           fullName: u.fullName,
           email: u.email,
-          roles: ["CRIANÇA"],
+          roles: rolesWithChild,
           actingChild: child,
           children,
         });

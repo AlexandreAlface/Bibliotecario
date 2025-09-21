@@ -1,5 +1,5 @@
 // apps/web/src/pages/families/Events.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Box,
   Button,

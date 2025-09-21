@@ -261,6 +261,7 @@ export default function AgendasPage() {
   );
 
   async function reloadFamilyProposals() {
+    if (asChild) return setProposals([]);
     const famId = Number(user?.id);
     if (!Number.isFinite(famId)) return setProposals([]);
     const res = await listFamilyProposals(famId, {
@@ -332,7 +333,15 @@ export default function AgendasPage() {
         setLoadingProps(false);
       }
     })();
-  }, [user?.id]);
+  }, [user?.id, asChild]);
+
+  useEffect(() => {
+    if (asChild) {
+      setProposals([]);
+      setErrProps(null);
+      setLoadingProps(false);
+    }
+  }, [asChild]);
 
   const childBaseOptions: AvatarOption[] = (user?.children || []).map((c) => ({
     id: String(c.id),
@@ -467,168 +476,172 @@ export default function AgendasPage() {
         {titleLeft}
       </Typography>
 
-      {/* ---- Pedidos de reagendamento ---- */}
-      <WhiteCard sx={{ mb: 2 }}>
-        <CardHeader title="Pedidos de reagendamento" />
-        {errProps && (
-          <Typography color="error" sx={{ mb: 1 }}>
-            {errProps}
-          </Typography>
-        )}
-        {loadingProps && (
-          <Typography sx={{ opacity: 0.7 }}>A carregar…</Typography>
-        )}
-        {!loadingProps && proposals.length === 0 && (
-          <Typography sx={{ opacity: 0.7 }}>
-            Sem propostas pendentes.
-          </Typography>
-        )}
+      {/* ---- Pedidos de reagendamento (família) ---- */}
+      {!asChild && (
+        <WhiteCard sx={{ mb: 2 }}>
+          <CardHeader title="Pedidos de reagendamento" />
+          {errProps && (
+            <Typography color="error" sx={{ mb: 1 }}>
+              {errProps}
+            </Typography>
+          )}
+          {loadingProps && (
+            <Typography sx={{ opacity: 0.7 }}>A carregar…</Typography>
+          )}
+          {!loadingProps && proposals.length === 0 && (
+            <Typography sx={{ opacity: 0.7 }}>
+              Sem propostas pendentes.
+            </Typography>
+          )}
 
-        <Stack spacing={1.25}>
-          {proposals.map((p) => {
-            const who =
-              p.proposedBy === "LIBRARIAN"
-                ? "Proposta do bibliotecário"
-                : p.proposedBy === "FAMILY"
-                ? "Proposta da família"
-                : "Proposta do sistema";
+          <Stack spacing={1.25}>
+            {proposals.map((p) => {
+              const who =
+                p.proposedBy === "LIBRARIAN"
+                  ? "Proposta do bibliotecário"
+                  : p.proposedBy === "FAMILY"
+                  ? "Proposta da família"
+                  : "Proposta do sistema";
 
-            const title = p.consultation?.child?.name
-              ? `Consulta de ${p.consultation.child.name}`
-              : `Consulta com ${
-                  p.consultation?.librarian?.fullName ?? "bibliotecário"
-                }`;
+              const title = p.consultation?.child?.name
+                ? `Consulta de ${p.consultation.child.name}`
+                : `Consulta com ${
+                    p.consultation?.librarian?.fullName ?? "bibliotecário"
+                  }`;
 
-            const cId = p.consultation?.id;
-            const libId = p.consultation?.librarian?.id;
+              const cId = p.consultation?.id;
+              const libId = p.consultation?.librarian?.id;
 
-            return (
-              <Box
-                key={p.id}
-                sx={{
-                  p: 1.25,
-                  border: "1px solid",
-                  borderColor: "divider",
-                  borderRadius: 2,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 2,
-                  flexWrap: "wrap",
-                }}
-              >
-                <Box minWidth={220}>
-                  <Typography fontWeight={900}>{title}</Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                    {who}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 0.25 }}>
-                    {fmtRange(p.toStartAt, p.toEndAt)}
-                  </Typography>
+              return (
+                <Box
+                  key={p.id}
+                  sx={{
+                    p: 1.25,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 2,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <Box minWidth={220}>
+                    <Typography fontWeight={900}>{title}</Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                      {who}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 0.25 }}>
+                      {fmtRange(p.toStartAt, p.toEndAt)}
+                    </Typography>
+                  </Box>
+
+                  <Stack direction="row" spacing={1}>
+                    {p.proposedBy === "LIBRARIAN" ? (
+                      <>
+                        <PrimaryButton
+                          onClick={async () => {
+                            try {
+                              setBusyProposal(p.id);
+                              await acceptProposal(p.id);
+                              await reloadFamilyProposals();
+                              await reloadConsultas();
+                              alert("Proposta aceite.");
+                            } catch (e: any) {
+                              alert(e?.message || "Falha ao aceitar.");
+                            } finally {
+                              setBusyProposal(null);
+                            }
+                          }}
+                          startIcon={<CheckCircleRounded />}
+                          disabled={busyProposal === p.id}
+                        >
+                          Aceitar
+                        </PrimaryButton>
+
+                        <SecondaryButton
+                          onClick={() => {
+                            if (!cId || !libId) {
+                              alert(
+                                "Não foi possível identificar a consulta/bibliotecário."
+                              );
+                              return;
+                            }
+                            openRescheduleDialog(cId, Number(libId), p.id);
+                          }}
+                          disabled={busyProposal === p.id}
+                        >
+                          Propor outro horário
+                        </SecondaryButton>
+
+                        <SecondaryButton
+                          onClick={async () => {
+                            try {
+                              setBusyProposal(p.id);
+                              await declineProposal(p.id);
+                              await reloadFamilyProposals();
+                              alert("Proposta recusada.");
+                            } catch (e: any) {
+                              alert(e?.message || "Falha ao recusar.");
+                            } finally {
+                              setBusyProposal(null);
+                            }
+                          }}
+                          startIcon={<CancelRounded />}
+                          variant="outlined"
+                          disabled={busyProposal === p.id}
+                        >
+                          Recusar
+                        </SecondaryButton>
+                      </>
+                    ) : (
+                      <>
+                        <SecondaryButton
+                          onClick={() => {
+                            if (!cId || !libId) {
+                              alert(
+                                "Não foi possível identificar a consulta/bibliotecário."
+                              );
+                              return;
+                            }
+                            openRescheduleDialog(cId, Number(libId), p.id);
+                          }}
+                          disabled={busyProposal === p.id}
+                        >
+                          Editar horário
+                        </SecondaryButton>
+
+                        <SecondaryButton
+                          onClick={async () => {
+                            try {
+                              setBusyProposal(p.id);
+                              await declineProposal(p.id);
+                              await reloadFamilyProposals();
+                              alert("Proposta cancelada.");
+                            } catch (e: any) {
+                              alert(
+                                e?.message || "Falha ao cancelar proposta."
+                              );
+                            } finally {
+                              setBusyProposal(null);
+                            }
+                          }}
+                          startIcon={<CancelRounded />}
+                          variant="outlined"
+                          disabled={busyProposal === p.id}
+                        >
+                          Cancelar proposta
+                        </SecondaryButton>
+                      </>
+                    )}
+                  </Stack>
                 </Box>
-
-                <Stack direction="row" spacing={1}>
-                  {p.proposedBy === "LIBRARIAN" ? (
-                    <>
-                      <PrimaryButton
-                        onClick={async () => {
-                          try {
-                            setBusyProposal(p.id);
-                            await acceptProposal(p.id);
-                            await reloadFamilyProposals();
-                            await reloadConsultas();
-                            alert("Proposta aceite.");
-                          } catch (e: any) {
-                            alert(e?.message || "Falha ao aceitar.");
-                          } finally {
-                            setBusyProposal(null);
-                          }
-                        }}
-                        startIcon={<CheckCircleRounded />}
-                        disabled={busyProposal === p.id}
-                      >
-                        Aceitar
-                      </PrimaryButton>
-
-                      <SecondaryButton
-                        onClick={() => {
-                          if (!cId || !libId) {
-                            alert(
-                              "Não foi possível identificar a consulta/bibliotecário."
-                            );
-                            return;
-                          }
-                          openRescheduleDialog(cId, Number(libId), p.id);
-                        }}
-                        disabled={busyProposal === p.id}
-                      >
-                        Propor outro horário
-                      </SecondaryButton>
-
-                      <SecondaryButton
-                        onClick={async () => {
-                          try {
-                            setBusyProposal(p.id);
-                            await declineProposal(p.id);
-                            await reloadFamilyProposals();
-                            alert("Proposta recusada.");
-                          } catch (e: any) {
-                            alert(e?.message || "Falha ao recusar.");
-                          } finally {
-                            setBusyProposal(null);
-                          }
-                        }}
-                        startIcon={<CancelRounded />}
-                        variant="outlined"
-                        disabled={busyProposal === p.id}
-                      >
-                        Recusar
-                      </SecondaryButton>
-                    </>
-                  ) : (
-                    <>
-                      <SecondaryButton
-                        onClick={() => {
-                          if (!cId || !libId) {
-                            alert(
-                              "Não foi possível identificar a consulta/bibliotecário."
-                            );
-                            return;
-                          }
-                          openRescheduleDialog(cId, Number(libId), p.id);
-                        }}
-                        disabled={busyProposal === p.id}
-                      >
-                        Editar horário
-                      </SecondaryButton>
-
-                      <SecondaryButton
-                        onClick={async () => {
-                          try {
-                            setBusyProposal(p.id);
-                            await declineProposal(p.id);
-                            await reloadFamilyProposals();
-                            alert("Proposta cancelada.");
-                          } catch (e: any) {
-                            alert(e?.message || "Falha ao cancelar proposta.");
-                          } finally {
-                            setBusyProposal(null);
-                          }
-                        }}
-                        startIcon={<CancelRounded />}
-                        variant="outlined"
-                        disabled={busyProposal === p.id}
-                      >
-                        Cancelar proposta
-                      </SecondaryButton>
-                    </>
-                  )}
-                </Stack>
-              </Box>
-            );
-          })}
-        </Stack>
-      </WhiteCard>
+              );
+            })}
+          </Stack>
+        </WhiteCard>
+      )}
 
       {/* -------- Dialog para contra-proposta -------- */}
       <SlotPickerDialog
