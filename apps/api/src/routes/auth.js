@@ -1,4 +1,3 @@
-// apps/web/src/routes/auth.js
 import { Router } from "express";
 import { prisma } from "../prisma.js";
 import bcrypt from "bcryptjs";
@@ -28,12 +27,11 @@ function signToken(payload) {
   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" });
 }
 
-// ◀️ middleware auth (exportado e usado noutros ficheiros)
 export function requireAuth(req, res, next) {
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) return res.status(401).json({ error: "Não autenticado" });
   try {
-    req.user = jwt.verify(token, process.env.JWT_SECRET); // { sub, roles, iat, exp }
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
   } catch {
     return res.status(401).json({ error: "Sessão inválida" });
@@ -41,20 +39,9 @@ export function requireAuth(req, res, next) {
 }
 
 // ------- rotas -------
-
-// POST /api/auth/register
 router.post("/register", async (req, res, next) => {
   try {
-    const {
-      fullName,
-      email,
-      phone,
-      citizenCard,
-      address,
-      password,
-      children = [],
-    } = req.body;
-
+    const { fullName, email, phone, citizenCard, address, password, children = [] } = req.body;
     if (!fullName || !email || !password) {
       return res.status(400).json({ error: "Campos obrigatórios em falta" });
     }
@@ -83,17 +70,10 @@ router.post("/register", async (req, res, next) => {
           create: children.map((c) => ({
             child: {
               create: {
-                name: [c.firstName, c.lastName]
-                  .filter(Boolean)
-                  .join(" ")
-                  .trim(),
+                name: [c.firstName, c.lastName].filter(Boolean).join(" ").trim(),
                 birthDate: c.birthDate
                   ? new Date(c.birthDate)
-                  : new Date(
-                      new Date().getFullYear() - Number(c.age || 0),
-                      0,
-                      1
-                    ),
+                  : new Date(new Date().getFullYear() - Number(c.age || 0), 0, 1),
                 gender: c.gender || null,
                 readerProfile: c.readerProfile || null,
               },
@@ -104,15 +84,12 @@ router.post("/register", async (req, res, next) => {
       select: { id: true, fullName: true, email: true },
     });
 
-    return res
-      .status(201)
-      .json({ userId: user.id, emailVerification: "pending" });
+    return res.status(201).json({ userId: user.id, emailVerification: "pending" });
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/auth/login
 router.post("/login", async (req, res, next) => {
   try {
     const { email, password } = req.body || {};
@@ -132,8 +109,7 @@ router.post("/login", async (req, res, next) => {
     const token = signToken({ sub: user.id, roles });
 
     setAuthCookie(res, token);
-    // limpar eventual ACTING antigo
-    res.clearCookie(ACTING_COOKIE, { path: "/" });
+    res.clearCookie(ACTING_COOKIE, { path: "/" }); // limpar eventual ACTING antigo
 
     return res.json({
       user: { id: user.id, fullName: user.fullName, email: user.email, roles },
@@ -143,7 +119,6 @@ router.post("/login", async (req, res, next) => {
   }
 });
 
-// GET /api/auth/me
 router.get("/me", requireAuth, async (req, res, next) => {
   try {
     const u = await prisma.user.findUnique({
@@ -184,7 +159,6 @@ router.get("/me", requireAuth, async (req, res, next) => {
     if (actingId) {
       const child = children.find((c) => c.id === actingId) || null;
       if (child) {
-        // ✅ NÃO substituir os roles: manter os de família e acrescentar "CRIANÇA"
         const rolesWithChild = Array.from(new Set([...roles, "CRIANÇA"]));
         return res.json({
           id: u.id,
@@ -210,7 +184,6 @@ router.get("/me", requireAuth, async (req, res, next) => {
   }
 });
 
-// POST /api/auth/logout
 router.post("/logout", (req, res) => {
   clearAuthCookie(res);
   res.clearCookie(ACTING_COOKIE, { path: "/" });

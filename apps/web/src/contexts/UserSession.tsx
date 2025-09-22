@@ -1,12 +1,19 @@
-// apps/web/src/contexts/UserSession.tsx
 import React from "react";
 import * as auth from "@/services/auth";
 import { normalizeRoleNames } from "@/services/auth";
 import { useNavigate, useLocation } from "react-router-dom";
 
 // ---- Tipos ----
-type ChildLite = { id: number; name?: string | null; avatarUrl?: string | null };
-type UserLibraryLite = { libraryId: number; library?: { id: number; name: string } };
+type ChildLite = {
+  id: number;
+  name?: string | null;
+  avatarUrl?: string | null;
+};
+
+type UserLibraryLite = {
+  libraryId: number;
+  library?: { id: number; name: string };
+};
 
 type UserShape = {
   id: number;
@@ -17,7 +24,12 @@ type UserShape = {
   phone?: string | null;
   citizenCard?: string | null;
   address?: string | null;
-  actingChild?: { id: number; name?: string | null; avatarUrl?: string | null } | null;
+  actingChild?: {
+    id: number;
+    name?: string | null;
+    avatarUrl?: string | null;
+  } | null;
+
   userLibraries?: UserLibraryLite[];
   libraryId?: number;
 };
@@ -45,32 +57,48 @@ type Ctx = {
 };
 
 // ---- Keys de storage ----
-const KEY_MODE = "familyMode"; // legacy: "1" (família) | "0" (criança)
+const KEY_MODE = "familyMode"; // 'child' | 'family'
 const KEY_CHILD_ID = "actingChildId";
 type FamilyMode = "child" | "family" | null;
 
 // ---- Safe storage helpers ----
-function safeGetSS(key: string): string | null { try { return sessionStorage.getItem(key); } catch { return null; } }
-function safeSetSS(key: string, val: string | null) { try { if (val == null) sessionStorage.removeItem(key); else sessionStorage.setItem(key, val); } catch {} }
-function safeGetLS(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } }
-function safeSetLS(key: string, val: string | null) { try { if (val == null) localStorage.removeItem(key); else localStorage.setItem(key, val); } catch {} }
+function safeGetSS(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function safeSetSS(key: string, val: string | null) {
+  try {
+    if (val == null) sessionStorage.removeItem(key);
+    else sessionStorage.setItem(key, val);
+  } catch {}
+}
+function safeGetLS(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function safeSetLS(key: string, val: string | null) {
+  try {
+    if (val == null) localStorage.removeItem(key);
+    else localStorage.setItem(key, val);
+  } catch {}
+}
 
 function getPersistedMode(): FamilyMode {
-  const raw = safeGetSS(KEY_MODE) ?? safeGetLS(KEY_MODE);
-  if (!raw) return null;
-  const val = String(raw).toLowerCase();
-  // aceita os dois formatos
-  if (raw === "1" || val === "family") return "family";
-  if (raw === "0" || val === "child") return "child";
-  return null;
+  const v = safeGetSS(KEY_MODE) ?? safeGetLS(KEY_MODE);
+  return v === "child" || v === "family" ? v : null;
 }
 function setPersistedMode(mode: FamilyMode) {
-  // para compatibilidade com AppLayout antigo, guardamos no formato legacy "1"/"0"
-  const legacy = mode == null ? null : mode === "family" ? "1" : "0";
-  safeSetSS(KEY_MODE, legacy);
-  safeSetLS(KEY_MODE, legacy);
+  const v = mode ?? null;
+  safeSetSS(KEY_MODE, v);
+  safeSetLS(KEY_MODE, v);
   try {
-    window.dispatchEvent(new CustomEvent("family-mode-changed", { detail: mode }));
+    window.dispatchEvent(new CustomEvent("family-mode-changed", { detail: v }));
   } catch {}
 }
 
@@ -88,9 +116,10 @@ function setPersistedChildId(id: number | null) {
 function hasRole(user: UserShape | null, ...roles: string[]) {
   if (!user) return false;
   const current = new Set(
-    (user.roles && user.roles.length ? user.roles : normalizeRoleNames(user)).map((r) =>
-      String(r).toUpperCase()
-    )
+    (user.roles && user.roles.length
+      ? user.roles
+      : normalizeRoleNames(user)
+    ).map((r) => String(r).toUpperCase())
   );
   return roles.some((r) => {
     const R = String(r).toUpperCase();
@@ -108,7 +137,11 @@ function hasRole(user: UserShape | null, ...roles: string[]) {
         current.has("BIBLIOTECÁRIO")
       );
     if (R === "FAMILY")
-      return current.has("FAMILY") || current.has("FAMILIA") || current.has("FAMÍLIA");
+      return (
+        current.has("FAMILY") ||
+        current.has("FAMILIA") ||
+        current.has("FAMÍLIA")
+      );
     return current.has(R);
   });
 }
@@ -118,7 +151,9 @@ const UserSessionContext = React.createContext<Ctx | null>(null);
 // ---- /auth/me ----
 async function fetchCurrentUser(): Promise<UserShape | null> {
   const base =
-    (import.meta as any).env?.VITE_API_URL || (window as any).__API_BASE__ || "/api";
+    (import.meta as any).env?.VITE_API_URL ||
+    (window as any).__API_BASE__ ||
+    "/api";
 
   const res = await fetch(`${base.replace(/\/$/, "")}/auth/me`, {
     method: "GET",
@@ -151,7 +186,9 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
     (me: UserShape | null, id: number | null | undefined): ChildLite | null => {
       if (!me || !me.children || !Number.isFinite(Number(id))) return null;
       const c = me.children.find((x) => Number(x.id) === Number(id));
-      return c ? { id: c.id, name: c.name ?? null, avatarUrl: c.avatarUrl ?? null } : null;
+      return c
+        ? { id: c.id, name: c.name ?? null, avatarUrl: c.avatarUrl ?? null }
+        : null;
     },
     []
   );
@@ -167,28 +204,46 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
       let next = me;
 
       if (me) {
-        if (persistedMode === "family") {
+        const isFam = hasRole(me, "FAMILY", "FAMÍLIA", "FAMILIA");
+        const isLib = hasRole(me, "LIBRARIAN", "BIBLIOTECARIO", "BIBLIOTECÁRIO");
+        const isAdm = hasRole(me, "ADMIN", "ADMINISTRATOR", "ADMINISTRADOR", "ROLE_ADMIN");
+        const isStaff = isLib || isAdm;
+
+        if (isStaff) {
+          // staff NUNCA atua como criança
           next = { ...me, actingChild: null };
-        } else if (persistedMode === "child") {
-          const child =
-            (persistedId && findChild(me, persistedId)) ||
-            (me.actingChild ? findChild(me, Number(me.actingChild.id)) : null);
-          if (child) {
-            next = { ...me, actingChild: child };
-            setPersistedChildId(child.id);
-          } else {
-            setPersistedChildId(null);
+          setPersistedMode("family");
+          setPersistedChildId(null);
+        } else if (isFam) {
+          // família segue persistência/servidor
+          if (persistedMode === "family") {
             next = { ...me, actingChild: null };
+          } else if (persistedMode === "child") {
+            const child =
+              (persistedId && findChild(me, persistedId)) ||
+              (me.actingChild ? findChild(me, Number(me.actingChild.id)) : null);
+            if (child) {
+              next = { ...me, actingChild: child };
+              setPersistedChildId(child.id);
+            } else {
+              setPersistedChildId(null);
+              next = { ...me, actingChild: null };
+            }
+          } else {
+            const serverId = Number(me?.actingChild?.id);
+            if (Number.isFinite(serverId) && serverId > 0) {
+              setPersistedMode("child");
+              setPersistedChildId(serverId);
+            } else {
+              setPersistedMode("family");
+              setPersistedChildId(null);
+            }
           }
         } else {
-          const serverId = Number(me?.actingChild?.id);
-          if (Number.isFinite(serverId) && serverId > 0) {
-            setPersistedMode("child");
-            setPersistedChildId(serverId);
-          } else {
-            setPersistedMode("family");
-            setPersistedChildId(null);
-          }
+          // outros perfis (se existirem): neutral
+          next = { ...me, actingChild: null };
+          setPersistedMode("family");
+          setPersistedChildId(null);
         }
       } else {
         setPersistedMode(null);
@@ -205,13 +260,20 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
     }
   }, [findChild]);
 
-  React.useEffect(() => { refresh(); }, [refresh]);
+  React.useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   async function actAsChild(childId: number) {
+    // só famílias podem mudar de perfil
+    if (!hasRole(user, "FAMILY", "FAMÍLIA", "FAMILIA")) {
+      await refresh();
+      return;
+    }
+
     setPersistedMode("child");
     setPersistedChildId(childId);
 
-    // Eager update
     setUser((prev) => {
       if (!prev) return prev;
       const child = prev.children?.find((c) => Number(c.id) === Number(childId));
@@ -223,15 +285,22 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
       } as UserShape;
     });
 
-    try { await (auth as any).actAsChild?.(childId); } catch {}
+    try {
+      await (auth as any).actAsChild?.(childId);
+    } catch {}
     await refresh();
   }
 
   async function clearChild() {
+    // só famílias usam acting child
+    if (!hasRole(user, "FAMILY", "FAMÍLIA", "FAMILIA")) {
+      await refresh();
+      return;
+    }
+
     setPersistedMode("family");
     setPersistedChildId(null);
 
-    // Eager update
     setUser((prev) => (prev ? ({ ...prev, actingChild: null } as UserShape) : prev));
 
     try {
@@ -254,12 +323,13 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
     }
   }
 
-  const isFamily = hasRole(user, "FAMILY", "FAMÍLIA");
+  const isFamily = hasRole(user, "FAMILY", "FAMÍLIA", "FAMILIA");
   const isLibrarian = hasRole(user, "LIBRARIAN", "BIBLIOTECÁRIO", "BIBLIOTECARIO");
-  const isAdmin = hasRole(user, "ADMIN", "ADMINISTRATOR", "ADMINISTRADOR");
+  const isAdmin = hasRole(user, "ADMIN", "ADMINISTRATOR", "ADMINISTRADOR", "ROLE_ADMIN");
 
-  const asChild = !!user?.actingChild?.id;
-  const currentChildId = asChild ? (Number(user?.actingChild?.id) || null) : null;
+  // ---- Derivados do modo (staff nunca é asChild)
+  const asChild = !isLibrarian && !isAdmin && !!user?.actingChild?.id;
+  const currentChildId = asChild ? Number(user?.actingChild?.id) || null : null;
 
   const currentLibraryId = React.useMemo(() => {
     const direct = Number((user as any)?.libraryId);
@@ -272,13 +342,19 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
 
   const setSelectedChildId = React.useCallback(
     async (id: string | number | null | undefined) => {
-      if (id == null || id === "") return clearChild();
+      // bloquear para não-família
+      if (!hasRole(user, "FAMILY", "FAMÍLIA", "FAMILIA")) return;
+
+      if (
+        id == null ||
+        id === "" ||
+        (typeof id === "string" &&
+          ["family", "familia", "família", "__family__"].includes(id.toLowerCase()))
+      ) {
+        return clearChild();
+      }
 
       if (typeof id === "string") {
-        const low = id.toLowerCase();
-        if (["family", "familia", "família", "__family__"].includes(low)) {
-          return clearChild();
-        }
         const match = id.match(/(\d+)/);
         const n = match ? Number(match[1]) : Number(id);
         if (!Number.isFinite(n) || n <= 0) return;
@@ -290,10 +366,10 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
         return clearChild();
       }
     },
-    [] // usa clearChild/actAsChild das closures atuais
+    [user] // precisa do user atual para a verificação de role
   );
 
-  // Primeiro login de família: força família e envia para /profiles
+  // ---------- Primeiro login de família: força família e envia para /profiles ----------
   React.useEffect(() => {
     if (loading) return;
 
@@ -301,11 +377,10 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
     const prevId = prevUserIdRef.current;
     const justLoggedIn = prevId == null && nowId != null;
 
-    if (justLoggedIn) {
-      prevUserIdRef.current = nowId;
-    }
+    if (justLoggedIn) prevUserIdRef.current = nowId;
 
-    if (justLoggedIn && isFamily && !forcedFirstFamilyRef.current) {
+    const _isFamily = hasRole(user, "FAMILY", "FAMÍLIA", "FAMILIA");
+    if (justLoggedIn && _isFamily && !forcedFirstFamilyRef.current) {
       forcedFirstFamilyRef.current = true;
 
       setPersistedMode("family");
@@ -326,8 +401,13 @@ export function UserSessionProvider({ children }: { children: React.ReactNode })
       if (!location.pathname.startsWith("/profiles")) {
         navigate("/profiles", { replace: true });
       }
+      return;
     }
-  }, [loading, user, isFamily, navigate, location.pathname, refresh]);
+
+    if (prevUserIdRef.current !== nowId) {
+      prevUserIdRef.current = nowId;
+    }
+  }, [loading, user, navigate, location.pathname, refresh]);
 
   const value: Ctx = {
     user,

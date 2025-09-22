@@ -17,25 +17,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
-    const u = await meSvc();
-    setUser(u);
-    setLoading(false);
-    return u;
+    try {
+      const u = await meSvc();
+      setUser(u);
+      return u;
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   React.useEffect(() => {
-    // tenta recuperar sessão ao entrar
     refresh();
   }, [refresh]);
 
-  const login = React.useCallback(async (email: string, password: string) => {
-    await loginSvc(email, password);
-    return await refresh();
-  }, [refresh]);
+  const login = React.useCallback(
+    async (email: string, password: string) => {
+      await loginSvc(email, password);
+      return await refresh();
+    },
+    [refresh]
+  );
 
   const logout = React.useCallback(async () => {
-    await logoutSvc();
-    setUser(null);
+    try {
+      await logoutSvc();
+    } finally {
+      setUser(null);
+    }
   }, []);
 
   return (

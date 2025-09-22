@@ -1,227 +1,404 @@
-import { useEffect, useMemo, useState, type JSX } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { GradientBackground, SidebarMenu } from "@bibliotecario/ui-web";
-import { Box, GlobalStyles } from "@mui/material";
+// apps/web/src/layouts/AppLayout.tsx
+import * as React from "react";
 import {
-  Home,
-  Wand2,
-  Trophy,
-  CalendarDays,
-  CalendarCheck2,
-  UsersRound,
-  Stars,
-  Book,
-  LogOut,
-  ClipboardCheck,
-  History,
-  Clock,
-  BarChart3,
-  Rss,
-} from "lucide-react";
-import { useUserSession } from "../contexts/UserSession";
+  AppBar,
+  Avatar,
+  Box,
+  Chip,
+  CssBaseline,
+  Divider,
+  Drawer,
+  IconButton,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
+  MenuList,
+  Toolbar,
+  Tooltip,
+  Typography,
+} from "@mui/material";
+import {
+  Link as RouterLink,
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
-const SIDEBAR_OPEN = 260;
-const SIDEBAR_CLOSED = 64;
+import HomeRounded from "@mui/icons-material/HomeRounded";
+import FamilyRestroomRounded from "@mui/icons-material/FamilyRestroomRounded";
+import ChildCareRounded from "@mui/icons-material/ChildCareRounded";
+import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
+import LibraryBooksRounded from "@mui/icons-material/LibraryBooksRounded";
+import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
+import LogoutRounded from "@mui/icons-material/LogoutRounded";
+import ArrowDropDownRounded from "@mui/icons-material/ArrowDropDownRounded";
+import EmojiEventsRounded from "@mui/icons-material/EmojiEventsRounded";
+import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
+import RateReviewRounded from "@mui/icons-material/RateReviewRounded";
+import CategoryRounded from "@mui/icons-material/CategoryRounded";
+import QueryStatsRounded from "@mui/icons-material/QueryStatsRounded";
+import RssFeedRounded from "@mui/icons-material/RssFeedRounded";
+import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
+import ListAltRounded from "@mui/icons-material/ListAltRounded";
+import AdminPanelSettingsRounded from "@mui/icons-material/AdminPanelSettingsRounded";
+import DashboardCustomizeRounded from "@mui/icons-material/DashboardCustomizeRounded";
+import HistoryRounded from "@mui/icons-material/HistoryRounded";
 
-const CONTENT_MAX_PX = 1920;
-const SIDE_PAD = "clamp(16px, 2.2vw, 48px)";
+import { useUserSession } from "@/contexts/UserSession";
 
-type Item = { label: string; icon: JSX.Element; href: string; exact?: boolean };
+const drawerWidth = 248;
 
-const norm = (s: string) => (s === "/" ? "/" : s.replace(/\/+$/, ""));
+type NavItem = { to: string; label: string; icon: React.ReactNode };
 
-function pickActive(pathname: string, items: Item[]) {
-  const pn = norm(pathname);
-  const exact = items.find((i) => i.exact && norm(i.href) === pn);
-  if (exact) return norm(exact.href);
-  const match = items
-    .map((i) => ({ ...i, hrefN: norm(i.href) }))
-    .filter((i) => pn === i.hrefN || pn.startsWith(i.hrefN + "/"))
-    .sort((a, b) => b.hrefN.length - a.hrefN.length)[0];
-  return match ? match.hrefN : undefined;
+function buildMenu(opts: {
+  asChild: boolean;
+  isFamily: boolean;
+  isLibrarian: boolean;
+  isAdmin: boolean;
+}): NavItem[] {
+  const { asChild, isFamily, isLibrarian, isAdmin } = opts;
+
+  if (asChild) {
+    return [
+      { to: "/", label: "Início", icon: <HomeRounded /> },
+      { to: "/reading", label: "Leituras", icon: <LibraryBooksRounded /> },
+      { to: "/eventos", label: "Eventos", icon: <EventAvailableRounded /> }, 
+      { to: "/suggestions", label: "Sugestões", icon: <EmojiEventsRounded /> },
+      {
+        to: "/suggestions-categories",
+        label: "Sug. por categorias",
+        icon: <CategoryRounded />,
+      },
+      {
+        to: "/achievements",
+        label: "Conquistas",
+        icon: <EmojiEventsRounded />,
+      },
+      
+    ];
+  }
+
+  const items: NavItem[] = [
+    { to: "/", label: "Início", icon: <HomeRounded /> },
+  ];
+
+  if (isFamily) {
+    items.push(
+      { to: "/familia", label: "Família", icon: <FamilyRestroomRounded /> },
+      { to: "/consultas", label: "Consultas", icon: <PeopleAltRounded /> },
+      { to: "/eventos", label: "Eventos", icon: <EventAvailableRounded /> },
+      { to: "/reading", label: "Leituras", icon: <LibraryBooksRounded /> },
+      { to: "/suggestions", label: "Sugestões", icon: <EmojiEventsRounded /> },
+      {
+        to: "/suggestions-categories",
+        label: "Sug. por categorias",
+        icon: <CategoryRounded />,
+      },
+      {
+        to: "/achievements",
+        label: "Conquistas",
+        icon: <EmojiEventsRounded />,
+      },
+      { to: "/agenda", label: "Agenda", icon: <CalendarMonthRounded /> },
+      { to: "/reviews", label: "Opiniões", icon: <RateReviewRounded /> }
+    );
+  }
+
+  if (isLibrarian) {
+    items.push(
+      {
+        to: "/librarian",
+        label: "Equipa · Início",
+        icon: <DashboardCustomizeRounded />,
+      },
+      {
+        to: "/librarian/consultas/pendentes",
+        label: "Equipa · Pendentes",
+        icon: <EventAvailableRounded />,
+      },
+      {
+        to: "/librarian/agenda",
+        label: "Equipa · Agenda",
+        icon: <CalendarMonthRounded />,
+      },
+      {
+        to: "/librarian/familias",
+        label: "Equipa · Famílias",
+        icon: <PeopleAltRounded />,
+      },
+      {
+        to: "/librarian/slots",
+        label: "Equipa · Slots",
+        icon: <ScheduleRounded />,
+      },
+      {
+        to: "/librarian/historico",
+        label: "Equipa · Histórico",
+        icon: <HistoryRounded />,
+      }
+    );
+  }
+
+  if (isAdmin) {
+    items.push(
+      {
+        to: "/admin",
+        label: "Admin · Início",
+        icon: <AdminPanelSettingsRounded />,
+      },
+      {
+        to: "/admin/bibliotecarios",
+        label: "Admin · Bibliotecários",
+        icon: <PeopleAltRounded />,
+      },
+      {
+        to: "/admin/familias",
+        label: "Admin · Famílias",
+        icon: <PeopleAltRounded />,
+      },
+      { to: "/admin/slots", label: "Admin · Slots", icon: <ScheduleRounded /> },
+      {
+        to: "/admin/propostas",
+        label: "Admin · Propostas",
+        icon: <ListAltRounded />,
+      },
+      {
+        to: "/admin/eventos",
+        label: "Admin · Eventos",
+        icon: <EventAvailableRounded />,
+      },
+      { to: "/admin/feeds", label: "Admin · Feeds", icon: <RssFeedRounded /> },
+      {
+        to: "/admin/metricas",
+        label: "Admin · Métricas",
+        icon: <QueryStatsRounded />,
+      }
+    );
+  }
+
+  // remove duplicados (caso o user acumule papéis)
+  const seen = new Set<string>();
+  return items.filter((it) =>
+    seen.has(it.to) ? false : (seen.add(it.to), true)
+  );
 }
 
 export default function AppLayout() {
-  const { user, loading, asChild, isFamily, isLibrarian, isAdmin } =
-    useUserSession();
-  const [menuOpen, setMenuOpen] = useState(true);
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  // Guard: só família com filhos e SEM escolha prévia é redirecionada para /profiles
-  useEffect(() => {
-    if (loading) return;
-
-    // Staff nunca é forçado a perfis
-    if (isAdmin || isLibrarian) return;
-
-    // Não-família: ignora guard
-    if (!isFamily) return;
-
-    // Criança ativa? marcar e sair
-    if (asChild) {
-      sessionStorage.setItem("familyMode", "0");
-      return;
-    }
-
-    // Família (sem criança ativa)
-    const choseFamilyMode = sessionStorage.getItem("familyMode") === "1";
-    const hasKids = (user?.children?.length ?? 0) > 0;
-    const mustPickProfile = hasKids && !choseFamilyMode;
-
-    if (!mustPickProfile) return;
-
-    const p = location.pathname;
-    const allowed =
-      p.startsWith("/profiles") ||
-      p.startsWith("/familia") ||
-      p.startsWith("/auth");
-
-    if (!allowed) navigate("/profiles", { replace: true });
-  }, [
+  const {
+    user,
     loading,
+    asChild,
     isAdmin,
     isLibrarian,
     isFamily,
-    asChild,
-    user?.children?.length,
-    location.pathname,
-    navigate,
-  ]);
+    setSelectedChildId,
+    clearChild,
+    logout,
+  } = useUserSession();
 
-  // ------- Menus por papel -------
-  const familyMenu: Item[] = [
-    { label: "Início", icon: <Home />, href: "/", exact: true },
-    { label: "Sugestões", icon: <Wand2 />, href: "/suggestions" },
-    { label: "Leituras", icon: <Book />, href: "/reading" },
-    { label: "Avaliar leituras", icon: <Stars />, href: "/reviews" },
-    { label: "Conquistas", icon: <Trophy />, href: "/achievements" },
-    { label: "Agenda", icon: <CalendarDays />, href: "/agenda" },
-    { label: "Eventos", icon: <CalendarDays />, href: "/eventos" },
-    ...(isFamily
-      ? [{ label: "Trocar de perfil", icon: <UsersRound />, href: "/profiles" }]
-      : []),
-    { label: "Consultas", icon: <CalendarCheck2 />, href: "/consultas" },
-  ];
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const librarianMenu: Item[] = [
-    { label: "Painel", icon: <Home />, href: "/librarian", exact: true },
-    {
-      label: "Consultas pendentes",
-      icon: <ClipboardCheck />,
-      href: "/librarian/consultas/pendentes",
-    },
-    { label: "Slots", icon: <Clock />, href: "/librarian/slots" },
-    { label: "Agenda", icon: <CalendarDays />, href: "/librarian/agenda" },
-    { label: "Histórico", icon: <History />, href: "/librarian/historico" },
-    { label: "Famílias", icon: <UsersRound />, href: "/librarian/familias" },
-  ];
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
+  const children = user?.children ?? [];
+  const kids = user?.children ?? [];
+  const acting = user?.actingChild ?? null;
 
-  const adminMenu: Item[] = [
-    { label: "Painel", icon: <Home />, href: "/admin", exact: true },
-    {
-      label: "Bibliotecários",
-      icon: <UsersRound />,
-      href: "/admin/bibliotecarios",
-    },
-    { label: "Famílias", icon: <UsersRound />, href: "/admin/familias" },
-    { label: "Slots globais", icon: <Clock />, href: "/admin/slots" },
-    { label: "Propostas", icon: <ClipboardCheck />, href: "/admin/propostas" },
-    { label: "Eventos", icon: <CalendarDays />, href: "/admin/eventos" },
-    { label: "Feeds", icon: <Rss />, href: "/admin/feeds" },
-    { label: "Métricas", icon: <BarChart3 />, href: "/admin/metricas" },
-  ];
-
-  const rawItems = isAdmin
-    ? adminMenu
-    : isLibrarian
-    ? librarianMenu
-    : familyMenu;
-
-  const activeHref = pickActive(location.pathname, rawItems);
-  const menuItems = [
-    ...rawItems.map(({ label, icon, href }) => ({
-      label,
-      icon,
-      href,
-      selected: norm(href) === activeHref,
-    })),
-    { label: "Sair", icon: <LogOut />, href: "/auth/logout", selected: false },
-  ];
-
-  // ------- Cabeçalho -------
-  const familyName = user?.fullName ?? "Família";
-  const headerTitle = isAdmin
-    ? user?.fullName || "Administrador"
-    : isLibrarian
-    ? user?.fullName || "Bibliotecário"
-    : asChild && user?.actingChild
-    ? user.actingChild.name!
-    : `Família ${familyName}`;
-
-  const headerSubtitle = isAdmin
-    ? "Administrador"
-    : isLibrarian
-    ? "Bibliotecário"
-    : asChild
-    ? "Modo criança"
-    : "Família";
-
-  const sidebarWidth = useMemo(
-    () => (menuOpen ? SIDEBAR_OPEN : SIDEBAR_CLOSED),
-    [menuOpen]
+  const menuItems = React.useMemo(
+    () => buildMenu({ asChild, isFamily, isLibrarian, isAdmin }),
+    [asChild, isFamily, isLibrarian, isAdmin]
   );
 
-  const actingAvatarUrl =
-    !isLibrarian && asChild && user?.actingChild
-      ? user?.children?.find(
-          (c) => Number(c.id) === Number(user.actingChild!.id)
-        )?.avatarUrl || undefined
-      : undefined;
+  const handlePickFamily = async () => {
+    setAnchorEl(null);
+    await clearChild();
+    if (location.pathname.startsWith("/profiles"))
+      navigate("/", { replace: true });
+  };
+
+  const handlePickChild = async (childId: number) => {
+    setAnchorEl(null);
+    await setSelectedChildId(childId);
+    if (location.pathname.startsWith("/profiles"))
+      navigate("/", { replace: true });
+  };
+
+  const handleOpenMenu = (e: React.MouseEvent<HTMLElement>) =>
+    setAnchorEl(e.currentTarget);
+  const handleCloseMenu = () => setAnchorEl(null);
 
   return (
-    <GradientBackground>
-      <GlobalStyles
-        styles={{
-          ".MuiContainer-root": { maxWidth: "none" },
-          "@media (min-width:1200px)": {
-            ".MuiContainer-maxWidthLg": { maxWidth: "1500px" },
-          },
-          "@media (min-width:1536px)": {
-            ".MuiContainer-maxWidthXl": { maxWidth: `${CONTENT_MAX_PX}px` },
-          },
-        }}
-      />
+    <Box sx={{ display: "flex" }}>
+      <CssBaseline />
 
-      <SidebarMenu
-        open={menuOpen}
-        onToggle={(open) => setMenuOpen(open)}
-        items={menuItems}
-        headerTitle={headerTitle!}
-        headerSubtitle={headerSubtitle}
-        headerAvatarUrl={actingAvatarUrl}
-        sx={{ bgcolor: "background.paper", zIndex: (t) => t.zIndex.drawer }}
-      />
+      <AppBar
+        position="fixed"
+        color="inherit"
+        elevation={1}
+        sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}
+      >
+        <Toolbar>
+          <Typography
+            variant="h6"
+            noWrap
+            component={RouterLink}
+            to="/"
+            sx={{
+              textDecoration: "none",
+              color: "inherit",
+              fontWeight: 900,
+              letterSpacing: 0.3,
+            }}
+          >
+            Bibliotecário
+          </Typography>
 
-      <Box
-        component="main"
+          <Box sx={{ flex: 1 }} />
+
+          {!!user && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Chip
+                size="small"
+                color={asChild ? "secondary" : "primary"}
+                icon={
+                  asChild ? <ChildCareRounded /> : <FamilyRestroomRounded />
+                }
+                label={
+                  asChild
+                    ? "Modo criança"
+                    : isLibrarian || isAdmin
+                    ? isAdmin
+                      ? "Admin"
+                      : "Bibliotecário"
+                    : "Modo família"
+                }
+              />
+
+              {!!children.length && isFamily && (
+                <Tooltip title="Trocar de perfil">
+                  <IconButton onClick={handleOpenMenu}>
+                    <Avatar
+                      src={asChild ? acting?.avatarUrl ?? undefined : undefined}
+                      sx={{ width: 36, height: 36 }}
+                    >
+                      {asChild
+                        ? (acting?.name || "?").slice(0, 1).toUpperCase()
+                        : (user.fullName || "F").slice(0, 1).toUpperCase()}
+                    </Avatar>
+                    <ArrowDropDownRounded />
+                  </IconButton>
+                </Tooltip>
+              )}
+
+              <Menu anchorEl={anchorEl} open={open} onClose={handleCloseMenu}>
+                <MenuList dense disablePadding>
+                  {/* Família */}
+                  <MenuItem onClick={handlePickFamily}>
+                    <ListItemIcon>
+                      <FamilyRestroomRounded fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText primary="Família" />
+                  </MenuItem>
+
+                  <Divider />
+
+                  {/* Crianças */}
+                  {kids.map((c) => (
+                    <MenuItem
+                      key={c.id}
+                      onClick={() => handlePickChild(Number(c.id))}
+                    >
+                      <ListItemIcon>
+                        <ChildCareRounded fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText primary={c.name || "Criança"} />
+                    </MenuItem>
+                  ))}
+
+                  <Divider />
+
+                  {/* Ir para ecrã de perfis */}
+                  <MenuItem
+                    component={RouterLink}
+                    to="/profiles"
+                    onClick={handleCloseMenu}
+                  >
+                    <ListItemIcon>
+                      <PeopleAltRounded fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText primary="Escolher perfis" />
+                  </MenuItem>
+                </MenuList>
+              </Menu>
+
+              <Tooltip title="Terminar sessão">
+                <IconButton
+                  onClick={async () => {
+                    await logout();
+                    navigate("/auth/login", { replace: true }); // 👈 era "/login"
+                  }}
+                >
+                  <LogoutRounded />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
+        </Toolbar>
+      </AppBar>
+
+      <Drawer
+        variant="permanent"
         sx={{
-          ml: `${sidebarWidth}px`,
-          minHeight: "100vh",
-          width: `calc(100vw - ${sidebarWidth}px)`,
-          px: SIDE_PAD,
-          transition: (t) =>
-            t.transitions.create("margin-left", {
-              duration: t.transitions.duration.shorter,
-            }),
+          width: drawerWidth,
+          flexShrink: 0,
+          [`& .MuiDrawer-paper`]: {
+            width: drawerWidth,
+            boxSizing: "border-box",
+          },
         }}
       >
-        <Box
-          sx={{ mx: "auto", width: "100%", maxWidth: `${CONTENT_MAX_PX}px` }}
-        >
-          <Outlet />
+        <Toolbar />
+        <Box sx={{ overflow: "auto" }}>
+          <List>
+            {menuItems.map((it) => {
+              const active =
+                location.pathname === it.to ||
+                location.pathname.startsWith(it.to + "/");
+              return (
+                <ListItemButton
+                  key={it.to}
+                  component={NavLink}
+                  to={it.to}
+                  selected={active}
+                  sx={{
+                    borderRadius: 2,
+                    mx: 1,
+                    my: 0.25,
+                    "&.Mui-selected": { bgcolor: "action.selected" },
+                  }}
+                >
+                  <ListItemIcon>{it.icon}</ListItemIcon>
+                  <ListItemText primary={it.label} />
+                </ListItemButton>
+              );
+            })}
+          </List>
         </Box>
+      </Drawer>
+
+      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+        <Toolbar />
+        {loading ? (
+          <Typography sx={{ opacity: 0.6 }}>A carregar…</Typography>
+        ) : (
+          <Outlet />
+        )}
       </Box>
-    </GradientBackground>
+    </Box>
   );
 }

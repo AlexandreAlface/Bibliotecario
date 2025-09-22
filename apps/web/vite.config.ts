@@ -8,12 +8,16 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
-      "@bibliotecario/ui-web": path.resolve(__dirname, "../../packages/ui-web/src"),
+      "@bibliotecario/ui-web": path.resolve(
+        __dirname,
+        "../../packages/ui-web/src"
+      ),
     },
     dedupe: ["react", "react-dom", "@emotion/react", "@emotion/styled"],
     preserveSymlinks: true,
   },
   server: {
+    headers: { "Cache-Control": "no-store" },
     fs: {
       allow: [
         "..",
@@ -31,5 +35,17 @@ export default defineConfig({
         cookieDomainRewrite: "localhost",
       },
     },
+  },
+   optimizeDeps: {
+    force: true,
+    include: [
+      "@mui/material",
+      "@mui/icons-material/HomeRounded",
+      "@mui/icons-material/LogoutRounded",
+      "@mui/icons-material/ChildCareRounded",
+      "@mui/icons-material/PeopleAltRounded",
+      "@mui/icons-material/ArrowDropDownRounded",
+    ],
+    esbuildOptions: { target: "es2020" },
   },
 });

@@ -10,6 +10,13 @@ import "@fontsource/poppins/600.css";
 import { BibliotecarioThemeProvider } from "@bibliotecario/ui-web";
 import { AuthProvider } from "./contexts/AuthContext";
 
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js');
+  });
+}
+
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <AuthProvider>
     <BibliotecarioThemeProvider>

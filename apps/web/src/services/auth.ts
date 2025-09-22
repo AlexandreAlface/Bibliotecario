@@ -1,4 +1,3 @@
-// apps/web/src/services/auth.ts
 import { api } from "./https";
 
 export type WebChild = {
@@ -17,18 +16,14 @@ export type WebUser = {
   roles: string[];
   children?: WebChild[];
   actingChild?: WebChild | null;
-
-  // novos (tudo opcional)
   phone?: string | null;
   citizenCard?: string | null;
   address?: string | null;
 };
 
-// ----------------- Helpers de normalização (NOVO) -----------------
+// ----------------- Helpers -----------------
 function stripDiacritics(s: string): string {
-  return String(s || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 export function canonicalizeRole(role: string): string {
   return stripDiacritics(role).toUpperCase().trim();
@@ -44,7 +39,6 @@ export const isFamily = (u?: WebUser | null) =>
   hasRole(u, "FAMILY", "FAMILIA", "FAMÍLIA");
 export const isAdmin = (u?: WebUser | null) => hasRole(u, "ADMIN");
 
-/** Rota sugerida após login (NOVO) */
 export function pickLandingRoute(user: any) {
   if (hasAnyRole(user, "ADMIN", "ADMINISTRADOR", "ADMINISTRATOR", "ROLE_ADMIN"))
     return "/admin";
@@ -53,7 +47,7 @@ export function pickLandingRoute(user: any) {
   return "/";
 }
 
-// ----------------- Normalizadores existentes -----------------
+// ----------------- Normalizadores -----------------
 function normalizeChild(raw: any): WebChild {
   return {
     id: Number(raw?.id ?? raw?.childId ?? raw?.kidId ?? 0),
@@ -73,10 +67,9 @@ function normalizeUser(raw: any): WebUser {
     [raw?.firstName, raw?.lastName].filter(Boolean).join(" ") ??
     "Família";
 
-  // roles (aceita vários formatos)
   const rawRoles =
     raw?.roles ??
-    raw?.userRoles ?? // [{ role: { name } }]
+    raw?.userRoles ??
     raw?.perfis ??
     [];
   const roles = Array.isArray(rawRoles)
@@ -85,7 +78,6 @@ function normalizeUser(raw: any): WebUser {
         .filter(Boolean)
     : [];
 
-  // children podem vir embrulhados (ChildFamily, profiles, etc.)
   const rawChildren =
     raw?.children ??
     raw?.childFamilies ??
@@ -98,11 +90,9 @@ function normalizeUser(raw: any): WebUser {
     ? rawChildren.map((c: any) => normalizeChild(c?.child ?? c?.profile ?? c))
     : [];
 
-  // acting child (contexto ativo)
   const actingRaw =
     raw?.actingChild ?? raw?.currentChild ?? raw?.childContext ?? null;
 
-  // campos extra opcionais
   const phone =
     raw?.phone ?? raw?.telefone ?? raw?.mobile ?? raw?.phoneNumber ?? null;
   const citizenCard =
@@ -126,27 +116,18 @@ export function normalizeRoleNames(user: any): string[] {
   const set = new Set<string>();
   const add = (v: any) => {
     if (!v) return;
-    const s = String(v)
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "") // remove acentos
-      .toUpperCase()
-      .trim();
+    const s = String(v).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
     if (s) set.add(s);
   };
 
-  // 1) roles como array de strings/objetos
   if (Array.isArray(user?.roles)) {
     for (const r of user.roles)
       add(typeof r === "string" ? r : r?.name ?? r?.role ?? r);
   }
-
-  // 2) userRoles estilo Prisma (UserRole -> Role.name)
   if (Array.isArray(user?.userRoles)) {
     for (const ur of user.userRoles)
       add(ur?.role?.name ?? ur?.roleName ?? ur?.name);
   }
-
-  // 3) outras variantes comuns
   if (Array.isArray(user?.roles?.items)) {
     for (const r of user.roles.items)
       add(typeof r === "string" ? r : r?.name ?? r);
@@ -159,11 +140,7 @@ export function hasAnyRole(user: any, ...wanted: string[]) {
   const roles = normalizeRoleNames(user);
   const W = new Set(
     wanted.map((w) =>
-      String(w)
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toUpperCase()
-        .trim()
+      String(w).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim()
     )
   );
   const alias: Record<string, string> = {
@@ -176,10 +153,7 @@ export function hasAnyRole(user: any, ...wanted: string[]) {
   return roles.some((r) => W.has(r) || (alias[r] && W.has(alias[r])));
 }
 
-/** Para decidir a rota de aterragem após login. */
-
 // -- API helpers --------------------------------------------------------------
-
 export async function updateMe(patch: {
   fullName?: string;
   email?: string;
@@ -198,14 +172,18 @@ export async function updateMe(patch: {
   return normalizeUser(data ?? {});
 }
 
-export async function getMe(): Promise<WebUser> {
-  const { data } = await api.get("/auth/me");
-  return normalizeUser(data ?? {});
+export async function getMe(): Promise<WebUser | null> {
+  try {
+    const { data } = await api.get("/auth/me");
+    return normalizeUser(data ?? {});
+  } catch (e: any) {
+    if (e?.response?.status === 401) return null;
+    throw e;
+  }
 }
 
 export async function login(email: string, password: string) {
   await api.post("/auth/login", { email, password });
-  // devolve o utilizador normalizado para o caller decidir o redirect
   return getMe();
 }
 
@@ -213,8 +191,7 @@ export async function logout() {
   await api.post("/auth/logout");
 }
 
-export async function actAsChild(childId: number): Promise<WebUser> {
-  // tenta rota atual; se 404, tenta alternativas comuns
+export async function actAsChild(childId: number): Promise<WebUser | null> {
   try {
     await api.post("/auth/act-as-child", { childId });
   } catch (e: any) {
@@ -231,7 +208,7 @@ export async function actAsChild(childId: number): Promise<WebUser> {
   return getMe();
 }
 
-export async function clearActingChild(): Promise<WebUser> {
+export async function clearActingChild(): Promise<WebUser | null> {
   try {
     await api.post("/auth/act-as-clear");
   } catch (e: any) {
@@ -248,7 +225,6 @@ export async function clearActingChild(): Promise<WebUser> {
   return getMe();
 }
 
-// aliases, se usas noutros sítios
 export const meSvc = getMe;
 export const loginSvc = login;
 export const logoutSvc = logout;

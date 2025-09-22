@@ -1,15 +1,18 @@
+// apps/web/src/services/https.ts
 import axios from "axios";
 
+const base =
+  (window as any).__API_BASE__ ||
+  (import.meta as any).env?.VITE_API_URL ||
+  "/api";
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3333/api",
-  withCredentials: true,
-  headers: { "Content-Type": "application/json" },
+  baseURL: String(base).replace(/\/$/, ""),
+  withCredentials: true, // 👈 ESSENCIAL para mandar cookie httpOnly
 });
 
+// (opcional) não redireciono aqui; deixo os callers decidirem
 api.interceptors.response.use(
-  r => r,
-  err => {
-    console.warn("[API ERROR]", err?.response?.status, err?.response?.data || err.message);
-    throw err;
-  }
+  (r) => r,
+  (err) => Promise.reject(err)
 );
