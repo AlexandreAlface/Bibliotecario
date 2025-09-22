@@ -19,6 +19,7 @@ import {
   Toolbar,
   Tooltip,
   Typography,
+  Stack,
 } from "@mui/material";
 import {
   Link as RouterLink,
@@ -49,6 +50,8 @@ import DashboardCustomizeRounded from "@mui/icons-material/DashboardCustomizeRou
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
 
 import { useUserSession } from "@/contexts/UserSession";
+import { GradientBackgroundWithShapes, Logo } from "@bibliotecario/ui-web";
+import { alpha } from "@mui/material/styles";
 
 const drawerWidth = 248;
 
@@ -66,7 +69,7 @@ function buildMenu(opts: {
     return [
       { to: "/", label: "Início", icon: <HomeRounded /> },
       { to: "/reading", label: "Leituras", icon: <LibraryBooksRounded /> },
-      { to: "/eventos", label: "Eventos", icon: <EventAvailableRounded /> }, 
+      { to: "/eventos", label: "Eventos", icon: <EventAvailableRounded /> },
       { to: "/suggestions", label: "Sugestões", icon: <EmojiEventsRounded /> },
       {
         to: "/suggestions-categories",
@@ -78,16 +81,15 @@ function buildMenu(opts: {
         label: "Conquistas",
         icon: <EmojiEventsRounded />,
       },
-      
+      { to: "/reviews", label: "Opiniões", icon: <RateReviewRounded /> },
     ];
   }
 
-  const items: NavItem[] = [
-    { to: "/", label: "Início", icon: <HomeRounded /> },
-  ];
+  const items: NavItem[] = [];
 
   if (isFamily) {
     items.push(
+      { to: "/", label: "Início", icon: <HomeRounded /> },
       { to: "/familia", label: "Família", icon: <FamilyRestroomRounded /> },
       { to: "/consultas", label: "Consultas", icon: <PeopleAltRounded /> },
       { to: "/eventos", label: "Eventos", icon: <EventAvailableRounded /> },
@@ -112,32 +114,32 @@ function buildMenu(opts: {
     items.push(
       {
         to: "/librarian",
-        label: "Equipa · Início",
+        label: "Início",
         icon: <DashboardCustomizeRounded />,
       },
       {
         to: "/librarian/consultas/pendentes",
-        label: "Equipa · Pendentes",
+        label: "Pendentes",
         icon: <EventAvailableRounded />,
       },
       {
         to: "/librarian/agenda",
-        label: "Equipa · Agenda",
+        label: "Agenda",
         icon: <CalendarMonthRounded />,
       },
       {
         to: "/librarian/familias",
-        label: "Equipa · Famílias",
+        label: "Famílias",
         icon: <PeopleAltRounded />,
       },
       {
         to: "/librarian/slots",
-        label: "Equipa · Slots",
+        label: "Slots",
         icon: <ScheduleRounded />,
       },
       {
         to: "/librarian/historico",
-        label: "Equipa · Histórico",
+        label: "Histórico",
         icon: <HistoryRounded />,
       }
     );
@@ -147,40 +149,39 @@ function buildMenu(opts: {
     items.push(
       {
         to: "/admin",
-        label: "Admin · Início",
+        label: "Início",
         icon: <AdminPanelSettingsRounded />,
       },
       {
         to: "/admin/bibliotecarios",
-        label: "Admin · Bibliotecários",
+        label: "Bibliotecários",
         icon: <PeopleAltRounded />,
       },
       {
         to: "/admin/familias",
-        label: "Admin · Famílias",
+        label: "Famílias",
         icon: <PeopleAltRounded />,
       },
-      { to: "/admin/slots", label: "Admin · Slots", icon: <ScheduleRounded /> },
+      { to: "/admin/slots", label: "Slots", icon: <ScheduleRounded /> },
       {
         to: "/admin/propostas",
-        label: "Admin · Propostas",
+        label: "Propostas",
         icon: <ListAltRounded />,
       },
       {
         to: "/admin/eventos",
-        label: "Admin · Eventos",
+        label: "Eventos",
         icon: <EventAvailableRounded />,
       },
-      { to: "/admin/feeds", label: "Admin · Feeds", icon: <RssFeedRounded /> },
+      { to: "/admin/feeds", label: "Feeds", icon: <RssFeedRounded /> },
       {
         to: "/admin/metricas",
-        label: "Admin · Métricas",
+        label: "Métricas",
         icon: <QueryStatsRounded />,
       }
     );
   }
 
-  // remove duplicados (caso o user acumule papéis)
   const seen = new Set<string>();
   return items.filter((it) =>
     seen.has(it.to) ? false : (seen.add(it.to), true)
@@ -214,54 +215,125 @@ export default function AppLayout() {
     [asChild, isFamily, isLibrarian, isAdmin]
   );
 
+  function matchesPath(pathname: string, base: string) {
+    const p = pathname.replace(/\/+$/, "");
+    const b = base.replace(/\/+$/, "");
+    if (b === "/") return p === "/";
+    return p === b || p.startsWith(b + "/");
+  }
+
+  // escolhe o item com o 'to' mais longo que casa com o path atual
+  const activeTo = React.useMemo(() => {
+    const path = location.pathname;
+    let best = "";
+    for (const it of menuItems) {
+      if (matchesPath(path, it.to) && it.to.length > best.length) {
+        best = it.to;
+      }
+    }
+    return best;
+  }, [location.pathname, menuItems]);
+
   const handlePickFamily = async () => {
     setAnchorEl(null);
     await clearChild();
     if (location.pathname.startsWith("/profiles"))
       navigate("/", { replace: true });
   };
-
   const handlePickChild = async (childId: number) => {
     setAnchorEl(null);
     await setSelectedChildId(childId);
     if (location.pathname.startsWith("/profiles"))
       navigate("/", { replace: true });
   };
-
   const handleOpenMenu = (e: React.MouseEvent<HTMLElement>) =>
     setAnchorEl(e.currentTarget);
   const handleCloseMenu = () => setAnchorEl(null);
+
+  const activeName = React.useMemo(() => {
+    if (asChild && acting?.name) return acting.name;
+    if (isFamily) return `Família ${user?.fullName ?? ""}`.trim();
+    return user?.fullName ?? "";
+  }, [asChild, acting?.name, isFamily, user?.fullName]);
+
+  const activeRole = React.useMemo(() => {
+    if (asChild) return "Criança";
+    if (isAdmin) return "Admin";
+    if (isLibrarian) return "Bibliotecário";
+    if (isFamily) return "Família";
+    return "";
+  }, [asChild, isAdmin, isLibrarian, isFamily]);
+
+  // helpers de “glass” para garantir contraste sobre o gradiente
+  const glassStyles = (t: any) => ({
+    backgroundColor: "rgba(255,255,255,.60)",
+    backgroundImage: `linear-gradient(90deg, ${alpha(
+      t.palette.secondary.main,
+      0.18
+    )}, ${alpha(t.palette.primary.main, 0.18)})`,
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
+    borderColor: alpha(t.palette.common.black, 0.06),
+    boxShadow: "0 10px 30px rgba(0,0,0,.08)",
+  });
 
   return (
     <Box sx={{ display: "flex" }}>
       <CssBaseline />
 
+      {/* TOPBAR harmonizada com o gradiente */}
       <AppBar
         position="fixed"
-        color="inherit"
-        elevation={1}
-        sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}
+        color="transparent"
+        elevation={0}
+        sx={(t) => ({
+          zIndex: (th) => th.zIndex.drawer + 1,
+          borderBottom: "1px solid",
+          ...glassStyles(t),
+        })}
       >
-        <Toolbar>
-          <Typography
+        <Toolbar
+          sx={{
+            height: 64, // 👈 fixa a altura
+            minHeight: 64,
+            py: 0,
+            alignItems: "center",
+          }}
+        >
+          {/* Caixa do logo controla o tamanho máximo */}
+          <Box
+            sx={{
+              height: { xs: 40, sm: 46, md: 52 }, // 👈 aumenta aqui sem crescer a barra
+              lineHeight: 0,
+              overflow: "hidden",
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+             <Typography
             variant="h6"
             noWrap
             component={RouterLink}
             to="/"
             sx={{
               textDecoration: "none",
-              color: "inherit",
+              color: "text.primary",
               fontWeight: 900,
               letterSpacing: 0.3,
             }}
           >
             Bibliotecário
           </Typography>
+            {/* não passes width; deixa a altura mandar */}
+            <Logo
+              variant={"bf"}
+              sx={{ height: "100%", width: "auto" }}
+            />
+          </Box>
 
           <Box sx={{ flex: 1 }} />
-
           {!!user && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <Chip
                 size="small"
                 color={asChild ? "secondary" : "primary"}
@@ -277,14 +349,32 @@ export default function AppLayout() {
                       : "Bibliotecário"
                     : "Modo família"
                 }
+                sx={{ fontWeight: 700 }}
               />
+
+              <Stack
+                alignItems="flex-end"
+                sx={{ display: { xs: "none", sm: "flex" }, mr: 0.5 }}
+              >
+                <Typography
+                  variant="subtitle2"
+                  fontWeight={800}
+                  noWrap
+                  title={activeName}
+                >
+                  {activeName || "—"}
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                  {activeRole}
+                </Typography>
+              </Stack>
 
               {!!children.length && isFamily && (
                 <Tooltip title="Trocar de perfil">
-                  <IconButton onClick={handleOpenMenu}>
+                  <IconButton onClick={handleOpenMenu} sx={{ ml: 0.5 }}>
                     <Avatar
                       src={asChild ? acting?.avatarUrl ?? undefined : undefined}
-                      sx={{ width: 36, height: 36 }}
+                      sx={{ width: 36, height: 36, fontWeight: 800 }}
                     >
                       {asChild
                         ? (acting?.name || "?").slice(0, 1).toUpperCase()
@@ -297,7 +387,6 @@ export default function AppLayout() {
 
               <Menu anchorEl={anchorEl} open={open} onClose={handleCloseMenu}>
                 <MenuList dense disablePadding>
-                  {/* Família */}
                   <MenuItem onClick={handlePickFamily}>
                     <ListItemIcon>
                       <FamilyRestroomRounded fontSize="small" />
@@ -307,7 +396,6 @@ export default function AppLayout() {
 
                   <Divider />
 
-                  {/* Crianças */}
                   {kids.map((c) => (
                     <MenuItem
                       key={c.id}
@@ -322,7 +410,6 @@ export default function AppLayout() {
 
                   <Divider />
 
-                  {/* Ir para ecrã de perfis */}
                   <MenuItem
                     component={RouterLink}
                     to="/profiles"
@@ -340,7 +427,7 @@ export default function AppLayout() {
                 <IconButton
                   onClick={async () => {
                     await logout();
-                    navigate("/auth/login", { replace: true }); // 👈 era "/login"
+                    navigate("/auth/login", { replace: true });
                   }}
                 >
                   <LogoutRounded />
@@ -351,36 +438,59 @@ export default function AppLayout() {
         </Toolbar>
       </AppBar>
 
+      {/* SIDENAV com “frosted glass” + pill nos ativos */}
       <Drawer
         variant="permanent"
-        sx={{
+        sx={(t) => ({
           width: drawerWidth,
           flexShrink: 0,
           [`& .MuiDrawer-paper`]: {
             width: drawerWidth,
             boxSizing: "border-box",
+            borderRight: "1px solid",
+            ...glassStyles(t),
           },
-        }}
+        })}
       >
         <Toolbar />
-        <Box sx={{ overflow: "auto" }}>
+        <Box sx={{ overflow: "auto", py: 1 }}>
           <List>
             {menuItems.map((it) => {
-              const active =
-                location.pathname === it.to ||
-                location.pathname.startsWith(it.to + "/");
+              const active = it.to === activeTo; // 👈 só UM fica ativo
               return (
                 <ListItemButton
                   key={it.to}
                   component={NavLink}
                   to={it.to}
                   selected={active}
-                  sx={{
-                    borderRadius: 2,
-                    mx: 1,
-                    my: 0.25,
-                    "&.Mui-selected": { bgcolor: "action.selected" },
-                  }}
+                  sx={(theme) => ({
+                    borderRadius: 999,
+                    mx: 1.25,
+                    my: 0.5,
+                    px: 1.5,
+                    "& .MuiListItemIcon-root": {
+                      minWidth: 40,
+                      color: active
+                        ? theme.palette.primary.main
+                        : theme.palette.text.secondary,
+                    },
+                    "& .MuiListItemText-primary": {
+                      fontWeight: active ? 800 : 600,
+                    },
+                    "&.Mui-selected": {
+                      backgroundImage: `linear-gradient(135deg,
+                        ${alpha(theme.palette.secondary.main, 0.18)},
+                        ${alpha(theme.palette.primary.main, 0.18)})`,
+                      border: `1px solid ${alpha(
+                        theme.palette.primary.main,
+                        0.25
+                      )}`,
+                      boxShadow: "0 6px 16px rgba(0,0,0,.08)",
+                    },
+                    "&:hover": {
+                      backgroundColor: alpha(theme.palette.common.white, 0.4),
+                    },
+                  })}
                 >
                   <ListItemIcon>{it.icon}</ListItemIcon>
                   <ListItemText primary={it.label} />
@@ -391,13 +501,24 @@ export default function AppLayout() {
         </Box>
       </Drawer>
 
-      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
-        <Toolbar />
-        {loading ? (
-          <Typography sx={{ opacity: 0.6 }}>A carregar…</Typography>
-        ) : (
-          <Outlet />
-        )}
+      {/* CONTEÚDO com o gradiente+formas */}
+      <Box component="main" sx={{ flexGrow: 1, p: 0, position: "relative" }}>
+        <Toolbar sx={{ minHeight: 68 }} />
+        <GradientBackgroundWithShapes
+          decorations={12}
+          floating
+          seed={2025}
+          sx={{
+            minHeight: "calc(100vh - 68px)",
+            p: { xs: 2, sm: 3 },
+          }}
+        >
+          {loading ? (
+            <Typography sx={{ opacity: 0.6 }}>A carregar…</Typography>
+          ) : (
+            <Outlet />
+          )}
+        </GradientBackgroundWithShapes>
       </Box>
     </Box>
   );

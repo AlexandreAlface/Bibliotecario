@@ -4,7 +4,7 @@ var material = require('@mui/material');
 var styles = require('@mui/material/styles');
 var jsxRuntime = require('react/jsx-runtime');
 var system = require('@mui/system');
-var React4 = require('react');
+var React = require('react');
 var TextField = require('@mui/material/TextField');
 var InputAdornment = require('@mui/material/InputAdornment');
 var IconButton = require('@mui/material/IconButton');
@@ -47,7 +47,7 @@ function _interopNamespace(e) {
   return Object.freeze(n);
 }
 
-var React4__namespace = /*#__PURE__*/_interopNamespace(React4);
+var React__namespace = /*#__PURE__*/_interopNamespace(React);
 var TextField__default = /*#__PURE__*/_interopDefault(TextField);
 var InputAdornment__default = /*#__PURE__*/_interopDefault(InputAdornment);
 var IconButton__default = /*#__PURE__*/_interopDefault(IconButton);
@@ -168,7 +168,7 @@ var Styled2 = material.styled(material.Button, {
 function SecondaryButton(props) {
   return /* @__PURE__ */ jsxRuntime.jsx(Styled2, { variant: "outlined", ...props });
 }
-var EmailField = React4.forwardRef(function EmailField2({ inputRef, ...props }, ref) {
+var EmailField = React.forwardRef(function EmailField2({ inputRef, ...props }, ref) {
   return /* @__PURE__ */ jsxRuntime.jsx(
     TextField__default.default,
     {
@@ -228,8 +228,8 @@ function NumericField(props) {
     }
   );
 }
-var PasswordField = React4.forwardRef(function PasswordField2({ InputProps, ...rest }, ref) {
-  const [show, setShow] = React4.useState(false);
+var PasswordField = React.forwardRef(function PasswordField2({ InputProps, ...rest }, ref) {
+  const [show, setShow] = React.useState(false);
   return /* @__PURE__ */ jsxRuntime.jsx(
     TextField__default.default,
     {
@@ -302,7 +302,7 @@ var StyledLink = material.styled(material.Link, {
     outlineOffset: 2
   }
 }));
-var RouteLink = React4.forwardRef(
+var RouteLink = React.forwardRef(
   function RouteLink2(props, ref) {
     return /* @__PURE__ */ jsxRuntime.jsx(StyledLink, { ref, ...props });
   }
@@ -321,7 +321,7 @@ var StyledCard = material.styled(material.Card, {
 function WhiteCard(props) {
   return /* @__PURE__ */ jsxRuntime.jsx(StyledCard, { variant: "outlined", ...props });
 }
-var GradientBackground = styles.styled(material.Box, {
+var GradientBackgroundRoot = styles.styled(material.Box, {
   shouldForwardProp: (prop) => prop !== "from" && prop !== "to" && prop !== "angle"
 })(({ theme: theme2, from, to, angle = 135 }) => ({
   minHeight: "100vh",
@@ -330,7 +330,144 @@ var GradientBackground = styles.styled(material.Box, {
   position: "relative",
   overflow: "hidden"
 }));
-var Circle = system.styled(material.Box, {
+function mulberry32(seed) {
+  return function() {
+    let t = seed += 1831565813;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+var ShapesLayer = styles.styled("div")({
+  position: "absolute",
+  inset: 0,
+  pointerEvents: "none",
+  zIndex: 0
+});
+var ShapeWrap = styles.styled("div")({
+  position: "absolute",
+  willChange: "transform"
+});
+var Square = styles.styled("div")(
+  ({ size, color }) => ({
+    position: "absolute",
+    width: size,
+    height: size,
+    background: color,
+    borderRadius: 6,
+    // rotação (base + spin) por CSS var/anim
+    transform: "rotate(var(--rot, 0deg))"
+  })
+);
+var Circle = styles.styled("div")(
+  ({ size, color }) => ({
+    position: "absolute",
+    width: size,
+    height: size,
+    background: color,
+    borderRadius: "50%",
+    // roda também (mesmo que não se note visualmente num círculo sólido)
+    transform: "rotate(var(--rot, 0deg))"
+  })
+);
+var Triangle = styles.styled("div")(
+  ({ size, color }) => ({
+    position: "absolute",
+    width: 0,
+    height: 0,
+    borderLeft: `${size / 2}px solid transparent`,
+    borderRight: `${size / 2}px solid transparent`,
+    borderBottom: `${size}px solid ${color}`,
+    transform: "rotate(var(--rot, 0deg))"
+  })
+);
+function GradientBackgroundWithShapes({
+  children,
+  decorations = true,
+  seed = 1337,
+  minSize = 16,
+  maxSize = 56,
+  shapeColor,
+  floating = true,
+  spin = true,
+  from,
+  to,
+  angle,
+  sx,
+  ...rest
+}) {
+  const count = decorations === true ? 10 : decorations === false ? 0 : decorations;
+  const shapes = React__namespace.useMemo(() => {
+    const rnd = mulberry32(seed);
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      const r = rnd();
+      const type = r < 0.34 ? "triangle" : r < 0.67 ? "square" : "circle";
+      const size = Math.round(minSize + rnd() * (maxSize - minSize));
+      const top = Math.round(rnd() * 92) + 4;
+      const left = Math.round(rnd() * 92) + 4;
+      const rotate = Math.round(rnd() * 360);
+      const opacity = 0.12 + rnd() * 0.14;
+      const floatDuration = 8 + rnd() * 10;
+      const floatDelay = -rnd() * 8;
+      let spinDuration;
+      let spinReverse = rnd() < 0.5;
+      if (spin) {
+        spinDuration = typeof spin === "number" ? Math.max(2, spin) : 20 + rnd() * 20;
+      }
+      arr.push({
+        type,
+        size,
+        top,
+        left,
+        rotate,
+        opacity,
+        floatDuration,
+        floatDelay,
+        spinDuration,
+        spinReverse
+      });
+    }
+    return arr;
+  }, [count, minSize, maxSize, seed, spin]);
+  return /* @__PURE__ */ jsxRuntime.jsxs(GradientBackgroundRoot, { from, to, angle, sx, ...rest, children: [
+    /* @__PURE__ */ jsxRuntime.jsx(ShapesLayer, { children: shapes.map((s, i) => {
+      const wrapStyle = {
+        top: `${s.top}%`,
+        left: `${s.left}%`,
+        opacity: s.opacity,
+        animation: floating ? `floatY ${s.floatDuration}s ease-in-out ${s.floatDelay}s infinite alternate` : void 0
+      };
+      const innerStyle = {
+        // CSS var com a rotação base
+        ["--rot"]: `${s.rotate}deg`,
+        animation: s.spinDuration ? `spin var(--spinDur) linear infinite` : void 0,
+        // passar a duração do spin por var para poder variar por elemento
+        ["--spinDur"]: s.spinDuration ? `${s.spinDuration}s` : void 0,
+        animationDirection: s.spinReverse ? "reverse" : "normal"
+      };
+      const color = shapeColor != null ? shapeColor : styles.alpha("#fff", Math.min(s.opacity + 0.05, 0.35));
+      return /* @__PURE__ */ jsxRuntime.jsxs(ShapeWrap, { style: wrapStyle, children: [
+        s.type === "square" && /* @__PURE__ */ jsxRuntime.jsx(Square, { size: s.size, color, style: innerStyle }),
+        s.type === "circle" && /* @__PURE__ */ jsxRuntime.jsx(Circle, { size: s.size, color, style: innerStyle }),
+        s.type === "triangle" && /* @__PURE__ */ jsxRuntime.jsx(Triangle, { size: s.size, color, style: innerStyle })
+      ] }, i);
+    }) }),
+    /* @__PURE__ */ jsxRuntime.jsx(material.Box, { sx: { position: "relative", zIndex: 1 }, children }),
+    /* @__PURE__ */ jsxRuntime.jsx("style", { children: `
+        @keyframes floatY {
+          from { transform: translateY(0) }
+          to   { transform: translateY(-10px) }
+        }
+        /* 'spin' respeita a rota\xE7\xE3o base atrav\xE9s da CSS var --rot */
+        @keyframes spin {
+          from { transform: rotate(var(--rot, 0deg)); }
+          to   { transform: rotate(calc(var(--rot, 0deg) + 360deg)); }
+        }
+      ` })
+  ] });
+}
+var Circle2 = system.styled(material.Box, {
   shouldForwardProp: (prop) => !["accentColor", "circleSize", "circleBorderWidth", "circleBorderColor"].includes(
     prop
   )
@@ -365,7 +502,7 @@ var InfoStepCard = ({
 }) => {
   return /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { position: "relative", textAlign: "center", mt: 2, width: "100%", children: [
     /* @__PURE__ */ jsxRuntime.jsx(
-      Circle,
+      Circle2,
       {
         accentColor: accentColor || "",
         circleSize,
@@ -441,24 +578,43 @@ var HowItWorksSection = ({
 
 // src/components/Logo/LogoBiblio.svg
 var LogoBiblio_default = "./LogoBiblio-OW4T5D4X.svg";
+
+// src/components/Logo/AF_Logo_BF.svg
+var AF_Logo_BF_default = "./AF_Logo_BF-4D6RHLE2.svg";
 var Logo = ({
-  width = "120px",
-  height = "auto",
+  alt = "Bibliotec\xE1rio",
+  variant = "biblio",
+  src: srcProp,
   sx,
-  ...boxProps
-}) => /* @__PURE__ */ jsxRuntime.jsx(
-  material.Box,
-  {
-    component: "img",
-    src: LogoBiblio_default,
-    alt: "Log\xF3tipo",
-    sx: [
-      { display: "block", width, height },
-      ...Array.isArray(sx) ? sx : [sx]
-    ],
-    ...boxProps
-  }
-);
+  ...rest
+}) => {
+  const src = srcProp != null ? srcProp : variant === "bf" ? AF_Logo_BF_default : LogoBiblio_default;
+  return /* @__PURE__ */ jsxRuntime.jsx(
+    material.Box,
+    {
+      component: "img",
+      src,
+      alt,
+      sx: [
+        {
+          display: "block",
+          height: "100%",
+          // ocupa a altura do contentor
+          width: "auto",
+          // mantém proporção
+          objectFit: "contain",
+          objectPosition: "left center",
+          lineHeight: 0,
+          flexShrink: 0
+        },
+        ...Array.isArray(sx) ? sx : [sx]
+      ],
+      ...rest
+    }
+  );
+};
+var BiblioLogo = (p) => /* @__PURE__ */ jsxRuntime.jsx(Logo, { variant: "biblio", ...p });
+var FamilyLogo = (p) => /* @__PURE__ */ jsxRuntime.jsx(Logo, { variant: "bf", ...p });
 var SelectableOptions = ({
   label,
   options,
@@ -512,12 +668,12 @@ var AvatarUpload = ({
   placeholder,
   sx
 }) => {
-  const inputRef = React4.useRef(null);
-  const [url, setUrl] = React4.useState(value != null ? value : null);
-  React4.useEffect(() => {
+  const inputRef = React.useRef(null);
+  const [url, setUrl] = React.useState(value != null ? value : null);
+  React.useEffect(() => {
     value !== void 0 && setUrl(value);
   }, [value]);
-  React4.useEffect(() => {
+  React.useEffect(() => {
     return () => {
       url && url.startsWith("blob:") && URL.revokeObjectURL(url);
     };
@@ -676,7 +832,7 @@ var SidebarMenu = ({
   headerSubtitle,
   headerAvatarUrl
 }) => {
-  const [internal, setInternal] = React4.useState(true);
+  const [internal, setInternal] = React.useState(true);
   const open = controlled != null ? controlled : internal;
   const toggle = () => onToggle ? onToggle(!open) : setInternal(!open);
   const render = (arr) => arr.map(({ label, icon, selected, ...rest }) => /* @__PURE__ */ jsxRuntime.jsx(
@@ -778,7 +934,7 @@ var NotificationBell = ({
   showZero = false,
   ...iconButtonProps
 }) => {
-  const [anchor, setAnchor] = React4.useState(null);
+  const [anchor, setAnchor] = React.useState(null);
   const open = Boolean(anchor);
   const unread = items.filter((i) => !i.lida).length;
   return /* @__PURE__ */ jsxRuntime.jsxs(jsxRuntime.Fragment, { children: [
@@ -873,7 +1029,7 @@ var AvatarSelect = ({
   minWidth = 200,
   sx
 }) => {
-  const labelId = React4__namespace.useId();
+  const labelId = React__namespace.useId();
   options.find((o) => String(o.id) === String(value));
   return /* @__PURE__ */ jsxRuntime.jsxs(material.FormControl, { size: "small", sx: { minWidth, ...sx }, children: [
     label && /* @__PURE__ */ jsxRuntime.jsx(material.InputLabel, { id: labelId, children: label }),
@@ -910,7 +1066,7 @@ var QuizProgressBar = ({
   total,
   mostrarTexto = true
 }) => {
-  const pct = React4.useMemo(() => total > 0 ? passo / total * 100 : 0, [passo, total]);
+  const pct = React.useMemo(() => total > 0 ? passo / total * 100 : 0, [passo, total]);
   return /* @__PURE__ */ jsxRuntime.jsxs(material.Box, { children: [
     mostrarTexto && /* @__PURE__ */ jsxRuntime.jsxs(material.Typography, { variant: "caption", mb: 0.5, display: "block", children: [
       Math.round(pct),
@@ -946,12 +1102,12 @@ function ColumnFilterPopper({
   onClose,
   onApply
 }) {
-  const [query, setQuery] = React4.useState("");
-  const [local, setLocal] = React4.useState(new Set(selected));
-  React4.useEffect(() => {
+  const [query, setQuery] = React.useState("");
+  const [local, setLocal] = React.useState(new Set(selected));
+  React.useEffect(() => {
     if (open) setLocal(new Set(selected));
   }, [open, selected]);
-  const list = React4.useMemo(
+  const list = React.useMemo(
     () => values.filter(
       (v) => String(v != null ? v : "").toLowerCase().includes(query.toLowerCase())
     ),
@@ -1004,11 +1160,11 @@ function SimpleDataTable({
   sx
 }) {
   var _a;
-  const [page, setPage] = React4.useState(0);
-  const [perPage, setPerPage] = React4.useState(rowsPerPageOptions[0]);
-  const [filters, setFilters] = React4.useState({});
-  const [anchor, setAnchor] = React4.useState(null);
-  const [colFilter, setColFilter] = React4.useState(null);
+  const [page, setPage] = React.useState(0);
+  const [perPage, setPerPage] = React.useState(rowsPerPageOptions[0]);
+  const [filters, setFilters] = React.useState({});
+  const [anchor, setAnchor] = React.useState(null);
+  const [colFilter, setColFilter] = React.useState(null);
   const filteredRows = rows.filter(
     (r) => columns.every((c) => {
       var _a2;
@@ -1100,12 +1256,12 @@ var BookCard = ({
   onReserve
 }) => {
   const theme2 = material.useTheme();
-  const [currentCoverImage, setCurrentCoverImage] = React4.useState(coverImage);
-  React4.useEffect(() => {
+  const [currentCoverImage, setCurrentCoverImage] = React.useState(coverImage);
+  React.useEffect(() => {
     setCurrentCoverImage(coverImage);
   }, [coverImage]);
-  const [currentRating, setCurrentRating] = React4.useState(rating);
-  const [currentComment, setCurrentComment] = React4.useState(comment);
+  const [currentRating, setCurrentRating] = React.useState(rating);
+  const [currentComment, setCurrentComment] = React.useState(comment);
   const handleSave = () => onSave == null ? void 0 : onSave(currentRating, currentComment, currentCoverImage);
   const handleReserve = () => onReserve == null ? void 0 : onReserve();
   return /* @__PURE__ */ jsxRuntime.jsxs(
@@ -1189,10 +1345,10 @@ var BookCard = ({
   );
 };
 function useAgendaFeed(feedUrl) {
-  const [items, setItems] = React4.useState(null);
-  const [loading, setLoading] = React4.useState(true);
-  const [error, setError] = React4.useState(null);
-  React4.useEffect(() => {
+  const [items, setItems] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
+  React.useEffect(() => {
     if (!feedUrl) return;
     setLoading(true);
     fetch(feedUrl).then((res) => res.text()).then((xmlText) => {
@@ -1351,7 +1507,7 @@ var AgendaLargeCard = ({
   imageRatio = "16/9",
   truncateLength = 200
 }) => {
-  const [expanded, setExpanded] = React4.useState(false);
+  const [expanded, setExpanded] = React.useState(false);
   const theme2 = material.useTheme();
   const decodeHtml = (html) => {
     const doc = new DOMParser().parseFromString(html, "text/html");
@@ -1440,8 +1596,8 @@ var FilterBar = ({
   chipIcons = {}
 }) => {
   const theme2 = material.useTheme();
-  const [anchorEl, setAnchorEl] = React4.useState(null);
-  const [activeFilter, setActiveFilter] = React4.useState(null);
+  const [anchorEl, setAnchorEl] = React.useState(null);
+  const [activeFilter, setActiveFilter] = React.useState(null);
   const openMenu = (e, filterId) => {
     setAnchorEl(e.currentTarget);
     setActiveFilter(filterId);
@@ -1666,11 +1822,13 @@ exports.AvatarListItem = AvatarListItem;
 exports.AvatarSelect = AvatarSelect;
 exports.AvatarUpload = AvatarUpload;
 exports.BaseTextField = BaseTextField;
+exports.BiblioLogo = BiblioLogo;
 exports.BibliotecarioThemeProvider = BibliotecarioThemeProvider;
 exports.BookCard = BookCard;
 exports.EmailField = EmailField;
+exports.FamilyLogo = FamilyLogo;
 exports.FilterBar = FilterBar;
-exports.GradientBackground = GradientBackground;
+exports.GradientBackgroundWithShapes = GradientBackgroundWithShapes;
 exports.HowItWorksSection = HowItWorksSection;
 exports.InfoStepCard = InfoStepCard_default;
 exports.Logo = Logo;

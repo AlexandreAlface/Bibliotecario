@@ -17,7 +17,7 @@ import ChildProfileForm, {
 } from "../../Forms/ChildProfileForm";
 import {
   AvatarListItem,
-  GradientBackground,
+  GradientBackgroundWithShapes,
   HowItWorksSection,
   PrimaryButton,
   WhiteCard,
@@ -144,7 +144,7 @@ const CreateProfilesPage: React.FC = () => {
   };
 
   return (
-    <GradientBackground
+    <GradientBackgroundWithShapes
       sx={{ height: "100vh" }}
       display="flex"
       justifyContent={"center"}
@@ -234,7 +234,7 @@ const CreateProfilesPage: React.FC = () => {
           </PrimaryButton>
         </WhiteCard>
       </Box>
-    </GradientBackground>
+    </GradientBackgroundWithShapes>
   );
 };
 

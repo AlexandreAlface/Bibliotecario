@@ -1,8 +1,8 @@
 import { styled, Button, alpha, TextField as TextField$1, Link, Card, Box, IconButton as IconButton$1, ThemeProvider, CssBaseline, Divider, Typography, Stack, FormControl, FormLabel, FormGroup, FormControlLabel, Checkbox, RadioGroup, Radio, Avatar, Tooltip, Drawer, List, Badge, Menu, ListItem, ListItemText, MenuItem, InputLabel, Select, ListItemIcon, LinearProgress, linearProgressClasses, Paper, TableContainer, Table, TableHead, TableRow, TableCell, TableBody, TablePagination, useTheme, CardMedia, CardContent, Rating, Collapse, Chip, Pagination, CardActionArea, InputAdornment as InputAdornment$1, ListItemButton, Popper, ClickAwayListener } from '@mui/material';
-import { createTheme, styled as styled$2 } from '@mui/material/styles';
+import { createTheme, styled as styled$2, alpha as alpha$1 } from '@mui/material/styles';
 import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
 import { shouldForwardProp, styled as styled$1 } from '@mui/system';
-import * as React4 from 'react';
+import * as React from 'react';
 import { forwardRef, useState, useRef, useEffect, useMemo } from 'react';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -277,7 +277,7 @@ var StyledCard = styled(Card, {
 function WhiteCard(props) {
   return /* @__PURE__ */ jsx(StyledCard, { variant: "outlined", ...props });
 }
-var GradientBackground = styled$2(Box, {
+var GradientBackgroundRoot = styled$2(Box, {
   shouldForwardProp: (prop) => prop !== "from" && prop !== "to" && prop !== "angle"
 })(({ theme: theme2, from, to, angle = 135 }) => ({
   minHeight: "100vh",
@@ -286,7 +286,144 @@ var GradientBackground = styled$2(Box, {
   position: "relative",
   overflow: "hidden"
 }));
-var Circle = styled$1(Box, {
+function mulberry32(seed) {
+  return function() {
+    let t = seed += 1831565813;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+var ShapesLayer = styled$2("div")({
+  position: "absolute",
+  inset: 0,
+  pointerEvents: "none",
+  zIndex: 0
+});
+var ShapeWrap = styled$2("div")({
+  position: "absolute",
+  willChange: "transform"
+});
+var Square = styled$2("div")(
+  ({ size, color }) => ({
+    position: "absolute",
+    width: size,
+    height: size,
+    background: color,
+    borderRadius: 6,
+    // rotação (base + spin) por CSS var/anim
+    transform: "rotate(var(--rot, 0deg))"
+  })
+);
+var Circle = styled$2("div")(
+  ({ size, color }) => ({
+    position: "absolute",
+    width: size,
+    height: size,
+    background: color,
+    borderRadius: "50%",
+    // roda também (mesmo que não se note visualmente num círculo sólido)
+    transform: "rotate(var(--rot, 0deg))"
+  })
+);
+var Triangle = styled$2("div")(
+  ({ size, color }) => ({
+    position: "absolute",
+    width: 0,
+    height: 0,
+    borderLeft: `${size / 2}px solid transparent`,
+    borderRight: `${size / 2}px solid transparent`,
+    borderBottom: `${size}px solid ${color}`,
+    transform: "rotate(var(--rot, 0deg))"
+  })
+);
+function GradientBackgroundWithShapes({
+  children,
+  decorations = true,
+  seed = 1337,
+  minSize = 16,
+  maxSize = 56,
+  shapeColor,
+  floating = true,
+  spin = true,
+  from,
+  to,
+  angle,
+  sx,
+  ...rest
+}) {
+  const count = decorations === true ? 10 : decorations === false ? 0 : decorations;
+  const shapes = React.useMemo(() => {
+    const rnd = mulberry32(seed);
+    const arr = [];
+    for (let i = 0; i < count; i++) {
+      const r = rnd();
+      const type = r < 0.34 ? "triangle" : r < 0.67 ? "square" : "circle";
+      const size = Math.round(minSize + rnd() * (maxSize - minSize));
+      const top = Math.round(rnd() * 92) + 4;
+      const left = Math.round(rnd() * 92) + 4;
+      const rotate = Math.round(rnd() * 360);
+      const opacity = 0.12 + rnd() * 0.14;
+      const floatDuration = 8 + rnd() * 10;
+      const floatDelay = -rnd() * 8;
+      let spinDuration;
+      let spinReverse = rnd() < 0.5;
+      if (spin) {
+        spinDuration = typeof spin === "number" ? Math.max(2, spin) : 20 + rnd() * 20;
+      }
+      arr.push({
+        type,
+        size,
+        top,
+        left,
+        rotate,
+        opacity,
+        floatDuration,
+        floatDelay,
+        spinDuration,
+        spinReverse
+      });
+    }
+    return arr;
+  }, [count, minSize, maxSize, seed, spin]);
+  return /* @__PURE__ */ jsxs(GradientBackgroundRoot, { from, to, angle, sx, ...rest, children: [
+    /* @__PURE__ */ jsx(ShapesLayer, { children: shapes.map((s, i) => {
+      const wrapStyle = {
+        top: `${s.top}%`,
+        left: `${s.left}%`,
+        opacity: s.opacity,
+        animation: floating ? `floatY ${s.floatDuration}s ease-in-out ${s.floatDelay}s infinite alternate` : void 0
+      };
+      const innerStyle = {
+        // CSS var com a rotação base
+        ["--rot"]: `${s.rotate}deg`,
+        animation: s.spinDuration ? `spin var(--spinDur) linear infinite` : void 0,
+        // passar a duração do spin por var para poder variar por elemento
+        ["--spinDur"]: s.spinDuration ? `${s.spinDuration}s` : void 0,
+        animationDirection: s.spinReverse ? "reverse" : "normal"
+      };
+      const color = shapeColor != null ? shapeColor : alpha$1("#fff", Math.min(s.opacity + 0.05, 0.35));
+      return /* @__PURE__ */ jsxs(ShapeWrap, { style: wrapStyle, children: [
+        s.type === "square" && /* @__PURE__ */ jsx(Square, { size: s.size, color, style: innerStyle }),
+        s.type === "circle" && /* @__PURE__ */ jsx(Circle, { size: s.size, color, style: innerStyle }),
+        s.type === "triangle" && /* @__PURE__ */ jsx(Triangle, { size: s.size, color, style: innerStyle })
+      ] }, i);
+    }) }),
+    /* @__PURE__ */ jsx(Box, { sx: { position: "relative", zIndex: 1 }, children }),
+    /* @__PURE__ */ jsx("style", { children: `
+        @keyframes floatY {
+          from { transform: translateY(0) }
+          to   { transform: translateY(-10px) }
+        }
+        /* 'spin' respeita a rota\xE7\xE3o base atrav\xE9s da CSS var --rot */
+        @keyframes spin {
+          from { transform: rotate(var(--rot, 0deg)); }
+          to   { transform: rotate(calc(var(--rot, 0deg) + 360deg)); }
+        }
+      ` })
+  ] });
+}
+var Circle2 = styled$1(Box, {
   shouldForwardProp: (prop) => !["accentColor", "circleSize", "circleBorderWidth", "circleBorderColor"].includes(
     prop
   )
@@ -321,7 +458,7 @@ var InfoStepCard = ({
 }) => {
   return /* @__PURE__ */ jsxs(Box, { position: "relative", textAlign: "center", mt: 2, width: "100%", children: [
     /* @__PURE__ */ jsx(
-      Circle,
+      Circle2,
       {
         accentColor: accentColor || "",
         circleSize,
@@ -397,24 +534,43 @@ var HowItWorksSection = ({
 
 // src/components/Logo/LogoBiblio.svg
 var LogoBiblio_default = "./LogoBiblio-OW4T5D4X.svg";
+
+// src/components/Logo/AF_Logo_BF.svg
+var AF_Logo_BF_default = "./AF_Logo_BF-4D6RHLE2.svg";
 var Logo = ({
-  width = "120px",
-  height = "auto",
+  alt = "Bibliotec\xE1rio",
+  variant = "biblio",
+  src: srcProp,
   sx,
-  ...boxProps
-}) => /* @__PURE__ */ jsx(
-  Box,
-  {
-    component: "img",
-    src: LogoBiblio_default,
-    alt: "Log\xF3tipo",
-    sx: [
-      { display: "block", width, height },
-      ...Array.isArray(sx) ? sx : [sx]
-    ],
-    ...boxProps
-  }
-);
+  ...rest
+}) => {
+  const src = srcProp != null ? srcProp : variant === "bf" ? AF_Logo_BF_default : LogoBiblio_default;
+  return /* @__PURE__ */ jsx(
+    Box,
+    {
+      component: "img",
+      src,
+      alt,
+      sx: [
+        {
+          display: "block",
+          height: "100%",
+          // ocupa a altura do contentor
+          width: "auto",
+          // mantém proporção
+          objectFit: "contain",
+          objectPosition: "left center",
+          lineHeight: 0,
+          flexShrink: 0
+        },
+        ...Array.isArray(sx) ? sx : [sx]
+      ],
+      ...rest
+    }
+  );
+};
+var BiblioLogo = (p) => /* @__PURE__ */ jsx(Logo, { variant: "biblio", ...p });
+var FamilyLogo = (p) => /* @__PURE__ */ jsx(Logo, { variant: "bf", ...p });
 var SelectableOptions = ({
   label,
   options,
@@ -829,7 +985,7 @@ var AvatarSelect = ({
   minWidth = 200,
   sx
 }) => {
-  const labelId = React4.useId();
+  const labelId = React.useId();
   options.find((o) => String(o.id) === String(value));
   return /* @__PURE__ */ jsxs(FormControl, { size: "small", sx: { minWidth, ...sx }, children: [
     label && /* @__PURE__ */ jsx(InputLabel, { id: labelId, children: label }),
@@ -1616,6 +1772,6 @@ var SearchBar = ({
   );
 };
 
-export { AgendaFeed, AgendaLargeCard, AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BibliotecarioThemeProvider, BookCard, EmailField, FilterBar, GradientBackground, HowItWorksSection, InfoStepCard_default as InfoStepCard, Logo, NotificationBell, NumericField, Paginator, PasswordField, PrimaryButton, QuizProgressBar, QuizQuestion, RouteLink, SearchBar, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
+export { AgendaFeed, AgendaLargeCard, AvatarListItem, AvatarSelect, AvatarUpload, BaseTextField, BiblioLogo, BibliotecarioThemeProvider, BookCard, EmailField, FamilyLogo, FilterBar, GradientBackgroundWithShapes, HowItWorksSection, InfoStepCard_default as InfoStepCard, Logo, NotificationBell, NumericField, Paginator, PasswordField, PrimaryButton, QuizProgressBar, QuizQuestion, RouteLink, SearchBar, SecondaryButton, SectionDivider, SelectableOptions, SidebarMenu, SimpleDataTable, WhiteCard, theme };
 //# sourceMappingURL=index.mjs.map
 //# sourceMappingURL=index.mjs.map

@@ -9,6 +9,7 @@ import "@fontsource/poppins/600.css";
 
 import { BibliotecarioThemeProvider } from "@bibliotecario/ui-web";
 import { AuthProvider } from "./contexts/AuthContext";
+import { CssBaseline } from "@mui/material"; // 👈
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
@@ -16,10 +17,10 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
   });
 }
 
-
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <AuthProvider>
     <BibliotecarioThemeProvider>
+      <CssBaseline /> {/* 👈 baseline global */}
       <RouterProvider router={router} />
     </BibliotecarioThemeProvider>
   </AuthProvider>

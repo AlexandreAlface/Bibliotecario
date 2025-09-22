@@ -261,7 +261,7 @@ export default function ReadingsPage() {
           chipIcons={pendingIcons}
         />
 
-        <Divider sx={{ mb: 2 }} />
+        
 
         {mustPickChild ? (
           <Typography sx={{ opacity: 0.75 }}>
@@ -410,7 +410,7 @@ export default function ReadingsPage() {
           chipIcons={historyIcons}
         />
 
-        <Divider sx={{ mb: 2 }} />
+        
 
         {historyPageItems.length === 0 ? (
           <Typography sx={{ opacity: 0.75 }}>

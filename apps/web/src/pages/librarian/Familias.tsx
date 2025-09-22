@@ -348,7 +348,7 @@ export default function LibrarianFamilias() {
                       onClick={searchFamilies}
                       disabled={famLoading}
                     >
-                      Buscar
+                      Procurar
                     </Button>
                   </InputAdornment>
                 ),

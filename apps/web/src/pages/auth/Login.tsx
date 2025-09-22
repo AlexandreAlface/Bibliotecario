@@ -2,8 +2,14 @@ import { z } from "zod";
 import { AuthLayout } from "../../components/Layouts/AuthLayout";
 import { Box, Typography } from "@mui/material";
 import {
-  EmailField, Logo, PasswordField, PrimaryButton,
-  RouteLink, SecondaryButton, SectionDivider, WhiteCard,
+  EmailField,
+  Logo,
+  PasswordField,
+  PrimaryButton,
+  RouteLink,
+  SecondaryButton,
+  SectionDivider,
+  WhiteCard,
 } from "@bibliotecario/ui-web";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,10 +54,12 @@ export default function Login() {
       <Box sx={{ width: "100%", maxWidth: 520, mx: "auto", px: 2, pt: 4 }}>
         <WhiteCard width="100%" sx={{ py: 3, px: 2 }}>
           <Box textAlign="center" display="flex" justifyContent="center">
-            <Logo width="300px" />
+            <Logo variant={"biblio"} sx={{ height: { xs: 240, sm: 246, md: 252 }, lineHeight: 0, display: "flex", alignItems: "center" }} />
           </Box>
 
-          <Typography variant="h5" textAlign="center" mb={2}>Entrar</Typography>
+          <Typography variant="h5" textAlign="center" mb={2}>
+            Entrar
+          </Typography>
 
           <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
             <Controller
@@ -105,12 +113,18 @@ export default function Login() {
           </Box>
 
           <Box display="flex" justifyContent="space-between" mb={3}>
-            <RouteLink href="#" weight={400}>Problemas ao entrar?</RouteLink>
-            <RouteLink href="#" weight={400}>Esqueceste-te da palavra-passe?</RouteLink>
+            <RouteLink href="#" weight={400}>
+              Problemas ao entrar?
+            </RouteLink>
+            <RouteLink href="#" weight={400}>
+              Esqueceste-te da palavra-passe?
+            </RouteLink>
           </Box>
 
           <SectionDivider label="Novo por aqui?" sx={{ mb: 2 }} />
-          <SecondaryButton fullWidth href="/criar-conta">Criar conta</SecondaryButton>
+          <SecondaryButton fullWidth href="/criar-conta">
+            Criar conta
+          </SecondaryButton>
         </WhiteCard>
       </Box>
     </AuthLayout>

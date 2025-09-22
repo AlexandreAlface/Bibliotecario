@@ -4,7 +4,7 @@ import { Box, Typography } from '@mui/material';
 
 import SignUpForm from '../../Forms/SignUpForm';
 import type { FamilySignupDraft } from '../../interfaces/auth';
-import { GradientBackground, HowItWorksSection, RouteLink, WhiteCard } from '@bibliotecario/ui-web';
+import { GradientBackgroundWithShapes, HowItWorksSection, RouteLink, WhiteCard } from '@bibliotecario/ui-web';
 
 const steps = [
   {
@@ -34,7 +34,7 @@ const CreateAccountPage: React.FC = () => {
   };
 
   return (
-    <GradientBackground sx={{ height: '100vh' }} display="flex" justifyContent="center">
+    <GradientBackgroundWithShapes sx={{ height: '100vh' }} display="flex" justifyContent="center">
       <Box
         py={{ xs: 8, md: 10 }}
         px={{ xs: 2, md: 4 }}
@@ -84,7 +84,7 @@ const CreateAccountPage: React.FC = () => {
           </Typography>
         </WhiteCard>
       </Box>
-    </GradientBackground>
+    </GradientBackgroundWithShapes>
   );
 };
 

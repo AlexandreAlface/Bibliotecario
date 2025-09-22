@@ -725,53 +725,6 @@ export default function LandingPage() {
         <NotificationBell onClick={() => {}} items={[]} />
       </Box>
 
-      {/* Barra de contexto */}
-      {!!user?.children?.length && (
-        <WhiteCard sx={{ mt: 1.5 }}>
-          <CardHeader title={asChild ? "Modo criança" : "Família"} />
-          <Stack
-            direction="row"
-            alignItems="center"
-            spacing={2}
-            useFlexGap
-            flexWrap="wrap"
-          >
-            <Stack direction="row" spacing={1.25} alignItems="center">
-              <Avatar
-                src={
-                  asChild
-                    ? user?.actingChild?.avatarUrl ?? undefined
-                    : undefined
-                }
-                sx={{ width: 44, height: 44 }}
-              />
-              <Box>
-                <Typography fontWeight={800}>
-                  {asChild && user?.actingChild
-                    ? user.actingChild.name
-                    : `Família ${familyName}`}
-                </Typography>
-                <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                  {asChild ? "Modo criança" : roleLabel || "Família"}
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Divider flexItem orientation="vertical" sx={{ mx: 0.5 }} />
-
-            {/* Link para a gestão de perfis (em vez de trocar aqui) */}
-            <RouteLink href="/familia">Gerir perfis</RouteLink>
-
-            <Box sx={{ flex: 1 }} />
-            {/* {asChild && (
-              // <PrimaryButton onClick={clearChild}>
-              //   Sair do modo criança
-              // </PrimaryButton>
-            )} */}
-          </Stack>
-        </WhiteCard>
-      )}
-
       {/* KPI tiles */}
       <Grid container spacing={2} sx={{ mt: 1 }}>
         <Grid item xs={12} md={4}>
