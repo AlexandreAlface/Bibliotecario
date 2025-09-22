@@ -49,6 +49,7 @@ model User {
   phone        String?
   citizenCard  String?
   address      String?
+  postalCode   String?
   passwordHash String
 
   userRoles         UserRole[]

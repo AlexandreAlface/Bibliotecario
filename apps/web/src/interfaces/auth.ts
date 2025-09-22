@@ -6,14 +6,16 @@ export const GenderSchema = z.enum(['M', 'F', 'Outro']);
 
 /* ---------- Passo 1 (Família) ---------- */
 export const FamilySignupDraftSchema = z.object({
-  fullName: z.string().min(1, 'Obrigatório'),
-  email: z.string().email('E-mail inválido'),
+  fullName: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(8),
   phone: z.string().optional(),
   citizenCard: z.string().optional(),
   address: z.string().optional(),
-  password: z.string().min(8, 'Mínimo 8 caracteres'),
-  readerProfile: z.string().optional(),
+  postalCode: z.string().optional(),     // 👈 novo
+  libraryId: z.number().int().positive().optional(), // 👈 novo
 });
+
 export type FamilySignupDraft = z.infer<typeof FamilySignupDraftSchema>;
 
 /* ---------- Filhos ---------- */

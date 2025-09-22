@@ -1,10 +1,14 @@
-// src/pages/auth/CreateAccountPage.tsx
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 
 import SignUpForm from '../../Forms/SignUpForm';
 import type { FamilySignupDraft } from '../../interfaces/auth';
-import { GradientBackgroundWithShapes, HowItWorksSection, RouteLink, WhiteCard } from '@bibliotecario/ui-web';
+import {
+  GradientBackgroundWithShapes,
+  HowItWorksSection,
+  RouteLink,
+  WhiteCard,
+} from '@bibliotecario/ui-web';
 
 const steps = [
   {
@@ -14,7 +18,7 @@ const steps = [
       'Diz-nos quem és! Indica o teu nome, contacto e morada da família para te recebermos de braços abertos.',
     accentColor: '#05a79e',
     backgroundColor: 'rgba(122,68,189,0.08)',
-    cardProps: { sx: { minHeight: 'auto', py: 2 } }
+    cardProps: { sx: { minHeight: 'auto', py: 2 } },
   },
   {
     step: 2,
@@ -23,14 +27,14 @@ const steps = [
       'Mostra-nos os leitores! Indica o nome, a idade e o perfil de cada criança para receber sugestões perfeitas.',
     accentColor: '#413f7f',
     backgroundColor: 'rgba(192,156,220,0.12)',
-    cardProps: { sx: { minHeight: 'auto', py: 2 } }
+    cardProps: { sx: { minHeight: 'auto', py: 2 } },
   },
 ];
 
 const CreateAccountPage: React.FC = () => {
   const handleSubmit = (values: FamilySignupDraft) => {
     localStorage.setItem('bf_signup_family', JSON.stringify(values));
-    window.location.href = '/criar-conta-filhos';
+    window.location.href = '/auth/create-profiles';
   };
 
   return (
@@ -45,7 +49,6 @@ const CreateAccountPage: React.FC = () => {
         alignItems="stretch"
         gap={{ xs: 6, md: 8 }}
       >
-        {/* Coluna ESQ – HowItWorks */}
         <WhiteCard
           sx={{
             flex: '1 1 380px',
@@ -61,7 +64,6 @@ const CreateAccountPage: React.FC = () => {
           <HowItWorksSection steps={steps} />
         </WhiteCard>
 
-        {/* Coluna DIR – Formulário */}
         <WhiteCard
           sx={{
             flex: '1 1 480px',
@@ -74,13 +76,10 @@ const CreateAccountPage: React.FC = () => {
             Criar Nova Conta
           </Typography>
 
-          <SignUpForm
-            onBack={() => history.back()}
-            onSubmit={handleSubmit}
-          />
+          <SignUpForm onBack={() => history.back()} onSubmit={handleSubmit} />
 
           <Typography variant="body2" sx={{ mt: 1, textAlign: 'center' }}>
-            Já és um membro? <RouteLink href="/login">Entrar</RouteLink>
+            Já és um membro? <RouteLink href="/auth/login">Entrar</RouteLink>
           </Typography>
         </WhiteCard>
       </Box>

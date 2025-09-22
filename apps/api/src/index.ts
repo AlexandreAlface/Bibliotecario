@@ -35,9 +35,10 @@ import adminSlotsRoutes from "./routes/adminSlots";
 import adminLibrariansRoutes from "./routes/adminLibrarians";
 import adminBlocksRoutes from "./routes/adminBlocks";
 import adminFamiliesRoutes from "./routes/adminFamilies";
-import adminLibrariansRouter from "./routes/admin.librarians";
+import adminLibrariansRouter from "./routes/admin.librarian";
 import { adminMetricsRouter } from "./routes/adminMetrics";
 import culturalEventsRouter from "./routes/culturalEvents";
+import publicRouter from "./routes/public.js"; 
 
 
 if (!process.env.DATABASE_URL) {
@@ -71,6 +72,9 @@ app.use(
 
 // healthcheck
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
+
+app.use("/api/public", publicRouter);
+
 
 /* --------- Rotas (sem /v1) --------- */
 app.use("/api/auth", authRouter);

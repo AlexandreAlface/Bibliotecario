@@ -154,4 +154,69 @@ adminLibrariansRouter.delete(
   }
 );
 
+/**
+ * POST /api/admin/librarians
+ * body: { fullName, email, phone?, citizenCard?, address?, password, libraryId }
+ * requer ADMIN
+ */
+adminLibrariansRouter.post(
+  "/admin/librarians",
+  requireRole(ROLES.ADMIN),
+  async (req, res, next) => {
+    try {
+      const {
+        fullName,
+        email,
+        phone,
+        citizenCard,
+        address,
+        password,
+        libraryId,
+      } = req.body || {};
+
+      if (!fullName || !email || !password || !libraryId) {
+        return res
+          .status(400)
+          .json({ error: "Campos obrigatórios em falta" });
+      }
+
+      const exists = await prisma.user.findUnique({ where: { email } });
+      if (exists) return res.status(409).json({ error: "E-mail já registado" });
+
+      const passwordHash = await bcrypt.hash(String(password), 12);
+
+      // garante role “BIBLIOTECÁRIO”
+      const role = await prisma.role.upsert({
+        where: { name: ROLES.LIBRARIAN },
+        update: {},
+        create: { name: ROLES.LIBRARIAN },
+      });
+
+      const user = await prisma.user.create({
+        data: {
+          fullName,
+          email,
+          phone: phone || null,
+          citizenCard: citizenCard || null,
+          address: address || null,
+          passwordHash,
+          userRoles: { create: { roleId: role.id } },
+          userLibraries: {
+            create: { libraryId: Number(libraryId) },
+          },
+        },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+        },
+      });
+
+      return res.status(201).json(user);
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
 export default adminLibrariansRouter;

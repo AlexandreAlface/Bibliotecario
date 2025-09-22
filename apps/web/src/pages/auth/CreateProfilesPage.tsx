@@ -134,10 +134,20 @@ const CreateProfilesPage: React.FC = () => {
         children: children.map(({ id, avatar, ...rest }) => rest),
       });
 
-      await api.post("/auth/register", payload);
+      try {
+        await api.post("/auth/register", payload);
+      } catch (e: any) {
+        if (e?.response?.status === 409) {
+          alert(
+            "Esse e-mail já está registado. Tenta iniciar sessão ou usa outro e-mail."
+          );
+          return;
+        }
+        alert(e?.response?.data?.error || "Falha ao registar.");
+      }
 
       alert("Conta criada! Verifica o teu e-mail para confirmar.");
-      window.location.href = "/login";
+      window.location.href = "/auth/login";
     } catch (e: any) {
       alert(e.message || "Ocorreu um erro ao criar a conta.");
     }

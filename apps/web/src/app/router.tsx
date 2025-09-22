@@ -137,6 +137,7 @@ export const router = createBrowserRouter([
           { path: "eventos", element: <AdminEvents /> },
           { path: "feeds", element: <AdminFeeds /> },
           { path: "metricas", element: <AdminMetrics /> },
+           { path: "bibliotecarios/novo", element: <AdminLibrarians /> },
         ],
       },
     ],

@@ -54,7 +54,15 @@ export default function Login() {
       <Box sx={{ width: "100%", maxWidth: 520, mx: "auto", px: 2, pt: 4 }}>
         <WhiteCard width="100%" sx={{ py: 3, px: 2 }}>
           <Box textAlign="center" display="flex" justifyContent="center">
-            <Logo variant={"biblio"} sx={{ height: { xs: 240, sm: 246, md: 252 }, lineHeight: 0, display: "flex", alignItems: "center" }} />
+            <Logo
+              variant={"biblio"}
+              sx={{
+                height: { xs: 240, sm: 246, md: 252 },
+                lineHeight: 0,
+                display: "flex",
+                alignItems: "center",
+              }}
+            />
           </Box>
 
           <Typography variant="h5" textAlign="center" mb={2}>
@@ -122,7 +130,7 @@ export default function Login() {
           </Box>
 
           <SectionDivider label="Novo por aqui?" sx={{ mb: 2 }} />
-          <SecondaryButton fullWidth href="/criar-conta">
+          <SecondaryButton fullWidth href="/auth/create-account">
             Criar conta
           </SecondaryButton>
         </WhiteCard>
