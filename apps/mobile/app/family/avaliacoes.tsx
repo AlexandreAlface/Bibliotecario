@@ -25,7 +25,7 @@ import {
   getLeiturasTerminadas,
   type FinishedReading,
 } from "src/services/readings";
-import { TABBAR_HEIGHT } from "./_layout";
+import { TABBAR_HEIGHT } from "src/constants/layout";
 
 /* ---------- Section Card (branco) ---------- */
 const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({

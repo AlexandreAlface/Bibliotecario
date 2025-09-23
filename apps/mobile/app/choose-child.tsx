@@ -37,7 +37,7 @@ export default function ChooseChild() {
               <Pressable
                 onPress={async () => {
                   await actAsChild(item.id);
-                  router.replace("/(tabs)");
+                  router.replace("/family");
                 }}
                 style={{
                   width: "48%",

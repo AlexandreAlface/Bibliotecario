@@ -25,7 +25,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { TABBAR_HEIGHT } from "./_layout";
+import { TABBAR_HEIGHT } from "src/constants/layout";
 
 /* ---------- Tipos ---------- */
 type BookLite = {
@@ -322,7 +322,7 @@ export default function SugestoesCategoriasTab() {
               <LinkText
                 underline
                 size="sm"
-                onPress={() => router.push("/(tabs)/sugestoes")}
+                onPress={() => router.push("/family/sugestoes")}
                 style={onQuiz ? { fontWeight: "700" } : { opacity: 0.85 }}
               >
                 Quiz
@@ -331,7 +331,7 @@ export default function SugestoesCategoriasTab() {
               <LinkText
                 underline
                 size="sm"
-                onPress={() => router.push("/(tabs)/sugestoes-categorias")}
+                onPress={() => router.push("/family/sugestoes-categorias")}
                 style={onCategorias ? { fontWeight: "700" } : { opacity: 0.85 }}
               >
                 Categorias

@@ -1,3 +1,4 @@
+// apps/mobile/app/family/conquistas.tsx
 import * as React from "react";
 import {
   View,
@@ -5,9 +6,14 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
+  Platform,
+  LayoutAnimation,
+  UIManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme, IconButton } from "react-native-paper";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
 import {
@@ -98,10 +104,9 @@ function BadgeTile({
           paddingVertical: 10,
           paddingHorizontal: 14,
           borderRadius: 999,
-          backgroundColor: "#16A34A", // verde sólido
+          backgroundColor: "#16A34A",
         }}
       >
-        {/* bolha branca com ✓ */}
         <View
           style={{
             width: 22,
@@ -117,11 +122,7 @@ function BadgeTile({
 
         <Text
           numberOfLines={1}
-          style={{
-            maxWidth: 220,
-            fontWeight: "700",
-            color: "#FFFFFF",
-          }}
+          style={{ maxWidth: 220, fontWeight: "700", color: "#FFFFFF" }}
         >
           {name}
         </Text>
@@ -129,7 +130,7 @@ function BadgeTile({
     );
   }
 
-  // Não conquistado → outline cinza com traço, texto discreto e "ver critério"
+  // Não conquistado → outline
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -142,11 +143,10 @@ function BadgeTile({
         borderRadius: 999,
         backgroundColor: theme.colors.surface,
         borderWidth: 1.2,
-        borderColor: "#D1D5DB", // cinza médio
+        borderColor: "#D1D5DB",
         borderStyle: "dashed",
       }}
     >
-      {/* bolha cinza clara “vazia” */}
       <View
         style={{
           width: 22,
@@ -154,7 +154,7 @@ function BadgeTile({
           borderRadius: 11,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#F3F4F6", // cinza claro
+          backgroundColor: "#F3F4F6",
           borderWidth: 1,
           borderColor: "#E5E7EB",
         }}
@@ -164,11 +164,7 @@ function BadgeTile({
 
       <Text
         numberOfLines={1}
-        style={{
-          maxWidth: 180,
-          fontWeight: "600",
-          color: "#374151", // cinza-800
-        }}
+        style={{ maxWidth: 180, fontWeight: "600", color: "#374151" }}
       >
         {name}
       </Text>
@@ -179,7 +175,7 @@ function BadgeTile({
           style={{
             marginLeft: 6,
             fontSize: 12,
-            color: "#6B7280", // cinza-500
+            color: "#6B7280",
             textDecorationLine: "underline",
           }}
         >
@@ -195,6 +191,15 @@ export default function ConquistasScreen() {
   const theme = useTheme();
   const { user } = useAuth();
 
+  React.useEffect(() => {
+    if (
+      Platform.OS === "android" &&
+      UIManager.setLayoutAnimationEnabledExperimental
+    ) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
   const actingChildId = user?.actingChild?.id ?? null;
 
   // seleção da criança
@@ -209,6 +214,19 @@ export default function ConquistasScreen() {
 
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
+
+  // colapso dos cards
+  const [sealsCollapsed, setSealsCollapsed] = React.useState(false);
+  const [trophiesCollapsed, setTrophiesCollapsed] = React.useState(false);
+
+  const toggleSeals = React.useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setSealsCollapsed((v) => !v);
+  }, []);
+  const toggleTrophies = React.useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setTrophiesCollapsed((v) => !v);
+  }, []);
 
   const childrenChips = React.useMemo(
     () => (user?.children ?? []).map((c) => ({ id: c.id, name: c.name })),
@@ -233,7 +251,7 @@ export default function ConquistasScreen() {
     };
   }, []);
 
-  // carregar conquistas da criança selecionada (ou da família se não houver seleção)
+  // carregar conquistas
   const loadAssignments = React.useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
@@ -241,14 +259,8 @@ export default function ConquistasScreen() {
       const data = await badgesApi.assignments(
         childId ? { childId } : { familyId: user.id, limit: 200 }
       );
-      // se viewing por criança, queremos só os badgeIds dessa criança
       const set = new Set<number>();
-      if (childId) {
-        data.forEach((a) => set.add(a.badgeId));
-      } else {
-        // família → agregar todos
-        data.forEach((a) => set.add(a.badgeId));
-      }
+      data.forEach((a) => set.add(a.badgeId));
       setAchieved(set);
     } catch {
       setAchieved(new Set());
@@ -396,56 +408,162 @@ export default function ConquistasScreen() {
             </View>
           </FlexibleCard>
 
-          {/* Selos */}
+          {/* Selos (colapsável) */}
           <FlexibleCard
-            title="Selos"
             backgroundColor={theme.colors.surface}
             elevation={1}
             padding={14}
             style={{ borderRadius: 12 }}
           >
-            {loading && seals.length === 0 ? (
-              <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                A carregar…
-              </Text>
-            ) : (
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                {seals.map((b) => (
-                  <BadgeTile
-                    key={b.id}
-                    name={b.name}
-                    achieved={achieved.has(b.id)}
-                    criteria={b.criteria} // ⬅️ acrescenta isto
-                    onPress={() => setSelectedBadge(b)}
-                  />
-                ))}
+            {/* Header clicável */}
+            <TouchableOpacity
+              onPress={toggleSeals}
+              activeOpacity={0.7}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "800",
+                    color: theme.colors.onSurface,
+                  }}
+                >
+                  Selos
+                </Text>
+                <View
+                  style={{
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 999,
+                    backgroundColor: theme.colors.secondaryContainer,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: theme.colors.onSecondaryContainer,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    {sealsWon}/{seals.length}
+                  </Text>
+                </View>
+              </View>
+              <Icon
+                name={sealsCollapsed ? "chevron-down" : "chevron-up"}
+                size={24}
+                color={theme.colors.onSurface}
+              />
+            </TouchableOpacity>
+
+            {!sealsCollapsed && (
+              <View style={{ marginTop: 12 }}>
+                {loading && seals.length === 0 ? (
+                  <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                    A carregar…
+                  </Text>
+                ) : (
+                  <View
+                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}
+                  >
+                    {seals.map((b) => (
+                      <BadgeTile
+                        key={b.id}
+                        name={b.name}
+                        achieved={achieved.has(b.id)}
+                        criteria={b.criteria}
+                        onPress={() => setSelectedBadge(b)}
+                      />
+                    ))}
+                  </View>
+                )}
               </View>
             )}
           </FlexibleCard>
 
-          {/* Troféus */}
+          {/* Troféus (colapsável) */}
           <FlexibleCard
-            title="Troféus"
             backgroundColor={theme.colors.surface}
             elevation={1}
             padding={14}
             style={{ borderRadius: 12 }}
           >
-            {loading && trophies.length === 0 ? (
-              <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                A carregar…
-              </Text>
-            ) : (
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                {trophies.map((b) => (
-                  <BadgeTile
-                    key={b.id}
-                    name={b.name}
-                    achieved={achieved.has(b.id)}
-                    criteria={b.criteria} // ⬅️ acrescenta isto
-                    onPress={() => setSelectedBadge(b)}
-                  />
-                ))}
+            {/* Header clicável */}
+            <TouchableOpacity
+              onPress={toggleTrophies}
+              activeOpacity={0.7}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "800",
+                    color: theme.colors.onSurface,
+                  }}
+                >
+                  Troféus
+                </Text>
+                <View
+                  style={{
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 999,
+                    backgroundColor: theme.colors.secondaryContainer,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: theme.colors.onSecondaryContainer,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    {trophiesWon}/{trophies.length}
+                  </Text>
+                </View>
+              </View>
+              <Icon
+                name={trophiesCollapsed ? "chevron-down" : "chevron-up"}
+                size={24}
+                color={theme.colors.onSurface}
+              />
+            </TouchableOpacity>
+
+            {!trophiesCollapsed && (
+              <View style={{ marginTop: 12 }}>
+                {loading && trophies.length === 0 ? (
+                  <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                    A carregar…
+                  </Text>
+                ) : (
+                  <View
+                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}
+                  >
+                    {trophies.map((b) => (
+                      <BadgeTile
+                        key={b.id}
+                        name={b.name}
+                        achieved={achieved.has(b.id)}
+                        criteria={b.criteria}
+                        onPress={() => setSelectedBadge(b)}
+                      />
+                    ))}
+                  </View>
+                )}
               </View>
             )}
           </FlexibleCard>
@@ -550,7 +668,6 @@ export default function ConquistasScreen() {
             </FlexibleCard>
           )}
 
-          {/* CTA opcional quando não há seleção */}
           {!selectedBadge && seals.length + trophies.length > 0 && (
             <View style={{ alignItems: "center" }}>
               <Text
