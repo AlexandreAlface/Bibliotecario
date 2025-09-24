@@ -250,7 +250,7 @@ export default function LibrarianHomeScreen() {
                 <QuickAction
                   icon="calendar-clock"
                   label="Consultas pendentes"
-                  onPress={() => router.push("/librarian/Consultas")}
+                  onPress={() => router.push("/librarian/ConsultasPendentes")}
                 />
                 <QuickAction
                   icon="calendar-month-outline"
