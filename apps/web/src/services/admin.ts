@@ -58,6 +58,16 @@ export type SlotLite = {
   consultationId?: number | null;
 };
 
+export type EventReservationLite = {
+  id: number;
+  familyId: number;
+  familyName: string;
+  familyEmail: string;
+  familyPhone: string;
+  bookedAt: string;
+  status: "PENDING" | "CONFIRMED";
+};
+
 const API_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
   "http://localhost:3333/api";
@@ -258,4 +268,87 @@ export async function setSlotStatus(
     }
   );
   return j<{ id: number; status: "OPEN" | "BLOCKED" }>(res);
+}
+
+export async function listEventReservations(
+  eventId: number,
+  params?: { status?: string; q?: string; page?: number; limit?: number }
+) {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.q) qs.set("q", params.q);
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const res = await fetch(
+    `${API_BASE}/admin/events/${eventId}/reservations?${qs}`,
+    { credentials: "include" }
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{
+    total: number;
+    page: number;
+    limit: number;
+    items: EventReservationLite[];
+  }>;
+}
+
+export async function updateEventReservationStatus(
+  eventId: number,
+  reservationId: number,
+  status: "PENDING" | "CONFIRMED"
+) {
+  const res = await fetch(
+    `${API_BASE}/admin/events/${eventId}/reservations/${reservationId}`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    }
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createEventReservation(
+  eventId: number,
+  familyId: number,
+  status: "PENDING" | "CONFIRMED" = "PENDING"
+) {
+  const res = await fetch(`${API_BASE}/admin/events/${eventId}/reservations`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ familyId, status }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function deleteEventReservation(
+  eventId: number,
+  reservationId: number
+) {
+  const res = await fetch(
+    `${API_BASE}/admin/events/${eventId}/reservations/${reservationId}`,
+    {
+      method: "DELETE",
+      credentials: "include",
+    }
+  );
+  if (!res.ok) throw new Error(await res.text());
+}
+
+export async function getEventReservationsSummary(eventId: number) {
+  const res = await fetch(
+    `${API_BASE}/admin/events/${eventId}/reservations/summary`,
+    { credentials: "include" }
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json() as Promise<{
+    capacity: number | null;
+    confirmed: number;
+    pending: number;
+    total: number;
+  }>;
 }

@@ -84,9 +84,53 @@ async function imageForItem(item: any, feedUrl: string) {
   return pickImageFromItem(item, origin) || (await fetchOgImage(item.link));
 }
 
+/**
+ * Resolve um GUID “final” seguro para o item do feed.
+ * Se existir um evento **manual** com o mesmo GUID (feedId == null),
+ * NÃO o tocamos; em vez disso, “namespacemos” o GUID do feed para
+ * `${guidBase}#rss:${feedId}` garantindo unicidade e preservação do manual.
+ */
+async function resolveSafeGuidForFeedItem(
+  item: any,
+  feedId: number
+): Promise<string> {
+  const base =
+    (typeof item?.guid === "string" && item.guid) ||
+    (typeof item?.link === "string" && item.link) ||
+    (typeof item?.title === "string" && item.title) ||
+    null;
+
+  // fallback determinístico caso base seja nulo (situação rara em RSS)
+  const fallback =
+    base ||
+    `rss:${feedId}:${String(item?.isoDate ?? "")}:${String(
+      item?.link ?? item?.title ?? ""
+    )}`;
+
+  try {
+    const existing = await prisma.culturalEvent.findUnique({
+      where: { guid: fallback },
+      select: { id: true, feedId: true }, // apenas o necessário
+    });
+
+    if (existing && existing.feedId == null) {
+      // Colisão com evento MANUAL → não tocar nesse registo.
+      return `${fallback}#rss:${feedId}`;
+    }
+  } catch {
+    // Qualquer erro aqui não deve bloquear ingestão; seguimos com fallback
+  }
+
+  return fallback;
+}
+
 // >>> garante que o feedId fica atualizado mesmo em updates
-function mapItem(item: any, feedId: number, imageUrl: string | null) {
-  const guid = item.guid || item.link;
+function mapItemWithGuid(
+  item: any,
+  feedId: number,
+  imageUrl: string | null,
+  finalGuid: string
+) {
   const endDate = item.evEndDate ? new Date(item.evEndDate) : null;
   const location = item.evLocation || item.link || null;
   const category = item.category || null;
@@ -94,7 +138,7 @@ function mapItem(item: any, feedId: number, imageUrl: string | null) {
   const startDate = item.isoDate ? new Date(item.isoDate) : new Date();
 
   return {
-    where: { guid },
+    where: { guid: finalGuid },
     update: {
       feedId, // <— importante!
       title: item.title,
@@ -108,7 +152,7 @@ function mapItem(item: any, feedId: number, imageUrl: string | null) {
     },
     create: {
       feedId,
-      guid,
+      guid: finalGuid,
       title: item.title,
       description: item.contentSnippet || item.content || null,
       pubDate,
@@ -156,7 +200,13 @@ async function processFeed(feed: FeedRss, force: boolean) {
 
   for (const item of rss.items) {
     const img = await imageForItem(item, feed.url);
-    await prisma.culturalEvent.upsert(mapItem(item, feed.id, img));
+
+    // 👇 NOVO: impedir que itens do feed “roubem”/apaguem eventos manuais
+    const finalGuid = await resolveSafeGuidForFeedItem(item, feed.id);
+
+    await prisma.culturalEvent.upsert(
+      mapItemWithGuid(item, feed.id, img, finalGuid)
+    );
     upserts++;
   }
 

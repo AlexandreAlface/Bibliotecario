@@ -308,4 +308,222 @@ r.delete(
   }
 );
 
+async function ensureCanConfirm(eventId: number) {
+  const ev = await prisma.culturalEvent.findUnique({
+    where: { id: eventId },
+    select: {
+      capacity: true,
+      reservations: { where: { status: "CONFIRMED" }, select: { id: true } },
+    },
+  });
+  if (!ev)
+    throw Object.assign(new Error("evento_inexistente"), { status: 404 });
+  if (ev.capacity && ev.reservations.length >= ev.capacity) {
+    throw Object.assign(new Error("capacity_full"), { status: 409 });
+  }
+}
+
+// 👇 LISTAR inscritos
+r.get(
+  "/admin/events/:eventId/reservations",
+  requireRole(ROLES.ADMIN),
+  async (req, res, next) => {
+    try {
+      const eventId = Number(req.params.eventId);
+      const status = String(req.query.status || "").toUpperCase(); // PENDING|CONFIRMED
+      const q = String(req.query.q || "")
+        .trim()
+        .toLowerCase();
+      const page = Math.max(1, Number(req.query.page || 1));
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit || 50)));
+
+      const where: any = { eventId };
+      if (status === "PENDING" || status === "CONFIRMED") where.status = status;
+
+      // filtro por nome/email/telefone
+      if (q) {
+        where.OR = [
+          { family: { fullName: { contains: q, mode: "insensitive" } } },
+          { family: { email: { contains: q, mode: "insensitive" } } },
+          { family: { phone: { contains: q, mode: "insensitive" } } },
+        ];
+      }
+
+      const [total, rows] = await Promise.all([
+        prisma.eventReservation.count({ where }),
+        prisma.eventReservation.findMany({
+          where,
+          orderBy: [{ status: "asc" }, { bookedAt: "asc" }],
+          skip: (page - 1) * limit,
+          take: limit,
+          select: {
+            id: true,
+            bookedAt: true,
+            status: true,
+            familyId: true,
+            family: { select: { fullName: true, email: true, phone: true } },
+          },
+        }),
+      ]);
+
+      res.json({
+        total,
+        page,
+        limit,
+        items: rows.map((r) => ({
+          id: r.id,
+          status: r.status,
+          bookedAt: r.bookedAt.toISOString(),
+          familyId: r.familyId,
+          familyName: r.family?.fullName ?? "",
+          familyEmail: r.family?.email ?? "",
+          familyPhone: r.family?.phone ?? "",
+        })),
+      });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+// 👇 CRIAR inscrição (manual)
+r.post(
+  "/admin/events/:eventId/reservations",
+  requireRole(ROLES.ADMIN),
+  async (req, res, next) => {
+    try {
+      const eventId = Number(req.params.eventId);
+      const { familyId, status } = req.body as {
+        familyId?: number;
+        status?: "PENDING" | "CONFIRMED";
+      };
+      if (!Number.isFinite(familyId))
+        return res.status(400).json({ error: "familyId inválido" });
+
+      if (status === "CONFIRMED") await ensureCanConfirm(eventId);
+
+      const created = await prisma.eventReservation.create({
+        data: {
+          eventId,
+          familyId: Number(familyId),
+          status: status || "PENDING",
+        },
+        select: { id: true },
+      });
+      res.status(201).json(created);
+    } catch (e) {
+      if ((e as any)?.code === "P2002")
+        return res.status(409).json({ error: "already_registered" });
+      next(e);
+    }
+  }
+);
+
+// 👇 ALTERAR estado (confirmar/pendente)
+r.patch(
+  "/admin/events/:eventId/reservations/:id",
+  requireRole(ROLES.ADMIN),
+  async (req, res, next) => {
+    try {
+      const eventId = Number(req.params.eventId);
+      const id = Number(req.params.id);
+      const { status } = req.body as { status?: "PENDING" | "CONFIRMED" };
+      if (!status) return res.status(400).json({ error: "status_necessário" });
+      if (status === "CONFIRMED") await ensureCanConfirm(eventId);
+
+      const updated = await prisma.eventReservation.update({
+        where: { id },
+        data: { status },
+        select: { id: true, status: true },
+      });
+      res.json(updated);
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+// 👇 APAGAR inscrição
+r.delete(
+  "/admin/events/:eventId/reservations/:id",
+  requireRole(ROLES.ADMIN),
+  async (req, res, next) => {
+    try {
+      const id = Number(req.params.id);
+      await prisma.eventReservation.delete({ where: { id } });
+      res.status(204).end();
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+// 👇 RESUMO/contadores
+r.get(
+  "/admin/events/:eventId/reservations/summary",
+  requireRole(ROLES.ADMIN),
+  async (req, res, next) => {
+    try {
+      const eventId = Number(req.params.eventId);
+      const [ev, conf, pend] = await Promise.all([
+        prisma.culturalEvent.findUnique({
+          where: { id: eventId },
+          select: { capacity: true },
+        }),
+        prisma.eventReservation.count({
+          where: { eventId, status: "CONFIRMED" },
+        }),
+        prisma.eventReservation.count({
+          where: { eventId, status: "PENDING" },
+        }),
+      ]);
+      res.json({
+        capacity: ev?.capacity ?? null,
+        confirmed: conf,
+        pending: pend,
+        total: conf + pend,
+      });
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
+// 👇 EXPORT CSV rápido
+r.get(
+  "/admin/events/:eventId/reservations/export.csv",
+  requireRole(ROLES.ADMIN),
+  async (req, res, next) => {
+    try {
+      const eventId = Number(req.params.eventId);
+      const rows = await prisma.eventReservation.findMany({
+        where: { eventId },
+        orderBy: [{ status: "asc" }, { bookedAt: "asc" }],
+        select: {
+          bookedAt: true,
+          status: true,
+          family: { select: { fullName: true, email: true, phone: true } },
+        },
+      });
+      const header = "Nome,Email,Telefone,Estado,Inscrito em\n";
+      const body = rows
+        .map(
+          (r) =>
+            `"${(r.family?.fullName ?? "").replace(/"/g, '""')}",${
+              r.family?.email ?? ""
+            },${r.family?.phone ?? ""},${r.status},${r.bookedAt.toISOString()}`
+        )
+        .join("\n");
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        "attachment; filename=inscritos.csv"
+      );
+      res.send(header + body);
+    } catch (e) {
+      next(e);
+    }
+  }
+);
+
 export default r;

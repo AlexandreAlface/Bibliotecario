@@ -396,8 +396,8 @@ model CulturalEvent {
   imageUrl    String?
 
   // 👇 NOVO: associação direta à biblioteca para eventos manuais
-  library     Library?  @relation(fields: [libraryId], references: [id])
-  libraryId   Int?
+  library   Library? @relation(fields: [libraryId], references: [id])
+  libraryId Int?
 
   reservations EventReservation[]
 
@@ -406,13 +406,16 @@ model CulturalEvent {
 
 // Reservas de eventos culturais
 model EventReservation {
-  id       Int           @id @default(autoincrement()) // PK: id_reserva_evento
+  id       Int           @id @default(autoincrement())
   family   User          @relation(fields: [familyId], references: [id])
-  familyId Int // FK → User.id
+  familyId Int
   event    CulturalEvent @relation(fields: [eventId], references: [id])
-  eventId  Int // FK → CulturalEvent.id
-  bookedAt DateTime      @default(now()) // data_reserva
-  status   String // estado (CONFIRMADA/PENDENTE)
+  eventId  Int
+  bookedAt DateTime      @default(now())
+  status   String // "PENDING" | "CONFIRMED"
+
+  @@unique([familyId, eventId])
+  @@index([eventId, status])
 }
 
 // Reservas de livros
