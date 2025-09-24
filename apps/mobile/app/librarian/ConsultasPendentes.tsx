@@ -24,7 +24,6 @@ import {
 import { useAuth } from "src/contexts/AuthContext";
 import { API_URL } from "src/services/api";
 
-/* ======= se já tens isto no serviço mobile, mantêm estes imports ======= */
 import {
   listOpenSlots,
   createProposalForConsultation,
@@ -64,11 +63,7 @@ type ConsultationLite = {
   child?: { id: number; name?: string | null } | null;
 };
 
-type SlotLite = {
-  id: number;
-  startAt: string;
-  endAt: string;
-};
+type SlotLite = { id: number; startAt: string; endAt: string };
 
 /* ---------------- UI: pill filtro (estilo antigo) ---------------- */
 function Pill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
@@ -95,6 +90,59 @@ function Pill({ label, active, onPress }: { label: string; active: boolean; onPr
         {label}
       </Text>
     </TouchableOpacity>
+  );
+}
+
+/* ---------------- CollapsibleSection ---------------- */
+function CollapsibleSection({
+  title,
+  right,
+  children,
+  defaultCollapsed = false,
+}: {
+  title: string;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+  defaultCollapsed?: boolean;
+}) {
+  const theme = useTheme();
+  const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
+
+  return (
+    <FlexibleCard
+      backgroundColor={theme.colors.surface}
+      elevation={1}
+      padding={12}
+      style={{ borderRadius: 12 }}
+    >
+      <TouchableOpacity
+        onPress={() => setCollapsed((v) => !v)}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={`${collapsed ? "Expandir" : "Colapsar"} ${title}`}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingVertical: 2,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+          <Text
+            style={{ fontWeight: "800", fontSize: 16, color: theme.colors.onSurface, flexShrink: 1 }}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+          {!!right && <View>{right}</View>}
+        </View>
+        <Text style={{ color: theme.colors.onSurface, opacity: 0.7 }}>
+          {collapsed ? "▼" : "▲"}
+        </Text>
+      </TouchableOpacity>
+
+      {!collapsed && <View style={{ marginTop: 8 }}>{children}</View>}
+    </FlexibleCard>
   );
 }
 
@@ -161,7 +209,6 @@ function SlotPickerModal({
     }
   }
 
-  // group by day
   const grouped = React.useMemo(() => {
     const byDay = new Map<string, SlotLite[]>();
     for (const s of slots) {
@@ -189,27 +236,27 @@ function SlotPickerModal({
           style={{
             borderRadius: 16,
             overflow: "hidden",
-            backgroundColor: theme.colors.surface,
+            backgroundColor: useTheme().colors.surface,
             borderWidth: 1,
-            borderColor: theme.colors.outlineVariant,
+            borderColor: useTheme().colors.outlineVariant,
             maxHeight: "80%",
           }}
         >
-          <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: theme.colors.outlineVariant }}>
-            <Text style={{ fontWeight: "800", fontSize: 16, color: theme.colors.onSurface }}>Escolher horário</Text>
+          <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: useTheme().colors.outlineVariant }}>
+            <Text style={{ fontWeight: "800", fontSize: 16, color: useTheme().colors.onSurface }}>Escolher horário</Text>
           </View>
 
           <ScrollView contentContainerStyle={{ padding: 14, gap: 12 }}>
             {loading && <ActivityIndicator style={{ marginTop: 8 }} />}
 
             {!loading && grouped.length === 0 && (
-              <Text style={{ color: theme.colors.onSurfaceVariant }}>
+              <Text style={{ color: useTheme().colors.onSurfaceVariant }}>
                 Sem slots abertos nos próximos 14 dias.
               </Text>
             )}
 
             {grouped.map((g) => (
-              <View key={g.key} style={{ borderWidth: 1, borderColor: theme.colors.outlineVariant, borderRadius: 12, padding: 10, gap: 6 }}>
+              <View key={g.key} style={{ borderWidth: 1, borderColor: useTheme().colors.outlineVariant, borderRadius: 12, padding: 10, gap: 6 }}>
                 <Text style={{ fontWeight: "700" }}>{g.label}</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                   {g.items.map((s) => {
@@ -224,11 +271,11 @@ function SlotPickerModal({
                           paddingHorizontal: 10,
                           borderRadius: 999,
                           borderWidth: 1,
-                          borderColor: theme.colors.outlineVariant,
-                          backgroundColor: isSel ? theme.colors.primary : theme.colors.surface,
+                          borderColor: useTheme().colors.outlineVariant,
+                          backgroundColor: isSel ? useTheme().colors.primary : useTheme().colors.surface,
                         }}
                       >
-                        <Text style={{ color: isSel ? theme.colors.onPrimary : theme.colors.onSurface, fontWeight: "700" }}>
+                        <Text style={{ color: isSel ? useTheme().colors.onPrimary : useTheme().colors.onSurface, fontWeight: "700" }}>
                           {label}
                         </Text>
                       </TouchableOpacity>
@@ -248,7 +295,7 @@ function SlotPickerModal({
             </View>
           </ScrollView>
 
-          <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: theme.colors.outlineVariant }}>
+          <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: useTheme().colors.outlineVariant }}>
             <SecondaryButton label="Cancelar" onPress={onClose} />
             <PrimaryButton
               label="Confirmar"
@@ -294,7 +341,6 @@ function PedidoComSlotCard({
   async function confirm() {
     setBusy("confirm");
     try {
-      // endpoint dedicado, com fallback PATCH
       try {
         const r = await fetch(`${API_URL}/consultations/${c.id}/confirm`, { method: "POST", credentials: "include" });
         if (!r.ok) throw new Error(await r.text());
@@ -345,9 +391,7 @@ function PedidoComSlotCard({
           {c.family?.fullName ?? `Família #${c.familyId ?? "—"}`} • <Text style={{ fontWeight: "400" }}>Pendente</Text>
         </Text>
         <Text style={{ color: theme.colors.onSurfaceVariant }}>{fmtRange(c.startAt, c.endAt)}</Text>
-        {!!conflict && (
-          <Text style={{ color: "#9A3412" }}>{conflict}</Text>
-        )}
+        {!!conflict && <Text style={{ color: "#9A3412" }}>{conflict}</Text>}
 
         <View style={{ flexDirection: "row", gap: 8, marginTop: 8, alignSelf: "flex-start" }}>
           <PrimaryButton label="✅ Aceitar" onPress={confirm} disabled={busy === "confirm"} />
@@ -356,7 +400,6 @@ function PedidoComSlotCard({
         </View>
       </View>
 
-      {/* Modal para escolher um novo slot e propor reagendamento */}
       <SlotPickerModal
         visible={showPicker}
         onClose={() => setShowPicker(false)}
@@ -486,7 +529,6 @@ export default function ConsultasPendentesComReagendamento() {
   const [consultas, setConsultas] = React.useState<ConsultationLite[]>([]);
   const [propostas, setPropostas] = React.useState<any[]>([]);
 
-  // filtros como a Agenda (Hoje=agora→fim dia; Amanhã; +3; +7; Todos=+180)
   type RangeKey = "today" | "tomorrow" | "next3" | "next7" | "all";
   const [range, setRange] = React.useState<RangeKey>("today");
 
@@ -506,7 +548,6 @@ export default function ConsultasPendentesComReagendamento() {
     if (!librarianId) { setConsultas([]); setPropostas([]); return; }
     setLoading(true);
     try {
-      // pedidos pendentes dentro da janela
       const params = new URLSearchParams({
         librarianId: String(librarianId),
         status: "PENDING",
@@ -518,7 +559,6 @@ export default function ConsultasPendentesComReagendamento() {
       const url = `${API_URL}/consultations/all?${params.toString()}`;
       const list = (await fetch(url, { credentials: "include" }).then((r) => r.json())) as ConsultationLite[];
 
-      // propostas pendentes
       const ps = await listLibrarianProposals(librarianId, { status: "PENDING", limit: 100 }).catch(() => ({ items: [] as any[] }));
       setConsultas(Array.isArray(list) ? list : []);
       setPropostas(Array.isArray(ps?.items) ? ps.items : []);
@@ -538,13 +578,11 @@ export default function ConsultasPendentesComReagendamento() {
     try { await load(); } finally { setRefreshing(false); }
   }, [load]);
 
-  // pedidos com slot
   const consultasComSlot = React.useMemo(
     () => (consultas || []).filter((c) => c.startAt && c.endAt),
     [consultas]
   );
 
-  // excluir as consultas que já têm proposta pendente do bibliotecário
   const librarianPendingSet = React.useMemo(() => {
     const set = new Set<number>();
     for (const p of propostas) {
@@ -579,17 +617,24 @@ export default function ConsultasPendentesComReagendamento() {
             </View>
           </FlexibleCard>
 
-          {/* Secção: Solicitações com proposta de horário */}
-          <FlexibleCard backgroundColor={theme.colors.surface} elevation={1} padding={12} style={{ borderRadius: 12 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <Text style={{ fontWeight: "800" }}>Solicitações com proposta de horário</Text>
-              <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: theme.colors.secondaryContainer }}>
+          {/* Secção: Solicitações com proposta de horário (COLAPSÁVEL) */}
+          <CollapsibleSection
+            title="Solicitações com proposta de horário"
+            right={
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 999,
+                  backgroundColor: theme.colors.secondaryContainer,
+                }}
+              >
                 <Text style={{ color: theme.colors.onSecondaryContainer, fontSize: 12 }}>
                   {pedidosComSlotSemPropDoBibliotecario.length}
                 </Text>
               </View>
-            </View>
-
+            }
+          >
             {loading ? (
               <ActivityIndicator style={{ marginTop: 8 }} />
             ) : pedidosComSlotSemPropDoBibliotecario.length === 0 ? (
@@ -603,17 +648,27 @@ export default function ConsultasPendentesComReagendamento() {
                 ))}
               </View>
             )}
-          </FlexibleCard>
+          </CollapsibleSection>
 
-          {/* Secção: Propostas de reagendamento */}
-          <FlexibleCard backgroundColor={theme.colors.surface} elevation={1} padding={12} style={{ borderRadius: 12 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <Text style={{ fontWeight: "800" }}>Propostas de reagendamento</Text>
-              <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: theme.colors.secondaryContainer }}>
-                <Text style={{ color: theme.colors.onSecondaryContainer, fontSize: 12 }}>{propostas.length}</Text>
+          {/* Secção: Propostas de reagendamento (COLAPSÁVEL) */}
+          <CollapsibleSection
+            title="Propostas de reagendamento"
+            right={
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 999,
+                  backgroundColor: theme.colors.secondaryContainer,
+                }}
+              >
+                <Text style={{ color: theme.colors.onSecondaryContainer, fontSize: 12 }}>
+                  {propostas.length}
+                </Text>
               </View>
-            </View>
-
+            }
+            defaultCollapsed
+          >
             {loading ? (
               <ActivityIndicator style={{ marginTop: 8 }} />
             ) : propostas.length === 0 ? (
@@ -627,7 +682,7 @@ export default function ConsultasPendentesComReagendamento() {
                 ))}
               </View>
             )}
-          </FlexibleCard>
+          </CollapsibleSection>
         </ScrollView>
       </SafeAreaView>
     </Background>

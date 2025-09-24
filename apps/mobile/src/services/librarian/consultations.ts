@@ -72,6 +72,13 @@ export type ProposalsPage = {
   total?: number;
 };
 
+export type SlotCreateInput = {
+  startAt: string;
+  endAt: string;
+  libraryId?: number;
+  status?: "OPEN" | "BLOCKED";
+};
+
 /* ---------------- Slots (bibliotecário) ---------------- */
 
 // slots do bibliotecário num intervalo (mesmo endpoint do web)
@@ -90,8 +97,7 @@ export async function listLibrarianSlots(
     status: (s.status || "OPEN").toUpperCase(),
     librarianId: Number(s.librarianId ?? s.librarian?.id ?? librarianId),
     librarianName: s.librarianName ?? s.librarian?.fullName ?? undefined,
-    librarianAvatarUrl:
-      s.librarianAvatarUrl ?? s.librarian?.avatarUrl ?? null,
+    librarianAvatarUrl: s.librarianAvatarUrl ?? s.librarian?.avatarUrl ?? null,
     libraryId: s.libraryId ?? s.library?.id ?? undefined,
     libraryName: s.libraryName ?? s.library?.name ?? undefined,
   }));
@@ -100,7 +106,7 @@ export async function listLibrarianSlots(
 // slots abertos (para o picker de reagendamento)
 export async function listOpenSlots(params: {
   from: string; // ISO
-  to: string;   // ISO
+  to: string; // ISO
   libraryId?: number;
   librarianId?: number;
 }): Promise<SlotLite[]> {
@@ -112,12 +118,15 @@ export async function listOpenSlots(params: {
     id: Number(s.id),
     startAt: String(s.startAt ?? s.begin ?? s.since),
     endAt: String(s.endAt ?? s.end ?? s.until),
-    status: ((s.status ?? "OPEN") as string).toUpperCase() === "BOOKED" ? "BOOKED" :
-            ((s.status ?? "OPEN") as string).toUpperCase() === "BLOCKED" ? "BLOCKED" : "OPEN",
+    status:
+      ((s.status ?? "OPEN") as string).toUpperCase() === "BOOKED"
+        ? "BOOKED"
+        : ((s.status ?? "OPEN") as string).toUpperCase() === "BLOCKED"
+        ? "BLOCKED"
+        : "OPEN",
     librarianId: Number(s.librarianId ?? s.librarian?.id ?? 0),
     librarianName: s.librarianName ?? s.librarian?.fullName ?? undefined,
-    librarianAvatarUrl:
-      s.librarianAvatarUrl ?? s.librarian?.avatarUrl ?? null,
+    librarianAvatarUrl: s.librarianAvatarUrl ?? s.librarian?.avatarUrl ?? null,
     libraryId: s.libraryId ?? s.library?.id ?? undefined,
     libraryName: s.libraryName ?? s.library?.name ?? undefined,
   }));
@@ -138,12 +147,7 @@ export async function createSlot(payload: {
 // criar vários (bulk)
 export async function bulkCreateSlots(
   librarianId: number,
-  slots: Array<{
-    startAt: string;
-    endAt: string;
-    libraryId?: number;
-    status?: "OPEN" | "BLOCKED";
-  }>
+  slots: SlotCreateInput[]
 ) {
   const url = `${API_URL}/consultations/librarians/${librarianId}/slots/bulk`;
   return fetchJson(url, {
@@ -187,7 +191,11 @@ export async function deleteSlot(slotId: number) {
 // propostas pendentes do bibliotecário (lista paginada)
 export async function listLibrarianProposals(
   librarianId: number,
-  { page = 1, limit = 20, status = "PENDING" }: { page?: number; limit?: number; status?: string } = {}
+  {
+    page = 1,
+    limit = 20,
+    status = "PENDING",
+  }: { page?: number; limit?: number; status?: string } = {}
 ): Promise<ProposalsPage> {
   const url =
     `${API_URL}/consultations/librarians/${librarianId}/proposals?` +
@@ -195,7 +203,12 @@ export async function listLibrarianProposals(
   const data = await fetchJson(url);
   // normalizar para { items, page, limit, total }
   if (data && Array.isArray((data as any).items)) return data as ProposalsPage;
-  return { items: Array.isArray(data) ? (data as Proposal[]) : [], page, limit, total: undefined };
+  return {
+    items: Array.isArray(data) ? (data as Proposal[]) : [],
+    page,
+    limit,
+    total: undefined,
+  };
 }
 
 // criar proposta de reagendamento (bibliotecário → família)
@@ -243,12 +256,17 @@ export async function checkLibrarianConflict(
     startAt,
     endAt,
     excludeConsultationId,
-  }: { startAt: string | Date; endAt: string | Date; excludeConsultationId?: number }
+  }: {
+    startAt: string | Date;
+    endAt: string | Date;
+    excludeConsultationId?: number;
+  }
 ): Promise<{ conflict: boolean }> {
   const s = typeof startAt === "string" ? startAt : startAt.toISOString();
   const e = typeof endAt === "string" ? endAt : endAt.toISOString();
   const q = new URLSearchParams({ startAt: s, endAt: e });
-  if (excludeConsultationId) q.set("excludeConsultationId", String(excludeConsultationId));
+  if (excludeConsultationId)
+    q.set("excludeConsultationId", String(excludeConsultationId));
   const url = `${API_URL}/consultations/librarians/${librarianId}/conflicts?${q.toString()}`;
   return fetchJson(url);
 }

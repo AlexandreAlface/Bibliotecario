@@ -24,7 +24,7 @@ import {
 import { useAuth } from "src/contexts/AuthContext";
 import {
   bulkCreateSlots,
-  createSingleSlot,
+  createSlot,
   type SlotCreateInput,
 } from "src/services/librarian/consultations"; // ⬅️ novo serviço
 
@@ -350,7 +350,7 @@ export default function SlotsPage() {
           // fallback 1-a-1 só para este chunk
           for (const s of part) {
             try {
-              await createSingleSlot({ ...s, librarianId: Number(user.id) });
+              await createSlot({ ...s, librarianId: Number(user.id) });
               ok++;
             } catch {
               fail++;
