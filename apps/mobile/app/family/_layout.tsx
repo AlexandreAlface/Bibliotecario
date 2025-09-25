@@ -1,3 +1,4 @@
+// apps/mobile/app/(tabs)/_layout.tsx
 import * as React from "react";
 import { View, TouchableOpacity } from "react-native";
 import { Tabs } from "expo-router";
@@ -38,12 +39,12 @@ const ICONS: Record<
   }
 > = {
   index: { active: "home-variant", inactive: "home-variant-outline" },
+  feed: { active: "rss", inactive: "rss" },
   sugestoes: { active: "magic-staff", inactive: "magic-staff" },
   agenda: { active: "calendar-month", inactive: "calendar-month-outline" },
   conquistas: { active: "trophy-award", inactive: "trophy-outline" },
   consultas: { active: "calendar-clock", inactive: "calendar-clock-outline" },
   familias: { active: "account-group", inactive: "account-group-outline" },
-  feed: { active: "rss", inactive: "rss" },
   leituras: { active: "book-open-variant", inactive: "book-open-variant" },
   avaliacoes: { active: "star", inactive: "star-outline" },
   eventos: {
@@ -54,6 +55,7 @@ const ICONS: Record<
 
 const MENU_FAMILIA: RouteName[] = [
   "index",
+  "feed",        // 👈 adicionado
   "leituras",
   "avaliacoes",
   "eventos",
@@ -65,6 +67,7 @@ const MENU_FAMILIA: RouteName[] = [
 ];
 const MENU_CRIANCA: RouteName[] = [
   "index",
+  "feed",        // 👈 adicionado
   "leituras",
   "avaliacoes",
   "eventos",
@@ -78,7 +81,6 @@ function MyTabBar(props: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
-  // Guard extra: durante transições (ex: logout), pode renderizar sem user
   const roles = React.useMemo(() => extractRoles(user), [user]);
   const role = user?.actingChild ? "CRIANÇA" : roles[0] ?? "FAMÍLIA";
   const visible = role === "CRIANÇA" ? MENU_CRIANCA : MENU_FAMILIA;
@@ -144,11 +146,9 @@ function MyTabBar(props: BottomTabBarProps) {
 
 export default function TabsLayout() {
   return (
-    <Tabs
-      tabBar={(p) => <MyTabBar {...p} />}
-      screenOptions={{ headerShown: false }}
-    >
+    <Tabs tabBar={(p) => <MyTabBar {...p} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="index" />
+      <Tabs.Screen name="feed" />       {/* 👈 nova rota */}
       <Tabs.Screen name="leituras" />
       <Tabs.Screen name="avaliacoes" />
       <Tabs.Screen name="eventos" />
@@ -160,3 +160,5 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+

@@ -1,4 +1,3 @@
-// apps/web/src/pages/index.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   WhiteCard,
@@ -18,6 +17,7 @@ import {
   useTheme,
   Tooltip,
   IconButton,
+  Button,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import { useUserSession } from "../../contexts/UserSession";
@@ -26,6 +26,7 @@ import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import { StarRounded } from "@mui/icons-material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
+import TipsAndUpdatesRounded from "@mui/icons-material/TipsAndUpdatesRounded";
 
 import { getLeiturasAtuais } from "../../services/readings";
 import type { BookLite as ReadingBookLite } from "../../services/readings";
@@ -39,6 +40,13 @@ import {
 } from "../../services/consultations";
 import { getBadgesRecent, type BadgeLite } from "../../services/badges";
 import EmojiEventsRounded from "@mui/icons-material/EmojiEventsRounded";
+
+// micro-conteúdos (dicas/biblioterapia)
+import {
+  listMicroContentsPublic,
+  markMicroContentSeen,
+} from "@/services/microcontent";
+import type { MicroContentItem } from "@/services/microcontent";
 
 // Placeholder para eventos sem imagem
 import EVENT_PLACEHOLDER from "../../assets/placeholder-event.jpg";
@@ -553,6 +561,10 @@ export default function LandingPage() {
   const [sugestoes, setSugestoes] = useState<SuggestionWithMeta[]>([]);
   const [consultas, setConsultas] = useState<ConsultaLite[]>([]);
 
+  // micro-conteúdos em destaque
+  const [tips, setTips] = useState<MicroContentItem[]>([]);
+  const [tipsSeen, setTipsSeen] = useState<Record<number, boolean>>({});
+
   // sugestões (manual only)
   const [sugLoading, setSugLoading] = useState(false);
   const [sugUpdatedAt, setSugUpdatedAt] = useState<number | null>(null);
@@ -613,6 +625,32 @@ export default function LandingPage() {
     user?.children?.length,
     user?.id,
   ]);
+
+  // carregar 3 micro-conteúdos (preferindo DICA/BIBLIOTERAPIA)
+  useEffect(() => {
+    (async () => {
+      try {
+        // primeiro tenta DICA
+        const dica = await listMicroContentsPublic({
+          type: "DICA",
+          page: 1,
+          limit: 3,
+        });
+        let items = Array.isArray(dica?.items) ? dica.items : [];
+        if (items.length < 3) {
+          const bib = await listMicroContentsPublic({
+            type: "BIBLIOTERAPIA",
+            page: 1,
+            limit: 3 - items.length,
+          });
+          items = [...items, ...(Array.isArray(bib?.items) ? bib.items : [])];
+        }
+        setTips(items.slice(0, 3) as any);
+      } catch {
+        setTips([]);
+      }
+    })();
+  }, []);
 
   // gerar sugestões on-demand
   async function generateSuggestions() {
@@ -987,7 +1025,7 @@ export default function LandingPage() {
           </WhiteCard>
         </Grid>
 
-        {/* Área inferior */}
+        {/* Área inferior esquerda: Conquistas */}
         <Grid item xs={12} md={6} sx={{ display: "flex" }}>
           <WhiteCard sx={{ flex: 1, minHeight: 180 }}>
             <CardHeader
@@ -1080,25 +1118,108 @@ export default function LandingPage() {
           </WhiteCard>
         </Grid>
 
+        {/* Área inferior direita: Dicas & Biblioterapia */}
         <Grid item xs={12} md={6} sx={{ display: "flex" }}>
-          <WhiteCard sx={{ flex: 1, minHeight: 180 }}>
-            <CardHeader title="Atividade recente" />
-            <Stack spacing={1}>
-              <Typography variant="body2">
-                ✅ Reserva efetuada em{" "}
-                <strong>“{sugestoes[0]?.title ?? "—"}”</strong>
-              </Typography>
-              <Divider />
-              <Typography variant="body2">
-                📚 Progresso atualizado em{" "}
-                <strong>“{leituras[0]?.title ?? "—"}”</strong>
-              </Typography>
-              <Divider />
-              <Typography variant="body2">
-                📅 Confirmou presença no evento{" "}
-                <strong>“{eventos[0]?.title ?? "—"}”</strong>
-              </Typography>
-            </Stack>
+          <WhiteCard
+            sx={{
+              flex: 1,
+              height: 400,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <CardHeader
+              title="Dicas & Biblioterapia"
+              action={<RouteLink href="/contents">Ver mais</RouteLink>}
+            />
+
+            {/* 🔽 content area com scroll para não crescer o card */}
+            <Box
+              sx={{
+                flex: 1,
+                overflowY: "auto",
+                pr: 1,
+                "&::-webkit-scrollbar": { width: 6 },
+                "&::-webkit-scrollbar-thumb": {
+                  backgroundColor: "rgba(0,0,0,.15)",
+                  borderRadius: 8,
+                },
+              }}
+            >
+              {tips.length === 0 ? (
+                <Typography sx={{ opacity: 0.6 }}>
+                  Sem conteúdos no momento.
+                </Typography>
+              ) : (
+                <Stack spacing={1.25} divider={<Divider />}>
+                  {tips.map((mc) => {
+                    const seen =
+                      (mc as any).seen === true ||
+                      Number((mc as any).interactionsCount || 0) > 0 ||
+                      tipsSeen[mc.id];
+
+                    return (
+                      <Box key={mc.id}>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          useFlexGap
+                          flexWrap="wrap"
+                          alignItems="center"
+                          sx={{ mb: 0.5 }}
+                        >
+                          <Chip size="small" color="primary" label={mc.type} />
+                          {mc.tags.slice(0, 3).map((t) => (
+                            <Chip
+                              key={t}
+                              size="small"
+                              label={t}
+                              variant="outlined"
+                            />
+                          ))}
+                          {mc.library ? (
+                            <Chip
+                              size="small"
+                              variant="outlined"
+                              label={`Biblioteca: ${mc.library.name}`}
+                            />
+                          ) : null}
+                          {seen ? (
+                            <Chip size="small" color="success" label="Visto" />
+                          ) : null}
+                        </Stack>
+
+                        <Typography
+                          sx={{
+                            whiteSpace: "pre-wrap",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 4,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {mc.text}
+                        </Typography>
+
+                        <Stack direction="row" spacing={1} sx={{ mt: 0.75 }}>
+                          <Button
+                            size="small"
+                            onClick={async () => {
+                              if (seen) return;
+                              await markMicroContentSeen(mc.id);
+                              setTipsSeen((m) => ({ ...m, [mc.id]: true }));
+                            }}
+                            disabled={seen}
+                          >
+                            {seen ? "Visto" : "Marcar como visto"}
+                          </Button>
+                        </Stack>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              )}
+            </Box>
           </WhiteCard>
         </Grid>
       </Grid>

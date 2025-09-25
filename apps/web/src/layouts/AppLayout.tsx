@@ -1,4 +1,3 @@
-// apps/web/src/layouts/AppLayout.tsx
 import * as React from "react";
 import {
   AppBar,
@@ -48,6 +47,7 @@ import ListAltRounded from "@mui/icons-material/ListAltRounded";
 import AdminPanelSettingsRounded from "@mui/icons-material/AdminPanelSettingsRounded";
 import DashboardCustomizeRounded from "@mui/icons-material/DashboardCustomizeRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
+import LightbulbRounded from "@mui/icons-material/LightbulbRounded";
 
 import { useUserSession } from "@/contexts/UserSession";
 import { GradientBackgroundWithShapes, Logo } from "@bibliotecario/ui-web";
@@ -76,6 +76,7 @@ function buildMenu(opts: {
         label: "Sug. por categorias",
         icon: <CategoryRounded />,
       },
+      { to: "/contents", label: "Conteúdos", icon: <LightbulbRounded /> }, // 👈 NOVO (criança)
       {
         to: "/achievements",
         label: "Conquistas",
@@ -100,6 +101,7 @@ function buildMenu(opts: {
         label: "Sug. por categorias",
         icon: <CategoryRounded />,
       },
+      { to: "/contents", label: "Conteúdos", icon: <LightbulbRounded /> }, // 👈 NOVO (família)
       {
         to: "/achievements",
         label: "Conquistas",
@@ -147,48 +149,25 @@ function buildMenu(opts: {
 
   if (isAdmin) {
     items.push(
-      {
-        to: "/admin",
-        label: "Início",
-        icon: <AdminPanelSettingsRounded />,
-      },
+      { to: "/admin", label: "Início", icon: <AdminPanelSettingsRounded /> },
       {
         to: "/admin/bibliotecarios",
         label: "Bibliotecários",
         icon: <PeopleAltRounded />,
       },
-      {
-        to: "/admin/familias",
-        label: "Famílias",
-        icon: <PeopleAltRounded />,
-      },
+      { to: "/admin/familias", label: "Famílias", icon: <PeopleAltRounded /> },
       { to: "/admin/slots", label: "Slots", icon: <ScheduleRounded /> },
-      {
-        to: "/admin/propostas",
-        label: "Propostas",
-        icon: <ListAltRounded />,
-      },
-      {
-        to: "/admin/eventos",
-        label: "Eventos",
-        icon: <EventAvailableRounded />,
-      },
+      { to: "/admin/propostas", label: "Propostas", icon: <ListAltRounded /> },
+      { to: "/admin/eventos", label: "Eventos", icon: <EventAvailableRounded /> },
       { to: "/admin/feeds", label: "Feeds", icon: <RssFeedRounded /> },
       {
-        to: "/admin/metricas",
-        label: "Métricas",
-        icon: <QueryStatsRounded />,
+        to: "/admin/micro-contents",
+        label: "Micro-conteúdos",
+        icon: <LightbulbRounded />,
       },
-      {
-        to: "/admin/livros",
-        label: "Livros (CSV)",
-        icon: <LibraryBooksRounded />,
-      }
-      //   {
-      //    to: "/admin/bibliotecarios/novo",
-      //    label: "Adicionar bibliotecário",
-      //    icon: <PersonAddRounded />,
-      //  },
+      { to: "/admin/metricas", label: "Métricas", icon: <QueryStatsRounded /> },
+      { to: "/admin/livros", label: "Livros (CSV)", icon: <LibraryBooksRounded /> }
+      // { to: "/admin/bibliotecarios/novo", label: "Adicionar bibliotecário", icon: <PersonAddRounded /> },
     );
   }
 

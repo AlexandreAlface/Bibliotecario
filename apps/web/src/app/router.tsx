@@ -15,6 +15,7 @@ import ReviewsPage from "@/pages/families/reviews";
 import ReadingsPage from "@/pages/families/readings";
 import SuggestionsByCategoriesPage from "@/pages/families/suggestions-categories";
 import FamilyEventsPage from "@/pages/families/events";
+import FamilyContentsPage from "@/pages/families/contents"; // 👈 NOVO
 
 // auth
 import Login from "@/pages/auth/Login";
@@ -43,6 +44,7 @@ import AdminBacklog from "@/pages/admin/Backlog";
 import AdminMetrics from "@/pages/admin/Metrics";
 import AdminFeeds from "@/pages/admin/Feeds";
 import AdminImportBooks from "@/pages/admin/ImportarLivros";
+import AdminMicroContentsPage from "@/pages/admin/micro-contents"; // já adicionado
 
 function AuthLayout() {
   return <Outlet />;
@@ -92,6 +94,7 @@ export const router = createBrowserRouter([
         path: "suggestions-categories",
         element: <SuggestionsByCategoriesPage />,
       },
+      { path: "contents", element: <FamilyContentsPage /> }, // 👈 NOVO (rota família/criança)
       { path: "achievements", element: <AchievementsPage /> },
       { path: "agenda", element: <AgendasPage /> },
       { path: "consultas", element: <ConsultasPage /> },
@@ -137,9 +140,10 @@ export const router = createBrowserRouter([
           { path: "propostas", element: <AdminBacklog /> },
           { path: "eventos", element: <AdminEvents /> },
           { path: "feeds", element: <AdminFeeds /> },
+          { path: "micro-contents", element: <AdminMicroContentsPage /> },
           { path: "livros", element: <AdminImportBooks /> },
           { path: "metricas", element: <AdminMetrics /> },
-           { path: "bibliotecarios/novo", element: <AdminLibrarians /> },
+          { path: "bibliotecarios/novo", element: <AdminLibrarians /> },
         ],
       },
     ],

@@ -1,5 +1,3 @@
-// prisma/schema.prisma (atualizado) — adiciona relação Livro↔Biblioteca via LibraryBook
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -18,9 +16,9 @@ enum ConsultationStatus {
 }
 
 enum SlotStatus {
-  OPEN // visível para marcação
-  BOOKED // reservado/associado a uma consulta
-  BLOCKED // bloqueado pelo bibliotecário (férias, reunião, etc.)
+  OPEN
+  BOOKED
+  BLOCKED
 }
 
 enum ProposalStatus {
@@ -36,14 +34,20 @@ enum ProposalActor {
   SYSTEM
 }
 
-// Tabela de perfis de utilizador
-model Role {
-  id        Int        @id @default(autoincrement()) // PK: id_role
-  name      String     @unique // nome do perfil (ex.: “FAMÍLIA”, “BIBLIOTECÁRIO”, “CRIANÇA”)
-  userRoles UserRole[] // relação N:N → UserRole
+/* 👇 NOVO: tipo de micro-conteúdo */
+enum MicroContentType {
+  BIBLIOTERAPIA
+  DICA
+  FACTO
+  OUTRO
 }
 
-// Tabela de utilizadores (família, bibliotecário, criança, administrador)
+model Role {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  userRoles UserRole[]
+}
+
 model User {
   id           Int     @id @default(autoincrement())
   fullName     String
@@ -64,26 +68,26 @@ model User {
   consultationsAsFamily    Consultation[] @relation("ConsultationsAsFamily")
   consultationsAsLibrarian Consultation[] @relation("ConsultationsAsLibrarian")
 
-  // 👇 novos lados opostos
   consultationSlots            ConsultationSlot[]     @relation("LibrarianSlots")
   consultationEventsAuthored   ConsultationEvent[]    @relation("ConsultationEventActor")
   consultationProposalsDecided ConsultationProposal[] @relation("ProposalDecider")
 
   newsletterSubscriptions NewsletterSubscription[]
   microInteractions       MicroInteraction[]
+
+  /* 👇 opcional: autor de micro-conteúdos */
+  microContents MicroContent[] @relation("MicroContentAuthor")
 }
 
-// Associação N:N entre User e Role
 model UserRole {
   user   User @relation(fields: [userId], references: [id])
-  userId Int // FK → User.id
+  userId Int
   role   Role @relation(fields: [roleId], references: [id])
-  roleId Int // FK → Role.id
+  roleId Int
 
-  @@id([userId, roleId]) // PK composto
+  @@id([userId, roleId])
 }
 
-// Tabela de bibliotecas
 model Library {
   id      Int     @id @default(autoincrement())
   name    String
@@ -93,92 +97,88 @@ model Library {
   userLibraries UserLibrary[]
   feeds         FeedRss[]
 
-  // 👇 novos lados opostos
   consultations     Consultation[]
   consultationSlots ConsultationSlot[]
 
   CulturalEvent CulturalEvent[]
 
-  // 👇 NOVO: relação para holdings (exemplares) por biblioteca
   libraryBooks LibraryBook[]
+
+  /* 👇 NOVO: conteúdos associados a esta biblioteca */
+  microContents MicroContent[]
 }
 
-// Associação N:N entre User e Library
 model UserLibrary {
   user      User    @relation(fields: [userId], references: [id])
-  userId    Int // FK → User.id
+  userId    Int
   library   Library @relation(fields: [libraryId], references: [id])
-  libraryId Int // FK → Library.id
+  libraryId Int
 
-  @@id([userId, libraryId]) // PK composto
+  @@id([userId, libraryId])
 }
 
-// Configuração de feeds RSS por biblioteca
 model FeedRss {
-  id            Int       @id @default(autoincrement()) // PK: id_feed
+  id            Int       @id @default(autoincrement())
   library       Library   @relation(fields: [libraryId], references: [id])
-  libraryId     Int // FK → Library.id
-  url           String // url_feed
-  lastBuildDate DateTime? // última data de atualização
-  ttl           Int? // tempo de validade (minutos)
+  libraryId     Int
+  url           String
+  lastBuildDate DateTime?
+  ttl           Int?
 
-  events CulturalEvent[] // relação 1:N → CulturalEvent
+  events CulturalEvent[]
 }
 
-// Definição de fontes CSV para catálogo de livros
 model CsvSource {
-  id         Int      @id @default(autoincrement()) // PK: id_csv
-  name       String   @unique // nome_fonte
-  filePath   String // path_ficheiro ou URL
-  importDate DateTime // data_import
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  filePath   String
+  importDate DateTime
 }
 
-// Catálogo de livros
 model Book {
-  isbn            String  @id // ISBN
-  title           String // título
-  summary         String? // “Resumo” do livro
-  author          String // Autor_Beja
-  publicationYear Int? // ano (extraído de Publicacao_Beja)
-  collection      String? // Colecao_Beja
-  category        String? // Assuntos_Beja
-  cdu             String? // CDU_Beja
-  ageRange        String? // faixa etária
-  coverUrl        String? // URL da capa
+  isbn            String  @id
+  title           String
+  summary         String?
+  author          String
+  publicationYear Int?
+  collection      String?
+  category        String?
+  cdu             String?
+  ageRange        String?
+  coverUrl        String?
 
   ageMin    Int?
   ageMax    Int?
-  genres    String[]                     @default([]) // opcional (p/ futuro); mantém category como está
+  genres    String[]                     @default([])
   embedding Unsupported("vector(1536)")?
 
-  origins          BookOrigin[] // ligações às origens
+  origins          BookOrigin[]
   readings         Reading[]
   ratings          Rating[]
   bookReservations BookReservation[]
 
-  // 👇 NOVO: holdings por biblioteca
   libraries LibraryBook[]
+
+  /* 👇 NOVO: ponte N:N com micro-conteúdos */
+  microContents MicroContentBook[]
 }
 
-// Tabela de origens de cada livro (PNL, CSV, API externa…)
 model Origin {
-  id          Int    @id @default(autoincrement()) // PK: id_origem
-  description String @unique // descrição da origem
+  id          Int    @id @default(autoincrement())
+  description String @unique
 
-  books BookOrigin[] // relação N:N → BookOrigin
+  books BookOrigin[]
 }
 
-// Associação N:N entre Book e Origin
 model BookOrigin {
   book     Book   @relation(fields: [bookIsbn], references: [isbn])
-  bookIsbn String // FK → Book.isbn
+  bookIsbn String
   origin   Origin @relation(fields: [originId], references: [id])
-  originId Int // FK → Origin.id
+  originId Int
 
-  @@id([bookIsbn, originId]) // PK composto
+  @@id([bookIsbn, originId])
 }
 
-// Dados de crianças para perfil de leitor
 model Child {
   id            Int      @id @default(autoincrement())
   name          String
@@ -194,7 +194,6 @@ model Child {
 
   ratings Rating[]
 
-  // 👇 novo lado oposto
   consultations Consultation[]
 }
 
@@ -207,17 +206,15 @@ model ChildPreference {
   child Child @relation(fields: [childId], references: [id], onDelete: Cascade)
 }
 
-// Associação N:N entre Child e User (família)
 model ChildFamily {
   child    Child @relation(fields: [childId], references: [id], onDelete: Cascade)
-  childId  Int // FK → Child.id
+  childId  Int
   family   User  @relation(fields: [familyId], references: [id])
-  familyId Int // FK → User.id (role = FAMÍLIA)
+  familyId Int
 
-  @@id([childId, familyId]) // PK composto
+  @@id([childId, familyId])
 }
 
-// -------------------- Reading --------------------
 model Reading {
   id            Int              @id @default(autoincrement())
   child         Child            @relation(fields: [childId], references: [id], onDelete: Cascade)
@@ -230,23 +227,21 @@ model Reading {
   reservationId Int?
   ratings       Rating[]
 
-  @@unique([childId, bookIsbn]) // 👈 APENAS UMA leitura por (criança, livro)
+  @@unique([childId, bookIsbn])
   @@index([childId, finishedAt])
   @@index([childId, bookIsbn, finishedAt])
 }
 
 model Rating {
   id      Int    @id @default(autoincrement())
-  user    User   @relation(fields: [userId], references: [id]) // quem registou
+  user    User   @relation(fields: [userId], references: [id])
   userId  Int
-  // 👇 para que criança vale a avaliação (opcional)
   child   Child? @relation(fields: [childId], references: [id], onDelete: SetNull)
   childId Int?
 
   book     Book   @relation(fields: [bookIsbn], references: [isbn])
   bookIsbn String
 
-  // 👇 opcional: liga à sessão de leitura
   reading   Reading? @relation(fields: [readingId], references: [id], onDelete: SetNull)
   readingId Int?
 
@@ -259,35 +254,32 @@ model Rating {
   @@index([bookIsbn])
 }
 
-// Definição de selos e troféus
 model Badge {
-  id       Int    @id @default(autoincrement()) // PK: id_badge
-  name     String @unique // nome do selo/troféu
-  type     String // tipo (“SELLO”/“TROFÉU”)
-  criteria String // critério de atribuição
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  type     String
+  criteria String
 
-  assignments BadgeAssignment[] // relação 1:N → BadgeAssignment
+  assignments BadgeAssignment[]
 }
 
-// Associação entre Badge e Child
 model BadgeAssignment {
   child      Child    @relation(fields: [childId], references: [id], onDelete: Cascade)
-  childId    Int // FK → Child.id
+  childId    Int
   badge      Badge    @relation(fields: [badgeId], references: [id])
-  badgeId    Int // FK → Badge.id
-  assignedAt DateTime @default(now()) // data_atribuicao
+  badgeId    Int
+  assignedAt DateTime @default(now())
 
-  @@id([childId, badgeId]) // PK composto
+  @@id([childId, badgeId])
 }
 
-// Histórico de pontos por ação (LER, AVALIAR, RESERVAR…)
 model PointsHistory {
-  id         Int      @id @default(autoincrement()) // PK: id_ponto
+  id         Int      @id @default(autoincrement())
   user       User     @relation(fields: [userId], references: [id])
-  userId     Int // FK → User.id
-  action     String // ação (ex.: “LER”, “EVENTO”)
-  points     Float // pontos ganhos
-  actionDate DateTime @default(now()) // data_acao
+  userId     Int
+  action     String
+  points     Float
+  actionDate DateTime @default(now())
 }
 
 model Consultation {
@@ -314,7 +306,6 @@ model Consultation {
 
   notes String?
 
-  // 👇 1–1: FK aqui + UNIQUE, e só este lado define fields/references
   slotId Int?              @unique
   slot   ConsultationSlot? @relation("ConsultationSlotLink", fields: [slotId], references: [id])
 
@@ -355,7 +346,6 @@ model ConsultationSlot {
   endAt   DateTime
   status  SlotStatus @default(OPEN)
 
-  // 👇 lado passivo da 1–1 (mesmo nome da relação do outro lado)
   consultation Consultation? @relation("ConsultationSlotLink")
 
   createdAt DateTime @default(now())
@@ -387,7 +377,6 @@ model ConsultationProposal {
   @@index([consultationId, status])
 }
 
-// Eventos culturais (importados de RSS ou manualmente)
 model CulturalEvent {
   id          Int       @id @default(autoincrement())
   feed        FeedRss?  @relation(fields: [feedId], references: [id])
@@ -403,7 +392,6 @@ model CulturalEvent {
   capacity    Int?
   imageUrl    String?
 
-  // 👇 NOVO: associação direta à biblioteca para eventos manuais
   library   Library? @relation(fields: [libraryId], references: [id])
   libraryId Int?
 
@@ -412,7 +400,6 @@ model CulturalEvent {
   @@index([libraryId, startDate])
 }
 
-// Reservas de eventos culturais
 model EventReservation {
   id       Int           @id @default(autoincrement())
   family   User          @relation(fields: [familyId], references: [id])
@@ -420,13 +407,12 @@ model EventReservation {
   event    CulturalEvent @relation(fields: [eventId], references: [id])
   eventId  Int
   bookedAt DateTime      @default(now())
-  status   String // "PENDING" | "CONFIRMED"
+  status   String
 
   @@unique([familyId, eventId])
   @@index([eventId, status])
 }
 
-// Reservas de livros
 model BookReservation {
   id         Int       @id @default(autoincrement())
   child      Child     @relation(fields: [childId], references: [id], onDelete: Cascade)
@@ -436,56 +422,89 @@ model BookReservation {
   reservedAt DateTime  @default(now())
   readings   Reading[]
 
-  @@unique([childId, bookIsbn]) // 👈 APENAS UMA reserva por (criança, livro)
+  @@unique([childId, bookIsbn])
   @@index([childId, bookIsbn, reservedAt])
 }
 
-// Tabela de newsletters
 model Newsletter {
-  id          Int      @id @default(autoincrement()) // PK: id_newsletter
-  title       String // título
-  content     String // conteúdo
-  publishedAt DateTime @default(now()) // data_publicacao
+  id          Int      @id @default(autoincrement())
+  title       String
+  content     String
+  publishedAt DateTime @default(now())
 }
 
-// Subscrições de newsletter por família
 model NewsletterSubscription {
-  id           Int      @id @default(autoincrement()) // PK: id_subscricao
+  id           Int      @id @default(autoincrement())
   family       User     @relation(fields: [familyId], references: [id])
-  familyId     Int // FK → User.id
-  frequency    String // frequência (SEMANAL/MENSAL)
-  subscribedAt DateTime @default(now()) // data_subscricao
-  status       String // estado (ATIVA/INATIVA)
+  familyId     Int
+  frequency    String
+  subscribedAt DateTime @default(now())
+  status       String
 }
 
-// Micro-conteúdos “Sabias que…”
 model MicroContent {
-  id           Int                @id @default(autoincrement()) // PK: id_micro
-  text         String // texto do micro-conteúdo
-  interactions MicroInteraction[] // relação 1:N → MicroInteraction
+  id          Int              @id @default(autoincrement())
+  /* 👇 NOVOS CAMPOS */
+  type        MicroContentType @default(BIBLIOTERAPIA)
+  text        String
+  tags        String[]         @default([])
+  isPublished Boolean          @default(true)
+  publishedAt DateTime?        @default(now())
+
+  /* associação direta à biblioteca (opcional) */
+  library     Library? @relation(fields: [libraryId], references: [id])
+  libraryId   Int?
+
+  /* autor (opcional) */
+  author      User?    @relation("MicroContentAuthor", fields: [authorId], references: [id])
+  authorId    Int?
+
+  /* N:N com livros por ISBN */
+  books MicroContentBook[]
+
+  interactions MicroInteraction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([libraryId, isPublished])
+  @@index([publishedAt])
+  @@index([type])
 }
 
-// Interações com micro-conteúdos
 model MicroInteraction {
-  id             Int          @id @default(autoincrement()) // PK: id_interacao
+  id             Int          @id @default(autoincrement())
   user           User         @relation(fields: [userId], references: [id])
-  userId         Int // FK → User.id
+  userId         Int
   microContent   MicroContent @relation(fields: [microContentId], references: [id])
-  microContentId Int // FK → MicroContent.id
-  interactedAt   DateTime     @default(now()) // data_interacao
+  microContentId Int
+  interactedAt   DateTime     @default(now())
+
+  @@index([userId, microContentId])
 }
 
-// 👇 NOVO: holdings/exemplares por biblioteca
-model LibraryBook {
-  library   Library @relation(fields: [libraryId], references: [id], onDelete: Cascade)
-  libraryId Int
+/* 👇 NOVO: tabela ponte N:N MicroContent ↔ Book (por ISBN) */
+model MicroContentBook {
+  microContent   MicroContent @relation(fields: [microContentId], references: [id], onDelete: Cascade)
+  microContentId Int
 
   book   Book   @relation(fields: [bookIsbn], references: [isbn], onDelete: Cascade)
   bookIsbn String
 
-  quantity    Int?     // opcional: nº de exemplares
-  shelfCode   String?  // cota / localização
-  accessionNo String?  // nº de registo interno
+  @@id([microContentId, bookIsbn])
+  @@index([bookIsbn])
+}
+
+model LibraryBook {
+  library   Library @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  libraryId Int
+
+  book      Book    @relation(fields: [bookIsbn], references: [isbn], onDelete: Cascade)
+  bookIsbn  String
+
+  quantity    Int?
+  shelfCode   String?
+  accessionNo String?
 
   addedAt   DateTime @default(now())
   updatedAt DateTime @updatedAt

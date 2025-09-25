@@ -40,6 +40,7 @@ import { adminMetricsRouter } from "./routes/adminMetrics";
 import culturalEventsRouter from "./routes/culturalEvents";
 import adminBooksRouter from "./routes/adminBooks";
 import publicRouter from "./routes/public.js"; 
+import microContentRoutes from "./routes/microContent";
 
 
 if (!process.env.DATABASE_URL) {
@@ -110,6 +111,7 @@ app.use("/api", adminLibrariansRouter);
 app.use("/api", adminMetricsRouter);
 app.use("/api", culturalEventsRouter);
 app.use("/api", adminBooksRouter);
+app.use("/api", microContentRoutes);
 
 
 /* --------- Ingestão RSS --------- */
