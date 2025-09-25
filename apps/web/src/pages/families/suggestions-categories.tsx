@@ -1,3 +1,4 @@
+// apps/web/src/pages/SuggestionsByCategoriesPage.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   WhiteCard,
@@ -17,6 +18,11 @@ import {
   Tooltip,
   Snackbar,
   Alert,
+  Pagination,
+  FormControl,
+  Select,
+  MenuItem,
+  InputLabel,
 } from "@mui/material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import { StarRounded } from "@mui/icons-material";
@@ -25,18 +31,11 @@ import {
   getSugestoesQuiz,
   type QuizAnswer,
   getSugestoesPerfil,
+  type BookLite, // <- tem summary
 } from "../../services/books";
 import { reserveBook } from "@/services/reservation";
 
-/* ------------ tipos ------------ */
-type BookLite = {
-  isbn: string;
-  title: string;
-  coverUrl?: string | null;
-  score?: number;
-  why?: string[];
-};
-
+/* ------------ filtros ------------ */
 type Filters = {
   ageRange?: string;
   genres: string[];
@@ -48,24 +47,6 @@ type Filters = {
 const LS_KEY = "categoryFilters";
 
 /* ------------ helpers ------------ */
-function normalizeBooks(payload: any): BookLite[] {
-  if (Array.isArray(payload)) return payload as BookLite[];
-  if (Array.isArray(payload?.data)) return payload.data as BookLite[];
-  if (Array.isArray(payload?.items)) return payload.items as BookLite[];
-  return [];
-}
-// ⬇️ dedupe por ISBN
-function dedupeByIsbn(list: BookLite[]) {
-  const seen = new Set<string>();
-  const out: BookLite[] = [];
-  for (const it of list) {
-    if (!it?.isbn || seen.has(it.isbn)) continue;
-    seen.add(it.isbn);
-    out.push(it);
-  }
-  return out;
-}
-
 function loadSavedFilters(): Filters {
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -85,11 +66,13 @@ function loadSavedFilters(): Filters {
 function saveFilters(f: Filters) {
   localStorage.setItem(LS_KEY, JSON.stringify(f));
 }
-
 function momentToMood(m?: string) {
   if (!m) return undefined;
   if (m === "antes-de-dormir") return "antes-de-dormir";
   return "tempo-livre";
+}
+function toggle(list: string[], v: string) {
+  return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
 }
 
 /* ------------ cartão ------------ */
@@ -112,12 +95,14 @@ function SuggestionCard({
   return (
     <Box
       sx={{
-        width: 224,
+        width: 280,
         border: "1px solid",
         borderColor: "divider",
         borderRadius: 3,
         p: 1.5,
         bgcolor: "background.paper",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <Box
@@ -145,13 +130,34 @@ function SuggestionCard({
           WebkitLineClamp: 2,
           WebkitBoxOrient: "vertical",
           overflow: "hidden",
+          minHeight: 42,
         }}
         title={book.title}
       >
         {book.title}
       </Typography>
+
+      {/* resumo/descrição (se houver) */}
+      {book.summary && (
+        <Typography
+          variant="body2"
+          sx={{
+            mt: 0.5,
+            opacity: 0.9,
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            minHeight: 60,
+          }}
+          title={book.summary}
+        >
+          {book.summary}
+        </Typography>
+      )}
+
       {typeof book.score === "number" && (
-        <Typography variant="caption" sx={{ opacity: 0.7 }}>
+        <Typography variant="caption" sx={{ opacity: 0.7, mt: 0.25 }}>
           score {book.score.toFixed(3)}
         </Typography>
       )}
@@ -184,7 +190,7 @@ export default function SuggestionsByCategoriesPage() {
   // 🧭 Em modo família, a escolha da criança é LOCAL (não muda o utilizador ativo)
   const [localChildId, setLocalChildId] = useState<string>("");
 
-  // Em modo criança usa a criança ativa; em modo família é OBRIGATÓRIO escolher uma criança (local)
+  // Em modo criança usa a criança ativa; em modo família é OBRIGATÓRIO escolher (local)
   const childId = asChild
     ? Number((user?.actingChild?.id as any))
     : localChildId
@@ -196,6 +202,16 @@ export default function SuggestionsByCategoriesPage() {
 
   const [filters, setFilters] = useState<Filters>(() => loadSavedFilters());
   const [items, setItems] = useState<BookLite[] | null>(null);
+  const [total, setTotal] = useState<number>(0);
+
+  // paginação
+  const [page, setPage] = useState<number>(1);
+  const [perPage, setPerPage] = useState<number>(12);
+
+  // modo atual
+  const [source, setSource] = useState<"perfil" | "quiz">("perfil");
+  const [lastAnswers, setLastAnswers] = useState<QuizAnswer[] | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [toast, setToast] = useState<{
@@ -222,32 +238,66 @@ export default function SuggestionsByCategoriesPage() {
       avatar: c.avatarUrl ?? undefined,
     })) ?? [];
 
-  // Limpa resultados e estados quando troca a criança
+  // Limpa resultados/estados quando troca a criança
   useEffect(() => {
     setItems(null);
     setBusyByIsbn({});
     setReservedByIsbn({});
+    setPage(1);
   }, [childId]);
 
-  // Carrega sugestões iniciais (perfil) quando há criança válida
+  // Carregar perfil (padrão) quando há criança válida
   useEffect(() => {
     if (mustPickChild) return;
     (async () => {
       setLoading(true);
       try {
-        const raw = await getSugestoesPerfil(12, { childId, familyId });
-        setItems(dedupeByIsbn(normalizeBooks(raw)));
+        const { items, total } = await getSugestoesPerfil(perPage, {
+          childId,
+          familyId,
+          page,
+        });
+        setItems(items);
+        setTotal(total);
+        setSource("perfil");
         setUpdatedAt(Date.now());
       } finally {
         setLoading(false);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childId, familyId, mustPickChild]);
+  }, [childId, familyId]);
 
-  function toggle(list: string[], v: string) {
-    return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
-  }
+  // Paginação: recarrega mantendo a origem (perfil/quiz)
+  useEffect(() => {
+    if (mustPickChild || !childId) return;
+    (async () => {
+      setLoading(true);
+      try {
+        if (source === "perfil") {
+          const { items, total } = await getSugestoesPerfil(perPage, {
+            childId,
+            familyId,
+            page,
+          });
+          setItems(items);
+          setTotal(total);
+        } else if (lastAnswers) {
+          const { items, total } = await getSugestoesQuiz(lastAnswers, perPage, {
+            childId,
+            familyId,
+            page,
+          });
+          setItems(items);
+          setTotal(total);
+        }
+        setUpdatedAt(Date.now());
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, perPage]);
 
   async function applyFilters() {
     if (mustPickChild) return;
@@ -260,14 +310,44 @@ export default function SuggestionsByCategoriesPage() {
       { id: "mood", value: momentToMood(filters.moment) },
       { id: "goals", value: filters.goals },
     ];
+    setLastAnswers(answers);
+    setSource("quiz");
+    setPage(1); // volta ao início para resultados novos
 
     setLoading(true);
     try {
-      const raw = await getSugestoesQuiz(answers, 12, { childId, familyId });
-      setItems(dedupeByIsbn(normalizeBooks(raw)));
+      const { items, total } = await getSugestoesQuiz(answers, perPage, {
+        childId,
+        familyId,
+        page: 1,
+      });
+      setItems(items);
+      setTotal(total);
       setUpdatedAt(Date.now());
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function refresh() {
+    if (source === "perfil") {
+      const { items, total } = await getSugestoesPerfil(perPage, {
+        childId,
+        familyId,
+        page,
+      });
+      setItems(items);
+      setTotal(total);
+      setUpdatedAt(Date.now());
+    } else if (lastAnswers) {
+      const { items, total } = await getSugestoesQuiz(lastAnswers, perPage, {
+        childId,
+        familyId,
+        page,
+      });
+      setItems(items);
+      setTotal(total);
+      setUpdatedAt(Date.now());
     }
   }
 
@@ -278,7 +358,7 @@ export default function SuggestionsByCategoriesPage() {
     }
     try {
       setBusyByIsbn((m) => ({ ...m, [isbn]: true }));
-      await reserveBook(isbn, { childId }); // ✅ apenas childId (não mexe no modo/utente)
+      await reserveBook(isbn, { childId });
       setReservedByIsbn((m) => ({ ...m, [isbn]: true }));
       setToast({ msg: "Reserva efetuada!", type: "success" });
     } catch (e: any) {
@@ -335,9 +415,11 @@ export default function SuggestionsByCategoriesPage() {
     );
   }
 
+  const pageCount = Math.max(1, Math.ceil(total / perPage));
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Barra de contexto em modo família (filtro LOCAL; não muda active user) */}
+      {/* Barra de contexto em modo família (filtro LOCAL) */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
           <Stack
@@ -393,7 +475,7 @@ export default function SuggestionsByCategoriesPage() {
           <Stack direction="row" spacing={1}>
             <Tooltip title="Atualizar">
               <span>
-                <IconButton onClick={applyFilters} disabled={loading}>
+                <IconButton onClick={refresh} disabled={loading}>
                   <RefreshRounded />
                 </IconButton>
               </span>
@@ -567,18 +649,56 @@ export default function SuggestionsByCategoriesPage() {
         )}
 
         {!loading && items && items.length > 0 && (
-          <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
-            {items.map((b) => (
-              <SuggestionCard
-                key={b.isbn}
-                book={b}
-                onReserve={onReserve}
-                reserving={!!busyByIsbn[b.isbn]}
-                reserved={!!reservedByIsbn[b.isbn]}
-                disabled={!childId}
+          <>
+            <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
+              {items.map((b) => (
+                <SuggestionCard
+                  key={b.isbn}
+                  book={b}
+                  onReserve={onReserve}
+                  reserving={!!busyByIsbn[b.isbn]}
+                  reserved={!!reservedByIsbn[b.isbn]}
+                  disabled={!childId}
+                />
+              ))}
+            </Stack>
+
+            {/* --- Paginator --- */}
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              alignItems={{ xs: "flex-start", sm: "center" }}
+              justifyContent="space-between"
+              sx={{ mt: 2 }}
+              spacing={1.5}
+            >
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel id="per-page-label">Por página</InputLabel>
+                <Select
+                  labelId="per-page-label"
+                  label="Por página"
+                  value={perPage}
+                  onChange={(e) => {
+                    setPerPage(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  {[6, 8, 12, 16, 20, 24, 32, 48].map((n) => (
+                    <MenuItem key={n} value={n}>
+                      {n}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <Pagination
+                count={Math.max(1, Math.ceil(total / perPage))}
+                page={page}
+                onChange={(_, p) => setPage(p)}
+                color="primary"
+                shape="rounded"
               />
-            ))}
-          </Stack>
+            </Stack>
+          </>
         )}
 
         {!loading && items && items.length === 0 && (

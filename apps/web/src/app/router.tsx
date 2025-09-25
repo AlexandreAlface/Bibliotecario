@@ -42,6 +42,7 @@ import AdminEvents from "@/pages/admin/Events";
 import AdminBacklog from "@/pages/admin/Backlog";
 import AdminMetrics from "@/pages/admin/Metrics";
 import AdminFeeds from "@/pages/admin/Feeds";
+import AdminImportBooks from "@/pages/admin/ImportarLivros";
 
 function AuthLayout() {
   return <Outlet />;
@@ -136,6 +137,7 @@ export const router = createBrowserRouter([
           { path: "propostas", element: <AdminBacklog /> },
           { path: "eventos", element: <AdminEvents /> },
           { path: "feeds", element: <AdminFeeds /> },
+          { path: "livros", element: <AdminImportBooks /> },
           { path: "metricas", element: <AdminMetrics /> },
            { path: "bibliotecarios/novo", element: <AdminLibrarians /> },
         ],

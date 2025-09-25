@@ -1,4 +1,3 @@
-// apps/web/src/services/books.ts
 import { api } from "./https";
 
 export type BookLite = {
@@ -6,43 +5,48 @@ export type BookLite = {
   isbn: string;
   title: string;
   coverUrl?: string | null;
+  summary?: string | null; // 👈 novo
   score?: number;
   why?: string[];
 };
 
 export type QuizAnswer = { id: string; value: any };
 
+export type PaginatedBooks = { items: BookLite[]; total: number };
+
 export async function getSugestoesPerfil(
-  limit = 6,
-  who?: { childId?: number; familyId?: number }
-): Promise<BookLite[]> {
-  const qs = new URLSearchParams({ limit: String(limit) });
+  perPage = 12,
+  who?: { childId?: number; familyId?: number; page?: number }
+): Promise<PaginatedBooks> {
+  const qs = new URLSearchParams({
+    perPage: String(perPage),
+    page: String(who?.page ?? 1),
+  });
   if (who?.childId) qs.set("childId", String(who.childId));
   if (who?.familyId) qs.set("familyId", String(who.familyId));
 
-  // novo endpoint, sem body (GET)
-  const { data } = await api.get<BookLite[]>(
+  const { data } = await api.get<PaginatedBooks>(
     `/recommendations/profile?${qs.toString()}`,
     { withCredentials: true }
   );
   return data;
-  
 }
 
 export async function getSugestoesQuiz(
   answers: QuizAnswer[],
-  limit = 12,
-  who?: { childId?: number; familyId?: number }
-) {
-  const qs = new URLSearchParams({ limit: String(limit) });
+  perPage = 12,
+  who?: { childId?: number; familyId?: number; page?: number }
+): Promise<PaginatedBooks> {
+  const qs = new URLSearchParams({
+    perPage: String(perPage),
+    page: String(who?.page ?? 1),
+  });
   if (who?.childId) qs.set("childId", String(who.childId));
   if (who?.familyId) qs.set("familyId", String(who.familyId));
 
-  // IMPORTANTE: Axios usa "data", não "body"
-  return api(`/recommendations/quiz?${qs}`, {
-    method: "POST",
-    data: { answers },
-  });
+  const { data } = await api.post<PaginatedBooks>(
+    `/recommendations/quiz?${qs.toString()}`,
+    { answers }
+  );
+  return data;
 }
-
-

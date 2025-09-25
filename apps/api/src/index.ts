@@ -38,6 +38,7 @@ import adminFamiliesRoutes from "./routes/adminFamilies";
 import adminLibrariansRouter from "./routes/admin.librarian";
 import { adminMetricsRouter } from "./routes/adminMetrics";
 import culturalEventsRouter from "./routes/culturalEvents";
+import adminBooksRouter from "./routes/adminBooks";
 import publicRouter from "./routes/public.js"; 
 
 
@@ -108,6 +109,7 @@ app.use("/api", adminFamiliesRoutes);
 app.use("/api", adminLibrariansRouter);
 app.use("/api", adminMetricsRouter);
 app.use("/api", culturalEventsRouter);
+app.use("/api", adminBooksRouter);
 
 
 /* --------- Ingestão RSS --------- */

@@ -1,3 +1,4 @@
+// src/services/recommendations.ts
 import { request } from "./api";
 
 export type QuizAnswer = { id: string; value: any };
@@ -6,8 +7,11 @@ export type BookLite = {
   isbn: string;
   title: string;
   coverUrl?: string | null;
+  summary?: string | null; // <- agora também pode vir a descrição
   score?: number;
   why?: string[];
+  status?: "none" | "reserved" | "reading" | "finished";
+  lastFinished?: string | null;
 };
 
 function normalize(payload: any): BookLite[] {

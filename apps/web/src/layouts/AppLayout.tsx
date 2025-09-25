@@ -52,7 +52,6 @@ import HistoryRounded from "@mui/icons-material/HistoryRounded";
 import { useUserSession } from "@/contexts/UserSession";
 import { GradientBackgroundWithShapes, Logo } from "@bibliotecario/ui-web";
 import { alpha } from "@mui/material/styles";
-import { PersonAddRounded } from "@mui/icons-material";
 
 const drawerWidth = 248;
 
@@ -179,12 +178,17 @@ function buildMenu(opts: {
         to: "/admin/metricas",
         label: "Métricas",
         icon: <QueryStatsRounded />,
+      },
+      {
+        to: "/admin/livros",
+        label: "Livros (CSV)",
+        icon: <LibraryBooksRounded />,
       }
-    //   {
-    //    to: "/admin/bibliotecarios/novo",
-    //    label: "Adicionar bibliotecário",
-    //    icon: <PersonAddRounded />,
-    //  },
+      //   {
+      //    to: "/admin/bibliotecarios/novo",
+      //    label: "Adicionar bibliotecário",
+      //    icon: <PersonAddRounded />,
+      //  },
     );
   }
 
@@ -316,25 +320,22 @@ export default function AppLayout() {
               alignItems: "center",
             }}
           >
-             <Typography
-            variant="h6"
-            noWrap
-            component={RouterLink}
-            to="/"
-            sx={{
-              textDecoration: "none",
-              color: "text.primary",
-              fontWeight: 900,
-              letterSpacing: 0.3,
-            }}
-          >
-            Bibliotecário
-          </Typography>
+            <Typography
+              variant="h6"
+              noWrap
+              component={RouterLink}
+              to="/"
+              sx={{
+                textDecoration: "none",
+                color: "text.primary",
+                fontWeight: 900,
+                letterSpacing: 0.3,
+              }}
+            >
+              Bibliotecário
+            </Typography>
             {/* não passes width; deixa a altura mandar */}
-            <Logo
-              variant={"bf"}
-              sx={{ height: "100%", width: "auto" }}
-            />
+            <Logo variant={"bf"} sx={{ height: "100%", width: "auto" }} />
           </Box>
 
           <Box sx={{ flex: 1 }} />

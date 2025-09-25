@@ -23,6 +23,11 @@ import {
   Tooltip,
   Snackbar,
   Alert,
+  Pagination,
+  FormControl,
+  Select,
+  MenuItem,
+  InputLabel,
 } from "@mui/material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import QuizRounded from "@mui/icons-material/QuizRounded";
@@ -33,26 +38,17 @@ import {
   getSugestoesPerfil,
   getSugestoesQuiz,
   type QuizAnswer,
+  type BookLite, // <- inclui summary
 } from "../../services/books";
 import { reserveBook } from "@/services/reservation";
 
-type BookLite = {
-  isbn: string;
-  title: string;
-  coverUrl?: string | null;
-  score?: number;
-  why?: string[];
-};
-
-const QUIZ_KEY = "quizAnswers";
-
 /* ---------- helpers ---------- */
 function saveQuizToStorage(answers: QuizAnswer[]) {
-  localStorage.setItem(QUIZ_KEY, JSON.stringify(answers));
+  localStorage.setItem("quizAnswers", JSON.stringify(answers));
 }
 function readQuizFromStorage(): QuizAnswer[] | null {
   try {
-    const raw = localStorage.getItem(QUIZ_KEY);
+    const raw = localStorage.getItem("quizAnswers");
     if (!raw) return null;
     const arr = JSON.parse(raw);
     if (!Array.isArray(arr)) return null;
@@ -61,24 +57,8 @@ function readQuizFromStorage(): QuizAnswer[] | null {
     return null;
   }
 }
-function normalizeBooks(payload: any): BookLite[] {
-  if (Array.isArray(payload)) return payload as BookLite[];
-  if (Array.isArray(payload?.data)) return payload.data as BookLite[];
-  if (Array.isArray(payload?.items)) return payload.items as BookLite[];
-  return [];
-}
-function dedupeByIsbn(list: BookLite[]) {
-  const seen = new Set<string>();
-  const out: BookLite[] = [];
-  for (const it of list) {
-    if (!it?.isbn || seen.has(it.isbn)) continue;
-    seen.add(it.isbn);
-    out.push(it);
-  }
-  return out;
-}
 
-/* ---------- cartões ---------- */
+/* ---------- skeleton ---------- */
 function SkeletonCard() {
   return (
     <Box
@@ -113,6 +93,7 @@ function SkeletonCard() {
   );
 }
 
+/* ---------- cartão ---------- */
 function SuggestionCard({
   book,
   onReserve,
@@ -132,12 +113,14 @@ function SuggestionCard({
   return (
     <Box
       sx={{
-        width: 224,
+        width: 280,
         border: "1px solid",
         borderColor: "divider",
         borderRadius: 3,
         p: 1.5,
         bgcolor: "background.paper",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <Box
@@ -165,16 +148,38 @@ function SuggestionCard({
           WebkitLineClamp: 2,
           WebkitBoxOrient: "vertical",
           overflow: "hidden",
+          minHeight: 42,
         }}
         title={book.title}
       >
         {book.title}
       </Typography>
+
+      {/* resumo/descrição (se houver) */}
+      {book.summary && (
+        <Typography
+          variant="body2"
+          sx={{
+            mt: 0.5,
+            opacity: 0.9,
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            minHeight: 60,
+          }}
+          title={book.summary}
+        >
+          {book.summary}
+        </Typography>
+      )}
+
       {typeof book.score === "number" && (
-        <Typography variant="caption" sx={{ opacity: 0.7 }}>
+        <Typography variant="caption" sx={{ opacity: 0.7, mt: 0.25 }}>
           score {book.score.toFixed(3)}
         </Typography>
       )}
+
       <Box sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 0.25 }}>
         {Array.from({ length: 5 }).map((_, i) => (
           <StarRounded
@@ -184,6 +189,7 @@ function SuggestionCard({
           />
         ))}
       </Box>
+
       <Button
         size="small"
         variant="contained"
@@ -197,7 +203,7 @@ function SuggestionCard({
   );
 }
 
-/* ---------- modal do quiz (4 passos) ---------- */
+/* ---------- modal do quiz ---------- */
 function QuizModal({
   open,
   onClose,
@@ -385,6 +391,12 @@ export default function SuggestionsPage() {
   const familyId = asChild ? undefined : (Number(user?.id) || undefined);
 
   const [items, setItems] = useState<BookLite[] | null>(null);
+  const [total, setTotal] = useState<number>(0);
+
+  // paginação
+  const [page, setPage] = useState<number>(1);
+  const [perPage, setPerPage] = useState<number>(12);
+
   const [loading, setLoading] = useState(false);
   const [source, setSource] = useState<"perfil" | "quiz">("perfil");
   const [quizOpen, setQuizOpen] = useState(false);
@@ -416,15 +428,20 @@ export default function SuggestionsPage() {
     setItems(null);
     setBusyByIsbn({});
     setReservedByIsbn({});
+    setPage(1);
   }, [childId]);
 
-  async function loadPerfil() {
+  async function loadPerfil(p = page, pp = perPage) {
     if (mustPickChild) return;
     setLoading(true);
     try {
-      const raw = await getSugestoesPerfil(12, { childId, familyId });
-      const data = dedupeByIsbn(normalizeBooks(raw));
-      setItems(data);
+      const { items, total } = await getSugestoesPerfil(pp, {
+        childId,
+        familyId,
+        page: p,
+      });
+      setItems(items);
+      setTotal(total);
       setSource("perfil");
       setUpdatedAt(Date.now());
     } finally {
@@ -432,14 +449,18 @@ export default function SuggestionsPage() {
     }
   }
 
-  async function runQuiz(answers: QuizAnswer[]) {
+  async function runQuiz(answers: QuizAnswer[], p = page, pp = perPage) {
     if (mustPickChild) return;
     setQuizOpen(false);
     setLoading(true);
     try {
-      const raw = await getSugestoesQuiz(answers, 12, { childId, familyId });
-      const data = dedupeByIsbn(normalizeBooks(raw));
-      setItems(data);
+      const { items, total } = await getSugestoesQuiz(answers, pp, {
+        childId,
+        familyId,
+        page: p,
+      });
+      setItems(items);
+      setTotal(total);
       setSource("quiz");
       setUpdatedAt(Date.now());
     } finally {
@@ -454,7 +475,7 @@ export default function SuggestionsPage() {
     }
     try {
       setBusyByIsbn((m) => ({ ...m, [isbn]: true }));
-      await reserveBook(isbn, { childId }); // ✅ só childId
+      await reserveBook(isbn, { childId });
       setReservedByIsbn((m) => ({ ...m, [isbn]: true }));
       setToast({ msg: "Reserva efetuada!", type: "success" });
     } catch (e: any) {
@@ -478,6 +499,16 @@ export default function SuggestionsPage() {
     loadPerfil();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, familyId]);
+
+  // trocar página / por página
+  useEffect(() => {
+    if (source === "perfil") loadPerfil(page, perPage);
+    else {
+      const stored = readQuizFromStorage();
+      if (stored && stored.length) runQuiz(stored, page, perPage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, perPage]);
 
   const childOptions =
     (user?.children || []).map((c: any) => ({
@@ -517,6 +548,8 @@ export default function SuggestionsPage() {
       </Container>
     );
   }
+
+  const pageCount = Math.max(1, Math.ceil(total / perPage));
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -581,10 +614,10 @@ export default function SuggestionsPage() {
                 <IconButton
                   onClick={
                     source === "perfil"
-                      ? loadPerfil
+                      ? () => loadPerfil(page, perPage)
                       : () => {
                           const stored = readQuizFromStorage();
-                          if (stored && stored.length) runQuiz(stored);
+                          if (stored && stored.length) runQuiz(stored, page, perPage);
                           else setQuizOpen(true);
                         }
                   }
@@ -606,7 +639,7 @@ export default function SuggestionsPage() {
 
         {loading && (
           <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
-            {Array.from({ length: 8 }).map((_, i) => (
+            {Array.from({ length: perPage }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
           </Stack>
@@ -622,7 +655,10 @@ export default function SuggestionsPage() {
               {source === "quiz" && (
                 <Chip
                   label="Voltar ao perfil"
-                  onClick={loadPerfil}
+                  onClick={() => {
+                    setPage(1);
+                    loadPerfil(1, perPage);
+                  }}
                   variant="outlined"
                 />
               )}
@@ -639,6 +675,42 @@ export default function SuggestionsPage() {
                   disabled={!childId}
                 />
               ))}
+            </Stack>
+
+            {/* --- Paginator --- */}
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              alignItems={{ xs: "flex-start", sm: "center" }}
+              justifyContent="space-between"
+              sx={{ mt: 2 }}
+              spacing={1.5}
+            >
+              <FormControl size="small" sx={{ minWidth: 160 }}>
+                <InputLabel id="per-page-label">Por página</InputLabel>
+                <Select
+                  labelId="per-page-label"
+                  label="Por página"
+                  value={perPage}
+                  onChange={(e) => {
+                    setPerPage(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  {[6, 8, 12, 16, 20, 24, 32, 48].map((n) => (
+                    <MenuItem key={n} value={n}>
+                      {n}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <Pagination
+                count={pageCount}
+                page={page}
+                onChange={(_, p) => setPage(p)}
+                color="primary"
+                shape="rounded"
+              />
             </Stack>
           </>
         )}
@@ -664,7 +736,10 @@ export default function SuggestionsPage() {
       <QuizModal
         open={quizOpen}
         onClose={() => setQuizOpen(false)}
-        onFinish={runQuiz}
+        onFinish={(a) => {
+          setPage(1);
+          runQuiz(a, 1, perPage);
+        }}
       />
 
       <Snackbar
