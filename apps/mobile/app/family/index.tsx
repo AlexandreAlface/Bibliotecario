@@ -23,11 +23,14 @@ import { BookLite, getSugestoes } from "src/services/books";
 import { ReadingLite, getLeiturasAtuais } from "src/services/readings";
 import { TABBAR_HEIGHT } from "src/constants/layout";
 
+import Mascot from "../../assets/AF_Logo_BF.svg";
+
 /* ---------- Section ---------- */
 function Section({
   title,
   children,
-}: React.PropsWithChildren<{ title: string }>) {
+  mb = 18,
+}: React.PropsWithChildren<{ title: string; mb?: number }>) {
   const theme = useTheme();
   return (
     <View style={{ marginBottom: 18 }}>
@@ -46,7 +49,7 @@ function Section({
   );
 }
 
-/* ---------- Tile com ícone ---------- */
+/* ---------- Tile com ícone (centrado, clean) ---------- */
 function IconTile({
   title,
   subtitle,
@@ -59,57 +62,59 @@ function IconTile({
   onPress?: () => void;
 }) {
   const theme = useTheme();
+  const outline = (theme as any).colors?.outlineVariant ?? "#e6e6e6";
+
   return (
     <Pressable
       onPress={onPress}
-      style={{
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      style={({ pressed }) => ({
         width: "48%",
-        aspectRatio: 1.35,
+        aspectRatio: 1.1,
         borderRadius: 16,
-        backgroundColor: theme.colors.secondaryContainer,
-        padding: 12,
-        justifyContent: "space-between",
+        backgroundColor: "#fff",
+        borderWidth: 1,
+        borderColor: outline,
+        paddingVertical: 14,
+        paddingHorizontal: 12,
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: "#000",
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
         elevation: 2,
-      }}
+        // 👇 nunca é null/undefined
+        transform: [{ scale: pressed ? 0.98 : 1 }],
+      })}
     >
-      <View
+      <Icon name={icon} size={32} color={theme.colors.primary} />
+      <Text
         style={{
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: theme.colors.primaryContainer,
+          marginTop: 10,
+          color: theme.colors.onSurface,
+          fontWeight: "800",
+          fontSize: 16,
+          textAlign: "center",
         }}
+        numberOfLines={2}
       >
-        <Icon name={icon} size={30} color={theme.colors.primary} />
-      </View>
-
-      <View>
+        {title}
+      </Text>
+      {!!subtitle && (
         <Text
           style={{
-            color: theme.colors.onSecondaryContainer,
-            fontWeight: "800",
-            fontSize: 16,
+            marginTop: 2,
+            color: theme.colors.onSurface,
+            opacity: 0.7,
+            fontSize: 12,
+            textAlign: "center",
           }}
-          numberOfLines={1}
+          numberOfLines={2}
         >
-          {title}
+          {subtitle}
         </Text>
-        {!!subtitle && (
-          <Text
-            style={{
-              color: theme.colors.onSecondaryContainer,
-              opacity: 0.8,
-              marginTop: 2,
-              fontSize: 12,
-            }}
-            numberOfLines={1}
-          >
-            {subtitle}
-          </Text>
-        )}
-      </View>
+      )}
     </Pressable>
   );
 }
@@ -129,17 +134,25 @@ function InfoCard({
   onPress?: () => void;
 }) {
   const theme = useTheme();
+  const outline = (theme as any).colors?.outlineVariant ?? "#e6e6e6";
+
   return (
     <Pressable
       onPress={onPress}
       style={{
         width: "100%",
         borderRadius: 16,
-        backgroundColor: theme.colors.secondaryContainer,
+        backgroundColor: "#fff", // 👈 branco
+        borderWidth: 1, // 👈 borda leve
+        borderColor: outline,
         padding: 14,
         flexDirection: "row",
         alignItems: "center",
         gap: 14,
+        shadowColor: "#000",
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
         elevation: 2,
       }}
     >
@@ -148,9 +161,10 @@ function InfoCard({
           width: 56,
           height: 56,
           borderRadius: 12,
+
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: theme.colors.primaryContainer,
+          backgroundColor: "#fff",
         }}
       >
         <Icon name={icon} size={28} color={theme.colors.primary} />
@@ -159,7 +173,7 @@ function InfoCard({
       <View style={{ flex: 1 }}>
         <Text
           style={{
-            color: theme.colors.onSecondaryContainer,
+            color: theme.colors.onSurface, // 👈 texto padrão
             fontWeight: "800",
             fontSize: 18,
           }}
@@ -170,8 +184,8 @@ function InfoCard({
         {!!subtitle && (
           <Text
             style={{
-              color: theme.colors.onSecondaryContainer,
-              opacity: 0.8,
+              color: theme.colors.onSurface, // 👈 texto padrão
+              opacity: 0.7,
               marginTop: 6,
               fontSize: 13,
             }}
@@ -352,12 +366,37 @@ export default function FamilyLanding() {
               justifyContent: "space-between",
             }}
           >
-            <Text
-              variant="titleLarge"
-              style={{ color: theme.colors.onSurface, fontWeight: "800" }}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
             >
-              Olá, {headerName}
-            </Text>
+              {/* pill branco p/ destacar o logo */}
+              <View
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.92)",
+                  borderRadius: 999,
+                  padding: 6,
+                  borderWidth: 1,
+                  borderColor:
+                    (theme as any).colors?.outlineVariant ?? "#e6e6e6",
+                  shadowColor: "#000",
+                  shadowOpacity: 0.08,
+                  shadowRadius: 6,
+                  shadowOffset: { width: 0, height: 2 },
+                  elevation: 2,
+                }}
+              >
+                <Mascot width={28} height={28} />
+              </View>
+
+              <Text
+                variant="titleLarge"
+                style={{ color: theme.colors.onSurface, fontWeight: "800" }}
+                numberOfLines={1}
+              >
+                Olá, {headerName}
+              </Text>
+            </View>
+
             <IconButton
               icon="logout"
               onPress={confirmLogout}
@@ -366,7 +405,7 @@ export default function FamilyLanding() {
           </View>
 
           {/* Explorar */}
-          <Section title="Explorar">
+          <Section title="Explorar" mb={0}>
             <View
               style={{
                 flexDirection: "row",
@@ -424,7 +463,7 @@ export default function FamilyLanding() {
           </Section>
 
           {/* Para ti */}
-          <Section title="Para ti">
+          <Section title="Para ti" mb={0}>
             <View style={{ gap: 12 }}>
               <InfoCard
                 title={
@@ -456,7 +495,7 @@ export default function FamilyLanding() {
             <FlexibleCard
               title="Primeira Leitura"
               subtitle="Streak diário"
-              backgroundColor={theme.colors.secondaryContainer}
+              backgroundColor="#fff" // 👈 branco
               footer={
                 <PrimaryButton
                   label="Ver conquistas"
@@ -473,7 +512,7 @@ export default function FamilyLanding() {
             <FlexibleCard
               title="Biblioterapia"
               subtitle="Descobre ideias e dicas de leitura"
-              backgroundColor={theme.colors.secondaryContainer}
+              backgroundColor="#fff" // 👈 branco
               footer={
                 <PrimaryButton
                   label="Abrir feed"

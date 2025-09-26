@@ -1,18 +1,25 @@
+// apps/mobile/app/family/familias.tsx
 import * as React from "react";
 import type { Resolver, SubmitHandler } from "react-hook-form";
 import {
   View,
   ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   Alert,
   Platform,
   LayoutAnimation,
   UIManager,
+  Animated,
+  Easing,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { IconButton, useTheme } from "react-native-paper";
+import {
+  IconButton,
+  useTheme,
+  TextInput as PaperInput,
+} from "react-native-paper";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import {
   PrimaryButton,
@@ -27,7 +34,7 @@ import { useAuth } from "src/contexts/AuthContext";
 import type { Child as SChild, UserMe as SUserMe } from "src/services/families";
 import { familiesApi } from "src/services/families";
 
-/** ---------- Schemas ---------- */
+/* ---------- Schemas ---------- */
 const profileSchema = z.object({
   fullName: z.string().min(3, "Nome demasiado curto"),
   phone: z.string().optional(),
@@ -43,7 +50,7 @@ const childSchema = z.object({
 });
 type ChildForm = z.infer<typeof childSchema>;
 
-/** ---------- Helpers ---------- */
+/* ---------- Helpers ---------- */
 function fmtDate(d?: string | null) {
   if (!d) return "";
   const dt = new Date(d);
@@ -65,15 +72,54 @@ function genderLabel(g?: string | null) {
   return "—";
 }
 
-/** ---------- Small UI chip ---------- */
+/* ---------- FadeIn / SlideUp ---------- */
+function FadeIn({
+  delay = 0,
+  children,
+}: {
+  delay?: number;
+  children: React.ReactNode;
+}) {
+  const anim = React.useRef(new Animated.Value(0)).current;
+  React.useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 320,
+      delay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [anim, delay]);
+  return (
+    <Animated.View
+      style={{
+        opacity: anim,
+        transform: [
+          {
+            translateY: anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [12, 0],
+            }),
+          },
+        ],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/* ---------- Small UI chip ---------- */
 function PillChip({
   active,
   label,
   onPress,
+  icon,
 }: {
   active: boolean;
   label: string;
   onPress: () => void;
+  icon?: string;
 }) {
   const theme = useTheme();
   return (
@@ -88,13 +134,26 @@ function PillChip({
           : theme.colors.secondaryContainer,
         borderWidth: active ? 0 : 1,
         borderColor: theme.colors.outlineVariant,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
       }}
     >
+      {icon ? (
+        <Icon
+          name={icon as any}
+          size={16}
+          color={
+            active ? theme.colors.onPrimary : theme.colors.onSecondaryContainer
+          }
+        />
+      ) : null}
       <Text
         style={{
           color: active
             ? theme.colors.onPrimary
             : theme.colors.onSecondaryContainer,
+          fontWeight: active ? "700" : "500",
         }}
       >
         {label}
@@ -283,6 +342,8 @@ export default function FamiliasScreen() {
   const detailedChildren: SChild[] = me?.children ?? [];
   const selectedChild = detailedChildren.find((c) => c.id === selectedChildId);
 
+  const BORDER = theme.colors.outlineVariant ?? "rgba(0,0,0,0.12)";
+
   /** ---------- UI ---------- */
   return (
     <Background>
@@ -291,543 +352,672 @@ export default function FamiliasScreen() {
         edges={["top"]}
       >
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-          <Text
-            style={{
-              fontSize: 22,
-              fontWeight: "600",
-              color: theme.colors.onBackground,
-            }}
-          >
-            Família
-          </Text>
+          {/* Título com ícone */}
+          <FadeIn>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: theme.colors.primaryContainer,
+                }}
+              >
+                <Icon
+                  name="account-group-outline"
+                  size={20}
+                  color={theme.colors.onPrimaryContainer}
+                />
+              </View>
+              <Text
+                style={{
+                  fontSize: 22,
+                  fontWeight: "800",
+                  color: theme.colors.onBackground,
+                }}
+              >
+                Família
+              </Text>
+            </View>
+          </FadeIn>
 
           {/* WhiteCard: Perfil (COLAPSÁVEL) */}
-          <FlexibleCard
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={14}
-            style={{ borderRadius: 12 }}
-          >
-            {/* Header do card */}
-            <TouchableOpacity
-              onPress={toggleProfile}
-              activeOpacity={0.7}
+          <FadeIn delay={50}>
+            <FlexibleCard
+              backgroundColor={theme.colors.surface}
+              elevation={1}
+              padding={14}
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: BORDER,
               }}
-              accessibilityRole="button"
-              accessibilityLabel={
-                profileCollapsed
-                  ? "Expandir os meus dados"
-                  : "Colapsar os meus dados"
-              }
             >
-              <Text
+              {/* Header do card */}
+              <TouchableOpacity
+                onPress={toggleProfile}
+                activeOpacity={0.7}
                 style={{
-                  fontSize: 18,
-                  fontWeight: "800",
-                  color: theme.colors.onSurface,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                 }}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  profileCollapsed
+                    ? "Expandir os meus dados"
+                    : "Colapsar os meus dados"
+                }
               >
-                Os meus dados
-              </Text>
-              <IconButton
-                icon={profileCollapsed ? "chevron-down" : "chevron-up"}
-                size={22}
-              />
-            </TouchableOpacity>
-
-            {!profileCollapsed && (
-              <View>
-                <Text
-                  style={{ marginTop: 8, color: theme.colors.onSurfaceVariant }}
-                >
-                  Nome
-                </Text>
-                <Controller
-                  control={control}
-                  name="fullName"
-                  render={({ field: { value, onChange } }) => (
-                    <TextInput
-                      value={value}
-                      onChangeText={onChange}
-                      placeholder="Nome completo"
-                      style={{
-                        borderWidth: 1,
-                        borderColor: theme.colors.outlineVariant,
-                        borderRadius: 8,
-                        padding: 12,
-                        color: theme.colors.onSurface,
-                      }}
-                    />
-                  )}
-                />
-
-                <Text
-                  style={{
-                    marginTop: 12,
-                    color: theme.colors.onSurfaceVariant,
-                  }}
-                >
-                  Telefone
-                </Text>
-                <Controller
-                  control={control}
-                  name="phone"
-                  render={({ field: { value, onChange } }) => (
-                    <TextInput
-                      value={value}
-                      onChangeText={onChange}
-                      keyboardType="phone-pad"
-                      placeholder="Contacto"
-                      style={{
-                        borderWidth: 1,
-                        borderColor: theme.colors.outlineVariant,
-                        borderRadius: 8,
-                        padding: 12,
-                        color: theme.colors.onSurface,
-                      }}
-                    />
-                  )}
-                />
-
-                <Text
-                  style={{
-                    marginTop: 12,
-                    color: theme.colors.onSurfaceVariant,
-                  }}
-                >
-                  Morada
-                </Text>
-                <Controller
-                  control={control}
-                  name="address"
-                  render={({ field: { value, onChange } }) => (
-                    <TextInput
-                      value={value}
-                      onChangeText={onChange}
-                      placeholder="Morada"
-                      style={{
-                        borderWidth: 1,
-                        borderColor: theme.colors.outlineVariant,
-                        borderRadius: 8,
-                        padding: 12,
-                        color: theme.colors.onSurface,
-                      }}
-                    />
-                  )}
-                />
-
-                <View style={{ marginTop: 12, alignSelf: "flex-start" }}>
-                  <PrimaryButton
-                    label={isSubmitting ? "A guardar…" : "Guardar"}
-                    onPress={handleSubmit(onSaveProfile)}
-                    disabled={isSubmitting}
-                  />
-                </View>
-              </View>
-            )}
-          </FlexibleCard>
-
-          {/* WhiteCard: Gestão de crianças (COLAPSÁVEL) */}
-          <FlexibleCard
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={14}
-            style={{ borderRadius: 12 }}
-          >
-            {/* Header do card */}
-            <TouchableOpacity
-              onPress={toggleChildren}
-              activeOpacity={0.7}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={
-                childrenCollapsed
-                  ? "Expandir as minhas crianças"
-                  : "Colapsar as minhas crianças"
-              }
-            >
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "800",
-                  color: theme.colors.onSurface,
-                }}
-              >
-                As minhas crianças
-              </Text>
-              <IconButton
-                icon={childrenCollapsed ? "chevron-down" : "chevron-up"}
-                size={22}
-              />
-            </TouchableOpacity>
-
-            {!childrenCollapsed && (
-              <>
-                {/* Seletor de crianças + adicionar nova */}
-                <Text
-                  style={{
-                    color: theme.colors.onSurfaceVariant,
-                    marginBottom: 6,
-                  }}
-                >
-                  Seleciona uma criança
-                </Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 8 }}
-                >
-                  {detailedChildren.length === 0 && (
-                    <Text
-                      style={{
-                        color: theme.colors.onSurfaceVariant,
-                        marginRight: 8,
-                      }}
-                    >
-                      Sem crianças registadas.
-                    </Text>
-                  )}
-                  {detailedChildren.map((c) => (
-                    <PillChip
-                      key={c.id}
-                      label={c.name}
-                      active={selectedChildId === c.id}
-                      onPress={() => {
-                        setSelectedChildId(c.id);
-                        setIsEditingOrCreating(false);
-                        setEditingChild(null);
-                      }}
-                    />
-                  ))}
-                </ScrollView>
-
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-                  <PrimaryButton
-                    label="Adicionar criança"
-                    onPress={() => {
-                      setIsEditingOrCreating(true);
-                      setEditingChild(null);
-                      setShowBirth(false);
-                      cReset({
-                        name: "",
-                        birthDate: new Date(new Date().getFullYear() - 6, 0, 1),
-                        gender: null,
-                        readerProfile: null,
-                      });
-                    }}
-                  />
-                  {/* ❌ Removidos os botões duplicados Editar/Remover (ficam só os ícones no card de detalhes) */}
-                </View>
-
-                {/* Divider */}
                 <View
-                  style={{
-                    height: 1,
-                    backgroundColor: theme.colors.outlineVariant,
-                    opacity: 0.6,
-                    marginVertical: 12,
-                  }}
-                />
-
-                {/* Cartão de detalhes da criança selecionada */}
-                {selectedChild ? (
-                  <FlexibleCard
-                    backgroundColor={theme.colors.surface}
-                    elevation={0}
-                    padding={12}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <Icon
+                    name="account-circle-outline"
+                    size={20}
+                    color={theme.colors.onSurface}
+                  />
+                  <Text
                     style={{
-                      borderRadius: 10,
-                      borderWidth: 1,
-                      borderColor: theme.colors.outlineVariant,
+                      fontSize: 18,
+                      fontWeight: "800",
+                      color: theme.colors.onSurface,
                     }}
                   >
+                    Os meus dados
+                  </Text>
+                </View>
+                <IconButton
+                  icon={profileCollapsed ? "chevron-down" : "chevron-up"}
+                  size={22}
+                />
+              </TouchableOpacity>
+
+              {!profileCollapsed && (
+                <View>
+                  <Text
+                    style={{
+                      marginTop: 8,
+                      color: theme.colors.onSurfaceVariant,
+                    }}
+                  >
+                    Nome
+                  </Text>
+                  <Controller
+                    control={control}
+                    name="fullName"
+                    render={({ field: { value, onChange } }) => (
+                      <PaperInput
+                        mode="outlined"
+                        value={value}
+                        onChangeText={onChange}
+                        placeholder="Nome completo"
+                        left={<PaperInput.Icon icon="account" />}
+                      />
+                    )}
+                  />
+
+                  <Text
+                    style={{
+                      marginTop: 12,
+                      color: theme.colors.onSurfaceVariant,
+                    }}
+                  >
+                    Telefone
+                  </Text>
+                  <Controller
+                    control={control}
+                    name="phone"
+                    render={({ field: { value, onChange } }) => (
+                      <PaperInput
+                        mode="outlined"
+                        value={value}
+                        onChangeText={onChange}
+                        keyboardType="phone-pad"
+                        placeholder="Contacto"
+                        left={<PaperInput.Icon icon="phone" />}
+                      />
+                    )}
+                  />
+
+                  <Text
+                    style={{
+                      marginTop: 12,
+                      color: theme.colors.onSurfaceVariant,
+                    }}
+                  >
+                    Morada
+                  </Text>
+                  <Controller
+                    control={control}
+                    name="address"
+                    render={({ field: { value, onChange } }) => (
+                      <PaperInput
+                        mode="outlined"
+                        value={value}
+                        onChangeText={onChange}
+                        placeholder="Morada"
+                        left={<PaperInput.Icon icon="home-outline" />}
+                      />
+                    )}
+                  />
+
+                  <View style={{ marginTop: 12, alignSelf: "flex-start" }}>
+                    <PrimaryButton
+                      label={isSubmitting ? "A guardar…" : "Guardar"}
+                      onPress={handleSubmit(onSaveProfile)}
+                      disabled={isSubmitting}
+                    />
+                  </View>
+                </View>
+              )}
+            </FlexibleCard>
+          </FadeIn>
+
+          {/* WhiteCard: Gestão de crianças (COLAPSÁVEL) */}
+          <FadeIn delay={100}>
+            <FlexibleCard
+              backgroundColor={theme.colors.surface}
+              elevation={1}
+              padding={14}
+              style={{
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: BORDER,
+              }}
+            >
+              {/* Header do card */}
+              <TouchableOpacity
+                onPress={toggleChildren}
+                activeOpacity={0.7}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  childrenCollapsed
+                    ? "Expandir as minhas crianças"
+                    : "Colapsar as minhas crianças"
+                }
+              >
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <Icon
+                    name="account-child-outline"
+                    size={20}
+                    color={theme.colors.onSurface}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "800",
+                      color: theme.colors.onSurface,
+                    }}
+                  >
+                    As minhas crianças
+                  </Text>
+                  {!!(me?.children?.length ?? 0) && (
                     <View
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 8,
+                        marginLeft: 6,
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 999,
+                        backgroundColor: theme.colors.secondaryContainer,
                       }}
                     >
                       <Text
                         style={{
-                          fontSize: 16,
-                          fontWeight: "600",
-                          color: theme.colors.onSurface,
-                          flex: 1,
+                          color: theme.colors.onSecondaryContainer,
+                          fontWeight: "700",
+                          fontSize: 12,
                         }}
                       >
-                        {selectedChild.name}
+                        {me?.children?.length}
                       </Text>
-                      <View style={{ flexDirection: "row" }}>
-                        <IconButton
-                          icon="pencil"
-                          size={20}
-                          onPress={() => {
-                            setIsEditingOrCreating(true);
-                            setEditingChild(selectedChild);
-                            setShowBirth(false);
-                            cReset({
-                              name: selectedChild.name,
-                              birthDate: selectedChild.birthDate
-                                ? new Date(selectedChild.birthDate)
-                                : new Date(new Date().getFullYear() - 6, 0, 1),
-                              gender: (selectedChild.gender as any) ?? null,
-                              readerProfile:
-                                selectedChild.readerProfile ?? null,
-                            });
-                          }}
-                        />
-                        <IconButton
-                          icon="delete"
-                          size={20}
-                          onPress={() => deleteChild(selectedChild.id)}
-                        />
-                      </View>
                     </View>
+                  )}
+                </View>
+                <IconButton
+                  icon={childrenCollapsed ? "chevron-down" : "chevron-up"}
+                  size={22}
+                />
+              </TouchableOpacity>
 
-                    <Text
-                      style={{
-                        color: theme.colors.onSurfaceVariant,
-                        marginTop: 4,
-                      }}
-                    >
-                      Idade: {ageFrom(selectedChild.birthDate)}
-                    </Text>
-                    <Text
-                      style={{
-                        color: theme.colors.onSurfaceVariant,
-                        marginTop: 2,
-                      }}
-                    >
-                      Nascimento: {fmtDate(selectedChild.birthDate)}
-                    </Text>
-                    <Text
-                      style={{
-                        color: theme.colors.onSurfaceVariant,
-                        marginTop: 2,
-                      }}
-                    >
-                      Género: {genderLabel(selectedChild.gender)}
-                    </Text>
-
-                    {!!selectedChild.readerProfile && (
+              {!childrenCollapsed && (
+                <>
+                  {/* Seletor de crianças + adicionar nova */}
+                  <Text
+                    style={{
+                      color: theme.colors.onSurfaceVariant,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Seleciona uma criança
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 8 }}
+                  >
+                    {(me?.children?.length ?? 0) === 0 && (
                       <Text
                         style={{
                           color: theme.colors.onSurfaceVariant,
-                          marginTop: 6,
+                          marginRight: 8,
                         }}
                       >
-                        Perfil de Leitor: {selectedChild.readerProfile}
+                        Sem crianças registadas.
                       </Text>
                     )}
-                  </FlexibleCard>
-                ) : (
-                  <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                    Nenhuma criança selecionada.
-                  </Text>
-                )}
+                    {(me?.children ?? []).map((c) => (
+                      <PillChip
+                        key={c.id}
+                        label={c.name}
+                        active={selectedChildId === c.id}
+                        onPress={() => {
+                          setSelectedChildId(c.id);
+                          setIsEditingOrCreating(false);
+                          setEditingChild(null);
+                        }}
+                        icon="account"
+                      />
+                    ))}
+                  </ScrollView>
 
-                {/* Form criar/editar (mostrado só quando ativo) */}
-                {isEditingOrCreating && (
-                  <>
-                    <View
-                      style={{
-                        height: 1,
-                        backgroundColor: theme.colors.outlineVariant,
-                        opacity: 0.6,
-                        marginVertical: 12,
+                  <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                    <PrimaryButton
+                      label="Adicionar criança"
+                      onPress={() => {
+                        setIsEditingOrCreating(true);
+                        setEditingChild(null);
+                        setShowBirth(false);
+                        cReset({
+                          name: "",
+                          birthDate: new Date(
+                            new Date().getFullYear() - 6,
+                            0,
+                            1
+                          ),
+                          gender: null,
+                          readerProfile: null,
+                        });
                       }}
                     />
+                  </View>
+
+                  {/* Divider */}
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: BORDER,
+                      opacity: 0.6,
+                      marginVertical: 12,
+                    }}
+                  />
+
+                  {/* Cartão de detalhes da criança selecionada */}
+                  {selectedChild ? (
                     <FlexibleCard
-                      title={
-                        editingChild ? "Editar criança" : "Adicionar criança"
-                      }
                       backgroundColor={theme.colors.surface}
                       elevation={0}
                       padding={12}
                       style={{
                         borderRadius: 10,
                         borderWidth: 1,
-                        borderColor: theme.colors.outlineVariant,
+                        borderColor: BORDER,
                       }}
                     >
-                      <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                        Nome
-                      </Text>
-                      <Controller
-                        control={cCtrl}
-                        name="name"
-                        render={({ field: { value, onChange } }) => (
-                          <TextInput
-                            value={value}
-                            onChangeText={onChange}
-                            placeholder="Nome"
-                            style={{
-                              borderWidth: 1,
-                              borderColor: theme.colors.outlineVariant,
-                              borderRadius: 8,
-                              padding: 12,
-                              color: theme.colors.onSurface,
-                            }}
-                          />
-                        )}
-                      />
-
-                      <Text
+                      <View
                         style={{
-                          marginTop: 12,
-                          color: theme.colors.onSurfaceVariant,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 8,
                         }}
                       >
-                        Data de nascimento
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => setShowBirth(true)}
-                        style={{
-                          borderWidth: 1,
-                          borderColor: theme.colors.outlineVariant,
-                          borderRadius: 8,
-                          padding: 12,
-                        }}
-                      >
-                        <Text style={{ color: theme.colors.onSurface }}>
-                          {birthDateValue
-                            ? new Intl.DateTimeFormat("pt-PT", {
-                                dateStyle: "medium",
-                              }).format(birthDateValue)
-                            : "Selecionar…"}
-                        </Text>
-                      </TouchableOpacity>
-
-                      {showBirth && (
-                        <DateTimePicker
-                          mode="date"
-                          value={birthDateValue || new Date()}
-                          onChange={(_, date) => {
-                            if (!date) return;
-                            cSet("birthDate", date);
-                            if (Platform.OS !== "ios") setShowBirth(false);
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                            flex: 1,
                           }}
-                        />
-                      )}
-
-                      {/* Género como chips M/F/O */}
-                      <Text
-                        style={{
-                          marginTop: 12,
-                          color: theme.colors.onSurfaceVariant,
-                        }}
-                      >
-                        Género
-                      </Text>
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        <PillChip
-                          label="Masculino"
-                          active={cWatch("gender") === "M"}
-                          onPress={() => cSet("gender", "M" as any)}
-                        />
-                        <PillChip
-                          label="Feminino"
-                          active={cWatch("gender") === "F"}
-                          onPress={() => cSet("gender", "F" as any)}
-                        />
-                        <PillChip
-                          label="Outro"
-                          active={cWatch("gender") === "O"}
-                          onPress={() => cSet("gender", "O" as any)}
-                        />
-                      </View>
-
-                      <Text
-                        style={{
-                          marginTop: 12,
-                          color: theme.colors.onSurfaceVariant,
-                        }}
-                      >
-                        Perfil de Leitor (opcional)
-                      </Text>
-                      <Controller
-                        control={cCtrl}
-                        name="readerProfile"
-                        render={({ field: { value, onChange } }) => (
-                          <TextInput
-                            value={value ?? ""}
-                            onChangeText={onChange}
-                            placeholder="Notas/observações do perfil"
+                        >
+                          <Icon
+                            name="account"
+                            size={18}
+                            color={theme.colors.onSurface}
+                          />
+                          <Text
                             style={{
-                              borderWidth: 1,
-                              borderColor: theme.colors.outlineVariant,
-                              borderRadius: 8,
-                              padding: 12,
+                              fontSize: 16,
+                              fontWeight: "600",
                               color: theme.colors.onSurface,
+                              flex: 1,
+                            }}
+                          >
+                            {selectedChild.name}
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: "row" }}>
+                          <IconButton
+                            icon="pencil"
+                            size={20}
+                            onPress={() => {
+                              setIsEditingOrCreating(true);
+                              setEditingChild(selectedChild);
+                              setShowBirth(false);
+                              cReset({
+                                name: selectedChild.name,
+                                birthDate: selectedChild.birthDate
+                                  ? new Date(selectedChild.birthDate)
+                                  : new Date(
+                                      new Date().getFullYear() - 6,
+                                      0,
+                                      1
+                                    ),
+                                gender: (selectedChild.gender as any) ?? null,
+                                readerProfile:
+                                  selectedChild.readerProfile ?? null,
+                              });
                             }}
                           />
-                        )}
-                      />
+                          <IconButton
+                            icon="delete"
+                            size={20}
+                            onPress={() => deleteChild(selectedChild.id)}
+                          />
+                        </View>
+                      </View>
 
                       <View
                         style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                          marginTop: 4,
+                        }}
+                      >
+                        <Icon
+                          name="cake-variant-outline"
+                          size={16}
+                          color={theme.colors.onSurfaceVariant}
+                        />
+                        <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                          Nascimento: {fmtDate(selectedChild.birthDate)}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                          marginTop: 4,
+                        }}
+                      >
+                        <Icon
+                          name="baby-face-outline"
+                          size={16}
+                          color={theme.colors.onSurfaceVariant}
+                        />
+                        <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                          Idade: {ageFrom(selectedChild.birthDate)}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                          marginTop: 4,
+                        }}
+                      >
+                        <Icon
+                          name="gender-male-female-variant"
+                          size={16}
+                          color={theme.colors.onSurfaceVariant}
+                        />
+                        <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                          Género: {genderLabel(selectedChild.gender)}
+                        </Text>
+                      </View>
+
+                      {!!selectedChild.readerProfile && (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                            marginTop: 6,
+                          }}
+                        >
+                          <Icon
+                            name="book-open-outline"
+                            size={16}
+                            color={theme.colors.onSurfaceVariant}
+                          />
+                          <Text
+                            style={{ color: theme.colors.onSurfaceVariant }}
+                          >
+                            Perfil de Leitor: {selectedChild.readerProfile}
+                          </Text>
+                        </View>
+                      )}
+                    </FlexibleCard>
+                  ) : (
+                    <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                      Nenhuma criança selecionada.
+                    </Text>
+                  )}
+
+                  {/* Form criar/editar (mostrado só quando ativo) */}
+                  {isEditingOrCreating && (
+                    <>
+                      <View
+                        style={{
                           height: 1,
-                          backgroundColor: theme.colors.outlineVariant,
+                          backgroundColor: BORDER,
                           opacity: 0.6,
                           marginVertical: 12,
                         }}
                       />
+                      <FlexibleCard
+                        title={
+                          editingChild ? "Editar criança" : "Adicionar criança"
+                        }
+                        backgroundColor={theme.colors.surface}
+                        elevation={0}
+                        padding={12}
+                        style={{
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: BORDER,
+                        }}
+                      >
+                        <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                          Nome
+                        </Text>
+                        <Controller
+                          control={cCtrl}
+                          name="name"
+                          render={({ field: { value, onChange } }) => (
+                            <PaperInput
+                              mode="outlined"
+                              value={value}
+                              onChangeText={onChange}
+                              placeholder="Nome"
+                              left={<PaperInput.Icon icon="account-child" />}
+                            />
+                          )}
+                        />
 
-                      <View style={{ flexDirection: "row", gap: 10 }}>
-                        {editingChild ? (
-                          <>
-                            <PrimaryButton
-                              label={
-                                cSaving ? "A guardar…" : "Guardar alterações"
-                              }
-                              onPress={cSubmit(updateChildSubmit)}
-                              disabled={cSaving}
-                            />
-                            <SecondaryButton
-                              label="Cancelar"
-                              onPress={() => {
-                                setIsEditingOrCreating(false);
-                                setEditingChild(null);
-                                setShowBirth(false);
-                                cReset();
-                              }}
-                            />
-                          </>
-                        ) : (
-                          <>
-                            <PrimaryButton
-                              label={cSaving ? "A criar…" : "Adicionar criança"}
-                              onPress={cSubmit(createChildSubmit)}
-                              disabled={cSaving}
-                            />
-                            <SecondaryButton
-                              label="Cancelar"
-                              onPress={() => {
-                                setIsEditingOrCreating(false);
-                                setEditingChild(null);
-                                setShowBirth(false);
-                                cReset();
-                              }}
-                            />
-                          </>
+                        <Text
+                          style={{
+                            marginTop: 12,
+                            color: theme.colors.onSurfaceVariant,
+                          }}
+                        >
+                          Data de nascimento
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => setShowBirth(true)}
+                          style={{
+                            borderWidth: 1,
+                            borderColor: BORDER,
+                            borderRadius: 8,
+                            paddingVertical: 12,
+                            paddingHorizontal: 12,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
+                          <Icon
+                            name="calendar"
+                            size={18}
+                            color={theme.colors.onSurface}
+                          />
+                          <Text style={{ color: theme.colors.onSurface }}>
+                            {birthDateValue
+                              ? new Intl.DateTimeFormat("pt-PT", {
+                                  dateStyle: "medium",
+                                }).format(birthDateValue)
+                              : "Selecionar…"}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {showBirth && (
+                          <DateTimePicker
+                            mode="date"
+                            value={birthDateValue || new Date()}
+                            onChange={(_, date) => {
+                              if (!date) return;
+                              cSet("birthDate", date);
+                              if (Platform.OS !== "ios") setShowBirth(false);
+                            }}
+                          />
                         )}
-                      </View>
-                    </FlexibleCard>
-                  </>
-                )}
-              </>
-            )}
-          </FlexibleCard>
+
+                        {/* Género como chips M/F/O */}
+                        <Text
+                          style={{
+                            marginTop: 12,
+                            color: theme.colors.onSurfaceVariant,
+                          }}
+                        >
+                          Género
+                        </Text>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          <PillChip
+                            label="Masculino"
+                            active={cWatch("gender") === "M"}
+                            onPress={() => cSet("gender", "M" as any)}
+                            icon="gender-male"
+                          />
+                          <PillChip
+                            label="Feminino"
+                            active={cWatch("gender") === "F"}
+                            onPress={() => cSet("gender", "F" as any)}
+                            icon="gender-female"
+                          />
+                          <PillChip
+                            label="Outro"
+                            active={cWatch("gender") === "O"}
+                            onPress={() => cSet("gender", "O" as any)}
+                            icon="gender-non-binary"
+                          />
+                        </View>
+
+                        <Text
+                          style={{
+                            marginTop: 12,
+                            color: theme.colors.onSurfaceVariant,
+                          }}
+                        >
+                          Perfil de Leitor (opcional)
+                        </Text>
+                        <Controller
+                          control={cCtrl}
+                          name="readerProfile"
+                          render={({ field: { value, onChange } }) => (
+                            <PaperInput
+                              mode="outlined"
+                              value={value ?? ""}
+                              onChangeText={onChange}
+                              placeholder="Notas/observações do perfil"
+                              left={<PaperInput.Icon icon="book-outline" />}
+                              multiline
+                            />
+                          )}
+                        />
+
+                        <View
+                          style={{
+                            height: 1,
+                            backgroundColor: BORDER,
+                            opacity: 0.6,
+                            marginVertical: 12,
+                          }}
+                        />
+
+                        <View style={{ flexDirection: "row", gap: 10 }}>
+                          {editingChild ? (
+                            <>
+                              <PrimaryButton
+                                label={
+                                  cSaving ? "A guardar…" : "Guardar alterações"
+                                }
+                                onPress={cSubmit(updateChildSubmit)}
+                                disabled={cSaving}
+                              />
+                              <SecondaryButton
+                                label="Cancelar"
+                                onPress={() => {
+                                  setIsEditingOrCreating(false);
+                                  setEditingChild(null);
+                                  setShowBirth(false);
+                                  cReset();
+                                }}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              <PrimaryButton
+                                label={
+                                  cSaving ? "A criar…" : "Adicionar criança"
+                                }
+                                onPress={cSubmit(createChildSubmit)}
+                                disabled={cSaving}
+                              />
+                              <SecondaryButton
+                                label="Cancelar"
+                                onPress={() => {
+                                  setIsEditingOrCreating(false);
+                                  setEditingChild(null);
+                                  setShowBirth(false);
+                                  cReset();
+                                }}
+                              />
+                            </>
+                          )}
+                        </View>
+                      </FlexibleCard>
+                    </>
+                  )}
+                </>
+              )}
+            </FlexibleCard>
+          </FadeIn>
         </ScrollView>
       </SafeAreaView>
     </Background>

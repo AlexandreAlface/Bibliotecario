@@ -1,24 +1,31 @@
-// apps/mobile/src/providers/AppThemeProvider.tsx (excerto)
-import { Provider as PaperProvider } from "react-native-paper";
+// apps/mobile/src/providers/AppThemeProvider.tsx
+import * as React from "react";
+import { useColorScheme } from "react-native";
+import { Provider as PaperProvider, adaptNavigationTheme } from "react-native-paper";
+import {
+  DefaultTheme as NavDefaultTheme,
+  DarkTheme as NavDarkTheme,
+  ThemeProvider, // 👈 expo-router recomenda isto em vez de NavigationContainer
+} from "@react-navigation/native";
+
 import { LightTheme, DarkTheme } from "src/theme";
 
-export default function AppThemeProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  // se já tiveres useColorScheme/estado, mantém; aqui é só o merge das fonts
-  const theme = LightTheme; // ou escolhe dark dinamicamente
+// Adapta as cores do Paper aos temas do React Navigation
+const { LightTheme: AdaptedNavLight, DarkTheme: AdaptedNavDark } = adaptNavigationTheme({
+  reactNavigationLight: NavDefaultTheme,
+  reactNavigationDark: NavDarkTheme,
+  materialLight: LightTheme,
+  materialDark: DarkTheme,
+});
 
-  const themed = {
-    ...theme,
-    fonts: {
-      ...theme.fonts,
-      // mapeia Poppins para os pesos usados no MUI (Regular/Medium/Bold)
-      // garante que carregaste as fontes primeiro!
-      default: { ...theme.fonts?.default, fontFamily: "Poppins_400" },
-    },
-  } as typeof theme;
+export default function AppThemeProvider({ children }: { children: React.ReactNode }) {
+  const scheme = useColorScheme();
+  const paperTheme = scheme === "dark" ? DarkTheme : LightTheme;
+  const navTheme = scheme === "dark" ? AdaptedNavDark : AdaptedNavLight;
 
-  return <PaperProvider theme={themed}>{children}</PaperProvider>;
+  return (
+    <PaperProvider theme={paperTheme}>
+      <ThemeProvider value={navTheme}>{children}</ThemeProvider>
+    </PaperProvider>
+  );
 }

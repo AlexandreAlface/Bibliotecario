@@ -1,4 +1,3 @@
-// apps/mobile/app/(tabs)/avaliacoes.tsx
 import * as React from "react";
 import { ScrollView, View, Image, StyleSheet } from "react-native";
 import {
@@ -17,6 +16,8 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+
 import { Background } from "@bibliotecario/ui-mobile";
 import SelectChild from "@bibliotecario/ui-mobile/components/Avatars/SelectChild";
 import { useAuth } from "src/contexts/AuthContext";
@@ -26,22 +27,23 @@ import {
   type FinishedReading,
 } from "src/services/readings";
 import { TABBAR_HEIGHT } from "src/constants/layout";
+import type { MD3Theme } from "react-native-paper";
 
 /* ---------- Section Card (branco) ---------- */
 const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({
   children,
   style,
 }) => {
-  const theme = useTheme();
+  const theme = useTheme<MD3Theme>();
   return (
     <View
       style={[
         {
-          backgroundColor: theme.colors.surface ?? "#fff",
+          backgroundColor: theme.colors.surface,
           borderRadius: 16,
           padding: 16,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: theme.colors.outlineVariant ?? "rgba(0,0,0,0.12)",
+          borderColor: theme.colors.outlineVariant,
           shadowColor: "#000",
           shadowOpacity: 0.08,
           shadowRadius: 12,
@@ -56,13 +58,14 @@ const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({
   );
 };
 
-/* ---------- Mini card (linha clicável) ---------- */
+/* ---------- Mini card (linha clicável) com faixa de acento ---------- */
 const RowCard: React.FC<{
   children: React.ReactNode;
   onPress?: () => void;
   style?: any;
-}> = ({ children, onPress, style }) => {
-  const theme = useTheme();
+  accentColor?: string;
+}> = ({ children, onPress, style, accentColor }) => {
+  const theme = useTheme<MD3Theme>();
   return (
     <TouchableRipple
       onPress={onPress}
@@ -73,7 +76,9 @@ const RowCard: React.FC<{
           borderRadius: 12,
           padding: 12,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: theme.colors.outlineVariant ?? "rgba(0,0,0,0.12)",
+          borderColor: theme.colors.outlineVariant,
+          borderLeftWidth: 4,
+          borderLeftColor: accentColor ?? theme.colors.outlineVariant,
         },
         style,
       ]}
@@ -91,18 +96,56 @@ function StarRow({
   value: number;
   onChange: (v: number) => void;
 }) {
+  const theme = useTheme<MD3Theme>();
   return (
     <View style={{ flexDirection: "row" }}>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <IconButton
-          key={n}
-          icon={n <= value ? "star" : "star-outline"}
-          onPress={() => onChange(n)}
-        />
-      ))}
+      {[1, 2, 3, 4, 5].map((n) => {
+        const filled = n <= value;
+        return (
+          <IconButton
+            key={n}
+            icon={filled ? "star" : "star-outline"}
+            onPress={() => onChange(n)}
+            size={20}
+            iconColor={filled ? theme.colors.tertiary : theme.colors.onSurfaceVariant}
+          />
+        );
+      })}
     </View>
   );
 }
+
+/* ---------- Capa com placeholder ---------- */
+const BookCover: React.FC<{ uri?: string | null }> = ({ uri }) => {
+  const theme = useTheme<MD3Theme>();
+  if (uri) {
+    return (
+      <Image
+        source={{ uri }}
+        style={{
+          width: 88,
+          height: 128,
+          borderRadius: 8,
+          backgroundColor: theme.colors.surfaceVariant,
+        }}
+      />
+    );
+  }
+  return (
+    <View
+      style={{
+        width: 88,
+        height: 128,
+        borderRadius: 8,
+        backgroundColor: theme.colors.surfaceVariant,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Icon name="book-outline" size={28} color={theme.colors.onSurfaceVariant} />
+    </View>
+  );
+};
 
 /* ---------- Card de avaliação ---------- */
 type WhiteEvaluationCardProps = {
@@ -127,30 +170,49 @@ const WhiteEvaluationCard: React.FC<WhiteEvaluationCardProps> = ({
   onChangeComment,
   onSave,
 }) => {
-  const theme = useTheme();
+  const theme = useTheme<MD3Theme>();
   const finishedLabel = finishedAt
     ? new Date(finishedAt).toLocaleDateString("pt-PT")
     : undefined;
 
   return (
-    <RowCard>
-      {/* Linha 1: Título + Data */}
+    <RowCard accentColor={theme.colors.primary}>
+      {/* Linha 1: Título + Data (chip) + ícone */}
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
-        <Text
-          numberOfLines={2}
-          style={{ fontWeight: "700", flex: 1, paddingTop: 10 }}
+        <View
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 8,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: theme.colors.primaryContainer,
+            marginTop: 8,
+          }}
         >
-          {title}
-        </Text>
+          <Icon name="star-circle-outline" size={18} color={theme.colors.onPrimaryContainer} />
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <Text numberOfLines={2} style={{ fontWeight: "800" }}>
+            {title}
+          </Text>
+        </View>
+
         {finishedLabel ? (
-          <Chip compact mode="flat" style={{ opacity: 0.8 }}>
+          <Chip
+            compact
+            mode="outlined"
+            icon="calendar-blank"
+            style={{ borderColor: theme.colors.outlineVariant }}
+          >
             {finishedLabel}
           </Chip>
         ) : null}
       </View>
 
       {/* Linha 2: Estrelas */}
-      <View style={{ marginTop: 6 }}>
+      <View style={{ marginTop: 6, marginLeft: 36 }}>
         <StarRow value={stars} onChange={onChangeStars} />
       </View>
 
@@ -161,17 +223,10 @@ const WhiteEvaluationCard: React.FC<WhiteEvaluationCardProps> = ({
           alignItems: "flex-start",
           gap: 12,
           marginTop: 8,
+          marginLeft: 36,
         }}
       >
-        <Image
-          source={{ uri: coverUrl ?? undefined }}
-          style={{
-            width: 88,
-            height: 128,
-            borderRadius: 8,
-            backgroundColor: theme.colors.surfaceVariant,
-          }}
-        />
+        <BookCover uri={coverUrl} />
         <View style={{ flex: 1 }}>
           <TextInput
             mode="outlined"
@@ -186,19 +241,8 @@ const WhiteEvaluationCard: React.FC<WhiteEvaluationCardProps> = ({
       </View>
 
       {/* Linha 4: Botão Guardar */}
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "flex-end",
-          marginTop: 10,
-        }}
-      >
-        <Button
-          mode="contained"
-          onPress={onSave}
-          loading={!!saving}
-          disabled={!!saving}
-        >
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 10 }}>
+        <Button mode="contained" onPress={onSave} loading={!!saving} disabled={!!saving} icon="content-save-outline">
           Guardar
         </Button>
       </View>
@@ -225,6 +269,7 @@ function toChildId(val: unknown): number | undefined {
 export default function AvaliacoesTab() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const theme = useTheme<MD3Theme>();
 
   const actingChildId = (user as any)?.actingChild?.id
     ? Number((user as any).actingChild.id)
@@ -235,9 +280,9 @@ export default function AvaliacoesTab() {
       ? Number(user.children[0].id)
       : undefined;
 
-  const [selectedChildId, setSelectedChildId] = React.useState<
-    string | undefined
-  >(firstChildId ? String(firstChildId) : undefined);
+  const [selectedChildId, setSelectedChildId] = React.useState<string | undefined>(
+    firstChildId ? String(firstChildId) : undefined
+  );
 
   const childId = selectedChildId ? Number(selectedChildId) : actingChildId;
 
@@ -250,28 +295,17 @@ export default function AvaliacoesTab() {
   const [items, setItems] = React.useState<FinishedReading[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [savingIsbn, setSavingIsbn] = React.useState<string | null>(null);
-  const [commentDraft, setCommentDraft] = React.useState<
-    Record<string, string>
-  >({});
-  const [starsDraft, setStarsDraft] = React.useState<Record<string, number>>(
-    {}
-  );
-  const [snack, setSnack] = React.useState<{
-    msg: string;
-    type: "success" | "error";
-  } | null>(null);
+  const [commentDraft, setCommentDraft] = React.useState<Record<string, string>>({});
+  const [starsDraft, setStarsDraft] = React.useState<Record<string, number>>({});
+  const [snack, setSnack] = React.useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   // filtros: Com avaliação / Sem avaliação
-  const [ratingFilter, setRatingFilter] = React.useState<
-    ("rated" | "unrated")[]
-  >([]);
+  const [ratingFilter, setRatingFilter] = React.useState<("rated" | "unrated")[]>([]);
 
   const filteredItems = React.useMemo(() => {
     if (!ratingFilter.length) return items;
-    return items.filter((r) =>
-      ratingFilter.includes(typeof r.stars === "number" ? "rated" : "unrated")
-    );
+    return items.filter((r) => ratingFilter.includes(typeof r.stars === "number" ? "rated" : "unrated"));
   }, [items, ratingFilter]);
 
   async function load() {
@@ -287,8 +321,7 @@ export default function AvaliacoesTab() {
 
       setStarsDraft((m) => {
         const next = { ...m };
-        for (const r of finished)
-          if (typeof r.stars === "number") next[r.isbn] = r.stars;
+        for (const r of finished) if (typeof r.stars === "number") next[r.isbn] = r.stars;
         return next;
       });
       setCommentDraft((m) => {
@@ -341,27 +374,52 @@ export default function AvaliacoesTab() {
       });
       setSnack({ msg: "Avaliação guardada!", type: "success" });
       setItems((arr) =>
-        arr.map((r) =>
-          r.isbn === it.isbn ? { ...r, stars, comment: comment || null } : r
-        )
+        arr.map((r) => (r.isbn === it.isbn ? { ...r, stars, comment: comment || null } : r))
       );
     } catch (e: any) {
       console.error(e);
-      setSnack({
-        msg: e?.message || "Falha ao guardar a avaliação.",
-        type: "error",
-      });
+      setSnack({ msg: e?.message || "Falha ao guardar a avaliação.", type: "error" });
     } finally {
       setSavingIsbn(null);
     }
   };
 
+  // chips “selected” no branding
+  const BORDER = theme.colors.outlineVariant;
+  const selBg = theme.colors.primaryContainer;
+  const selFg = theme.colors.onPrimaryContainer;
+  const selBorder = theme.colors.primary;
+
+  const FilterChip: React.FC<{
+    selected: boolean;
+    onPress: () => void;
+    icon: string;
+    children: React.ReactNode;
+  }> = ({ selected, onPress, icon, children }) => (
+    <Chip
+      mode="outlined"
+      selected={selected}
+      onPress={onPress}
+      style={{
+        marginRight: 8,
+        marginBottom: 8,
+        backgroundColor: selected ? selBg : undefined,
+        borderColor: selected ? selBorder : BORDER,
+      }}
+      textStyle={{
+        color: selected ? selFg : theme.colors.onSurface,
+        fontWeight: (selected ? "700" : "400") as any,
+      }}
+      selectedColor={selected ? selFg : theme.colors.onSurface}
+      icon={icon as any}
+    >
+      {children}
+    </Chip>
+  );
+
   return (
     <Background>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
-        edges={["top"]}
-      >
+      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["top"]}>
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{
@@ -381,19 +439,30 @@ export default function AvaliacoesTab() {
                 gap: 12,
               }}
             >
-              <View style={{ flex: 1 }}>
-                <Text variant="titleLarge" style={{ fontWeight: "900" }}>
-                  Avaliações
-                </Text>
-                <Text style={{ opacity: 0.7, marginTop: 2 }}>
-                  Avalia (ou edita) leituras terminadas
-                </Text>
+              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: theme.colors.primaryContainer,
+                  }}
+                >
+                  <Icon name="star-box-multiple-outline" size={20} color={theme.colors.onPrimaryContainer} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text variant="titleLarge" style={{ fontWeight: "900" }}>
+                    Avaliações
+                  </Text>
+                  <Text style={{ opacity: 0.7, marginTop: 2 }}>
+                    Avalia (ou edita) leituras terminadas
+                  </Text>
+                </View>
               </View>
-              <IconButton
-                icon="refresh"
-                disabled={loading || !childId}
-                onPress={load}
-              />
+
+              <IconButton icon="refresh" disabled={loading || !childId} onPress={load} />
             </View>
 
             {/* seletor de criança (omitido se estiver a atuar como criança) */}
@@ -439,15 +508,11 @@ export default function AvaliacoesTab() {
             </View>
           ) : !childId ? (
             <WhiteCard>
-              <Text style={{ opacity: 0.7 }}>
-                Seleciona uma criança para começar.
-              </Text>
+              <Text style={{ opacity: 0.7 }}>Seleciona uma criança para começar.</Text>
             </WhiteCard>
           ) : items.length === 0 ? (
             <WhiteCard>
-              <Text style={{ opacity: 0.7 }}>
-                Sem leituras terminadas para avaliar.
-              </Text>
+              <Text style={{ opacity: 0.7 }}>Sem leituras terminadas para avaliar.</Text>
             </WhiteCard>
           ) : (
             /* ------ Secção principal com lista + filtros ------ */
@@ -456,7 +521,7 @@ export default function AvaliacoesTab() {
                 Avaliar leituras
               </Text>
 
-              {/* chips por baixo do título */}
+              {/* chips por baixo do título (branding) */}
               <View
                 style={{
                   flexDirection: "row",
@@ -466,34 +531,28 @@ export default function AvaliacoesTab() {
                   marginBottom: 8,
                 }}
               >
-                <Chip
-                  mode={ratingFilter.includes("rated") ? "flat" : "outlined"}
+                <FilterChip
                   selected={ratingFilter.includes("rated")}
                   onPress={() =>
                     setRatingFilter((s) =>
-                      s.includes("rated")
-                        ? s.filter((x) => x !== "rated")
-                        : [...s, "rated"]
+                      s.includes("rated") ? s.filter((x) => x !== "rated") : [...s, "rated"]
                     )
                   }
                   icon="star"
                 >
                   Com avaliação
-                </Chip>
-                <Chip
-                  mode={ratingFilter.includes("unrated") ? "flat" : "outlined"}
+                </FilterChip>
+                <FilterChip
                   selected={ratingFilter.includes("unrated")}
                   onPress={() =>
                     setRatingFilter((s) =>
-                      s.includes("unrated")
-                        ? s.filter((x) => x !== "unrated")
-                        : [...s, "unrated"]
+                      s.includes("unrated") ? s.filter((x) => x !== "unrated") : [...s, "unrated"]
                     )
                   }
                   icon="star-outline"
                 >
                   Sem avaliação
-                </Chip>
+                </FilterChip>
               </View>
 
               <View style={{ rowGap: 10 }}>
@@ -512,22 +571,12 @@ export default function AvaliacoesTab() {
                         stars={effectiveStars}
                         comment={effectiveComment}
                         saving={savingIsbn === item.isbn}
-                        onChangeStars={(v) =>
-                          setStarsDraft((m) => ({ ...m, [item.isbn]: v }))
-                        }
-                        onChangeComment={(t) =>
-                          setCommentDraft((m) => ({ ...m, [item.isbn]: t }))
-                        }
+                        onChangeStars={(v) => setStarsDraft((m) => ({ ...m, [item.isbn]: v }))}
+                        onChangeComment={(t) => setCommentDraft((m) => ({ ...m, [item.isbn]: t }))}
                         onSave={() => onSave(item)}
                       />
                       {idx < filteredItems.length - 1 && (
-                        <Divider
-                          style={{
-                            marginHorizontal: 4,
-                            marginTop: 10,
-                            opacity: 0.15,
-                          }}
-                        />
+                        <Divider style={{ marginHorizontal: 4, marginTop: 10, opacity: 0.15 }} />
                       )}
                     </View>
                   );

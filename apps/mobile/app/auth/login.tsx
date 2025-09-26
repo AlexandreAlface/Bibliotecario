@@ -1,4 +1,3 @@
-// app/auth/login.tsx
 import * as React from "react";
 import {
   Alert,
@@ -12,7 +11,7 @@ import { useRouter } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Text, useTheme } from "react-native-paper";
+import { Card, Text, useTheme } from "react-native-paper";
 
 import {
   Background,
@@ -21,18 +20,18 @@ import {
   TextField,
 } from "@bibliotecario/ui-mobile";
 import { authApi } from "src/services/auth";
-
 import { useAuth } from "src/contexts/AuthContext";
+
+// 👇 importa o SVG como componente (ver svg.d.ts e metro.config.js)
+import LogoBiblio from "../../assets/LogoBiblio.svg";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const schema = z.object({
   email: z
     .string()
     .min(1, "Obrigatório")
     .email("E-mail inválido")
-    .or(
-      // aceita telefone também (ex.: 9 dígitos PT) – opcional
-      z.string().regex(/^\+?\d[\d\s]{5,}$/, "E-mail ou telefone inválido")
-    ),
+    .or(z.string().regex(/^\+?\d[\d\s]{5,}$/, "E-mail ou telefone inválido")),
   password: z.string().min(6, "Mínimo 6 caracteres"),
 });
 type FormData = z.infer<typeof schema>;
@@ -52,8 +51,7 @@ export default function Login() {
   async function onSubmit(values: { email: string; password: string }) {
     try {
       await login(values.email, values.password);
-      // ❌ não faças router.replace() aqui
-      // O AuthGate no _layout redireciona automaticamente para "/"
+      // O AuthGate no _layout redireciona automaticamente
     } catch (e: any) {
       Alert.alert("Falha no login", e?.message || "Tenta novamente.");
     }
@@ -61,165 +59,204 @@ export default function Login() {
 
   return (
     <Background center={0.72}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
       >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View
-            style={{
-              flex: 1,
-              paddingHorizontal: 24,
-              paddingTop: 60,
-              paddingBottom: 24,
-            }}
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
           >
-            <Text
-              variant="headlineLarge"
-              style={{
-                color: theme.colors.onPrimary,
-                fontWeight: "700",
-                marginBottom: 28,
-              }}
-            >
-              Entrar
-            </Text>
-
-            {/* Campo: Email ou Telefone */}
-            <Controller
-              name="email"
-              control={control}
-              render={({ field, fieldState }) => (
-                <View style={{ marginBottom: 16 }}>
-                  <TextField
-                    label="Email ou Telefone"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoComplete="email"
-                    value={field.value}
-                    onChangeText={field.onChange}
-                    onBlur={field.onBlur}
-                    error={!!fieldState.error}
-                    fullWidth
-                  />
-                  {!!fieldState.error && (
-                    <Text
-                      variant="bodySmall"
-                      style={{ color: theme.colors.error, marginTop: 6 }}
-                    >
-                      {fieldState.error.message}
-                    </Text>
-                  )}
-                </View>
-              )}
-            />
-
-            {/* Campo: Palavra-passe com ver/ocultar */}
-            <Controller
-              name="password"
-              control={control}
-              render={({ field, fieldState }) => (
-                <View style={{ marginBottom: 6 }}>
-                  <TextField
-                    label="Palavra-passe"
-                    secureTextEntry={!showPass}
-                    value={field.value}
-                    onChangeText={field.onChange}
-                    onBlur={field.onBlur}
-                    error={!!fieldState.error}
-                    right={
-                      {
-                        // RN Paper permite usar objeto {icon, onPress}
-                        icon: showPass ? "eye-off-outline" : "eye-outline",
-                        onPress: () => setShowPass((s) => !s),
-                      } as any
-                    }
-                    fullWidth
-                  />
-                  {!!fieldState.error && (
-                    <Text
-                      variant="bodySmall"
-                      style={{ color: theme.colors.error, marginTop: 6 }}
-                    >
-                      {fieldState.error.message}
-                    </Text>
-                  )}
-                </View>
-              )}
-            />
-
-            {/* Links auxiliares */}
             <View
               style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                marginTop: 8,
+                flex: 1,
+                paddingHorizontal: 24,
+                paddingTop: 28,
+                paddingBottom: 24,
               }}
             >
-              <Pressable onPress={() => router.push("/auth/help")}>
-                <Text
-                  variant="bodySmall"
+              {/* LOGO com “pill” branco por trás */}
+              <View style={{ alignItems: "center", marginBottom: 16 }}>
+                <View
                   style={{
-                    color: theme.colors.onPrimary,
-                    textDecorationLine: "underline",
+                    backgroundColor: "rgba(255,255,255,0.92)",
+                    borderRadius: 999,
+                    paddingHorizontal: 18,
+                    paddingVertical: 8,
+                    borderWidth: 1,
+                    borderColor:
+                      (theme as any).colors?.outlineVariant ?? "#e6e6e6",
+                    // sombra iOS + elevation Android
+                    shadowColor: "#000",
+                    shadowOpacity: 0.12,
+                    shadowRadius: 12,
+                    shadowOffset: { width: 0, height: 6 },
+                    elevation: 6,
                   }}
                 >
-                  Problemas ao entrar?
-                </Text>
-              </Pressable>
+                  <LogoBiblio width={260} height={110} />
+                </View>
+              </View>
 
-              <Pressable onPress={() => router.push("/auth/forgot")}>
-                <Text
-                  variant="bodySmall"
-                  style={{
-                    color: theme.colors.onPrimary,
-                    textDecorationLine: "underline",
-                    textAlign: "right",
-                  }}
-                >
-                  Esqueceste-te da{"\n"}palavra-passe?
-                </Text>
-              </Pressable>
-            </View>
-
-            {/* Botão Entrar */}
-            <View style={{ marginTop: 48 }}>
-              <PrimaryButton
-                fullWidth
-                label="Entrar"
-                onPress={handleSubmit(onSubmit)}
-                disabled={formState.isSubmitting}
-              />
-            </View>
-
-            {/* CTA inferior */}
-            <View
-              style={{
-                marginTop: "auto",
-                alignItems: "center",
-                paddingTop: 24,
-              }}
-            >
-              <Text
-                variant="bodyMedium"
-                style={{ color: theme.colors.onPrimary, opacity: 0.9 }}
+              {/* CARD branco do login */}
+              <Card
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor:
+                    (theme as any).colors?.outlineVariant ?? "#e6e6e6",
+                  shadowColor: "#000",
+                  shadowOpacity: 0.1,
+                  shadowRadius: 18,
+                  shadowOffset: { width: 0, height: 10 },
+                  elevation: 8,
+                }}
               >
-                Não tens conta?{" "}
+                <Card.Content style={{ paddingVertical: 20 }}>
+                  <Text
+                    variant="headlineMedium"
+                    style={{
+                      fontWeight: "800",
+                      textAlign: "center",
+                      marginBottom: 18,
+                    }}
+                  >
+                    Entrar
+                  </Text>
+
+                  {/* —— Email/Telefone —— */}
+                  <Controller
+                    name="email"
+                    control={control}
+                    render={({ field, fieldState }) => (
+                      <View style={{ marginBottom: 16 }}>
+                        <TextField
+                          label="Email ou Telefone"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoComplete="email"
+                          value={field.value}
+                          onChangeText={field.onChange}
+                          onBlur={field.onBlur}
+                          error={!!fieldState.error}
+                          fullWidth
+                        />
+                        {!!fieldState.error && (
+                          <Text
+                            variant="bodySmall"
+                            style={{ color: theme.colors.error, marginTop: 6 }}
+                          >
+                            {fieldState.error.message}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  />
+
+                  {/* —— Password —— */}
+                  <Controller
+                    name="password"
+                    control={control}
+                    render={({ field, fieldState }) => (
+                      <View style={{ marginBottom: 6 }}>
+                        <TextField
+                          label="Palavra-passe"
+                          secureTextEntry={!showPass}
+                          value={field.value}
+                          onChangeText={field.onChange}
+                          onBlur={field.onBlur}
+                          error={!!fieldState.error}
+                          right={
+                            {
+                              icon: showPass
+                                ? "eye-off-outline"
+                                : "eye-outline",
+                              onPress: () => setShowPass((s) => !s),
+                            } as any
+                          }
+                          fullWidth
+                        />
+                        {!!fieldState.error && (
+                          <Text
+                            variant="bodySmall"
+                            style={{ color: theme.colors.error, marginTop: 6 }}
+                          >
+                            {fieldState.error.message}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  />
+
+                  {/* links ajuda */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      marginTop: 8,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <Text
+                      variant="bodySmall"
+                      style={{ textDecorationLine: "underline" }}
+                      onPress={() => router.push("/auth/help")}
+                    >
+                      Problemas ao entrar?
+                    </Text>
+                    <Text
+                      variant="bodySmall"
+                      style={{
+                        textDecorationLine: "underline",
+                        textAlign: "right",
+                      }}
+                      onPress={() => router.push("/auth/forgot")}
+                    >
+                      Esqueceste-te da{"\n"}palavra-passe?
+                    </Text>
+                  </View>
+
+                  {/* botão */}
+                  <PrimaryButton
+                    fullWidth
+                    label="Entrar"
+                    onPress={handleSubmit(onSubmit)}
+                    disabled={formState.isSubmitting}
+                  />
+                </Card.Content>
+              </Card>
+
+              {/* CTA inferior (fora do card) */}
+              <View
+                style={{
+                  marginTop: "auto",
+                  alignItems: "center",
+                  paddingTop: 24,
+                }}
+              >
                 <Text
                   variant="bodyMedium"
-                  style={{ textDecorationLine: "underline" }}
-                  onPress={() => router.push("/auth/signup")}
+                  style={{ color: theme.colors.onPrimary, opacity: 0.9 }}
                 >
-                  Cria uma conta
+                  Não tens conta?{" "}
+                  <Text
+                    variant="bodyMedium"
+                    style={{ textDecorationLine: "underline" }}
+                    onPress={() => router.push("/auth/signup")}
+                  >
+                    Cria uma conta
+                  </Text>
                 </Text>
-              </Text>
+              </View>
             </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </Background>
   );
 }

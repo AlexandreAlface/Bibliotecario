@@ -46,7 +46,9 @@ export async function listMicroContentsPublic(opts: {
   if (opts.limit) qs.set("limit", String(opts.limit));
 
   // ✅ público é /micro-contents (sem /public)
-  const data = await request(`/micro-contents?${qs.toString()}`, { method: "GET" });
+  const data = await request(`/micro-contents?${qs.toString()}`, {
+    method: "GET",
+  });
 
   const items: MicroContentItem[] = Array.isArray(data?.items)
     ? data.items
@@ -54,7 +56,8 @@ export async function listMicroContentsPublic(opts: {
     ? data
     : [];
 
-  const total: number = typeof data?.total === "number" ? data.total : items.length;
+  const total: number =
+    typeof data?.total === "number" ? data.total : items.length;
 
   const tags: string[] =
     Array.isArray(data?.tags) && data.tags.length
@@ -91,7 +94,6 @@ export async function listMicroContentsPublic(opts: {
 export async function markMicroContentSeen(id: number): Promise<void> {
   await request(`/micro-interactions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ microContentId: id }),
+    json: { microContentId: id }, // 👈 não uses "body"
   });
 }

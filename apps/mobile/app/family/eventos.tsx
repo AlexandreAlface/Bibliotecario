@@ -1,4 +1,3 @@
-// apps/mobile/app/(tabs)/eventos.tsx
 import * as React from "react";
 import {
   View,
@@ -22,6 +21,7 @@ import {
   Badge,
   IconButton,
 } from "react-native-paper";
+import type { MD3Theme } from "react-native-paper";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -67,7 +67,7 @@ const matchesQuery = (ev: CulturalEvent, q: string) =>
 
 function nextWeekendRange(today = new Date()) {
   const d = new Date(today);
-  const day = d.getDay(); // 0=Dom … 6=Sáb
+  const day = d.getDay();
   const toSaturday = (6 - day + 7) % 7;
   const sat = new Date(d);
   sat.setDate(d.getDate() + toSaturday);
@@ -76,7 +76,6 @@ function nextWeekendRange(today = new Date()) {
   return { from: YMD(sat), to: YMD(sun) };
 }
 
-/* largura máxima para centrar o feed de eventos */
 const FEED_MAX_WIDTH = 560;
 
 /* ---------- WhiteCard ---------- */
@@ -84,16 +83,16 @@ const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({
   children,
   style,
 }) => {
-  const theme = useTheme();
+  const theme = useTheme<MD3Theme>();
   return (
     <View
       style={[
         {
-          backgroundColor: theme.colors.surface ?? "#fff",
+          backgroundColor: theme.colors.surface,
           borderRadius: 16,
           padding: 16,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: theme.colors.outlineVariant ?? "rgba(0,0,0,0.12)",
+          borderColor: theme.colors.outlineVariant,
           shadowColor: "#000",
           shadowOpacity: 0.08,
           shadowRadius: 12,
@@ -108,13 +107,56 @@ const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({
   );
 };
 
-/* ---------- EventCard (com outline suave) ---------- */
+/* ---------- FilterChip (usa cores do tema, sem rosa) ---------- */
+const useChipTheme = () => {
+  const theme = useTheme<MD3Theme>();
+  return {
+    BORDER: theme.colors.outlineVariant,
+    SEL_BG: theme.colors.primaryContainer,
+    SEL_FG: theme.colors.onPrimaryContainer,
+    SEL_BORDER: theme.colors.primary,
+  };
+};
+const FilterChip: React.FC<{
+  selected: boolean;
+  onPress: () => void;
+  icon?: string;
+  children: React.ReactNode;
+  compact?: boolean;
+}> = ({ selected, onPress, icon, children, compact }) => {
+  const theme = useTheme<MD3Theme>();
+  const { BORDER, SEL_BG, SEL_FG, SEL_BORDER } = useChipTheme();
+  return (
+    <Chip
+      mode="outlined"
+      selected={selected}
+      compact={compact}
+      onPress={onPress}
+      icon={icon as any}
+      style={{
+        marginRight: 8,
+        marginBottom: 8,
+        backgroundColor: selected ? SEL_BG : undefined,
+        borderColor: selected ? SEL_BORDER : BORDER,
+      }}
+      textStyle={{
+        color: selected ? SEL_FG : theme.colors.onSurface,
+        fontWeight: (selected ? "700" : "400") as any,
+      }}
+      selectedColor={selected ? SEL_FG : theme.colors.onSurface}
+    >
+      {children}
+    </Chip>
+  );
+};
+
+/* ---------- EventCard (com outline e faixa de acento) ---------- */
 const EventCard: React.FC<{
   ev: CulturalEvent;
   onReserve: () => void;
   onCancel: () => void;
 }> = ({ ev, onReserve, onCancel }) => {
-  const theme = useTheme();
+  const theme = useTheme<MD3Theme>();
   const A = new Date(ev.startDate);
   const B = ev.endDate ? new Date(ev.endDate) : null;
   const when =
@@ -122,9 +164,14 @@ const EventCard: React.FC<{
       ? `${fDate.format(A)} · ${fTime.format(A)} — ${fTime.format(B)}`
       : `${fDate.format(A)} · ${fTime.format(A)}`;
 
+  const accent = ev.reserved
+    ? theme.colors.primary
+    : theme.colors.outlineVariant;
+  const borderColor = theme.colors.outlineVariant;
+
   return (
     <FlexibleCard
-      title={ev.title}
+      title={ev.title} // 👈 title tem de ser string
       subtitle={when + (ev.location ? ` · ${ev.location}` : "")}
       images={ev.imageUrl ? [ev.imageUrl] : undefined}
       imageRadius={16}
@@ -135,31 +182,51 @@ const EventCard: React.FC<{
         marginTop: 12,
         borderRadius: 16,
         borderWidth: StyleSheet.hairlineWidth,
-        borderColor: theme.colors.outlineVariant ?? "rgba(0,0,0,0.12)",
+        borderColor,
         alignSelf: "center",
         width: "100%",
         maxWidth: FEED_MAX_WIDTH,
+        borderLeftWidth: 4,
+        borderLeftColor: accent, // faixa de acento mantém-se
       }}
       footer={
         <View style={{ gap: 10 }}>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {!!ev.category && (
-              <Chip compact icon="tag">
+              <Chip compact mode="outlined" icon="tag" style={{ borderColor }}>
                 {ev.category}
               </Chip>
             )}
             {!!ev.libraryName && (
-              <Chip compact icon="library">
+              <Chip
+                compact
+                mode="outlined"
+                icon="library"
+                style={{ borderColor }}
+              >
                 {ev.libraryName}
               </Chip>
             )}
             {!!ev.capacity && (
-              <Chip compact icon="account-multiple">
+              <Chip
+                compact
+                mode="outlined"
+                icon="account-multiple"
+                style={{ borderColor }}
+              >
                 Capacidade: {ev.capacity}
               </Chip>
             )}
             {ev.reserved && (
-              <Badge style={{ alignSelf: "center" }}>Reservado</Badge>
+              <Badge
+                style={{
+                  alignSelf: "center",
+                  backgroundColor: theme.colors.primaryContainer,
+                  color: theme.colors.onPrimaryContainer,
+                }}
+              >
+                Reservado
+              </Badge>
             )}
           </View>
 
@@ -183,14 +250,16 @@ const EventCard: React.FC<{
 };
 
 export default function EventosTab() {
-  const theme = useTheme();
+  const theme = useTheme<MD3Theme>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const narrow = width < 400;
 
-  // animação de layout (Android precisa disto)
   React.useEffect(() => {
-    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+    if (
+      Platform.OS === "android" &&
+      UIManager.setLayoutAnimationEnabledExperimental
+    ) {
       UIManager.setLayoutAnimationEnabledExperimental(true);
     }
   }, []);
@@ -206,7 +275,6 @@ export default function EventosTab() {
     "30"
   );
 
-  // novo: estado para colapsar/expandir o WhiteCard de filtros
   const [collapsed, setCollapsed] = React.useState(false);
   const toggleCollapsed = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -355,15 +423,49 @@ export default function EventosTab() {
               accessibilityRole="button"
               accessibilityLabel="Expandir/colapsar filtros"
             >
-              <View style={{ flex: 1, paddingRight: 8 }}>
-                <Text variant="titleLarge" style={{ fontWeight: "900" }}>
-                  Eventos culturais
-                </Text>
-                {!collapsed && (
-                  <Text style={{ opacity: 0.7, marginTop: -2 }}>
-                    Filtra e reserva atividades culturais
+              <View
+                style={{
+                  flex: 1,
+                  paddingRight: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: theme.colors.primaryContainer,
+                  }}
+                >
+                  <Icon
+                    name="calendar-star"
+                    size={20}
+                    color={theme.colors.onPrimaryContainer}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text variant="titleLarge" style={{ fontWeight: "900" }}>
+                    Eventos culturais
                   </Text>
-                )}
+                  {!collapsed && (
+                    <Text style={{ opacity: 0.7, marginTop: -2 }}>
+                      Filtra e reserva atividades culturais
+                    </Text>
+                  )}
+                </View>
+                {/* contador de resultados */}
+                <Chip
+                  compact
+                  mode="outlined"
+                  style={{ borderColor: theme.colors.outlineVariant }}
+                >
+                  {items.length}
+                </Chip>
               </View>
               <IconButton
                 icon={collapsed ? "chevron-down" : "chevron-up"}
@@ -382,43 +484,42 @@ export default function EventosTab() {
                   left={<TextInput.Icon icon="magnify" />}
                 />
 
-                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-                  <Chip
-                    mode={quick === "hoje" ? "flat" : "outlined"}
+                {/* Quick range chips com cores do tema */}
+                <View
+                  style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}
+                >
+                  <FilterChip
                     selected={quick === "hoje"}
                     onPress={() => setQuickRange("hoje")}
                     icon="calendar-today"
                     compact
                   >
                     Hoje
-                  </Chip>
-                  <Chip
-                    mode={quick === "fds" ? "flat" : "outlined"}
+                  </FilterChip>
+                  <FilterChip
                     selected={quick === "fds"}
                     onPress={() => setQuickRange("fds")}
                     icon="calendar-weekend"
                     compact
                   >
                     Fim-de-semana
-                  </Chip>
-                  <Chip
-                    mode={quick === "30" ? "flat" : "outlined"}
+                  </FilterChip>
+                  <FilterChip
                     selected={quick === "30"}
                     onPress={() => setQuickRange("30")}
                     icon="calendar-month"
                     compact
                   >
                     30 dias
-                  </Chip>
-                  <Chip
-                    mode={quick === "custom" ? "flat" : "outlined"}
+                  </FilterChip>
+                  <FilterChip
                     selected={quick === "custom"}
                     onPress={() => setQuick("custom")}
                     icon="tune-variant"
                     compact
                   >
                     Personalizar
-                  </Chip>
+                  </FilterChip>
                 </View>
 
                 {quick === "custom" && (
@@ -433,7 +534,9 @@ export default function EventosTab() {
                         label="De"
                         value={from ? new Date(from + "T00:00:00") : null}
                         onChange={(d) => setFrom(d ? YMD(d) : from)}
-                        maximumDate={to ? new Date(to + "T23:59:59") : undefined}
+                        maximumDate={
+                          to ? new Date(to + "T23:59:59") : undefined
+                        }
                         style={{ height: 56 }}
                       />
                     </View>
@@ -455,7 +558,7 @@ export default function EventosTab() {
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 16,
+                    gap: 12,
                   }}
                 >
                   <Checkbox
@@ -477,7 +580,7 @@ export default function EventosTab() {
             keyExtractor={(it) => String(it.id)}
             contentContainerStyle={{
               alignItems: "center",
-              paddingBottom: bottomInset,
+              paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
             }}
             refreshControl={
               <RefreshControl
@@ -545,7 +648,6 @@ export default function EventosTab() {
             onEndReached={() => {
               if (!loading && nextCursor != null) loadMore();
             }}
-            scrollIndicatorInsets={{ bottom: bottomInset }}
           />
         </WhiteCard>
 

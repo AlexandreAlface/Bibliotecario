@@ -1,4 +1,3 @@
-// apps/mobile/app/(tabs)/feed.tsx
 import { Background } from "@bibliotecario/ui-mobile";
 import * as React from "react";
 import {
@@ -7,12 +6,14 @@ import {
   RefreshControl,
   Image,
   TouchableOpacity,
+  Animated,
+  Easing,
+  Pressable,
 } from "react-native";
 import {
   Button,
   Card,
   Chip,
-  IconButton,
   Modal,
   Portal,
   Text,
@@ -20,7 +21,11 @@ import {
   useTheme,
   Divider,
 } from "react-native-paper";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  useSafeAreaInsets,
+  SafeAreaView,
+} from "react-native-safe-area-context";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { TABBAR_HEIGHT } from "src/constants/layout";
 import {
   listMicroContentsPublic,
@@ -28,13 +33,100 @@ import {
   type MicroContentItem,
   type MicroContentType,
 } from "src/services/microcontent";
-
-import { SafeAreaView } from "react-native-safe-area-context";
+import type { MD3Theme } from "react-native-paper";
 
 const TYPES: MicroContentType[] = ["BIBLIOTERAPIA", "DICA", "FACTO", "OUTRO"];
 
+/* ---------- Anim: fade/slide-in ---------- */
+function FadeIn({
+  delay = 0,
+  children,
+}: {
+  delay?: number;
+  children: React.ReactNode;
+}) {
+  const anim = React.useRef(new Animated.Value(0)).current;
+  React.useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 320,
+      delay,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [anim, delay]);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: anim,
+        transform: [
+          {
+            translateY: anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [12, 0],
+            }),
+          },
+        ],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
+/* ---------- Helpers de conteúdo ---------- */
+function splitContent(raw: string): { title: string; body: string } {
+  const text = (raw || "").trim();
+  if (!text) return { title: "", body: "" };
+  const byLine = text.split(/\n+/);
+  let title = byLine[0].trim();
+  let body = byLine.slice(1).join("\n").trim();
+  if (!body && title.length > 80) {
+    const m = title.match(/(.+?[.!?])\s+(.*)$/);
+    if (m) {
+      title = m[1].trim();
+      body = m[2].trim();
+    }
+  }
+  return { title, body };
+}
+
+function typeVisuals(theme: MD3Theme, t?: MicroContentType) {
+  switch (t) {
+    case "BIBLIOTERAPIA":
+      return {
+        icon: "book-heart",
+        bg: theme.colors.primaryContainer,
+        fg: theme.colors.onPrimaryContainer,
+        accent: theme.colors.primary,
+      };
+    case "DICA":
+      return {
+        icon: "lightbulb-on-outline",
+        bg: theme.colors.tertiaryContainer ?? theme.colors.tertiary,
+        fg: theme.colors.onTertiaryContainer ?? theme.colors.onTertiary,
+        accent: theme.colors.tertiary,
+      };
+    case "FACTO":
+      return {
+        icon: "information-outline",
+        bg: theme.colors.surfaceVariant,
+        fg: theme.colors.onSurface,
+        accent: theme.colors.onSurfaceVariant,
+      };
+    default:
+      return {
+        icon: "comment-quote-outline",
+        bg: theme.colors.surfaceVariant,
+        fg: theme.colors.onSurface,
+        accent: theme.colors.outline,
+      };
+  }
+}
+
 export default function FeedScreen() {
-  const theme = useTheme();
+  const theme = useTheme<MD3Theme>();
   const insets = useSafeAreaInsets();
 
   const [items, setItems] = React.useState<MicroContentItem[]>([]);
@@ -55,7 +147,21 @@ export default function FeedScreen() {
   const [loading, setLoading] = React.useState(false);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
 
+  // estado de colapso/expansão por item
+  const [expanded, setExpanded] = React.useState<Set<number>>(new Set());
+  const toggleExpanded = (id: number) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
   const pages = Math.max(1, Math.ceil(total / limit));
+  const BORDER = theme.colors.outlineVariant ?? "rgba(0,0,0,0.12)";
+  const SURFACE = theme.colors.surface;
+  const SEL_BG = theme.colors.primaryContainer; // selecionado → cor do tema
+  const SEL_FG = theme.colors.onPrimaryContainer;
+  const SEL_BORDER = theme.colors.primary;
 
   async function load(p = page) {
     setLoading(true);
@@ -77,13 +183,11 @@ export default function FeedScreen() {
     }
   }
 
-  // primeira carga + quando muda página/tipo/tag/library
   React.useEffect(() => {
     load(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, type, tag, libraryId]);
 
-  // debounce para q
   React.useEffect(() => {
     const t = setTimeout(() => {
       setPage(1);
@@ -94,382 +198,413 @@ export default function FeedScreen() {
   }, [q]);
 
   const handleMarkSeen = async (id: number) => {
-    // optimista
-    setItems((arr) =>
-      arr.map((it) => (it.id === id ? { ...it, seen: true } : it))
-    );
+    setItems((arr) => arr.map((it) => (it.id === id ? { ...it, seen: true } : it)));
     try {
       await markMicroContentSeen(id);
     } catch {
-      // reverte em caso de falha
-      setItems((arr) =>
-        arr.map((it) => (it.id === id ? { ...it, seen: false } : it))
-      );
+      setItems((arr) => arr.map((it) => (it.id === id ? { ...it, seen: false } : it)));
     }
   };
 
+  /** Chip com “selected” no branding */
   const FilterChip: React.FC<{
     selected: boolean;
     onPress: () => void;
     children: React.ReactNode;
   }> = ({ selected, onPress, children }) => (
     <Chip
-      mode={selected ? "flat" : "outlined"}
+      mode="outlined"
       selected={selected}
       onPress={onPress}
-      style={{ marginRight: 8, marginBottom: 8 }}
+      style={{
+        marginRight: 8,
+        marginBottom: 8,
+        backgroundColor: selected ? SEL_BG : undefined,
+        borderColor: selected ? SEL_BORDER : BORDER,
+      }}
+      textStyle={{
+        color: selected ? SEL_FG : theme.colors.onSurface,
+        fontWeight: (selected ? "700" : "400") as any,
+      }}
+      selectedColor={selected ? SEL_FG : theme.colors.onSurface}
     >
       {children}
     </Chip>
   );
 
   return (
-    <Background>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
-        edges={["top"]}
-      >
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={{
-            padding: 16,
-            gap: 16,
-            paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
-          }}
+    <Portal.Host>
+      <Background>
+        <SafeAreaView
+          style={{ flex: 1, backgroundColor: "transparent" }}
+          edges={["top"]}
         >
-          {/* Header */}
-          <View
-            style={{
-              backgroundColor: theme.colors.surface,
-              borderRadius: 16,
+          <ScrollView
+            contentInsetAdjustmentBehavior="automatic"
+            refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load()} />}
+            contentContainerStyle={{
               padding: 16,
-              borderWidth: 1,
-              borderColor: (theme as any).colors?.outlineVariant ?? "#e6e6e6",
-              elevation: 1,
+              gap: 16,
+              paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
             }}
           >
-            <Text variant="headlineSmall" style={{ fontWeight: "900" }}>
-              Conteúdos & Biblioterapia
-            </Text>
-            <Text style={{ opacity: 0.7, marginTop: 4 }}>
-              Dicas, biblioterapia e conteúdos associados a livros.
-            </Text>
-
-            {/* Barra de pesquisa + botão filtros */}
-            <View
-              style={{
-                marginTop: 12,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <TextInput
-                mode="outlined"
-                placeholder="Pesquisar…"
-                value={q}
-                onChangeText={setQ}
-                style={{ flex: 1 }}
-                left={<TextInput.Icon icon="magnify" />}
-              />
-              <Button
-                mode="contained-tonal"
-                onPress={() => setFiltersOpen(true)}
+            {/* Header + Pesquisa + Chips de Tipo */}
+            <FadeIn>
+              <View
+                style={{
+                  backgroundColor: SURFACE,
+                  borderRadius: 16,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: BORDER,
+                  elevation: 1,
+                }}
               >
-                Filtros
-              </Button>
-            </View>
+                <Text variant="headlineSmall" style={{ fontWeight: "900" }}>
+                  Conteúdos & Biblioterapia
+                </Text>
+                <Text style={{ opacity: 0.7, marginTop: 4 }}>
+                  Dicas, biblioterapia e conteúdos associados a livros.
+                </Text>
 
-            {/* Filtros rápidos: tipo (chips) */}
-            <View
-              style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}
-            >
-              <FilterChip selected={!type} onPress={() => setType("")}>
-                Todos
-              </FilterChip>
-              {TYPES.map((t) => (
-                <FilterChip
-                  key={t}
-                  selected={type === t}
-                  onPress={() => {
-                    setPage(1);
-                    setType(type === t ? "" : t);
+                {/* Pesquisa */}
+                <View
+                  style={{
+                    marginTop: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
                   }}
                 >
-                  {t}
-                </FilterChip>
-              ))}
-            </View>
+                  <TextInput
+                    mode="outlined"
+                    placeholder="Pesquisar…"
+                    value={q}
+                    onChangeText={setQ}
+                    style={{ flex: 1 }}
+                    left={<TextInput.Icon icon="magnify" />}
+                  />
+                </View>
 
-            {/* Tags selecionadas / biblioteca ativa (preview) */}
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                marginTop: 4,
-                gap: 8,
-              }}
-            >
-              {!!tag && <Chip icon="tag">{tag}</Chip>}
-              {!!libraryId && (
-                <Chip icon="library">
-                  {allLibraries.find((l) => l.id === libraryId)?.name ??
-                    `Biblioteca #${libraryId}`}
-                </Chip>
-              )}
-            </View>
-          </View>
+                {/* Filtros rápidos: Tipo */}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}>
+                  <FilterChip selected={!type} onPress={() => setType("")}>
+                    Todos
+                  </FilterChip>
+                  {TYPES.map((t) => (
+                    <FilterChip
+                      key={t}
+                      selected={type === t}
+                      onPress={() => {
+                        setPage(1);
+                        setType(type === t ? "" : t);
+                      }}
+                    >
+                      {t}
+                    </FilterChip>
+                  ))}
+                </View>
 
-          {/* Lista */}
-          <View
-            style={{
-              backgroundColor: theme.colors.surface,
-              borderRadius: 16,
-              padding: 12,
-              borderWidth: 1,
-              borderColor: (theme as any).colors?.outlineVariant ?? "#e6e6e6",
-              elevation: 1,
-            }}
-          >
-            {items.length === 0 ? (
-              <View style={{ paddingVertical: 12 }}>
-                <Text style={{ opacity: 0.7 }}>
-                  {loading
-                    ? "A carregar…"
-                    : "Sem resultados para estes filtros."}
-                </Text>
-              </View>
-            ) : (
-              items.map((mc, idx) => (
-                <View key={mc.id}>
-                  <Card style={{ overflow: "hidden" }}>
-                    <Card.Content>
-                      {/* chips topo */}
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          flexWrap: "wrap",
-                          gap: 6,
-                          marginBottom: 6,
-                        }}
-                      >
-                        <Chip compact>{mc.type}</Chip>
-                        {mc.tags.map((t) => (
-                          <Chip key={t} compact mode="outlined">
-                            {t}
-                          </Chip>
-                        ))}
-                        {mc.library?.name ? (
-                          <Chip compact mode="outlined" icon="library">
-                            {mc.library.name}
-                          </Chip>
-                        ) : null}
-                        {mc.seen ? (
-                          <Chip
-                            compact
-                            icon="check"
-                            style={{ backgroundColor: "#e8f5e9" }}
-                          >
-                            Visto
-                          </Chip>
-                        ) : null}
-                      </View>
-
-                      {/* texto */}
-                      <Text>
-                        {mc.text.split("\n").map((line, i, arr) => (
-                          <Text key={i}>
-                            {line}
-                            {i < arr.length - 1 ? "\n" : ""}
-                          </Text>
-                        ))}
+                {/* Preview de filtros ativos (tags/biblioteca) */}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 4, gap: 8 }}>
+                  {!!tag && (
+                    <Chip mode="outlined" icon="tag" style={{ borderColor: SEL_BORDER, backgroundColor: SEL_BG }}>
+                      <Text style={{ color: SEL_FG }}>{tag}</Text>
+                    </Chip>
+                  )}
+                  {!!libraryId && (
+                    <Chip mode="outlined" icon="library" style={{ borderColor: SEL_BORDER, backgroundColor: SEL_BG }}>
+                      <Text style={{ color: SEL_FG }}>
+                        {allLibraries.find((l) => l.id === libraryId)?.name ?? `Biblioteca #${libraryId}`}
                       </Text>
-
-                      {/* livros associados */}
-                      {mc.books?.length ? (
-                        <View style={{ marginTop: 8 }}>
-                          <Text
-                            variant="titleSmall"
-                            style={{ marginBottom: 6 }}
-                          >
-                            Livros relacionados
-                          </Text>
-                          <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={{ gap: 10 }}
-                          >
-                            {mc.books.map((b) => (
-                              <TouchableOpacity
-                                key={b.isbn}
-                                activeOpacity={0.8}
-                                style={{ width: 120 }}
-                              >
-                                {b.coverUrl ? (
-                                  <Image
-                                    source={{ uri: b.coverUrl }}
-                                    style={{
-                                      width: 120,
-                                      height: 160,
-                                      borderRadius: 8,
-                                      borderWidth: 1,
-                                      borderColor:
-                                        (theme as any).colors?.outlineVariant ??
-                                        "#e6e6e6",
-                                    }}
-                                    resizeMode="cover"
-                                  />
-                                ) : null}
-                                <Text
-                                  numberOfLines={2}
-                                  style={{ fontWeight: "700", marginTop: 6 }}
-                                >
-                                  {b.title}
-                                </Text>
-                              </TouchableOpacity>
-                            ))}
-                          </ScrollView>
-                        </View>
-                      ) : null}
-                    </Card.Content>
-
-                    <Card.Actions>
-                      <Button
-                        onPress={() => handleMarkSeen(mc.id)}
-                        disabled={!!mc.seen}
-                        icon={mc.seen ? "check" : "eye-check-outline"}
-                      >
-                        {mc.seen ? "Marcado" : "Marcar como visto"}
-                      </Button>
-                    </Card.Actions>
-                  </Card>
-
-                  {idx < items.length - 1 && (
-                    <Divider style={{ marginVertical: 10 }} />
+                    </Chip>
                   )}
                 </View>
-              ))
-            )}
-
-            {/* Paginação simples */}
-            {items.length > 0 && page < pages && (
-              <View style={{ alignItems: "center", marginTop: 8 }}>
-                <Button
-                  mode="outlined"
-                  onPress={() => setPage((p) => Math.min(p + 1, pages))}
-                  icon="chevron-down"
-                >
-                  Ver mais
-                </Button>
-                <Text style={{ opacity: 0.6, marginTop: 4 }}>
-                  Página {page} de {pages}
-                </Text>
               </View>
-            )}
-          </View>
-        </ScrollView>
+            </FadeIn>
 
-        {/* Modal de Filtros (Tag + Biblioteca) */}
-        <Portal>
-          <Modal
-            visible={filtersOpen}
-            onDismiss={() => setFiltersOpen(false)}
-            contentContainerStyle={{
-              backgroundColor: theme.colors.background,
-              margin: 16,
-              borderRadius: 16,
-              padding: 16,
-            }}
-          >
-            <Text
-              variant="titleMedium"
-              style={{ fontWeight: "bold", marginBottom: 10 }}
-            >
-              Filtros
-            </Text>
-
-            {/* TAGS */}
-            <Text variant="labelLarge" style={{ marginBottom: 6 }}>
-              Tags
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8 }}
-              style={{ marginBottom: 12 }}
-            >
-              <FilterChip selected={!tag} onPress={() => setTag("")}>
-                (todas)
-              </FilterChip>
-              {allTags.map((t) => (
-                <FilterChip
-                  key={t}
-                  selected={tag === t}
-                  onPress={() => setTag(tag === t ? "" : t)}
-                >
-                  {t}
-                </FilterChip>
-              ))}
-            </ScrollView>
-
-            {/* BIBLIOTECA */}
-            <Text variant="labelLarge" style={{ marginBottom: 6 }}>
-              Biblioteca
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8 }}
-            >
-              <FilterChip
-                selected={!libraryId}
-                onPress={() => setLibraryId(undefined)}
+            {/* Lista */}
+            <FadeIn delay={60}>
+              <View
+                style={{
+                  backgroundColor: SURFACE,
+                  borderRadius: 16,
+                  padding: 12,
+                  borderWidth: 1,
+                  borderColor: BORDER,
+                  elevation: 1,
+                }}
               >
-                (todas)
-              </FilterChip>
-              {allLibraries.map((lib) => (
-                <FilterChip
-                  key={lib.id}
-                  selected={libraryId === lib.id}
-                  onPress={() =>
-                    setLibraryId(libraryId === lib.id ? undefined : lib.id)
-                  }
-                >
-                  {lib.name}
-                </FilterChip>
-              ))}
-            </ScrollView>
+                {items.length === 0 ? (
+                  <View style={{ paddingVertical: 12 }}>
+                    <Text style={{ opacity: 0.7 }}>
+                      {loading ? "A carregar…" : "Sem resultados para estes filtros."}
+                    </Text>
+                  </View>
+                ) : (
+                  items.map((mc, idx) => {
+                    const visuals = typeVisuals(theme, mc.type as MicroContentType);
+                    const { title, body } = splitContent(mc.text);
+                    const isOpen = expanded.has(mc.id);
 
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "flex-end",
-                marginTop: 16,
-                gap: 8,
+                    return (
+                      <FadeIn key={mc.id} delay={90 + idx * 40}>
+                        <View>
+                          <Card
+                            style={{
+                              overflow: "hidden",
+                              backgroundColor: theme.colors.surface,
+                              borderLeftWidth: 4,
+                              borderLeftColor: visuals.accent,
+                            }}
+                          >
+                            <Card.Content>
+                              {/* Cabeçalho colapsável */}
+                              <Pressable
+                                onPress={() => toggleExpanded(mc.id)}
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 10,
+                                  marginBottom: 8,
+                                }}
+                              >
+                                <View
+                                  style={{
+                                    width: 38,
+                                    height: 38,
+                                    borderRadius: 10,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: visuals.bg,
+                                  }}
+                                >
+                                  <Icon name={visuals.icon as any} size={22} color={visuals.fg} />
+                                </View>
+
+                                <View style={{ flex: 1 }}>
+                                  <Text variant="titleMedium" style={{ fontWeight: "800" }} numberOfLines={2}>
+                                    {title || mc.type}
+                                  </Text>
+                                </View>
+
+                                <Icon
+                                  name="chevron-down"
+                                  size={24}
+                                  color={theme.colors.onSurfaceVariant}
+                                  style={{ transform: [{ rotate: isOpen ? "180deg" : "0deg" }] }}
+                                />
+                              </Pressable>
+
+                              {/* Metadados */}
+                              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                                <Chip compact mode="outlined" style={{ borderColor: BORDER }}>
+                                  {mc.type}
+                                </Chip>
+                                {mc.tags.map((t) => (
+                                  <Chip key={t} compact mode="outlined" style={{ borderColor: BORDER }}>
+                                    {t}
+                                  </Chip>
+                                ))}
+                                {mc.library?.name ? (
+                                  <Chip compact mode="outlined" icon="library" style={{ borderColor: BORDER }}>
+                                    {mc.library.name}
+                                  </Chip>
+                                ) : null}
+                                {mc.seen ? (
+                                  <Chip
+                                    compact
+                                    mode="outlined"
+                                    icon="check"
+                                    style={{ borderColor: BORDER, backgroundColor: "#e8f5e9" }}
+                                    textStyle={{ fontWeight: "700" as any }}
+                                  >
+                                    Visto
+                                  </Chip>
+                                ) : null}
+                              </View>
+
+                              {/* Corpo (colapsável) */}
+                              {!!body && (
+                                <>
+                                  <Text
+                                    numberOfLines={isOpen ? undefined : 3}
+                                    style={{ marginTop: 2, lineHeight: 20 }}
+                                  >
+                                    {body}
+                                  </Text>
+
+                                  {!isOpen && (
+                                    <Text
+                                      onPress={() => toggleExpanded(mc.id)}
+                                      style={{ marginTop: 6, fontWeight: "700", color: theme.colors.primary }}
+                                    >
+                                      Ver mais…
+                                    </Text>
+                                  )}
+                                </>
+                              )}
+
+                              {/* Livros (só quando aberto) */}
+                              {isOpen && mc.books?.length ? (
+                                <View style={{ marginTop: 10 }}>
+                                  <Text variant="titleSmall" style={{ marginBottom: 6, fontWeight: "700" }}>
+                                    Livros relacionados
+                                  </Text>
+                                  <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={{ gap: 10 }}
+                                  >
+                                    {mc.books.map((b) => (
+                                      <TouchableOpacity key={b.isbn} activeOpacity={0.85} style={{ width: 120 }}>
+                                        {b.coverUrl ? (
+                                          <Image
+                                            source={{ uri: b.coverUrl }}
+                                            style={{
+                                              width: 120,
+                                              height: 160,
+                                              borderRadius: 8,
+                                              borderWidth: 1,
+                                              borderColor: BORDER,
+                                            }}
+                                            resizeMode="cover"
+                                          />
+                                        ) : null}
+                                        <Text numberOfLines={2} style={{ fontWeight: "700", marginTop: 6 }}>
+                                          {b.title}
+                                        </Text>
+                                      </TouchableOpacity>
+                                    ))}
+                                  </ScrollView>
+                                </View>
+                              ) : null}
+                            </Card.Content>
+
+                            <Card.Actions
+                              style={{ justifyContent: "space-between", paddingTop: 4 }}
+                            >
+                              <Button
+                                mode="text"
+                                onPress={() => toggleExpanded(mc.id)}
+                                icon={isOpen ? "chevron-up" : "chevron-down"}
+                              >
+                                {isOpen ? "Ver menos" : "Ver mais"}
+                              </Button>
+
+                              <Button
+                                mode="outlined"
+                                onPress={() => handleMarkSeen(mc.id)}
+                                disabled={!!mc.seen}
+                                icon={mc.seen ? "check" : "eye-check-outline"}
+                              >
+                                {mc.seen ? "Marcado" : "Marcar como visto"}
+                              </Button>
+                            </Card.Actions>
+                          </Card>
+
+                          {idx < items.length - 1 && <Divider style={{ marginVertical: 10 }} />}
+                        </View>
+                      </FadeIn>
+                    );
+                  })
+                )}
+
+                {/* Paginação */}
+                {items.length > 0 && page < pages && (
+                  <View style={{ alignItems: "center", marginTop: 8 }}>
+                    <Button mode="outlined" onPress={() => setPage((p) => Math.min(p + 1, pages))} icon="chevron-down">
+                      Ver mais
+                    </Button>
+                    <Text style={{ opacity: 0.6, marginTop: 4 }}>
+                      Página {page} de {pages}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </FadeIn>
+          </ScrollView>
+
+          {/* Modal de Filtros (Tags + Biblioteca) — mantido */}
+          <Portal>
+            <Modal
+              visible={filtersOpen}
+              onDismiss={() => setFiltersOpen(false)}
+              contentContainerStyle={{
+                backgroundColor: SURFACE,
+                margin: 16,
+                borderRadius: 16,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: BORDER,
               }}
             >
-              <Button
-                onPress={() => {
-                  setTag("");
-                  setLibraryId(undefined);
-                }}
+              <Text variant="titleMedium" style={{ fontWeight: "bold", marginBottom: 10 }}>
+                Filtros
+              </Text>
+
+              <Text variant="labelLarge" style={{ marginBottom: 6 }}>
+                Tags
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8 }}
+                style={{ marginBottom: 12 }}
               >
-                Limpar
-              </Button>
-              <Button
-                mode="contained"
-                onPress={() => {
-                  setPage(1);
-                  load(1);
-                  setFiltersOpen(false);
-                }}
-              >
-                Aplicar
-              </Button>
-            </View>
-          </Modal>
-        </Portal>
-      </SafeAreaView>
-    </Background>
+                <FilterChip selected={!tag} onPress={() => setTag("")}>
+                  (todas)
+                </FilterChip>
+                {allTags.map((t) => (
+                  <FilterChip key={t} selected={tag === t} onPress={() => setTag(tag === t ? "" : t)}>
+                    {t}
+                  </FilterChip>
+                ))}
+              </ScrollView>
+
+              <Text variant="labelLarge" style={{ marginBottom: 6 }}>
+                Biblioteca
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                <FilterChip selected={!libraryId} onPress={() => setLibraryId(undefined)}>
+                  (todas)
+                </FilterChip>
+                {allLibraries.map((lib) => (
+                  <FilterChip
+                    key={lib.id}
+                    selected={libraryId === lib.id}
+                    onPress={() => setLibraryId(libraryId === lib.id ? undefined : lib.id)}
+                  >
+                    {lib.name}
+                  </FilterChip>
+                ))}
+              </ScrollView>
+
+              <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 16, gap: 8 }}>
+                <Button
+                  mode="text"
+                  onPress={() => {
+                    setTag("");
+                    setLibraryId(undefined);
+                  }}
+                >
+                  Limpar
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() => {
+                    setPage(1);
+                    load(1);
+                    setFiltersOpen(false);
+                  }}
+                >
+                  Aplicar
+                </Button>
+              </View>
+            </Modal>
+          </Portal>
+        </SafeAreaView>
+      </Background>
+    </Portal.Host>
   );
 }

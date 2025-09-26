@@ -11,15 +11,15 @@ import {
   LayoutAnimation,
   UIManager,
   Modal,
+  Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useTheme } from "react-native-paper";
+import { Button, useTheme } from "react-native-paper";
 import { useRouter } from "expo-router";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
-import { PrimaryButton, SecondaryButton } from "@bibliotecario/ui-mobile/components/Buttons/Buttons";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
 
 import { useAuth } from "src/contexts/AuthContext";
@@ -62,10 +62,10 @@ const STATUS_STYLE: Record<
   { label: string; bg: string; fg: string; accent: string }
 > = {
   CONFIRMED: { label: "Confirmada", bg: "#DCFCE7", fg: "#166534", accent: "#22C55E" },
-  PENDING: { label: "Pendente", bg: "#FFEDD5", fg: "#9A3412", accent: "#F59E0B" },
-  DECLINED: { label: "Recusada", bg: "#FEE2E2", fg: "#991B1B", accent: "#EF4444" },
-  CANCELLED: { label: "Cancelada", bg: "#E5E7EB", fg: "#374151", accent: "#9CA3AF" },
-  COMPLETED: { label: "Concluída", bg: "#DBEAFE", fg: "#1E3A8A", accent: "#3B82F6" },
+  PENDING:   { label: "Pendente",   bg: "#FFEDD5", fg: "#9A3412", accent: "#F59E0B" },
+  DECLINED:  { label: "Recusada",   bg: "#FEE2E2", fg: "#991B1B", accent: "#EF4444" },
+  CANCELLED: { label: "Cancelada",  bg: "#E5E7EB", fg: "#374151", accent: "#9CA3AF" },
+  COMPLETED: { label: "Concluída",  bg: "#DBEAFE", fg: "#1E3A8A", accent: "#3B82F6" },
 };
 
 function statusMeta(status?: Status) {
@@ -97,6 +97,136 @@ function StatusPill({
     >
       <Text style={{ fontWeight: "700", color: active ? s.fg : s.accent }}>{s.label}</Text>
     </TouchableOpacity>
+  );
+}
+
+/* ---------- DatePickerModal (teu componente) ---------- */
+function DatePickerModal({
+  visible,
+  value,
+  minimumDate,
+  maximumDate,
+  title,
+  onCancel,
+  onConfirm,
+}: {
+  visible: boolean;
+  value: Date;
+  minimumDate?: Date;
+  maximumDate?: Date;
+  title: string;
+  onCancel: () => void;
+  onConfirm: (date: Date) => void;
+}) {
+  const theme = useTheme();
+  const [tempDate, setTempDate] = React.useState<Date>(value);
+
+  React.useEffect(() => {
+    if (visible) setTempDate(value);
+  }, [visible, value]);
+
+  const handleChange = (_e: DateTimePickerEvent, d?: Date) => {
+    if (d) setTempDate(d);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      {/* backdrop */}
+      <Pressable
+        onPress={onCancel}
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.4)",
+          justifyContent: "center",
+          padding: 20,
+        }}
+      >
+        {/* content card */}
+        <Pressable
+          onPress={() => {}}
+          style={{
+            borderRadius: 16,
+            overflow: "hidden",
+            backgroundColor: theme.colors.surface,
+            borderWidth: 1,
+            borderColor: theme.colors.outlineVariant,
+          }}
+        >
+          {/* header */}
+          <View
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.colors.outlineVariant,
+              backgroundColor: theme.colors.surface,
+            }}
+          >
+            <Text style={{ fontWeight: "800", fontSize: 16, color: theme.colors.onSurface }}>
+              {title}
+            </Text>
+          </View>
+
+          {/* picker */}
+          <View
+            style={{
+              paddingHorizontal: 6,
+              paddingVertical: Platform.OS === "ios" ? 8 : 0,
+              alignItems: "center",
+            }}
+          >
+            <DateTimePicker
+              mode="date"
+              value={tempDate}
+              display={Platform.OS === "ios" ? "spinner" : "calendar"}
+              onChange={handleChange}
+              minimumDate={minimumDate}
+              maximumDate={maximumDate}
+            />
+          </View>
+
+          {/* footer */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "flex-end",
+              gap: 8,
+              padding: 12,
+              borderTopWidth: 1,
+              borderTopColor: theme.colors.outlineVariant,
+              backgroundColor: theme.colors.surface,
+            }}
+          >
+            <TouchableOpacity
+              onPress={onCancel}
+              style={{
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: theme.colors.outlineVariant,
+                backgroundColor: theme.colors.surface,
+              }}
+            >
+              <Text style={{ color: theme.colors.onSurface }}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => onConfirm(tempDate)}
+              style={{
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 10,
+                backgroundColor: theme.colors.primary,
+              }}
+            >
+              <Text style={{ color: theme.colors.onPrimary, fontWeight: "700" }}>
+                Confirmar
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -132,25 +262,29 @@ export default function ConsultasScreen() {
   const defaultPast = new Set<Exclude<Status, undefined>>(["COMPLETED", "CANCELLED", "DECLINED"]);
   const [selectedStatuses, setSelectedStatuses] = React.useState<Set<Exclude<Status, undefined>>>(new Set(defaultNext));
 
-  // datas + picker único (controlado)
+  // datas + modais
   const [fromDate, setFromDate] = React.useState<Date | null>(new Date());
   const [toDate, setToDate] = React.useState<Date | null>(null);
-  const [openPicker, setOpenPicker] = React.useState<"from" | "to" | null>(null);
+  const [showFromModal, setShowFromModal] = React.useState(false);
+  const [showToModal, setShowToModal] = React.useState(false);
+
+  const openFrom = () => {
+    setShowToModal(false);
+    setShowFromModal(true);
+  };
+  const openTo = () => {
+    setShowFromModal(false);
+    setShowToModal(true);
+  };
 
   const toggleFilters = React.useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    if (!filtersCollapsed) setOpenPicker(null); // fecha pickers ao colapsar
+    if (!filtersCollapsed) {
+      setShowFromModal(false);
+      setShowToModal(false);
+    }
     setFiltersCollapsed((v) => !v);
   }, [filtersCollapsed]);
-
-  const toggleFromPicker = React.useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setOpenPicker((p) => (p === "from" ? null : "from"));
-  }, []);
-  const toggleToPicker = React.useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setOpenPicker((p) => (p === "to" ? null : "to"));
-  }, []);
 
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -166,7 +300,8 @@ export default function ConsultasScreen() {
       setFromDate(null);
       setToDate(new Date());
     }
-    setOpenPicker(null);
+    setShowFromModal(false);
+    setShowToModal(false);
   }, [tab]);
 
   const buildQueryUrl = React.useCallback(
@@ -238,7 +373,8 @@ export default function ConsultasScreen() {
   function clearDates() {
     setFromDate(null);
     setToDate(null);
-    setOpenPicker(null);
+    setShowFromModal(false);
+    setShowToModal(false);
   }
 
   function setTodayRange() {
@@ -252,23 +388,28 @@ export default function ConsultasScreen() {
 
   const activeFiltersCount = (selectedStatuses.size || 0) + (fromDate ? 1 : 0) + (toDate ? 1 : 0);
 
-  const onPickerChange = React.useCallback(
-    (event: DateTimePickerEvent, date?: Date) => {
-      if (event.type === "set" && date) {
-        if (openPicker === "from") {
-          const newFrom = new Date(date);
-          setFromDate(newFrom);
-          if (toDate && newFrom > toDate) setToDate(newFrom);
-        } else if (openPicker === "to") {
-          const newTo = new Date(date);
-          setToDate(fromDate && newTo < fromDate ? fromDate : newTo);
-        }
-        setOpenPicker(null);
-      }
-      if (event.type === "dismissed") setOpenPicker(null);
-    },
-    [openPicker, fromDate, toDate]
-  );
+  /* ===== PAGINAÇÃO LOCAL ===== */
+  const [page, setPage] = React.useState(1);
+  const PAGE_SIZE = 8;
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const visibleItems = items.slice(pageStart, pageStart + PAGE_SIZE);
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+
+  // sempre que muda o conjunto de itens, volta à página 1
+  React.useEffect(() => {
+    setPage(1);
+  }, [items.length]);
+
+  // ===== Auto-aplicar filtros (debounce 150ms) =====
+  React.useEffect(() => {
+    const t = setTimeout(() => {
+      load();
+      setPage(1);
+    }, 150);
+    return () => clearTimeout(t);
+  }, [tab, selectedStatuses, fromDate, toDate, load]);
 
   return (
     <Background>
@@ -331,12 +472,18 @@ export default function ConsultasScreen() {
                   ))}
                 </View>
 
+                {/* Ações dos estados */}
                 <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                  <SecondaryButton label="Limpar estados" onPress={() => setSelectedStatuses(new Set())} />
-                  <SecondaryButton
-                    label="Selecionar todos"
+                  <Button mode="outlined" icon="filter-remove" onPress={() => setSelectedStatuses(new Set())}>
+                    Limpar estados
+                  </Button>
+                  <Button
+                    mode="outlined"
+                    icon="select-all"
                     onPress={() => setSelectedStatuses(new Set(STATUS_OPTIONS.map((o) => o.key)))}
-                  />
+                  >
+                    Selecionar todos
+                  </Button>
                 </View>
 
                 <View
@@ -355,7 +502,7 @@ export default function ConsultasScreen() {
                   {/* FROM */}
                   <View style={{ flex: 1 }}>
                     <TouchableOpacity
-                      onPress={toggleFromPicker}
+                      onPress={openFrom}
                       style={{
                         paddingVertical: 10,
                         paddingHorizontal: 12,
@@ -363,21 +510,22 @@ export default function ConsultasScreen() {
                         borderWidth: 1,
                         borderColor: theme.colors.outlineVariant,
                         backgroundColor: theme.colors.surface,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
                       }}
                     >
+                      <Icon name="calendar-start" size={18} color={theme.colors.onSurface} />
                       <Text style={{ color: theme.colors.onSurface }}>
                         {fromDate ? fmtDateTime(fromDate.toISOString()) : "Sem início"}
                       </Text>
                     </TouchableOpacity>
-                    <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, fontSize: 12 }}>
-                      {fromDate ? fmtDateTime(fromDate.toISOString()) : "Sem início"}
-                    </Text>
                   </View>
 
                   {/* TO */}
                   <View style={{ flex: 1 }}>
                     <TouchableOpacity
-                      onPress={toggleToPicker}
+                      onPress={openTo}
                       style={{
                         paddingVertical: 10,
                         paddingHorizontal: 12,
@@ -385,71 +533,53 @@ export default function ConsultasScreen() {
                         borderWidth: 1,
                         borderColor: theme.colors.outlineVariant,
                         backgroundColor: theme.colors.surface,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
                       }}
                     >
+                      <Icon name="calendar-end" size={18} color={theme.colors.onSurface} />
                       <Text style={{ color: theme.colors.onSurface }}>
                         {toDate ? fmtDateTime(toDate.toISOString()) : "Sem fim"}
                       </Text>
                     </TouchableOpacity>
-                    <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 4, fontSize: 12 }}>
-                      {toDate ? fmtDateTime(toDate.toISOString()) : "Sem fim"}
-                    </Text>
                   </View>
                 </View>
 
-                {/* Android: inline picker */}
-                {openPicker && Platform.OS === "android" && (
-                  <View style={{ marginTop: 8 }}>
-                    <DateTimePicker
-                      mode="date"
-                      value={openPicker === "from" ? fromDate ?? new Date() : toDate ?? new Date()}
-                      display="calendar"
-                      minimumDate={openPicker === "to" ? fromDate ?? undefined : undefined}
-                      onChange={onPickerChange}
-                    />
-                  </View>
-                )}
+                {/* Modais de Data (usa o teu componente) */}
+                <DatePickerModal
+                  visible={showFromModal}
+                  title="Selecionar data inicial"
+                  value={fromDate ?? new Date()}
+                  onCancel={() => setShowFromModal(false)}
+                  onConfirm={(picked) => {
+                    const nf = new Date(picked);
+                    setFromDate(nf);
+                    if (toDate && nf > toDate) setToDate(nf);
+                    setShowFromModal(false);
+                  }}
+                />
+                <DatePickerModal
+                  visible={showToModal}
+                  title="Selecionar data final"
+                  value={toDate ?? new Date()}
+                  minimumDate={fromDate ?? undefined}
+                  onCancel={() => setShowToModal(false)}
+                  onConfirm={(picked) => {
+                    const nt = new Date(picked);
+                    setToDate(fromDate && nt < fromDate ? fromDate : nt);
+                    setShowToModal(false);
+                  }}
+                />
 
-                {/* iOS: modal */}
-                {openPicker && Platform.OS === "ios" && (
-                  <Modal transparent animationType="fade" visible onRequestClose={() => setOpenPicker(null)}>
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)" }}
-                      activeOpacity={1}
-                      onPress={() => setOpenPicker(null)}
-                    />
-                    <View
-                      style={{
-                        backgroundColor: theme.colors.surface,
-                        padding: 12,
-                        borderTopLeftRadius: 16,
-                        borderTopRightRadius: 16,
-                      }}
-                    >
-                      <View style={{ alignItems: "flex-end" }}>
-                        <TouchableOpacity onPress={() => setOpenPicker(null)} style={{ padding: 6 }}>
-                          <Text style={{ color: theme.colors.primary, fontWeight: "700" }}>Fechar</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <DateTimePicker
-                        mode="date"
-                        value={openPicker === "from" ? fromDate ?? new Date() : toDate ?? new Date()}
-                        display="spinner"
-                        minimumDate={openPicker === "to" ? fromDate ?? undefined : undefined}
-                        onChange={onPickerChange}
-                        style={{ marginBottom: 8 }}
-                      />
-                    </View>
-                  </Modal>
-                )}
-
+                {/* Ações de datas */}
                 <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                  <SecondaryButton label="Limpar datas" onPress={clearDates} />
-                  <SecondaryButton label="Hoje" onPress={setTodayRange} />
-                </View>
-
-                <View style={{ marginTop: 12, alignSelf: "flex-start" }}>
-                  <PrimaryButton label="Aplicar filtros" onPress={load} />
+                  <Button mode="outlined" icon="calendar-remove" onPress={clearDates}>
+                    Limpar datas
+                  </Button>
+                  <Button mode="outlined" icon="calendar-today" onPress={setTodayRange}>
+                    Hoje
+                  </Button>
                 </View>
               </View>
             )}
@@ -463,6 +593,19 @@ export default function ConsultasScreen() {
             padding={12}
             style={{ borderRadius: 12 }}
           >
+            {/* topo da secção: contador + refresh */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Icon name="calendar-clock" size={18} color={theme.colors.onSurfaceVariant} />
+                <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                  {loading ? "A carregar…" : `${items.length} resultado${items.length === 1 ? "" : "s"}`}
+                </Text>
+              </View>
+              <Button mode="text" icon="refresh" onPress={load} disabled={loading} compact>
+                Atualizar
+              </Button>
+            </View>
+
             {loading ? (
               <ActivityIndicator style={{ marginTop: 16 }} />
             ) : items.length === 0 ? (
@@ -470,15 +613,16 @@ export default function ConsultasScreen() {
                 <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 10, textAlign: "center" }}>
                   {tab === "next" ? "Sem consultas marcadas." : "Sem histórico de consultas."}
                 </Text>
-
-                {/* ✅ Só mostra “Agendar Consulta” quando NÃO está em acting child */}
                 {!isActingChild && (
-                  <PrimaryButton label="Agendar Consulta" onPress={() => router.push("/family/agenda")} />
+                  <Button mode="contained" icon="calendar-plus" onPress={() => router.push("/family/agenda")}>
+                    Agendar Consulta
+                  </Button>
                 )}
               </View>
             ) : (
-              <View style={{ gap: 8 }}>
-                {items.map((item) => {
+              <View style={{ gap: 10 }}>
+                {/* Página atual */}
+                {visibleItems.map((item) => {
                   const librarianName = (item as any)?.librarianName ?? (item as any)?.librarian?.fullName ?? "";
                   const libraryName = (item as any)?.libraryName ?? (item as any)?.library?.name ?? "";
                   const childName = (item as any)?.childName ?? (item as any)?.child?.name ?? "";
@@ -494,6 +638,7 @@ export default function ConsultasScreen() {
                         borderColor: theme.colors.outlineVariant,
                         backgroundColor: theme.colors.surface,
                         overflow: "hidden",
+                        minHeight: 96, // altura maior para o texto caber
                       }}
                     >
                       <View style={{ height: 4, backgroundColor: meta.accent }} />
@@ -530,6 +675,44 @@ export default function ConsultasScreen() {
                     </View>
                   );
                 })}
+
+                {/* Paginador */}
+                {items.length > PAGE_SIZE && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginTop: 4,
+                      gap: 10,
+                    }}
+                  >
+                    <Button
+                      mode="outlined"
+                      icon="chevron-left"
+                      onPress={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={!canPrev}
+                      style={{ flex: 1 }}
+                    >
+                      Anterior
+                    </Button>
+
+                    <Text style={{ color: theme.colors.onSurfaceVariant, minWidth: 110, textAlign: "center" }}>
+                      Página {page} de {totalPages}
+                    </Text>
+
+                    <Button
+                      mode="contained"
+                      icon="chevron-right"
+                      contentStyle={{ flexDirection: "row-reverse" }}
+                      onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={!canNext}
+                      style={{ flex: 1 }}
+                    >
+                      Seguinte
+                    </Button>
+                  </View>
+                )}
               </View>
             )}
           </FlexibleCard>

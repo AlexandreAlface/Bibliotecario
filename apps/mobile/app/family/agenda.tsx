@@ -13,8 +13,10 @@ import {
   Pressable,
   LayoutAnimation,
   UIManager,
+  StyleSheet,
 } from "react-native";
 import { useTheme, IconButton } from "react-native-paper";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import {
@@ -48,11 +50,12 @@ const schema = z
 type FormData = z.infer<typeof schema>;
 
 /* ------------ helpers ------------ */
+const dtMedium = new Intl.DateTimeFormat("pt-PT", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
 function fmt(d: Date) {
-  return new Intl.DateTimeFormat("pt-PT", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(d);
+  return dtMedium.format(d);
 }
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -68,44 +71,43 @@ function maxDate(a: Date, b: Date) {
   return a > b ? a : b;
 }
 
+/* ------------ Chips pill ------------ */
 function PillChip({
   active,
   onPress,
   label,
+  icon,
 }: {
   active: boolean;
   onPress: () => void;
   label: string;
+  icon?: string;
 }) {
   const theme = useTheme();
+  const bg = active ? theme.colors.primary : theme.colors.secondaryContainer;
+  const fg = active ? theme.colors.onPrimary : theme.colors.onSecondaryContainer;
   return (
     <TouchableOpacity
       onPress={onPress}
       style={{
         paddingVertical: 8,
         paddingHorizontal: 12,
-        borderRadius: 20,
-        backgroundColor: active
-          ? theme.colors.primary
-          : theme.colors.secondaryContainer,
+        borderRadius: 999,
+        backgroundColor: bg,
         borderWidth: active ? 0 : 1,
         borderColor: theme.colors.outlineVariant,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
       }}
     >
-      <Text
-        style={{
-          color: active
-            ? theme.colors.onPrimary
-            : theme.colors.onSecondaryContainer,
-        }}
-      >
-        {label}
-      </Text>
+      {icon ? <Icon name={icon as any} size={16} color={fg} /> : null}
+      <Text style={{ color: fg, fontWeight: active ? "700" : "500" }}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-/* ------------ Modal reutilizável de Date Picker ------------ */
+/* ------------ Modal reutilizável de Date Picker (NÃO mexido) ------------ */
 function DatePickerModal({
   visible,
   value,
@@ -286,7 +288,7 @@ export default function AgendaScreen() {
     setFiltersCollapsed((v) => !v);
   }, [filtersCollapsed]);
 
-  // MODAIS DE DATA (só um aberto)
+  // MODAIS DE DATA (só um aberto) — **não alterados**
   const [showFromModal, setShowFromModal] = React.useState(false);
   const [showToModal, setShowToModal] = React.useState(false);
   const openFrom = React.useCallback(() => {
@@ -297,6 +299,29 @@ export default function AgendaScreen() {
     setShowFromModal(false);
     setShowToModal(true);
   }, []);
+
+  // QUICK RANGE (mantendo modais)
+  type Quick = "today" | "7" | "14" | "custom";
+  const [quick, setQuick] = React.useState<Quick>("7");
+  const setQuickRange = React.useCallback((q: Quick) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const base = startOfDay(new Date());
+    if (q === "today") {
+      setValue("from", base, { shouldValidate: true });
+      setValue("to", endOfDay(base), { shouldValidate: true });
+    } else if (q === "7") {
+      setValue("from", base, { shouldValidate: true });
+      setValue("to", endOfDay(new Date(base.getTime() + 6 * 86400000)), {
+        shouldValidate: true,
+      });
+    } else if (q === "14") {
+      setValue("from", base, { shouldValidate: true });
+      setValue("to", endOfDay(new Date(base.getTime() + 13 * 86400000)), {
+        shouldValidate: true,
+      });
+    }
+    setQuick(q);
+  }, [setValue]);
 
   // Carregar bibliotecários com OPEN slots
   async function refreshLibrarians() {
@@ -398,26 +423,59 @@ export default function AgendaScreen() {
   const minFrom = today;
   const minTo = startOfDay(from > today ? from : today);
 
+  const BORDER = theme.colors.outlineVariant ?? "rgba(0,0,0,0.12)";
+
+  /* ===== PAGINAÇÃO LOCAL DOS SLOTS ===== */
+  const [page, setPage] = React.useState(1);
+  const PAGE_SIZE = 8; // mostra 8 consultas por página
+  const totalPages = Math.max(1, Math.ceil(slots.length / PAGE_SIZE));
+  const pageStart = (page - 1) * PAGE_SIZE;
+  const pageEnd = pageStart + PAGE_SIZE;
+  const visibleSlots = slots.slice(pageStart, pageEnd);
+
+  // sempre que o conjunto de slots mudar, volta à página 1
+  React.useEffect(() => {
+    setPage(1);
+  }, [slots.length]);
+
+  const canPrev = page > 1;
+  const canNext = page < totalPages;
+
   return (
     <Background>
       <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["top"]}>
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-          <Text
-            style={{
-              fontSize: 22,
-              fontWeight: "600",
-              color: theme.colors.onBackground,
-            }}
-          >
-            Agendar Consulta
-          </Text>
+          {/* Título página */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: theme.colors.primaryContainer,
+              }}
+            >
+              <Icon name="calendar-plus" size={20} color={theme.colors.onPrimaryContainer} />
+            </View>
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: "800",
+                color: theme.colors.onBackground,
+              }}
+            >
+              Agendar Consulta
+            </Text>
+          </View>
 
-          {/* WhiteCard: Filtros (COLAPSÁVEL + auto-search) */}
+          {/* Filtros (COLAPSÁVEL + quick range + modais) */}
           <FlexibleCard
             backgroundColor={theme.colors.surface}
             elevation={1}
             padding={14}
-            style={{ borderRadius: 12 }}
+            style={{ borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER }}
           >
             {/* Header */}
             <TouchableOpacity
@@ -440,7 +498,7 @@ export default function AgendaScreen() {
             {!filtersCollapsed && (
               <>
                 {/* Criança */}
-                <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}>
+                <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 6, marginBottom: 6 }}>
                   Criança
                 </Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -448,6 +506,7 @@ export default function AgendaScreen() {
                     <PillChip
                       key={ch.id}
                       label={ch.name}
+                      icon="face-man-profile"
                       active={ch.id === childId}
                       onPress={() => setValue("childId", ch.id, { shouldValidate: true })}
                     />
@@ -457,7 +516,7 @@ export default function AgendaScreen() {
                 <View
                   style={{
                     height: 1,
-                    backgroundColor: theme.colors.outlineVariant,
+                    backgroundColor: BORDER,
                     opacity: 0.6,
                     marginVertical: 12,
                   }}
@@ -472,6 +531,7 @@ export default function AgendaScreen() {
                     <PillChip
                       key={lb.id}
                       label={lb.name}
+                      icon="account"
                       active={lb.id === librarianFilter}
                       onPress={() =>
                         setValue("librarianId", lb.id === librarianFilter ? undefined : lb.id, {
@@ -490,16 +550,45 @@ export default function AgendaScreen() {
                 <View
                   style={{
                     height: 1,
-                    backgroundColor: theme.colors.outlineVariant,
+                    backgroundColor: BORDER,
                     opacity: 0.6,
                     marginVertical: 12,
                   }}
                 />
 
-                {/* Datas com MODAL */}
+                {/* Intervalo + quick chips (modais mantidos) */}
                 <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}>
                   Procurar horários entre
                 </Text>
+
+                {/* quick */}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                  <PillChip
+                    active={quick === "today"}
+                    onPress={() => setQuickRange("today")}
+                    label="Hoje"
+                    icon="calendar-today"
+                  />
+                  <PillChip
+                    active={quick === "7"}
+                    onPress={() => setQuickRange("7")}
+                    label="+7 dias"
+                    icon="calendar-week"
+                  />
+                  <PillChip
+                    active={quick === "14"}
+                    onPress={() => setQuickRange("14")}
+                    label="+14 dias"
+                    icon="calendar-range"
+                  />
+                  <PillChip
+                    active={quick === "custom"}
+                    onPress={() => setQuick("custom")}
+                    label="Personalizar"
+                    icon="tune-variant"
+                  />
+                </View>
+
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   {/* FROM */}
                   <View style={{ flex: 1 }}>
@@ -515,26 +604,20 @@ export default function AgendaScreen() {
                               paddingHorizontal: 12,
                               borderRadius: 10,
                               borderWidth: 1,
-                              borderColor: theme.colors.outlineVariant,
+                              borderColor: BORDER,
                               backgroundColor: theme.colors.surface,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 8,
                             }}
                             accessibilityRole="button"
                             accessibilityLabel="Selecionar data inicial"
                           >
+                            <Icon name="calendar-start" size={18} color={theme.colors.onSurface} />
                             <Text style={{ color: theme.colors.onSurface }}>
                               {fmt(maxDate(startOfDay(value), today))}
                             </Text>
                           </TouchableOpacity>
-
-                          <Text
-                            style={{
-                              color: theme.colors.onSurfaceVariant,
-                              marginTop: 4,
-                              fontSize: 12,
-                            }}
-                          >
-                            {fmt(maxDate(startOfDay(from), today))}
-                          </Text>
 
                           <DatePickerModal
                             visible={showFromModal}
@@ -548,6 +631,7 @@ export default function AgendaScreen() {
                               if (newFrom > to) {
                                 setValue("to", endOfDay(newFrom), { shouldValidate: true });
                               }
+                              setQuick("custom");
                               setShowFromModal(false);
                             }}
                           />
@@ -570,26 +654,20 @@ export default function AgendaScreen() {
                               paddingHorizontal: 12,
                               borderRadius: 10,
                               borderWidth: 1,
-                              borderColor: theme.colors.outlineVariant,
+                              borderColor: BORDER,
                               backgroundColor: theme.colors.surface,
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 8,
                             }}
                             accessibilityRole="button"
                             accessibilityLabel="Selecionar data final"
                           >
+                            <Icon name="calendar-end" size={18} color={theme.colors.onSurface} />
                             <Text style={{ color: theme.colors.onSurface }}>
                               {fmt(endOfDay(value))}
                             </Text>
                           </TouchableOpacity>
-
-                          <Text
-                            style={{
-                              color: theme.colors.onSurfaceVariant,
-                              marginTop: 4,
-                              fontSize: 12,
-                            }}
-                          >
-                            {fmt(endOfDay(to))}
-                          </Text>
 
                           <DatePickerModal
                             visible={showToModal}
@@ -601,6 +679,7 @@ export default function AgendaScreen() {
                               const newTo = endOfDay(picked);
                               const safeTo = newTo < from ? endOfDay(from) : newTo;
                               onChange(safeTo);
+                              setQuick("custom");
                               setShowToModal(false);
                             }}
                           />
@@ -613,23 +692,49 @@ export default function AgendaScreen() {
             )}
           </FlexibleCard>
 
-          {/* WhiteCard: Slots */}
+          {/* Slots */}
           <FlexibleCard
             title="Horários disponíveis"
             backgroundColor={theme.colors.surface}
             elevation={1}
             padding={14}
-            style={{ borderRadius: 12 }}
+            style={{ borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER }}
           >
+            {/* topo da secção: contador + refresh */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 8,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Icon name="clock-outline" size={18} color={theme.colors.onSurfaceVariant} />
+                <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                  {loading ? "A procurar…" : `${slots.length} resultado${slots.length === 1 ? "" : "s"}`}
+                </Text>
+              </View>
+              <IconButton icon="refresh" onPress={loadSlots} disabled={loading} />
+            </View>
+
             {loading ? (
               <ActivityIndicator />
             ) : (
-              <View style={{ gap: 8 }}>
+              <View style={{ gap: 10 }}>
                 {slots.length === 0 && (
-                  <Text style={{ color: theme.colors.onSurfaceVariant }}>Sem horários.</Text>
+                  <View style={{ alignItems: "center", paddingVertical: 8, gap: 6 }}>
+                    <Icon name="calendar-clock" size={28} color={theme.colors.onSurfaceDisabled} />
+                    <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                      Sem horários no intervalo selecionado.
+                    </Text>
+                  </View>
                 )}
-                {slots.map((s) => {
+
+                {/* === PÁGINA ATUAL === */}
+                {visibleSlots.map((s) => {
                   const active = s.id === (watch("slotId") ?? 0);
+                  const accent = active ? theme.colors.primary : BORDER;
                   return (
                     <TouchableOpacity
                       key={s.id}
@@ -638,20 +743,84 @@ export default function AgendaScreen() {
                         padding: 12,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: active ? theme.colors.primary : theme.colors.outlineVariant,
+                        borderColor: BORDER,
                         backgroundColor: theme.colors.surface,
+                        borderLeftWidth: 6,
+                        borderLeftColor: accent,
+                        minHeight: 96, // << altura maior para caber texto
+                        justifyContent: "center",
                       }}
                     >
-                      <Text style={{ color: theme.colors.onSurface }}>
-                        {fmt(new Date(s.startAt))} — {fmt(new Date(s.endAt))}
-                      </Text>
-                      <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-                        {s.librarianName}
-                        {s.libraryName ? ` • ${s.libraryName}` : ""}
-                      </Text>
+                      {/* linha 1: horário */}
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <Icon
+                          name="clock-time-four-outline"
+                          size={18}
+                          color={theme.colors.onSurface}
+                        />
+                        <Text style={{ color: theme.colors.onSurface, fontWeight: "700", flexShrink: 1 }}>
+                          {fmt(new Date(s.startAt))} — {fmt(new Date(s.endAt))}
+                        </Text>
+                      </View>
+
+                      {/* linha 2: quem/onde */}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 14,
+                          marginTop: 6,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Icon name="account" size={16} color={theme.colors.onSurfaceVariant} />
+                          <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                            {s.librarianName}
+                          </Text>
+                        </View>
+
+                        {!!s.libraryName && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Icon name="library" size={16} color={theme.colors.onSurfaceVariant} />
+                            <Text style={{ color: theme.colors.onSurfaceVariant }}>{s.libraryName}</Text>
+                          </View>
+                        )}
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
+
+                {/* === PAGINADOR === */}
+                {slots.length > PAGE_SIZE && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginTop: 4,
+                      gap: 10,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <SecondaryButton
+                        label="Anterior"
+                        onPress={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={!canPrev}
+                      />
+                    </View>
+                    <Text style={{ color: theme.colors.onSurfaceVariant, minWidth: 110, textAlign: "center" }}>
+                      Página {page} de {totalPages}
+                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <PrimaryButton
+                        label="Seguinte"
+                        onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={!canNext}
+                      />
+                    </View>
+                  </View>
+                )}
               </View>
             )}
 
