@@ -344,6 +344,16 @@ export default function FamilyLanding() {
     ]);
   }
 
+  const todayStr = React.useMemo(
+    () =>
+      new Intl.DateTimeFormat("pt-PT", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+      }).format(new Date()),
+    []
+  );
+
   return (
     <Background>
       <SafeAreaView
@@ -359,50 +369,110 @@ export default function FamilyLanding() {
           }}
         >
           {/* Header com logout */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
+          <FlexibleCard
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={14}
+            style={{ borderRadius: 12 }}
           >
             <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
             >
-              {/* pill branco p/ destacar o logo */}
-              <View
-                style={{
-                  backgroundColor: "rgba(255,255,255,0.92)",
-                  borderRadius: 999,
-                  padding: 6,
-                  borderWidth: 1,
-                  borderColor:
-                    (theme as any).colors?.outlineVariant ?? "#e6e6e6",
-                  shadowColor: "#000",
-                  shadowOpacity: 0.08,
-                  shadowRadius: 6,
-                  shadowOffset: { width: 0, height: 2 },
-                  elevation: 2,
-                }}
-              >
-                <Mascot width={28} height={28} />
+              <View style={{ flex: 1 }}>
+                {/* título grande */}
+                <Text
+                  variant="titleLarge"
+                  style={{ fontWeight: "900", color: theme.colors.onSurface }}
+                  numberOfLines={1}
+                >
+                  Olá, {isActingChild ? childLabel : familyLabel} 👋
+                </Text>
+
+                {/* sub-infos: data + chips com nomes completos */}
+                <Text style={{ opacity: 0.7, marginTop: 2 }}>
+                  {todayStr.charAt(0).toUpperCase() + todayStr.slice(1)}
+                </Text>
+
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    marginTop: 6,
+                  }}
+                >
+                  {/* Família */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                      paddingVertical: 4,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      backgroundColor: theme.colors.secondaryContainer,
+                    }}
+                  >
+                    <Icon
+                      name="home-account"
+                      size={14}
+                      color={theme.colors.onSecondaryContainer}
+                    />
+                    <Text
+                      style={{
+                        color: theme.colors.onSecondaryContainer,
+                        fontWeight: "700",
+                      }}
+                      numberOfLines={1}
+                    >
+                      {familyLabel}
+                    </Text>
+                  </View>
+
+                  {/* Criança (apenas quando em modo criança) */}
+                  {isActingChild && (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        paddingVertical: 4,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        backgroundColor: theme.colors.secondaryContainer,
+                      }}
+                    >
+                      <Icon
+                        name="account-child"
+                        size={14}
+                        color={theme.colors.onSecondaryContainer}
+                      />
+                      <Text
+                        style={{
+                          color: theme.colors.onSecondaryContainer,
+                          fontWeight: "700",
+                        }}
+                        numberOfLines={1}
+                      >
+                        {childLabel}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
 
-              <Text
-                variant="titleLarge"
-                style={{ color: theme.colors.onSurface, fontWeight: "800" }}
-                numberOfLines={1}
-              >
-                Olá, {headerName}
-              </Text>
+              <IconButton
+                icon="logout"
+                onPress={confirmLogout}
+                accessibilityLabel="Terminar sessão"
+              />
             </View>
-
-            <IconButton
-              icon="logout"
-              onPress={confirmLogout}
-              accessibilityLabel="Terminar sessão"
-            />
-          </View>
+          </FlexibleCard>
 
           {/* Explorar */}
           <Section title="Explorar" mb={0}>

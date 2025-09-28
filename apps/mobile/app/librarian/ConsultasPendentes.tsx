@@ -33,15 +33,31 @@ import {
   checkLibrarianConflict,
 } from "src/services/librarian/consultations";
 
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+
 /* ---------------- helpers de data ---------------- */
-function startOfDay(d: Date) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
-function endOfDay(d: Date) { const x = new Date(d); x.setHours(23,59,59,999); return x; }
-function addDays(d: Date, days: number) { const x = new Date(d); x.setDate(x.getDate()+days); return x; }
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function endOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+function addDays(d: Date, days: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
 function fmtRange(a?: string | Date | null, b?: string | Date | null) {
   if (!a || !b) return "";
   const A = typeof a === "string" ? new Date(a) : a;
   const B = typeof b === "string" ? new Date(b) : b;
-  const day = new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(A);
+  const day = new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(
+    A
+  );
   const t1 = new Intl.DateTimeFormat("pt-PT", { timeStyle: "short" }).format(A);
   const t2 = new Intl.DateTimeFormat("pt-PT", { timeStyle: "short" }).format(B);
   return `${day} • ${t1} — ${t2}`;
@@ -66,7 +82,15 @@ type ConsultationLite = {
 type SlotLite = { id: number; startAt: string; endAt: string };
 
 /* ---------------- UI: pill filtro (estilo antigo) ---------------- */
-function Pill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function Pill({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
   const theme = useTheme();
   return (
     <TouchableOpacity
@@ -74,7 +98,9 @@ function Pill({ label, active, onPress }: { label: string; active: boolean; onPr
       style={[
         styles.pill,
         {
-          backgroundColor: active ? theme.colors.primary : theme.colors.secondaryContainer,
+          backgroundColor: active
+            ? theme.colors.primary
+            : theme.colors.secondaryContainer,
           borderColor: theme.colors.outlineVariant,
           borderWidth: active ? 0 : StyleSheet.hairlineWidth,
         },
@@ -83,7 +109,9 @@ function Pill({ label, active, onPress }: { label: string; active: boolean; onPr
     >
       <Text
         style={{
-          color: active ? theme.colors.onPrimary : theme.colors.onSecondaryContainer,
+          color: active
+            ? theme.colors.onPrimary
+            : theme.colors.onSecondaryContainer,
           fontWeight: "600",
         }}
       >
@@ -127,9 +155,21 @@ function CollapsibleSection({
           paddingVertical: 2,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            flex: 1,
+          }}
+        >
           <Text
-            style={{ fontWeight: "800", fontSize: 16, color: theme.colors.onSurface, flexShrink: 1 }}
+            style={{
+              fontWeight: "800",
+              fontSize: 16,
+              color: theme.colors.onSurface,
+              flexShrink: 1,
+            }}
             numberOfLines={1}
           >
             {title}
@@ -176,7 +216,11 @@ function SlotPickerModal({
       try {
         const from = new Date();
         const to = addDays(from, 14);
-        const data = await listOpenSlots({ from: from.toISOString(), to: to.toISOString(), librarianId });
+        const data = await listOpenSlots({
+          from: from.toISOString(),
+          to: to.toISOString(),
+          librarianId,
+        });
         setSlots(Array.isArray(data) ? data : []);
         setWindowStart(from);
         setWindowEnd(to);
@@ -193,13 +237,18 @@ function SlotPickerModal({
     try {
       const from = new Date(windowEnd);
       const to = addDays(from, 14);
-      const data = await listOpenSlots({ from: from.toISOString(), to: to.toISOString(), librarianId });
+      const data = await listOpenSlots({
+        from: from.toISOString(),
+        to: to.toISOString(),
+        librarianId,
+      });
       setSlots((prev) => {
         const map = new Map<number, SlotLite>();
         for (const s of prev) map.set(s.id, s);
-        for (const s of (Array.isArray(data) ? data : [])) map.set(s.id, s);
+        for (const s of Array.isArray(data) ? data : []) map.set(s.id, s);
         return Array.from(map.values()).sort(
-          (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+          (a, b) =>
+            new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
         );
       });
       setWindowEnd(to);
@@ -219,17 +268,36 @@ function SlotPickerModal({
     return Array.from(byDay.entries())
       .map(([key, arr]) => ({
         key,
-        label: new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(new Date(arr[0].startAt)),
-        items: arr.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()),
+        label: new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(
+          new Date(arr[0].startAt)
+        ),
+        items: arr.sort(
+          (a, b) =>
+            new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+        ),
       }))
-      .sort((a, b) => new Date(a.items[0].startAt).getTime() - new Date(b.items[0].startAt).getTime());
+      .sort(
+        (a, b) =>
+          new Date(a.items[0].startAt).getTime() -
+          new Date(b.items[0].startAt).getTime()
+      );
   }, [slots]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <Pressable
         onPress={onClose}
-        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "center", padding: 16 }}
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.4)",
+          justifyContent: "center",
+          padding: 16,
+        }}
       >
         <Pressable
           onPress={() => {}}
@@ -242,8 +310,22 @@ function SlotPickerModal({
             maxHeight: "80%",
           }}
         >
-          <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: useTheme().colors.outlineVariant }}>
-            <Text style={{ fontWeight: "800", fontSize: 16, color: useTheme().colors.onSurface }}>Escolher horário</Text>
+          <View
+            style={{
+              padding: 14,
+              borderBottomWidth: 1,
+              borderBottomColor: useTheme().colors.outlineVariant,
+            }}
+          >
+            <Text
+              style={{
+                fontWeight: "800",
+                fontSize: 16,
+                color: useTheme().colors.onSurface,
+              }}
+            >
+              Escolher horário
+            </Text>
           </View>
 
           <ScrollView contentContainerStyle={{ padding: 14, gap: 12 }}>
@@ -256,26 +338,49 @@ function SlotPickerModal({
             )}
 
             {grouped.map((g) => (
-              <View key={g.key} style={{ borderWidth: 1, borderColor: useTheme().colors.outlineVariant, borderRadius: 12, padding: 10, gap: 6 }}>
+              <View
+                key={g.key}
+                style={{
+                  borderWidth: 1,
+                  borderColor: useTheme().colors.outlineVariant,
+                  borderRadius: 12,
+                  padding: 10,
+                  gap: 6,
+                }}
+              >
                 <Text style={{ fontWeight: "700" }}>{g.label}</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
+                >
                   {g.items.map((s) => {
                     const isSel = selectedId === s.id;
-                    const label = fmtRange(s.startAt, s.endAt).split(" • ")[1] || "";
+                    const label =
+                      fmtRange(s.startAt, s.endAt).split(" • ")[1] || "";
                     return (
                       <TouchableOpacity
                         key={s.id}
-                        onPress={() => setSelectedId((prev) => (prev === s.id ? null : s.id))}
+                        onPress={() =>
+                          setSelectedId((prev) => (prev === s.id ? null : s.id))
+                        }
                         style={{
                           paddingVertical: 6,
                           paddingHorizontal: 10,
                           borderRadius: 999,
                           borderWidth: 1,
                           borderColor: useTheme().colors.outlineVariant,
-                          backgroundColor: isSel ? useTheme().colors.primary : useTheme().colors.surface,
+                          backgroundColor: isSel
+                            ? useTheme().colors.primary
+                            : useTheme().colors.surface,
                         }}
                       >
-                        <Text style={{ color: isSel ? useTheme().colors.onPrimary : useTheme().colors.onSurface, fontWeight: "700" }}>
+                        <Text
+                          style={{
+                            color: isSel
+                              ? useTheme().colors.onPrimary
+                              : useTheme().colors.onSurface,
+                            fontWeight: "700",
+                          }}
+                        >
                           {label}
                         </Text>
                       </TouchableOpacity>
@@ -285,7 +390,13 @@ function SlotPickerModal({
               </View>
             ))}
 
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
               <SecondaryButton
                 label={noMore ? "Sem mais resultados" : "Ver +14 dias"}
                 onPress={loadMore}
@@ -295,7 +406,16 @@ function SlotPickerModal({
             </View>
           </ScrollView>
 
-          <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: useTheme().colors.outlineVariant }}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "flex-end",
+              gap: 8,
+              padding: 12,
+              borderTopWidth: 1,
+              borderTopColor: useTheme().colors.outlineVariant,
+            }}
+          >
             <SecondaryButton label="Cancelar" onPress={onClose} />
             <PrimaryButton
               label="Confirmar"
@@ -334,7 +454,9 @@ function PedidoComSlotCard({
       endAt: c.endAt,
       excludeConsultationId: Number(c.id),
     })
-      .then((r: any) => r?.conflict && setConflict("⚠ Conflito com outra consulta"))
+      .then(
+        (r: any) => r?.conflict && setConflict("⚠ Conflito com outra consulta")
+      )
       .catch(() => {});
   }, [c.id, c.startAt, c.endAt, librarianId]);
 
@@ -342,7 +464,10 @@ function PedidoComSlotCard({
     setBusy("confirm");
     try {
       try {
-        const r = await fetch(`${API_URL}/consultations/${c.id}/confirm`, { method: "POST", credentials: "include" });
+        const r = await fetch(`${API_URL}/consultations/${c.id}/confirm`, {
+          method: "POST",
+          credentials: "include",
+        });
         if (!r.ok) throw new Error(await r.text());
       } catch {
         const r = await fetch(`${API_URL}/consultations/${c.id}`, {
@@ -365,7 +490,10 @@ function PedidoComSlotCard({
     setBusy("decline");
     try {
       try {
-        const r = await fetch(`${API_URL}/consultations/${c.id}/decline`, { method: "POST", credentials: "include" });
+        const r = await fetch(`${API_URL}/consultations/${c.id}/decline`, {
+          method: "POST",
+          credentials: "include",
+        });
         if (!r.ok) throw new Error(await r.text());
       } catch {
         const r = await fetch(`${API_URL}/consultations/${c.id}`, {
@@ -385,18 +513,46 @@ function PedidoComSlotCard({
   }
 
   return (
-    <View style={{ borderRadius: 12, borderWidth: 1, borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }}>
+    <View
+      style={{
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: theme.colors.outlineVariant,
+        backgroundColor: theme.colors.surface,
+      }}
+    >
       <View style={{ padding: 12, gap: 6 }}>
         <Text style={{ fontWeight: "800", fontSize: 16 }}>
-          {c.family?.fullName ?? `Família #${c.familyId ?? "—"}`} • <Text style={{ fontWeight: "400" }}>Pendente</Text>
+          {c.family?.fullName ?? `Família #${c.familyId ?? "—"}`} •{" "}
+          <Text style={{ fontWeight: "400" }}>Pendente</Text>
         </Text>
-        <Text style={{ color: theme.colors.onSurfaceVariant }}>{fmtRange(c.startAt, c.endAt)}</Text>
+        <Text style={{ color: theme.colors.onSurfaceVariant }}>
+          {fmtRange(c.startAt, c.endAt)}
+        </Text>
         {!!conflict && <Text style={{ color: "#9A3412" }}>{conflict}</Text>}
 
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 8, alignSelf: "flex-start" }}>
-          <PrimaryButton label="✅ Aceitar" onPress={confirm} disabled={busy === "confirm"} />
-          <SecondaryButton label="📅 Reagendar" onPress={() => setShowPicker(true)} />
-          <SecondaryButton label="❌ Recusar" onPress={decline} disabled={busy === "decline"} />
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 8,
+            marginTop: 8,
+            alignSelf: "flex-start",
+          }}
+        >
+          <PrimaryButton
+            label="✅ Aceitar"
+            onPress={confirm}
+            disabled={busy === "confirm"}
+          />
+          <SecondaryButton
+            label="📅 Reagendar"
+            onPress={() => setShowPicker(true)}
+          />
+          <SecondaryButton
+            label="❌ Recusar"
+            onPress={decline}
+            disabled={busy === "decline"}
+          />
         </View>
       </View>
 
@@ -447,7 +603,9 @@ function PropostaRow({
       endAt: p.toEndAt,
       excludeConsultationId: p?.consultation?.id,
     })
-      .then((r: any) => r?.conflict && setConflict("⚠ Conflito com outra consulta"))
+      .then(
+        (r: any) => r?.conflict && setConflict("⚠ Conflito com outra consulta")
+      )
       .catch(() => {});
   }, [p?.id, p?.toStartAt, p?.toEndAt, p?.consultation?.id, librarianId]);
 
@@ -475,7 +633,14 @@ function PropostaRow({
   }
 
   return (
-    <View style={{ borderRadius: 12, borderWidth: 1, borderColor: theme.colors.outlineVariant, backgroundColor: theme.colors.surface }}>
+    <View
+      style={{
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: theme.colors.outlineVariant,
+        backgroundColor: theme.colors.surface,
+      }}
+    >
       <View style={{ padding: 12, gap: 6 }}>
         <Text style={{ fontWeight: "800", fontSize: 16 }}>
           {p?.consultation?.family?.fullName ?? "Família"} •{" "}
@@ -501,9 +666,20 @@ function PropostaRow({
           )}
         </View>
 
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 8, alignSelf: "flex-start" }}>
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 8,
+            marginTop: 8,
+            alignSelf: "flex-start",
+          }}
+        >
           {canAccept && (
-            <PrimaryButton label="✅ Aceitar" onPress={doAccept} disabled={busy === "accept"} />
+            <PrimaryButton
+              label="✅ Aceitar"
+              onPress={doAccept}
+              disabled={busy === "accept"}
+            />
           )}
           {canDecline && (
             <SecondaryButton
@@ -534,18 +710,34 @@ export default function ConsultasPendentesComReagendamento() {
 
   const { fromIso, toIso } = React.useMemo(() => {
     const now = new Date();
-    if (range === "today") return { fromIso: now.toISOString(), toIso: endOfDay(now).toISOString() };
+    if (range === "today")
+      return { fromIso: now.toISOString(), toIso: endOfDay(now).toISOString() };
     if (range === "tomorrow") {
       const t = addDays(startOfDay(now), 1);
       return { fromIso: t.toISOString(), toIso: endOfDay(t).toISOString() };
     }
-    if (range === "next3") return { fromIso: now.toISOString(), toIso: endOfDay(addDays(now, 3)).toISOString() };
-    if (range === "next7") return { fromIso: now.toISOString(), toIso: endOfDay(addDays(now, 7)).toISOString() };
-    return { fromIso: now.toISOString(), toIso: endOfDay(addDays(now, 180)).toISOString() };
+    if (range === "next3")
+      return {
+        fromIso: now.toISOString(),
+        toIso: endOfDay(addDays(now, 3)).toISOString(),
+      };
+    if (range === "next7")
+      return {
+        fromIso: now.toISOString(),
+        toIso: endOfDay(addDays(now, 7)).toISOString(),
+      };
+    return {
+      fromIso: now.toISOString(),
+      toIso: endOfDay(addDays(now, 180)).toISOString(),
+    };
   }, [range]);
 
   const load = React.useCallback(async () => {
-    if (!librarianId) { setConsultas([]); setPropostas([]); return; }
+    if (!librarianId) {
+      setConsultas([]);
+      setPropostas([]);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -557,9 +749,14 @@ export default function ConsultasPendentesComReagendamento() {
       });
       if (toIso) params.set("to", toIso);
       const url = `${API_URL}/consultations/all?${params.toString()}`;
-      const list = (await fetch(url, { credentials: "include" }).then((r) => r.json())) as ConsultationLite[];
+      const list = (await fetch(url, { credentials: "include" }).then((r) =>
+        r.json()
+      )) as ConsultationLite[];
 
-      const ps = await listLibrarianProposals(librarianId, { status: "PENDING", limit: 100 }).catch(() => ({ items: [] as any[] }));
+      const ps = await listLibrarianProposals(librarianId, {
+        status: "PENDING",
+        limit: 100,
+      }).catch(() => ({ items: [] as any[] }));
       setConsultas(Array.isArray(list) ? list : []);
       setPropostas(Array.isArray(ps?.items) ? ps.items : []);
     } catch {
@@ -570,12 +767,22 @@ export default function ConsultasPendentesComReagendamento() {
     }
   }, [librarianId, fromIso, toIso]);
 
-  React.useEffect(() => { load(); }, [load]);
-  useFocusEffect(React.useCallback(() => { load(); }, [load]));
+  React.useEffect(() => {
+    load();
+  }, [load]);
+  useFocusEffect(
+    React.useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
-    try { await load(); } finally { setRefreshing(false); }
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
   }, [load]);
 
   const consultasComSlot = React.useMemo(
@@ -586,7 +793,10 @@ export default function ConsultasPendentesComReagendamento() {
   const librarianPendingSet = React.useMemo(() => {
     const set = new Set<number>();
     for (const p of propostas) {
-      if (String(p?.proposedBy || "").toUpperCase() === "LIBRARIAN" && p?.consultation?.id) {
+      if (
+        String(p?.proposedBy || "").toUpperCase() === "LIBRARIAN" &&
+        p?.consultation?.id
+      ) {
         set.add(Number(p.consultation.id));
       }
     }
@@ -594,26 +804,105 @@ export default function ConsultasPendentesComReagendamento() {
   }, [propostas]);
 
   const pedidosComSlotSemPropDoBibliotecario = React.useMemo(
-    () => consultasComSlot.filter((c) => !librarianPendingSet.has(Number(c.id))),
+    () =>
+      consultasComSlot.filter((c) => !librarianPendingSet.has(Number(c.id))),
     [consultasComSlot, librarianPendingSet]
   );
 
   return (
     <Background>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["top"]}>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
+      >
         <ScrollView
           contentContainerStyle={{ padding: 16, gap: 16 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           {/* Header + filtros */}
-          <FlexibleCard backgroundColor={theme.colors.surface} elevation={1} padding={14} style={{ borderRadius: 12 }}>
-            <Text style={{ fontSize: 20, fontWeight: "800" }}>Pedidos de consulta</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-              <Pill label="Hoje" active={range === "today"} onPress={() => setRange("today")} />
-              <Pill label="Amanhã" active={range === "tomorrow"} onPress={() => setRange("tomorrow")} />
-              <Pill label="Próx. 3 dias" active={range === "next3"} onPress={() => setRange("next3")} />
-              <Pill label="Próx. 7 dias" active={range === "next7"} onPress={() => setRange("next7")} />
-              <Pill label="Todos" active={range === "all"} onPress={() => setRange("all")} />
+          {/* HEADER TOP — Pedidos de consulta */}
+          <FlexibleCard
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={16}
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: theme.colors.outlineVariant,
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: theme.colors.primaryContainer,
+                }}
+              >
+                <Icon
+                  name="calendar-clock"
+                  size={22}
+                  color={theme.colors.onPrimaryContainer}
+                />
+              </View>
+              <Text
+                style={{
+                  fontSize: 24,
+                  lineHeight: 28,
+                  fontWeight: "900",
+                  color: theme.colors.onSurface,
+                }}
+              >
+                Pedidos de consulta
+              </Text>
+            </View>
+          </FlexibleCard>
+
+          {/* Filtros rápidos */}
+          <FlexibleCard
+            title="Filtros"
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={14}
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: theme.colors.outlineVariant,
+            }}
+          >
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              <Pill
+                label="Hoje"
+                active={range === "today"}
+                onPress={() => setRange("today")}
+              />
+              <Pill
+                label="Amanhã"
+                active={range === "tomorrow"}
+                onPress={() => setRange("tomorrow")}
+              />
+              <Pill
+                label="Próx. 3 dias"
+                active={range === "next3"}
+                onPress={() => setRange("next3")}
+              />
+              <Pill
+                label="Próx. 7 dias"
+                active={range === "next7"}
+                onPress={() => setRange("next7")}
+              />
+              <Pill
+                label="Todos"
+                active={range === "all"}
+                onPress={() => setRange("all")}
+              />
             </View>
           </FlexibleCard>
 
@@ -629,7 +918,12 @@ export default function ConsultasPendentesComReagendamento() {
                   backgroundColor: theme.colors.secondaryContainer,
                 }}
               >
-                <Text style={{ color: theme.colors.onSecondaryContainer, fontSize: 12 }}>
+                <Text
+                  style={{
+                    color: theme.colors.onSecondaryContainer,
+                    fontSize: 12,
+                  }}
+                >
                   {pedidosComSlotSemPropDoBibliotecario.length}
                 </Text>
               </View>
@@ -639,12 +933,19 @@ export default function ConsultasPendentesComReagendamento() {
               <ActivityIndicator style={{ marginTop: 8 }} />
             ) : pedidosComSlotSemPropDoBibliotecario.length === 0 ? (
               <View style={{ alignItems: "center", paddingVertical: 16 }}>
-                <Text style={{ color: theme.colors.onSurfaceVariant }}>Sem pedidos com horário.</Text>
+                <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                  Sem pedidos com horário.
+                </Text>
               </View>
             ) : (
               <View style={{ gap: 8 }}>
                 {pedidosComSlotSemPropDoBibliotecario.map((c) => (
-                  <PedidoComSlotCard key={String(c.id)} c={c} librarianId={librarianId} onChanged={load} />
+                  <PedidoComSlotCard
+                    key={String(c.id)}
+                    c={c}
+                    librarianId={librarianId}
+                    onChanged={load}
+                  />
                 ))}
               </View>
             )}
@@ -662,7 +963,12 @@ export default function ConsultasPendentesComReagendamento() {
                   backgroundColor: theme.colors.secondaryContainer,
                 }}
               >
-                <Text style={{ color: theme.colors.onSecondaryContainer, fontSize: 12 }}>
+                <Text
+                  style={{
+                    color: theme.colors.onSecondaryContainer,
+                    fontSize: 12,
+                  }}
+                >
                   {propostas.length}
                 </Text>
               </View>
@@ -673,12 +979,19 @@ export default function ConsultasPendentesComReagendamento() {
               <ActivityIndicator style={{ marginTop: 8 }} />
             ) : propostas.length === 0 ? (
               <View style={{ alignItems: "center", paddingVertical: 16 }}>
-                <Text style={{ color: theme.colors.onSurfaceVariant }}>Sem propostas pendentes.</Text>
+                <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                  Sem propostas pendentes.
+                </Text>
               </View>
             ) : (
               <View style={{ gap: 8 }}>
                 {propostas.map((p) => (
-                  <PropostaRow key={String(p.id)} p={p} librarianId={librarianId} onChanged={load} />
+                  <PropostaRow
+                    key={String(p.id)}
+                    p={p}
+                    librarianId={librarianId}
+                    onChanged={load}
+                  />
                 ))}
               </View>
             )}

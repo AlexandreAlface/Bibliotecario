@@ -17,10 +17,7 @@ import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
 import { useAuth } from "src/contexts/AuthContext";
-import {
-  badgesApi,
-  type Badge,
-} from "src/services/badges";
+import { badgesApi, type Badge } from "src/services/badges";
 
 /** ------ helpers ------ */
 function isTrophy(t?: string | null) {
@@ -49,7 +46,9 @@ function PillChip({
 }) {
   const theme = useTheme();
   const bg = active ? theme.colors.primary : theme.colors.secondaryContainer;
-  const fg = active ? theme.colors.onPrimary : theme.colors.onSecondaryContainer;
+  const fg = active
+    ? theme.colors.onPrimary
+    : theme.colors.onSecondaryContainer;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -66,7 +65,9 @@ function PillChip({
       }}
     >
       {icon ? <Icon name={icon as any} size={16} color={fg} /> : null}
-      <Text style={{ color: fg, fontWeight: active ? "700" : "500" }}>{label}</Text>
+      <Text style={{ color: fg, fontWeight: active ? "700" : "500" }}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -87,7 +88,7 @@ function BadgeTile({
 }) {
   const theme = useTheme();
   const iconAchieved = kind === "trophy" ? "trophy" : "star";
-  const iconPending  = kind === "trophy" ? "trophy-outline" : "star-outline";
+  const iconPending = kind === "trophy" ? "trophy-outline" : "star-outline";
 
   if (achieved) {
     // Conquistado → chip sólido com ícone
@@ -114,12 +115,20 @@ function BadgeTile({
             backgroundColor: theme.colors.onPrimary,
           }}
         >
-          <Icon name={iconAchieved as any} size={14} color={theme.colors.primary} />
+          <Icon
+            name={iconAchieved as any}
+            size={14}
+            color={theme.colors.primary}
+          />
         </View>
 
         <Text
           numberOfLines={1}
-          style={{ maxWidth: 220, fontWeight: "700", color: theme.colors.onPrimary }}
+          style={{
+            maxWidth: 220,
+            fontWeight: "700",
+            color: theme.colors.onPrimary,
+          }}
         >
           {name}
         </Text>
@@ -156,20 +165,39 @@ function BadgeTile({
           borderColor: theme.colors.outlineVariant,
         }}
       >
-        <Icon name={iconPending as any} size={14} color={theme.colors.onSurfaceVariant} />
+        <Icon
+          name={iconPending as any}
+          size={14}
+          color={theme.colors.onSurfaceVariant}
+        />
       </View>
 
       <Text
         numberOfLines={1}
-        style={{ maxWidth: 180, fontWeight: "600", color: theme.colors.onSurface }}
+        style={{
+          maxWidth: 180,
+          fontWeight: "600",
+          color: theme.colors.onSurface,
+        }}
       >
         {name}
       </Text>
 
       {!!criteria && (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Icon name="help-circle-outline" size={14} color={theme.colors.onSurfaceVariant} />
-          <Text numberOfLines={1} style={{ fontSize: 12, color: theme.colors.onSurfaceVariant, textDecorationLine: "underline" }}>
+          <Icon
+            name="help-circle-outline"
+            size={14}
+            color={theme.colors.onSurfaceVariant}
+          />
+          <Text
+            numberOfLines={1}
+            style={{
+              fontSize: 12,
+              color: theme.colors.onSurfaceVariant,
+              textDecorationLine: "underline",
+            }}
+          >
             ver critério
           </Text>
         </View>
@@ -184,7 +212,10 @@ export default function ConquistasScreen() {
   const { user } = useAuth();
 
   React.useEffect(() => {
-    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+    if (
+      Platform.OS === "android" &&
+      UIManager.setLayoutAnimationEnabledExperimental
+    ) {
       UIManager.setLayoutAnimationEnabledExperimental(true);
     }
   }, []);
@@ -273,37 +304,77 @@ export default function ConquistasScreen() {
   }, [loadAssignments]);
 
   // grupos + contagens
-  const seals = React.useMemo(() => catalog.filter((b) => isSeal(b.type)), [catalog]);
-  const trophies = React.useMemo(() => catalog.filter((b) => isTrophy(b.type)), [catalog]);
+  const seals = React.useMemo(
+    () => catalog.filter((b) => isSeal(b.type)),
+    [catalog]
+  );
+  const trophies = React.useMemo(
+    () => catalog.filter((b) => isTrophy(b.type)),
+    [catalog]
+  );
 
   const sealsWon = seals.filter((b) => achieved.has(b.id)).length;
   const trophiesWon = trophies.filter((b) => achieved.has(b.id)).length;
 
   return (
     <Background>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["top"]}>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
+      >
         <ScrollView
           contentContainerStyle={{ padding: 16, gap: 16 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           {/* Título com ícone */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          {/* HEADER TOP — Conquistas (compacto: ícone + título) */}
+          <FlexibleCard
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={16}
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: theme.colors.outlineVariant,
+            }}
+          >
             <View
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: theme.colors.primaryContainer,
-              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
             >
-              <Icon name="trophy-outline" size={20} color={theme.colors.onPrimaryContainer} />
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: theme.colors.primaryContainer,
+                }}
+              >
+                {/* Podes trocar por "medal-outline" se preferires */}
+                <Icon
+                  name="trophy-outline"
+                  size={22}
+                  color={theme.colors.onPrimaryContainer}
+                />
+              </View>
+
+              <Text
+                style={{
+                  fontSize: 24,
+                  lineHeight: 28,
+                  fontWeight: "900",
+                  color: theme.colors.onSurface,
+                }}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                Conquistas
+              </Text>
             </View>
-            <Text style={{ fontSize: 22, fontWeight: "800", color: theme.colors.onBackground }}>
-              Conquistas
-            </Text>
-          </View>
+          </FlexibleCard>
 
           {/* Escolher criança (esconde se a sessão estiver em modo criança) */}
           {!actingChildId && (
@@ -314,7 +385,11 @@ export default function ConquistasScreen() {
               padding={14}
               style={{ borderRadius: 12 }}
             >
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8 }}
+              >
                 {childrenChips.length === 0 ? (
                   <Text style={{ color: theme.colors.onSurfaceVariant }}>
                     Sem crianças registadas.
@@ -331,7 +406,11 @@ export default function ConquistasScreen() {
                   ))
                 )}
                 {childId && (
-                  <Button mode="outlined" icon="account-group" onPress={() => setChildId(null)}>
+                  <Button
+                    mode="outlined"
+                    icon="account-group"
+                    onPress={() => setChildId(null)}
+                  >
                     Ver todas
                   </Button>
                 )}
@@ -359,8 +438,17 @@ export default function ConquistasScreen() {
                   backgroundColor: theme.colors.secondaryContainer,
                 }}
               >
-                <Icon name="star-four-points" size={16} color={theme.colors.onSecondaryContainer} />
-                <Text style={{ color: theme.colors.onSecondaryContainer, fontWeight: "600" }}>
+                <Icon
+                  name="star-four-points"
+                  size={16}
+                  color={theme.colors.onSecondaryContainer}
+                />
+                <Text
+                  style={{
+                    color: theme.colors.onSecondaryContainer,
+                    fontWeight: "600",
+                  }}
+                >
                   Selos: {sealsWon} / {seals.length}
                 </Text>
               </View>
@@ -375,8 +463,17 @@ export default function ConquistasScreen() {
                   backgroundColor: theme.colors.secondaryContainer,
                 }}
               >
-                <Icon name="trophy-variant" size={16} color={theme.colors.onSecondaryContainer} />
-                <Text style={{ color: theme.colors.onSecondaryContainer, fontWeight: "600" }}>
+                <Icon
+                  name="trophy-variant"
+                  size={16}
+                  color={theme.colors.onSecondaryContainer}
+                />
+                <Text
+                  style={{
+                    color: theme.colors.onSecondaryContainer,
+                    fontWeight: "600",
+                  }}
+                >
                   Troféus: {trophiesWon} / {trophies.length}
                 </Text>
               </View>
@@ -384,16 +481,37 @@ export default function ConquistasScreen() {
           </FlexibleCard>
 
           {/* Selos (colapsável) */}
-          <FlexibleCard backgroundColor={theme.colors.surface} elevation={1} padding={14} style={{ borderRadius: 12 }}>
+          <FlexibleCard
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={14}
+            style={{ borderRadius: 12 }}
+          >
             {/* Header clicável */}
             <TouchableOpacity
               onPress={toggleSeals}
               activeOpacity={0.7}
-              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Icon name="star-four-points-outline" size={20} color={theme.colors.onSurface} />
-                <Text style={{ fontSize: 18, fontWeight: "800", color: theme.colors.onSurface }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Icon
+                  name="star-four-points-outline"
+                  size={20}
+                  color={theme.colors.onSurface}
+                />
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "800",
+                    color: theme.colors.onSurface,
+                  }}
+                >
                   Selos
                 </Text>
                 <View
@@ -405,7 +523,11 @@ export default function ConquistasScreen() {
                   }}
                 >
                   <Text
-                    style={{ color: theme.colors.onSecondaryContainer, fontWeight: "700", fontSize: 12 }}
+                    style={{
+                      color: theme.colors.onSecondaryContainer,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
                   >
                     {sealsWon}/{seals.length}
                   </Text>
@@ -421,9 +543,13 @@ export default function ConquistasScreen() {
             {!sealsCollapsed && (
               <View style={{ marginTop: 12 }}>
                 {loading && seals.length === 0 ? (
-                  <Text style={{ color: theme.colors.onSurfaceVariant }}>A carregar…</Text>
+                  <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                    A carregar…
+                  </Text>
                 ) : (
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                  <View
+                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}
+                  >
                     {seals.map((b) => (
                       <BadgeTile
                         key={b.id}
@@ -441,16 +567,37 @@ export default function ConquistasScreen() {
           </FlexibleCard>
 
           {/* Troféus (colapsável) */}
-          <FlexibleCard backgroundColor={theme.colors.surface} elevation={1} padding={14} style={{ borderRadius: 12 }}>
+          <FlexibleCard
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={14}
+            style={{ borderRadius: 12 }}
+          >
             {/* Header clicável */}
             <TouchableOpacity
               onPress={toggleTrophies}
               activeOpacity={0.7}
-              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Icon name="trophy-outline" size={20} color={theme.colors.onSurface} />
-                <Text style={{ fontSize: 18, fontWeight: "800", color: theme.colors.onSurface }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Icon
+                  name="trophy-outline"
+                  size={20}
+                  color={theme.colors.onSurface}
+                />
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "800",
+                    color: theme.colors.onSurface,
+                  }}
+                >
                   Troféus
                 </Text>
                 <View
@@ -462,7 +609,11 @@ export default function ConquistasScreen() {
                   }}
                 >
                   <Text
-                    style={{ color: theme.colors.onSecondaryContainer, fontWeight: "700", fontSize: 12 }}
+                    style={{
+                      color: theme.colors.onSecondaryContainer,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
                   >
                     {trophiesWon}/{trophies.length}
                   </Text>
@@ -478,9 +629,13 @@ export default function ConquistasScreen() {
             {!trophiesCollapsed && (
               <View style={{ marginTop: 12 }}>
                 {loading && trophies.length === 0 ? (
-                  <Text style={{ color: theme.colors.onSurfaceVariant }}>A carregar…</Text>
+                  <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                    A carregar…
+                  </Text>
                 ) : (
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                  <View
+                    style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}
+                  >
                     {trophies.map((b) => (
                       <BadgeTile
                         key={b.id}
@@ -506,21 +661,55 @@ export default function ConquistasScreen() {
               padding={14}
               style={{ borderRadius: 12 }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    flex: 1,
+                  }}
+                >
                   <Icon
-                    name={isTrophy(selectedBadge.type) ? "trophy" : "star-four-points"}
+                    name={
+                      isTrophy(selectedBadge.type)
+                        ? "trophy"
+                        : "star-four-points"
+                    }
                     size={20}
                     color={theme.colors.primary}
                   />
-                  <Text style={{ fontSize: 18, fontWeight: "700", color: theme.colors.onSurface, flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "700",
+                      color: theme.colors.onSurface,
+                      flex: 1,
+                    }}
+                  >
                     {selectedBadge.name}
                   </Text>
                 </View>
-                <IconButton icon={isTrophy(selectedBadge.type) ? "trophy" : "star"} size={22} />
+                <IconButton
+                  icon={isTrophy(selectedBadge.type) ? "trophy" : "star"}
+                  size={22}
+                />
               </View>
 
-              <View style={{ flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 8,
+                  marginTop: 6,
+                  flexWrap: "wrap",
+                }}
+              >
                 <View
                   style={{
                     flexDirection: "row",
@@ -533,12 +722,20 @@ export default function ConquistasScreen() {
                   }}
                 >
                   <Icon
-                    name={isTrophy(selectedBadge.type) ? "trophy-outline" : "star-four-points-outline"}
+                    name={
+                      isTrophy(selectedBadge.type)
+                        ? "trophy-outline"
+                        : "star-four-points-outline"
+                    }
                     size={14}
                     color={theme.colors.onSecondaryContainer}
                   />
                   <Text
-                    style={{ color: theme.colors.onSecondaryContainer, fontSize: 12, fontWeight: "600" }}
+                    style={{
+                      color: theme.colors.onSecondaryContainer,
+                      fontSize: 12,
+                      fontWeight: "600",
+                    }}
                   >
                     {isTrophy(selectedBadge.type) ? "TROFÉU" : "SELO"}
                   </Text>
@@ -560,9 +757,15 @@ export default function ConquistasScreen() {
                   }}
                 >
                   <Icon
-                    name={achieved.has(selectedBadge.id) ? "check" : "clock-outline"}
+                    name={
+                      achieved.has(selectedBadge.id) ? "check" : "clock-outline"
+                    }
                     size={14}
-                    color={achieved.has(selectedBadge.id) ? theme.colors.onPrimary : theme.colors.onSurface}
+                    color={
+                      achieved.has(selectedBadge.id)
+                        ? theme.colors.onPrimary
+                        : theme.colors.onSurface
+                    }
                   />
                   <Text
                     style={{
@@ -573,13 +776,20 @@ export default function ConquistasScreen() {
                       fontWeight: "700",
                     }}
                   >
-                    {achieved.has(selectedBadge.id) ? "Conquistado" : "Por conquistar"}
+                    {achieved.has(selectedBadge.id)
+                      ? "Conquistado"
+                      : "Por conquistar"}
                   </Text>
                 </View>
               </View>
 
               {!!selectedBadge.criteria && (
-                <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 10 }}>
+                <Text
+                  style={{
+                    color: theme.colors.onSurfaceVariant,
+                    marginTop: 10,
+                  }}
+                >
                   {selectedBadge.criteria}
                 </Text>
               )}
@@ -588,7 +798,11 @@ export default function ConquistasScreen() {
                 <Button mode="contained" icon="refresh" onPress={onRefresh}>
                   Atualizar
                 </Button>
-                <Button mode="outlined" icon="close" onPress={() => setSelectedBadge(null)}>
+                <Button
+                  mode="outlined"
+                  icon="close"
+                  onPress={() => setSelectedBadge(null)}
+                >
                   Limpar seleção
                 </Button>
               </View>
@@ -597,7 +811,12 @@ export default function ConquistasScreen() {
 
           {!selectedBadge && seals.length + trophies.length > 0 && (
             <View style={{ alignItems: "center" }}>
-              <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 8 }}>
+              <Text
+                style={{
+                  color: theme.colors.onSurfaceVariant,
+                  marginBottom: 8,
+                }}
+              >
                 Toca num selo/troféu para veres os detalhes.
               </Text>
             </View>

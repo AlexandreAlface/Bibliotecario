@@ -16,7 +16,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, useTheme } from "react-native-paper";
 import { useRouter } from "expo-router";
-import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
@@ -26,16 +28,33 @@ import { useAuth } from "src/contexts/AuthContext";
 import { ConsultationLite } from "src/services/consultations";
 
 type TabKey = "next" | "past";
-export type Status = "PENDING" | "CONFIRMED" | "DECLINED" | "CANCELLED" | "COMPLETED" | undefined;
+export type Status =
+  | "PENDING"
+  | "CONFIRMED"
+  | "DECLINED"
+  | "CANCELLED"
+  | "COMPLETED"
+  | undefined;
 
 function fmtDateTime(d?: string | null) {
   if (!d) return "";
   const dt = new Date(d);
-  return new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium", timeStyle: "short" }).format(dt);
+  return new Intl.DateTimeFormat("pt-PT", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(dt);
 }
 
 /* ---------- Chips ---------- */
-function PillChip({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
+function PillChip({
+  active,
+  label,
+  onPress,
+}: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}) {
   const theme = useTheme();
   return (
     <TouchableOpacity
@@ -44,12 +63,21 @@ function PillChip({ active, label, onPress }: { active: boolean; label: string; 
         paddingVertical: 8,
         paddingHorizontal: 12,
         borderRadius: 20,
-        backgroundColor: active ? theme.colors.primary : theme.colors.secondaryContainer,
+        backgroundColor: active
+          ? theme.colors.primary
+          : theme.colors.secondaryContainer,
         borderWidth: active ? 0 : 1,
         borderColor: theme.colors.outlineVariant,
       }}
     >
-      <Text style={{ color: active ? theme.colors.onPrimary : theme.colors.onSecondaryContainer, fontWeight: "600" }}>
+      <Text
+        style={{
+          color: active
+            ? theme.colors.onPrimary
+            : theme.colors.onSecondaryContainer,
+          fontWeight: "600",
+        }}
+      >
         {label}
       </Text>
     </TouchableOpacity>
@@ -61,11 +89,36 @@ const STATUS_STYLE: Record<
   Exclude<Status, undefined>,
   { label: string; bg: string; fg: string; accent: string }
 > = {
-  CONFIRMED: { label: "Confirmada", bg: "#DCFCE7", fg: "#166534", accent: "#22C55E" },
-  PENDING:   { label: "Pendente",   bg: "#FFEDD5", fg: "#9A3412", accent: "#F59E0B" },
-  DECLINED:  { label: "Recusada",   bg: "#FEE2E2", fg: "#991B1B", accent: "#EF4444" },
-  CANCELLED: { label: "Cancelada",  bg: "#E5E7EB", fg: "#374151", accent: "#9CA3AF" },
-  COMPLETED: { label: "Concluída",  bg: "#DBEAFE", fg: "#1E3A8A", accent: "#3B82F6" },
+  CONFIRMED: {
+    label: "Confirmada",
+    bg: "#DCFCE7",
+    fg: "#166534",
+    accent: "#22C55E",
+  },
+  PENDING: {
+    label: "Pendente",
+    bg: "#FFEDD5",
+    fg: "#9A3412",
+    accent: "#F59E0B",
+  },
+  DECLINED: {
+    label: "Recusada",
+    bg: "#FEE2E2",
+    fg: "#991B1B",
+    accent: "#EF4444",
+  },
+  CANCELLED: {
+    label: "Cancelada",
+    bg: "#E5E7EB",
+    fg: "#374151",
+    accent: "#9CA3AF",
+  },
+  COMPLETED: {
+    label: "Concluída",
+    bg: "#DBEAFE",
+    fg: "#1E3A8A",
+    accent: "#3B82F6",
+  },
 };
 
 function statusMeta(status?: Status) {
@@ -95,7 +148,9 @@ function StatusPill({
         borderColor: s.accent,
       }}
     >
-      <Text style={{ fontWeight: "700", color: active ? s.fg : s.accent }}>{s.label}</Text>
+      <Text style={{ fontWeight: "700", color: active ? s.fg : s.accent }}>
+        {s.label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -130,7 +185,12 @@ function DatePickerModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
       {/* backdrop */}
       <Pressable
         onPress={onCancel}
@@ -162,7 +222,13 @@ function DatePickerModal({
               backgroundColor: theme.colors.surface,
             }}
           >
-            <Text style={{ fontWeight: "800", fontSize: 16, color: theme.colors.onSurface }}>
+            <Text
+              style={{
+                fontWeight: "800",
+                fontSize: 16,
+                color: theme.colors.onSurface,
+              }}
+            >
               {title}
             </Text>
           </View>
@@ -219,7 +285,9 @@ function DatePickerModal({
                 backgroundColor: theme.colors.primary,
               }}
             >
-              <Text style={{ color: theme.colors.onPrimary, fontWeight: "700" }}>
+              <Text
+                style={{ color: theme.colors.onPrimary, fontWeight: "700" }}
+              >
                 Confirmar
               </Text>
             </TouchableOpacity>
@@ -238,7 +306,10 @@ export default function ConsultasScreen() {
   const { user } = useAuth();
 
   React.useEffect(() => {
-    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+    if (
+      Platform.OS === "android" &&
+      UIManager.setLayoutAnimationEnabledExperimental
+    ) {
       UIManager.setLayoutAnimationEnabledExperimental(true);
     }
   }, []);
@@ -258,9 +329,18 @@ export default function ConsultasScreen() {
     { key: "CANCELLED", label: STATUS_STYLE.CANCELLED.label },
     { key: "DECLINED", label: STATUS_STYLE.DECLINED.label },
   ];
-  const defaultNext = new Set<Exclude<Status, undefined>>(["PENDING", "CONFIRMED"]);
-  const defaultPast = new Set<Exclude<Status, undefined>>(["COMPLETED", "CANCELLED", "DECLINED"]);
-  const [selectedStatuses, setSelectedStatuses] = React.useState<Set<Exclude<Status, undefined>>>(new Set(defaultNext));
+  const defaultNext = new Set<Exclude<Status, undefined>>([
+    "PENDING",
+    "CONFIRMED",
+  ]);
+  const defaultPast = new Set<Exclude<Status, undefined>>([
+    "COMPLETED",
+    "CANCELLED",
+    "DECLINED",
+  ]);
+  const [selectedStatuses, setSelectedStatuses] = React.useState<
+    Set<Exclude<Status, undefined>>
+  >(new Set(defaultNext));
 
   // datas + modais
   const [fromDate, setFromDate] = React.useState<Date | null>(new Date());
@@ -307,9 +387,20 @@ export default function ConsultasScreen() {
   const buildQueryUrl = React.useCallback(
     async (extra?: Record<string, any>) => {
       const nowIso = new Date().toISOString();
-      const effectiveFrom = fromDate ? fromDate.toISOString() : tab === "next" ? nowIso : undefined;
-      const effectiveTo = toDate ? toDate.toISOString() : tab === "past" ? nowIso : undefined;
-      const statusParam = selectedStatuses.size > 0 ? Array.from(selectedStatuses).join(",") : undefined;
+      const effectiveFrom = fromDate
+        ? fromDate.toISOString()
+        : tab === "next"
+        ? nowIso
+        : undefined;
+      const effectiveTo = toDate
+        ? toDate.toISOString()
+        : tab === "past"
+        ? nowIso
+        : undefined;
+      const statusParam =
+        selectedStatuses.size > 0
+          ? Array.from(selectedStatuses).join(",")
+          : undefined;
       const effectiveChildId = actingChildId ?? undefined;
 
       const params = {
@@ -325,7 +416,10 @@ export default function ConsultasScreen() {
 
       const q = Object.entries(params)
         .filter(([, v]) => v !== undefined && v !== null && v !== "")
-        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+        .map(
+          ([k, v]) =>
+            `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
+        )
         .join("&");
 
       const { API_URL } = await import("src/services/api");
@@ -339,7 +433,9 @@ export default function ConsultasScreen() {
     setLoading(true);
     try {
       const url = await buildQueryUrl();
-      const data = (await fetch(url, { credentials: "include" }).then((r) => r.json())) as ConsultationLite[];
+      const data = (await fetch(url, { credentials: "include" }).then((r) =>
+        r.json()
+      )) as ConsultationLite[];
       setItems(Array.isArray(data) ? data : []);
     } catch {
       setItems([]);
@@ -386,7 +482,8 @@ export default function ConsultasScreen() {
     setToDate(end);
   }
 
-  const activeFiltersCount = (selectedStatuses.size || 0) + (fromDate ? 1 : 0) + (toDate ? 1 : 0);
+  const activeFiltersCount =
+    (selectedStatuses.size || 0) + (fromDate ? 1 : 0) + (toDate ? 1 : 0);
 
   /* ===== PAGINAÇÃO LOCAL ===== */
   const [page, setPage] = React.useState(1);
@@ -413,25 +510,128 @@ export default function ConsultasScreen() {
 
   return (
     <Background>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["top"]}>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
+      >
         <ScrollView
           contentContainerStyle={{ padding: 16, gap: 16 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
-          <Text style={{ fontSize: 22, fontWeight: "600", color: theme.colors.onBackground }}>Consultas</Text>
+          {/* HEADER TOP — Consultas */}
+          <FlexibleCard
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={16}
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: theme.colors.outlineVariant,
+            }}
+          >
+            {/* Row 1: ícone + título + contador */}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+            >
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: theme.colors.primaryContainer,
+                }}
+              >
+                <Icon
+                  name="calendar-account"
+                  size={22}
+                  color={theme.colors.onPrimaryContainer}
+                />
+              </View>
+
+              <View
+                style={{
+                  flex: 1,
+                  minWidth: 0 /* permite encolher sem quebrar por letra */,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 24,
+                    lineHeight: 28,
+                    fontWeight: "900",
+                    color: theme.colors.onSurface,
+                  }}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  Consultas
+                </Text>
+                <Text style={{ opacity: 0.7, marginTop: 4 }} numberOfLines={2}>
+                  Próximas e anteriores marcações com os bibliotecários.
+                </Text>
+              </View>
+
+              {/* contador ao lado do título */}
+              <View
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 999,
+                  backgroundColor: theme.colors.secondaryContainer,
+                  alignSelf: "flex-start",
+                }}
+              >
+                <Text
+                  style={{
+                    color: theme.colors.onSecondaryContainer,
+                    fontWeight: "800",
+                    fontSize: 12,
+                  }}
+                >
+                  {items.length}
+                </Text>
+              </View>
+            </View>
+
+          </FlexibleCard>
 
           {/* ---------- Filtros (COLAPSÁVEL) ---------- */}
-          <FlexibleCard backgroundColor={theme.colors.surface} elevation={1} padding={14} style={{ borderRadius: 12 }}>
+          <FlexibleCard
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={14}
+            style={{ borderRadius: 12 }}
+          >
             {/* Header */}
             <TouchableOpacity
               onPress={toggleFilters}
               activeOpacity={0.7}
-              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
               accessibilityRole="button"
-              accessibilityLabel={filtersCollapsed ? "Expandir filtros" : "Colapsar filtros"}
+              accessibilityLabel={
+                filtersCollapsed ? "Expandir filtros" : "Colapsar filtros"
+              }
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Text style={{ fontSize: 18, fontWeight: "800", color: theme.colors.onSurface }}>Filtros</Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "800",
+                    color: theme.colors.onSurface,
+                  }}
+                >
+                  Filtros
+                </Text>
                 {!!activeFiltersCount && (
                   <View
                     style={{
@@ -441,27 +641,56 @@ export default function ConsultasScreen() {
                       backgroundColor: theme.colors.secondaryContainer,
                     }}
                   >
-                    <Text style={{ color: theme.colors.onSecondaryContainer, fontWeight: "700", fontSize: 12 }}>
+                    <Text
+                      style={{
+                        color: theme.colors.onSecondaryContainer,
+                        fontWeight: "700",
+                        fontSize: 12,
+                      }}
+                    >
                       {activeFiltersCount}
                     </Text>
                   </View>
                 )}
               </View>
-              <Icon name={filtersCollapsed ? "chevron-down" : "chevron-up"} size={24} color={theme.colors.onSurface} />
+              <Icon
+                name={filtersCollapsed ? "chevron-down" : "chevron-up"}
+                size={24}
+                color={theme.colors.onSurface}
+              />
             </TouchableOpacity>
 
             {/* Conteúdo */}
             {!filtersCollapsed && (
               <View style={{ marginTop: 12 }}>
                 {/* Tabs */}
-                <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
-                  <PillChip label="Próximas" active={tab === "next"} onPress={() => setTab("next")} />
-                  <PillChip label="Anteriores" active={tab === "past"} onPress={() => setTab("past")} />
+                <View
+                  style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}
+                >
+                  <PillChip
+                    label="Próximas"
+                    active={tab === "next"}
+                    onPress={() => setTab("next")}
+                  />
+                  <PillChip
+                    label="Anteriores"
+                    active={tab === "past"}
+                    onPress={() => setTab("past")}
+                  />
                 </View>
 
                 {/* Estados */}
-                <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}>Estados</Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <Text
+                  style={{
+                    color: theme.colors.onSurfaceVariant,
+                    marginBottom: 6,
+                  }}
+                >
+                  Estados
+                </Text>
+                <View
+                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
+                >
                   {STATUS_OPTIONS.map((opt) => (
                     <StatusPill
                       key={opt.key}
@@ -474,13 +703,21 @@ export default function ConsultasScreen() {
 
                 {/* Ações dos estados */}
                 <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                  <Button mode="outlined" icon="filter-remove" onPress={() => setSelectedStatuses(new Set())}>
+                  <Button
+                    mode="outlined"
+                    icon="filter-remove"
+                    onPress={() => setSelectedStatuses(new Set())}
+                  >
                     Limpar estados
                   </Button>
                   <Button
                     mode="outlined"
                     icon="select-all"
-                    onPress={() => setSelectedStatuses(new Set(STATUS_OPTIONS.map((o) => o.key)))}
+                    onPress={() =>
+                      setSelectedStatuses(
+                        new Set(STATUS_OPTIONS.map((o) => o.key))
+                      )
+                    }
                   >
                     Selecionar todos
                   </Button>
@@ -496,7 +733,14 @@ export default function ConsultasScreen() {
                 />
 
                 {/* Datas */}
-                <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}>Intervalo de datas</Text>
+                <Text
+                  style={{
+                    color: theme.colors.onSurfaceVariant,
+                    marginBottom: 6,
+                  }}
+                >
+                  Intervalo de datas
+                </Text>
 
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   {/* FROM */}
@@ -515,9 +759,15 @@ export default function ConsultasScreen() {
                         gap: 8,
                       }}
                     >
-                      <Icon name="calendar-start" size={18} color={theme.colors.onSurface} />
+                      <Icon
+                        name="calendar-start"
+                        size={18}
+                        color={theme.colors.onSurface}
+                      />
                       <Text style={{ color: theme.colors.onSurface }}>
-                        {fromDate ? fmtDateTime(fromDate.toISOString()) : "Sem início"}
+                        {fromDate
+                          ? fmtDateTime(fromDate.toISOString())
+                          : "Sem início"}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -538,7 +788,11 @@ export default function ConsultasScreen() {
                         gap: 8,
                       }}
                     >
-                      <Icon name="calendar-end" size={18} color={theme.colors.onSurface} />
+                      <Icon
+                        name="calendar-end"
+                        size={18}
+                        color={theme.colors.onSurface}
+                      />
                       <Text style={{ color: theme.colors.onSurface }}>
                         {toDate ? fmtDateTime(toDate.toISOString()) : "Sem fim"}
                       </Text>
@@ -574,10 +828,18 @@ export default function ConsultasScreen() {
 
                 {/* Ações de datas */}
                 <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                  <Button mode="outlined" icon="calendar-remove" onPress={clearDates}>
+                  <Button
+                    mode="outlined"
+                    icon="calendar-remove"
+                    onPress={clearDates}
+                  >
                     Limpar datas
                   </Button>
-                  <Button mode="outlined" icon="calendar-today" onPress={setTodayRange}>
+                  <Button
+                    mode="outlined"
+                    icon="calendar-today"
+                    onPress={setTodayRange}
+                  >
                     Hoje
                   </Button>
                 </View>
@@ -594,14 +856,37 @@ export default function ConsultasScreen() {
             style={{ borderRadius: 12 }}
           >
             {/* topo da secção: contador + refresh */}
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Icon name="calendar-clock" size={18} color={theme.colors.onSurfaceVariant} />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 6,
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Icon
+                  name="calendar-clock"
+                  size={18}
+                  color={theme.colors.onSurfaceVariant}
+                />
                 <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                  {loading ? "A carregar…" : `${items.length} resultado${items.length === 1 ? "" : "s"}`}
+                  {loading
+                    ? "A carregar…"
+                    : `${items.length} resultado${
+                        items.length === 1 ? "" : "s"
+                      }`}
                 </Text>
               </View>
-              <Button mode="text" icon="refresh" onPress={load} disabled={loading} compact>
+              <Button
+                mode="text"
+                icon="refresh"
+                onPress={load}
+                disabled={loading}
+                compact
+              >
                 Atualizar
               </Button>
             </View>
@@ -610,11 +895,23 @@ export default function ConsultasScreen() {
               <ActivityIndicator style={{ marginTop: 16 }} />
             ) : items.length === 0 ? (
               <View style={{ alignItems: "center", paddingVertical: 20 }}>
-                <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 10, textAlign: "center" }}>
-                  {tab === "next" ? "Sem consultas marcadas." : "Sem histórico de consultas."}
+                <Text
+                  style={{
+                    color: theme.colors.onSurfaceVariant,
+                    marginBottom: 10,
+                    textAlign: "center",
+                  }}
+                >
+                  {tab === "next"
+                    ? "Sem consultas marcadas."
+                    : "Sem histórico de consultas."}
                 </Text>
                 {!isActingChild && (
-                  <Button mode="contained" icon="calendar-plus" onPress={() => router.push("/family/agenda")}>
+                  <Button
+                    mode="contained"
+                    icon="calendar-plus"
+                    onPress={() => router.push("/family/agenda")}
+                  >
                     Agendar Consulta
                   </Button>
                 )}
@@ -623,10 +920,21 @@ export default function ConsultasScreen() {
               <View style={{ gap: 10 }}>
                 {/* Página atual */}
                 {visibleItems.map((item) => {
-                  const librarianName = (item as any)?.librarianName ?? (item as any)?.librarian?.fullName ?? "";
-                  const libraryName = (item as any)?.libraryName ?? (item as any)?.library?.name ?? "";
-                  const childName = (item as any)?.childName ?? (item as any)?.child?.name ?? "";
-                  const title = item.title ?? (childName ? `Consulta de ${childName}` : "Consulta");
+                  const librarianName =
+                    (item as any)?.librarianName ??
+                    (item as any)?.librarian?.fullName ??
+                    "";
+                  const libraryName =
+                    (item as any)?.libraryName ??
+                    (item as any)?.library?.name ??
+                    "";
+                  const childName =
+                    (item as any)?.childName ??
+                    (item as any)?.child?.name ??
+                    "";
+                  const title =
+                    item.title ??
+                    (childName ? `Consulta de ${childName}` : "Consulta");
                   const meta = statusMeta(item.status);
 
                   return (
@@ -641,10 +949,25 @@ export default function ConsultasScreen() {
                         minHeight: 96, // altura maior para o texto caber
                       }}
                     >
-                      <View style={{ height: 4, backgroundColor: meta.accent }} />
+                      <View
+                        style={{ height: 4, backgroundColor: meta.accent }}
+                      />
                       <View style={{ padding: 14 }}>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-                          <Text style={{ fontSize: 16, fontWeight: "600", color: theme.colors.onSurface, flex: 1 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            gap: 8,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 16,
+                              fontWeight: "600",
+                              color: theme.colors.onSurface,
+                              flex: 1,
+                            }}
+                          >
                             {title}
                           </Text>
                           <View
@@ -656,18 +979,30 @@ export default function ConsultasScreen() {
                               alignSelf: "flex-start",
                             }}
                           >
-                            <Text style={{ color: meta.fg, fontSize: 12 }}>{meta.label}</Text>
+                            <Text style={{ color: meta.fg, fontSize: 12 }}>
+                              {meta.label}
+                            </Text>
                           </View>
                         </View>
 
-                        <Text style={{ marginTop: 6, color: theme.colors.onSurfaceVariant }}>
+                        <Text
+                          style={{
+                            marginTop: 6,
+                            color: theme.colors.onSurfaceVariant,
+                          }}
+                        >
                           {fmtDateTime(item.startAt)}
                           {librarianName ? ` • ${librarianName}` : ""}
                           {libraryName ? ` • ${libraryName}` : ""}
                         </Text>
 
                         {!!childName && (
-                          <Text style={{ marginTop: 2, color: theme.colors.onSurfaceVariant }}>
+                          <Text
+                            style={{
+                              marginTop: 2,
+                              color: theme.colors.onSurfaceVariant,
+                            }}
+                          >
                             Criança: {childName}
                           </Text>
                         )}
@@ -697,7 +1032,13 @@ export default function ConsultasScreen() {
                       Anterior
                     </Button>
 
-                    <Text style={{ color: theme.colors.onSurfaceVariant, minWidth: 110, textAlign: "center" }}>
+                    <Text
+                      style={{
+                        color: theme.colors.onSurfaceVariant,
+                        minWidth: 110,
+                        textAlign: "center",
+                      }}
+                    >
                       Página {page} de {totalPages}
                     </Text>
 
@@ -705,7 +1046,9 @@ export default function ConsultasScreen() {
                       mode="contained"
                       icon="chevron-right"
                       contentStyle={{ flexDirection: "row-reverse" }}
-                      onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      onPress={() =>
+                        setPage((p) => Math.min(totalPages, p + 1))
+                      }
                       disabled={!canNext}
                       style={{ flex: 1 }}
                     >

@@ -85,7 +85,9 @@ function PillChip({
 }) {
   const theme = useTheme();
   const bg = active ? theme.colors.primary : theme.colors.secondaryContainer;
-  const fg = active ? theme.colors.onPrimary : theme.colors.onSecondaryContainer;
+  const fg = active
+    ? theme.colors.onPrimary
+    : theme.colors.onSecondaryContainer;
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -102,7 +104,9 @@ function PillChip({
       }}
     >
       {icon ? <Icon name={icon as any} size={16} color={fg} /> : null}
-      <Text style={{ color: fg, fontWeight: active ? "700" : "500" }}>{label}</Text>
+      <Text style={{ color: fg, fontWeight: active ? "700" : "500" }}>
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -137,7 +141,12 @@ function DatePickerModal({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
       {/* backdrop */}
       <Pressable
         onPress={onCancel}
@@ -169,7 +178,13 @@ function DatePickerModal({
               backgroundColor: theme.colors.surface,
             }}
           >
-            <Text style={{ fontWeight: "800", fontSize: 16, color: theme.colors.onSurface }}>
+            <Text
+              style={{
+                fontWeight: "800",
+                fontSize: 16,
+                color: theme.colors.onSurface,
+              }}
+            >
               {title}
             </Text>
           </View>
@@ -226,7 +241,9 @@ function DatePickerModal({
                 backgroundColor: theme.colors.primary,
               }}
             >
-              <Text style={{ color: theme.colors.onPrimary, fontWeight: "700" }}>
+              <Text
+                style={{ color: theme.colors.onPrimary, fontWeight: "700" }}
+              >
                 Confirmar
               </Text>
             </TouchableOpacity>
@@ -244,7 +261,10 @@ export default function AgendaScreen() {
 
   // Enable LayoutAnimation on Android
   React.useEffect(() => {
-    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+    if (
+      Platform.OS === "android" &&
+      UIManager.setLayoutAnimationEnabledExperimental
+    ) {
       UIManager.setLayoutAnimationEnabledExperimental(true);
     }
   }, []);
@@ -303,25 +323,28 @@ export default function AgendaScreen() {
   // QUICK RANGE (mantendo modais)
   type Quick = "today" | "7" | "14" | "custom";
   const [quick, setQuick] = React.useState<Quick>("7");
-  const setQuickRange = React.useCallback((q: Quick) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    const base = startOfDay(new Date());
-    if (q === "today") {
-      setValue("from", base, { shouldValidate: true });
-      setValue("to", endOfDay(base), { shouldValidate: true });
-    } else if (q === "7") {
-      setValue("from", base, { shouldValidate: true });
-      setValue("to", endOfDay(new Date(base.getTime() + 6 * 86400000)), {
-        shouldValidate: true,
-      });
-    } else if (q === "14") {
-      setValue("from", base, { shouldValidate: true });
-      setValue("to", endOfDay(new Date(base.getTime() + 13 * 86400000)), {
-        shouldValidate: true,
-      });
-    }
-    setQuick(q);
-  }, [setValue]);
+  const setQuickRange = React.useCallback(
+    (q: Quick) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      const base = startOfDay(new Date());
+      if (q === "today") {
+        setValue("from", base, { shouldValidate: true });
+        setValue("to", endOfDay(base), { shouldValidate: true });
+      } else if (q === "7") {
+        setValue("from", base, { shouldValidate: true });
+        setValue("to", endOfDay(new Date(base.getTime() + 6 * 86400000)), {
+          shouldValidate: true,
+        });
+      } else if (q === "14") {
+        setValue("from", base, { shouldValidate: true });
+        setValue("to", endOfDay(new Date(base.getTime() + 13 * 86400000)), {
+          shouldValidate: true,
+        });
+      }
+      setQuick(q);
+    },
+    [setValue]
+  );
 
   // Carregar bibliotecários com OPEN slots
   async function refreshLibrarians() {
@@ -443,39 +466,86 @@ export default function AgendaScreen() {
 
   return (
     <Background>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["top"]}>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
+      >
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
           {/* Título página */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <FlexibleCard
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={16}
+            style={{
+              borderRadius: 12,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: BORDER,
+            }}
+          >
             <View
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
+                flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: theme.colors.primaryContainer,
+                justifyContent: "space-between",
+                gap: 12,
               }}
             >
-              <Icon name="calendar-plus" size={20} color={theme.colors.onPrimaryContainer} />
+              {/* ícone + título */}
+              <View
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: theme.colors.primaryContainer,
+                  }}
+                >
+                  <Icon
+                    name="calendar-plus"
+                    size={22}
+                    color={theme.colors.onPrimaryContainer}
+                  />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 24,
+                      lineHeight: 28,
+                      fontWeight: "900",
+                      color: theme.colors.onSurface,
+                    }}
+                  >
+                    Agendar Consulta
+                  </Text>
+                  <Text style={{ opacity: 0.7, marginTop: 4 }}>
+                    Escolhe a criança, intervalo e bibliotecário disponível.
+                  </Text>
+                </View>
+              </View>
+
             </View>
-            <Text
-              style={{
-                fontSize: 22,
-                fontWeight: "800",
-                color: theme.colors.onBackground,
-              }}
-            >
-              Agendar Consulta
-            </Text>
-          </View>
+          </FlexibleCard>
 
           {/* Filtros (COLAPSÁVEL + quick range + modais) */}
           <FlexibleCard
             backgroundColor={theme.colors.surface}
             elevation={1}
             padding={14}
-            style={{ borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER }}
+            style={{
+              borderRadius: 12,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: BORDER,
+            }}
           >
             {/* Header */}
             <TouchableOpacity
@@ -487,28 +557,49 @@ export default function AgendaScreen() {
                 justifyContent: "space-between",
               }}
               accessibilityRole="button"
-              accessibilityLabel={filtersCollapsed ? "Expandir filtros" : "Colapsar filtros"}
+              accessibilityLabel={
+                filtersCollapsed ? "Expandir filtros" : "Colapsar filtros"
+              }
             >
-              <Text style={{ fontSize: 18, fontWeight: "800", color: theme.colors.onSurface }}>
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "800",
+                  color: theme.colors.onSurface,
+                }}
+              >
                 Filtros
               </Text>
-              <IconButton icon={filtersCollapsed ? "chevron-down" : "chevron-up"} size={22} />
+              <IconButton
+                icon={filtersCollapsed ? "chevron-down" : "chevron-up"}
+                size={22}
+              />
             </TouchableOpacity>
 
             {!filtersCollapsed && (
               <>
                 {/* Criança */}
-                <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 6, marginBottom: 6 }}>
+                <Text
+                  style={{
+                    color: theme.colors.onSurfaceVariant,
+                    marginTop: 6,
+                    marginBottom: 6,
+                  }}
+                >
                   Criança
                 </Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
+                >
                   {(user?.children ?? []).map((ch) => (
                     <PillChip
                       key={ch.id}
                       label={ch.name}
                       icon="face-man-profile"
                       active={ch.id === childId}
-                      onPress={() => setValue("childId", ch.id, { shouldValidate: true })}
+                      onPress={() =>
+                        setValue("childId", ch.id, { shouldValidate: true })
+                      }
                     />
                   ))}
                 </View>
@@ -523,10 +614,17 @@ export default function AgendaScreen() {
                 />
 
                 {/* Bibliotecário */}
-                <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}>
+                <Text
+                  style={{
+                    color: theme.colors.onSurfaceVariant,
+                    marginBottom: 6,
+                  }}
+                >
                   Bibliotecário
                 </Text>
-                <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                <View
+                  style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}
+                >
                   {librarians.map((lb) => (
                     <PillChip
                       key={lb.id}
@@ -534,9 +632,13 @@ export default function AgendaScreen() {
                       icon="account"
                       active={lb.id === librarianFilter}
                       onPress={() =>
-                        setValue("librarianId", lb.id === librarianFilter ? undefined : lb.id, {
-                          shouldValidate: true,
-                        })
+                        setValue(
+                          "librarianId",
+                          lb.id === librarianFilter ? undefined : lb.id,
+                          {
+                            shouldValidate: true,
+                          }
+                        )
                       }
                     />
                   ))}
@@ -557,12 +659,24 @@ export default function AgendaScreen() {
                 />
 
                 {/* Intervalo + quick chips (modais mantidos) */}
-                <Text style={{ color: theme.colors.onSurfaceVariant, marginBottom: 6 }}>
+                <Text
+                  style={{
+                    color: theme.colors.onSurfaceVariant,
+                    marginBottom: 6,
+                  }}
+                >
                   Procurar horários entre
                 </Text>
 
                 {/* quick */}
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    marginBottom: 8,
+                  }}
+                >
                   <PillChip
                     active={quick === "today"}
                     onPress={() => setQuickRange("today")}
@@ -613,7 +727,11 @@ export default function AgendaScreen() {
                             accessibilityRole="button"
                             accessibilityLabel="Selecionar data inicial"
                           >
-                            <Icon name="calendar-start" size={18} color={theme.colors.onSurface} />
+                            <Icon
+                              name="calendar-start"
+                              size={18}
+                              color={theme.colors.onSurface}
+                            />
                             <Text style={{ color: theme.colors.onSurface }}>
                               {fmt(maxDate(startOfDay(value), today))}
                             </Text>
@@ -629,7 +747,9 @@ export default function AgendaScreen() {
                               const newFrom = startOfDay(picked);
                               onChange(newFrom);
                               if (newFrom > to) {
-                                setValue("to", endOfDay(newFrom), { shouldValidate: true });
+                                setValue("to", endOfDay(newFrom), {
+                                  shouldValidate: true,
+                                });
                               }
                               setQuick("custom");
                               setShowFromModal(false);
@@ -663,7 +783,11 @@ export default function AgendaScreen() {
                             accessibilityRole="button"
                             accessibilityLabel="Selecionar data final"
                           >
-                            <Icon name="calendar-end" size={18} color={theme.colors.onSurface} />
+                            <Icon
+                              name="calendar-end"
+                              size={18}
+                              color={theme.colors.onSurface}
+                            />
                             <Text style={{ color: theme.colors.onSurface }}>
                               {fmt(endOfDay(value))}
                             </Text>
@@ -677,7 +801,8 @@ export default function AgendaScreen() {
                             onCancel={() => setShowToModal(false)}
                             onConfirm={(picked) => {
                               const newTo = endOfDay(picked);
-                              const safeTo = newTo < from ? endOfDay(from) : newTo;
+                              const safeTo =
+                                newTo < from ? endOfDay(from) : newTo;
                               onChange(safeTo);
                               setQuick("custom");
                               setShowToModal(false);
@@ -698,7 +823,11 @@ export default function AgendaScreen() {
             backgroundColor={theme.colors.surface}
             elevation={1}
             padding={14}
-            style={{ borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: BORDER }}
+            style={{
+              borderRadius: 12,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: BORDER,
+            }}
           >
             {/* topo da secção: contador + refresh */}
             <View
@@ -709,13 +838,27 @@ export default function AgendaScreen() {
                 marginBottom: 8,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Icon name="clock-outline" size={18} color={theme.colors.onSurfaceVariant} />
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Icon
+                  name="clock-outline"
+                  size={18}
+                  color={theme.colors.onSurfaceVariant}
+                />
                 <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                  {loading ? "A procurar…" : `${slots.length} resultado${slots.length === 1 ? "" : "s"}`}
+                  {loading
+                    ? "A procurar…"
+                    : `${slots.length} resultado${
+                        slots.length === 1 ? "" : "s"
+                      }`}
                 </Text>
               </View>
-              <IconButton icon="refresh" onPress={loadSlots} disabled={loading} />
+              <IconButton
+                icon="refresh"
+                onPress={loadSlots}
+                disabled={loading}
+              />
             </View>
 
             {loading ? (
@@ -723,8 +866,14 @@ export default function AgendaScreen() {
             ) : (
               <View style={{ gap: 10 }}>
                 {slots.length === 0 && (
-                  <View style={{ alignItems: "center", paddingVertical: 8, gap: 6 }}>
-                    <Icon name="calendar-clock" size={28} color={theme.colors.onSurfaceDisabled} />
+                  <View
+                    style={{ alignItems: "center", paddingVertical: 8, gap: 6 }}
+                  >
+                    <Icon
+                      name="calendar-clock"
+                      size={28}
+                      color={theme.colors.onSurfaceDisabled}
+                    />
                     <Text style={{ color: theme.colors.onSurfaceVariant }}>
                       Sem horários no intervalo selecionado.
                     </Text>
@@ -738,7 +887,9 @@ export default function AgendaScreen() {
                   return (
                     <TouchableOpacity
                       key={s.id}
-                      onPress={() => setValue("slotId", s.id, { shouldValidate: true })}
+                      onPress={() =>
+                        setValue("slotId", s.id, { shouldValidate: true })
+                      }
                       style={{
                         padding: 12,
                         borderRadius: 12,
@@ -752,13 +903,25 @@ export default function AgendaScreen() {
                       }}
                     >
                       {/* linha 1: horário */}
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
                         <Icon
                           name="clock-time-four-outline"
                           size={18}
                           color={theme.colors.onSurface}
                         />
-                        <Text style={{ color: theme.colors.onSurface, fontWeight: "700", flexShrink: 1 }}>
+                        <Text
+                          style={{
+                            color: theme.colors.onSurface,
+                            fontWeight: "700",
+                            flexShrink: 1,
+                          }}
+                        >
                           {fmt(new Date(s.startAt))} — {fmt(new Date(s.endAt))}
                         </Text>
                       </View>
@@ -773,17 +936,43 @@ export default function AgendaScreen() {
                           flexWrap: "wrap",
                         }}
                       >
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <Icon name="account" size={16} color={theme.colors.onSurfaceVariant} />
-                          <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <Icon
+                            name="account"
+                            size={16}
+                            color={theme.colors.onSurfaceVariant}
+                          />
+                          <Text
+                            style={{ color: theme.colors.onSurfaceVariant }}
+                          >
                             {s.librarianName}
                           </Text>
                         </View>
 
                         {!!s.libraryName && (
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <Icon name="library" size={16} color={theme.colors.onSurfaceVariant} />
-                            <Text style={{ color: theme.colors.onSurfaceVariant }}>{s.libraryName}</Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <Icon
+                              name="library"
+                              size={16}
+                              color={theme.colors.onSurfaceVariant}
+                            />
+                            <Text
+                              style={{ color: theme.colors.onSurfaceVariant }}
+                            >
+                              {s.libraryName}
+                            </Text>
                           </View>
                         )}
                       </View>
@@ -809,13 +998,21 @@ export default function AgendaScreen() {
                         disabled={!canPrev}
                       />
                     </View>
-                    <Text style={{ color: theme.colors.onSurfaceVariant, minWidth: 110, textAlign: "center" }}>
+                    <Text
+                      style={{
+                        color: theme.colors.onSurfaceVariant,
+                        minWidth: 110,
+                        textAlign: "center",
+                      }}
+                    >
                       Página {page} de {totalPages}
                     </Text>
                     <View style={{ flex: 1 }}>
                       <PrimaryButton
                         label="Seguinte"
-                        onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        onPress={() =>
+                          setPage((p) => Math.min(totalPages, p + 1))
+                        }
                         disabled={!canNext}
                       />
                     </View>

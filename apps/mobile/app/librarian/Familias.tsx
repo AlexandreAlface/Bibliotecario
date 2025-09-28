@@ -106,33 +106,81 @@ export default function LibrarianFamiliesScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* Header + pesquisa */}
+          {/* -------- Header com ícone + título -------- */}
           <FlexibleCard
             backgroundColor={theme.colors.surface}
             elevation={1}
             padding={14}
             style={{ borderRadius: 12 }}
           >
-            <Text
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: theme.colors.primaryContainer,
+                }}
+              >
+                <Icon
+                  name="account-group-outline"
+                  size={22}
+                  color={theme.colors.onPrimaryContainer}
+                />
+              </View>
+              <Text
+                style={{
+                  fontSize: 22,
+                  fontWeight: "900",
+                  color: theme.colors.onSurface,
+                }}
+              >
+                Famílias
+              </Text>
+            </View>
+          </FlexibleCard>
+
+          {/* -------- Pesquisa -------- */}
+          <FlexibleCard
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={14}
+            style={{ borderRadius: 12 }}
+          >
+            <View
               style={{
-                fontSize: 20,
-                fontWeight: "800",
-                color: theme.colors.onSurface,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
                 marginBottom: 8,
               }}
             >
-              Famílias
-            </Text>
+              <Icon name="magnify" size={18} color={theme.colors.onSurface} />
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "800",
+                  color: theme.colors.onSurface,
+                }}
+              >
+                Pesquisa
+              </Text>
+            </View>
 
             <TextInput
               mode="outlined"
-              placeholder="Pesquisar por nome/email/telefone…"
+              placeholder="Pesquisar por nome, email ou telefone…"
               value={query}
               onChangeText={setQuery}
               left={<TextInput.Icon icon="magnify" />}
               style={{ backgroundColor: theme.colors.surface }}
               autoCorrect={false}
               autoCapitalize="none"
+              returnKeyType="search"
             />
 
             <View
@@ -143,9 +191,22 @@ export default function LibrarianFamiliesScreen() {
                 marginTop: 6,
               }}
             >
-              <Text style={{ opacity: 0.6 }}>
-                {loading ? "A procurar…" : `${families.length} resultados`}
-              </Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+              >
+                <Icon
+                  name={loading ? "progress-clock" : "database-search"}
+                  size={16}
+                  color={theme.colors.onSurfaceVariant}
+                />
+                <Text style={{ opacity: 0.7 }}>
+                  {loading
+                    ? "A procurar…"
+                    : `${families.length} resultado${
+                        families.length === 1 ? "" : "s"
+                      }`}
+                </Text>
+              </View>
               <IconButton
                 icon="refresh"
                 onPress={loadFirstPage}
@@ -154,13 +215,60 @@ export default function LibrarianFamiliesScreen() {
             </View>
           </FlexibleCard>
 
-          {/* Lista */}
+          {/* -------- Resultados -------- */}
           <FlexibleCard
             backgroundColor={theme.colors.surface}
             elevation={1}
-            padding={12}
+            padding={14}
             style={{ borderRadius: 12 }}
           >
+            {/* header do bloco */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 8,
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Icon
+                  name="account-group"
+                  size={18}
+                  color={theme.colors.onSurface}
+                />
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "800",
+                    color: theme.colors.onSurface,
+                  }}
+                >
+                  Resultados
+                </Text>
+                <View
+                  style={{
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 999,
+                    backgroundColor: theme.colors.secondaryContainer,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: theme.colors.onSecondaryContainer,
+                      fontWeight: "700",
+                      fontSize: 12,
+                    }}
+                  >
+                    {families.length}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
             {loading ? (
               <ActivityIndicator />
             ) : families.length === 0 ? (
@@ -182,44 +290,108 @@ export default function LibrarianFamiliesScreen() {
                       backgroundColor: theme.colors.surface,
                     }}
                   >
-                    <Text
-                      style={{
-                        fontWeight: "700",
-                        color: theme.colors.onSurface,
-                      }}
-                      numberOfLines={1}
-                    >
-                      {f.fullName}
-                    </Text>
-                    <Text
-                      style={{
-                        color: theme.colors.onSurfaceVariant,
-                        marginTop: 2,
-                      }}
-                      numberOfLines={1}
-                    >
-                      {f.email}
-                      {f.phone ? ` • ${f.phone}` : ""}
-                    </Text>
+                    {/* Nome (com ícone) */}
                     <View
                       style={{
-                        marginTop: 6,
-                        alignSelf: "flex-start",
-                        paddingVertical: 3,
-                        paddingHorizontal: 8,
-                        borderRadius: 999,
-                        backgroundColor: theme.colors.secondaryContainer,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
                       }}
                     >
+                      <Icon
+                        name="account-circle-outline"
+                        size={18}
+                        color={theme.colors.onSurface}
+                      />
                       <Text
-                        style={{ color: theme.colors.onSecondaryContainer }}
+                        style={{
+                          fontWeight: "700",
+                          color: theme.colors.onSurface,
+                          flex: 1,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {f.fullName}
+                      </Text>
+                    </View>
+
+                    {/* Email / Telefone */}
+                    <View style={{ marginTop: 6, gap: 4 }}>
+                      {!!f.email && (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <Icon
+                            name="email-outline"
+                            size={16}
+                            color={theme.colors.onSurfaceVariant}
+                          />
+                          <Text
+                            style={{ color: theme.colors.onSurfaceVariant }}
+                            numberOfLines={1}
+                          >
+                            {f.email}
+                          </Text>
+                        </View>
+                      )}
+                      {!!f.phone && (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <Icon
+                            name="phone"
+                            size={16}
+                            color={theme.colors.onSurfaceVariant}
+                          />
+                          <Text
+                            style={{ color: theme.colors.onSurfaceVariant }}
+                            numberOfLines={1}
+                          >
+                            {f.phone}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Chip de crianças */}
+                    <View
+                      style={{
+                        marginTop: 8,
+                        alignSelf: "flex-start",
+                        paddingVertical: 3,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        backgroundColor: theme.colors.secondaryContainer,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Icon
+                        name="account-child-outline"
+                        size={14}
+                        color={theme.colors.onSecondaryContainer}
+                      />
+                      <Text
+                        style={{
+                          color: theme.colors.onSecondaryContainer,
+                          fontWeight: "600",
+                        }}
                       >
                         {f.childrenCount} criança
                         {f.childrenCount === 1 ? "" : "s"}
                       </Text>
                     </View>
 
-                    {/* ação explícita: Abrir perfil */}
+                    {/* ação: Abrir perfil */}
                     <TouchableOpacity
                       onPress={() => router.push(`/librarian/familias/${f.id}`)}
                       style={{
@@ -227,7 +399,7 @@ export default function LibrarianFamiliesScreen() {
                         alignSelf: "flex-start",
                         flexDirection: "row",
                         alignItems: "center",
-                        gap: 6,
+                        gap: 8,
                         paddingVertical: 8,
                         paddingHorizontal: 12,
                         borderRadius: 10,
@@ -235,19 +407,27 @@ export default function LibrarianFamiliesScreen() {
                         borderColor: theme.colors.outlineVariant,
                         backgroundColor: theme.colors.surface,
                       }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Abrir perfil da família ${f.fullName}`}
                     >
                       <Icon
-                        name="account-arrow-right-outline"
+                        name="open-in-new"
                         size={18}
                         color={theme.colors.primary}
                       />
-                      <Text style={{ color: theme.colors.primary }}>
+                      <Text
+                        style={{
+                          color: theme.colors.primary,
+                          fontWeight: "700",
+                        }}
+                      >
                         Abrir perfil
                       </Text>
                     </TouchableOpacity>
                   </View>
                 ))}
 
+                {/* paginação incremental */}
                 {cursor && (
                   <TouchableOpacity
                     onPress={loadMore}
@@ -259,12 +439,24 @@ export default function LibrarianFamiliesScreen() {
                       alignItems: "center",
                       borderWidth: 1,
                       borderColor: theme.colors.outlineVariant,
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      gap: 8,
                     }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Carregar mais resultados"
                   >
                     {loadingMore ? (
                       <ActivityIndicator />
                     ) : (
-                      <Text>Carregar mais</Text>
+                      <>
+                        <Icon
+                          name="download"
+                          size={16}
+                          color={theme.colors.onSurface}
+                        />
+                        <Text>Carregar mais</Text>
+                      </>
                     )}
                   </TouchableOpacity>
                 )}

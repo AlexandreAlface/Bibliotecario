@@ -9,6 +9,9 @@ import {
   Animated,
   Easing,
   Pressable,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
 import {
   Button,
@@ -20,6 +23,7 @@ import {
   TextInput,
   useTheme,
   Divider,
+  IconButton,
 } from "react-native-paper";
 import {
   useSafeAreaInsets,
@@ -198,20 +202,44 @@ export default function FeedScreen() {
   }, [q]);
 
   const handleMarkSeen = async (id: number) => {
-    setItems((arr) => arr.map((it) => (it.id === id ? { ...it, seen: true } : it)));
+    setItems((arr) =>
+      arr.map((it) => (it.id === id ? { ...it, seen: true } : it))
+    );
     try {
       await markMicroContentSeen(id);
     } catch {
-      setItems((arr) => arr.map((it) => (it.id === id ? { ...it, seen: false } : it)));
+      setItems((arr) =>
+        arr.map((it) => (it.id === id ? { ...it, seen: false } : it))
+      );
     }
   };
+
+  React.useEffect(() => {
+    if (
+      Platform.OS === "android" &&
+      UIManager.setLayoutAnimationEnabledExperimental
+    ) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
+  // header colapsável
+  const [headerCollapsed, setHeaderCollapsed] = React.useState(false);
+  const toggleHeader = React.useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setHeaderCollapsed((v) => !v);
+  }, []);
+
+  // visuais do header (usa a paleta da “BIBLIOTERAPIA”)
+  const headerVis = typeVisuals(theme, "BIBLIOTERAPIA");
 
   /** Chip com “selected” no branding */
   const FilterChip: React.FC<{
     selected: boolean;
     onPress: () => void;
     children: React.ReactNode;
-  }> = ({ selected, onPress, children }) => (
+    icon?: string;
+  }> = ({ selected, onPress, children, icon }) => (
     <Chip
       mode="outlined"
       selected={selected}
@@ -227,6 +255,7 @@ export default function FeedScreen() {
         fontWeight: (selected ? "700" : "400") as any,
       }}
       selectedColor={selected ? SEL_FG : theme.colors.onSurface}
+      icon={icon as any}
     >
       {children}
     </Chip>
@@ -241,7 +270,9 @@ export default function FeedScreen() {
         >
           <ScrollView
             contentInsetAdjustmentBehavior="automatic"
-            refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load()} />}
+            refreshControl={
+              <RefreshControl refreshing={loading} onRefresh={() => load()} />
+            }
             contentContainerStyle={{
               padding: 16,
               gap: 16,
@@ -260,66 +291,188 @@ export default function FeedScreen() {
                   elevation: 1,
                 }}
               >
-                <Text variant="headlineSmall" style={{ fontWeight: "900" }}>
-                  Conteúdos & Biblioterapia
-                </Text>
-                <Text style={{ opacity: 0.7, marginTop: 4 }}>
+                {/* Linha do título (tap para colapsar/expandir) */}
+                <Pressable
+                  onPress={toggleHeader}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    headerCollapsed ? "Expandir filtros" : "Colapsar filtros"
+                  }
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: headerVis.bg,
+                    }}
+                  >
+                    <Icon
+                      name="text-box-multiple-outline"
+                      size={20}
+                      color={headerVis.fg}
+                    />
+                  </View>
+
+                  <Text
+                    variant="headlineSmall"
+                    style={{ fontWeight: "900", flexShrink: 1 }}
+                    numberOfLines={2}
+                  >
+                    Conteúdos & Biblioterapia
+                  </Text>
+
+                  {/* Contador junto ao título */}
+                  {total > 0 && (
+                    <View
+                      style={{
+                        marginLeft: 8,
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 999,
+                        backgroundColor: theme.colors.secondaryContainer,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: theme.colors.onSecondaryContainer,
+                          fontWeight: "700",
+                          fontSize: 12,
+                        }}
+                      >
+                        {total}
+                      </Text>
+                    </View>
+                  )}
+
+                  {/* Ações e chevron à direita */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginLeft: "auto",
+                    }}
+                  >
+                    <IconButton
+                      icon="filter-variant"
+                      onPress={() => setFiltersOpen(true)}
+                      onPressIn={(e) => e.stopPropagation()}
+                    />
+                    <IconButton
+                      icon="refresh"
+                      onPress={() => {
+                        setPage(1);
+                        load(1);
+                      }}
+                      onPressIn={(e) => e.stopPropagation()}
+                    />
+                    <Icon
+                      name={headerCollapsed ? "chevron-down" : "chevron-up"}
+                      size={24}
+                      color={theme.colors.onSurfaceVariant}
+                      style={{ marginLeft: -6 }}
+                    />
+                  </View>
+                </Pressable>
+
+                {/* Subtítulo */}
+                <Text style={{ opacity: 0.7, marginTop: 6 }}>
                   Dicas, biblioterapia e conteúdos associados a livros.
                 </Text>
 
-                {/* Pesquisa */}
-                <View
-                  style={{
-                    marginTop: 12,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <TextInput
-                    mode="outlined"
-                    placeholder="Pesquisar…"
-                    value={q}
-                    onChangeText={setQ}
-                    style={{ flex: 1 }}
-                    left={<TextInput.Icon icon="magnify" />}
-                  />
-                </View>
-
-                {/* Filtros rápidos: Tipo */}
-                <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 8 }}>
-                  <FilterChip selected={!type} onPress={() => setType("")}>
-                    Todos
-                  </FilterChip>
-                  {TYPES.map((t) => (
-                    <FilterChip
-                      key={t}
-                      selected={type === t}
-                      onPress={() => {
-                        setPage(1);
-                        setType(type === t ? "" : t);
+                {/* Corpo colapsável: pesquisa + chips + preview de filtros */}
+                {!headerCollapsed && (
+                  <>
+                    {/* Pesquisa */}
+                    <View
+                      style={{
+                        marginTop: 12,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
                       }}
                     >
-                      {t}
-                    </FilterChip>
-                  ))}
-                </View>
+                      <TextInput
+                        mode="outlined"
+                        placeholder="Pesquisar…"
+                        value={q}
+                        onChangeText={setQ}
+                        style={{ flex: 1 }}
+                        left={<TextInput.Icon icon="magnify" />}
+                      />
+                    </View>
 
-                {/* Preview de filtros ativos (tags/biblioteca) */}
-                <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 4, gap: 8 }}>
-                  {!!tag && (
-                    <Chip mode="outlined" icon="tag" style={{ borderColor: SEL_BORDER, backgroundColor: SEL_BG }}>
-                      <Text style={{ color: SEL_FG }}>{tag}</Text>
-                    </Chip>
-                  )}
-                  {!!libraryId && (
-                    <Chip mode="outlined" icon="library" style={{ borderColor: SEL_BORDER, backgroundColor: SEL_BG }}>
-                      <Text style={{ color: SEL_FG }}>
-                        {allLibraries.find((l) => l.id === libraryId)?.name ?? `Biblioteca #${libraryId}`}
-                      </Text>
-                    </Chip>
-                  )}
-                </View>
+                    {/* Filtros rápidos: Tipo (com ícones) */}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        marginTop: 8,
+                      }}
+                    >
+                      <FilterChip selected={!type} onPress={() => setType("")}>
+                        Todos
+                      </FilterChip>
+                      {TYPES.map((t) => (
+                        <FilterChip
+                          key={t}
+                          selected={type === t}
+                          onPress={() => {
+                            setPage(1);
+                            setType(type === t ? "" : t);
+                          }}
+                        >
+                          {t}
+                        </FilterChip>
+                      ))}
+                    </View>
+
+                    {/* Preview de filtros ativos */}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        marginTop: 4,
+                        gap: 8,
+                      }}
+                    >
+                      {!!tag && (
+                        <Chip
+                          mode="outlined"
+                          icon="tag"
+                          style={{
+                            borderColor: SEL_BORDER,
+                            backgroundColor: SEL_BG,
+                          }}
+                        >
+                          <Text style={{ color: SEL_FG }}>{tag}</Text>
+                        </Chip>
+                      )}
+                      {!!libraryId && (
+                        <Chip
+                          mode="outlined"
+                          icon="library"
+                          style={{
+                            borderColor: SEL_BORDER,
+                            backgroundColor: SEL_BG,
+                          }}
+                        >
+                          <Text style={{ color: SEL_FG }}>
+                            {allLibraries.find((l) => l.id === libraryId)
+                              ?.name ?? `Biblioteca #${libraryId}`}
+                          </Text>
+                        </Chip>
+                      )}
+                    </View>
+                  </>
+                )}
               </View>
             </FadeIn>
 
@@ -338,12 +491,17 @@ export default function FeedScreen() {
                 {items.length === 0 ? (
                   <View style={{ paddingVertical: 12 }}>
                     <Text style={{ opacity: 0.7 }}>
-                      {loading ? "A carregar…" : "Sem resultados para estes filtros."}
+                      {loading
+                        ? "A carregar…"
+                        : "Sem resultados para estes filtros."}
                     </Text>
                   </View>
                 ) : (
                   items.map((mc, idx) => {
-                    const visuals = typeVisuals(theme, mc.type as MicroContentType);
+                    const visuals = typeVisuals(
+                      theme,
+                      mc.type as MicroContentType
+                    );
                     const { title, body } = splitContent(mc.text);
                     const isOpen = expanded.has(mc.id);
 
@@ -379,11 +537,19 @@ export default function FeedScreen() {
                                     backgroundColor: visuals.bg,
                                   }}
                                 >
-                                  <Icon name={visuals.icon as any} size={22} color={visuals.fg} />
+                                  <Icon
+                                    name={visuals.icon as any}
+                                    size={22}
+                                    color={visuals.fg}
+                                  />
                                 </View>
 
                                 <View style={{ flex: 1 }}>
-                                  <Text variant="titleMedium" style={{ fontWeight: "800" }} numberOfLines={2}>
+                                  <Text
+                                    variant="titleMedium"
+                                    style={{ fontWeight: "800" }}
+                                    numberOfLines={2}
+                                  >
                                     {title || mc.type}
                                   </Text>
                                 </View>
@@ -392,22 +558,47 @@ export default function FeedScreen() {
                                   name="chevron-down"
                                   size={24}
                                   color={theme.colors.onSurfaceVariant}
-                                  style={{ transform: [{ rotate: isOpen ? "180deg" : "0deg" }] }}
+                                  style={{
+                                    transform: [
+                                      { rotate: isOpen ? "180deg" : "0deg" },
+                                    ],
+                                  }}
                                 />
                               </Pressable>
 
                               {/* Metadados */}
-                              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-                                <Chip compact mode="outlined" style={{ borderColor: BORDER }}>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  flexWrap: "wrap",
+                                  gap: 6,
+                                  marginBottom: 8,
+                                }}
+                              >
+                                <Chip
+                                  compact
+                                  mode="outlined"
+                                  style={{ borderColor: BORDER }}
+                                >
                                   {mc.type}
                                 </Chip>
                                 {mc.tags.map((t) => (
-                                  <Chip key={t} compact mode="outlined" style={{ borderColor: BORDER }}>
+                                  <Chip
+                                    key={t}
+                                    compact
+                                    mode="outlined"
+                                    style={{ borderColor: BORDER }}
+                                  >
                                     {t}
                                   </Chip>
                                 ))}
                                 {mc.library?.name ? (
-                                  <Chip compact mode="outlined" icon="library" style={{ borderColor: BORDER }}>
+                                  <Chip
+                                    compact
+                                    mode="outlined"
+                                    icon="library"
+                                    style={{ borderColor: BORDER }}
+                                  >
                                     {mc.library.name}
                                   </Chip>
                                 ) : null}
@@ -416,7 +607,10 @@ export default function FeedScreen() {
                                     compact
                                     mode="outlined"
                                     icon="check"
-                                    style={{ borderColor: BORDER, backgroundColor: "#e8f5e9" }}
+                                    style={{
+                                      borderColor: BORDER,
+                                      backgroundColor: "#e8f5e9",
+                                    }}
                                     textStyle={{ fontWeight: "700" as any }}
                                   >
                                     Visto
@@ -437,7 +631,11 @@ export default function FeedScreen() {
                                   {!isOpen && (
                                     <Text
                                       onPress={() => toggleExpanded(mc.id)}
-                                      style={{ marginTop: 6, fontWeight: "700", color: theme.colors.primary }}
+                                      style={{
+                                        marginTop: 6,
+                                        fontWeight: "700",
+                                        color: theme.colors.primary,
+                                      }}
                                     >
                                       Ver mais…
                                     </Text>
@@ -448,7 +646,13 @@ export default function FeedScreen() {
                               {/* Livros (só quando aberto) */}
                               {isOpen && mc.books?.length ? (
                                 <View style={{ marginTop: 10 }}>
-                                  <Text variant="titleSmall" style={{ marginBottom: 6, fontWeight: "700" }}>
+                                  <Text
+                                    variant="titleSmall"
+                                    style={{
+                                      marginBottom: 6,
+                                      fontWeight: "700",
+                                    }}
+                                  >
                                     Livros relacionados
                                   </Text>
                                   <ScrollView
@@ -457,7 +661,11 @@ export default function FeedScreen() {
                                     contentContainerStyle={{ gap: 10 }}
                                   >
                                     {mc.books.map((b) => (
-                                      <TouchableOpacity key={b.isbn} activeOpacity={0.85} style={{ width: 120 }}>
+                                      <TouchableOpacity
+                                        key={b.isbn}
+                                        activeOpacity={0.85}
+                                        style={{ width: 120 }}
+                                      >
                                         {b.coverUrl ? (
                                           <Image
                                             source={{ uri: b.coverUrl }}
@@ -471,7 +679,13 @@ export default function FeedScreen() {
                                             resizeMode="cover"
                                           />
                                         ) : null}
-                                        <Text numberOfLines={2} style={{ fontWeight: "700", marginTop: 6 }}>
+                                        <Text
+                                          numberOfLines={2}
+                                          style={{
+                                            fontWeight: "700",
+                                            marginTop: 6,
+                                          }}
+                                        >
                                           {b.title}
                                         </Text>
                                       </TouchableOpacity>
@@ -482,7 +696,10 @@ export default function FeedScreen() {
                             </Card.Content>
 
                             <Card.Actions
-                              style={{ justifyContent: "space-between", paddingTop: 4 }}
+                              style={{
+                                justifyContent: "space-between",
+                                paddingTop: 4,
+                              }}
                             >
                               <Button
                                 mode="text"
@@ -503,7 +720,9 @@ export default function FeedScreen() {
                             </Card.Actions>
                           </Card>
 
-                          {idx < items.length - 1 && <Divider style={{ marginVertical: 10 }} />}
+                          {idx < items.length - 1 && (
+                            <Divider style={{ marginVertical: 10 }} />
+                          )}
                         </View>
                       </FadeIn>
                     );
@@ -513,7 +732,11 @@ export default function FeedScreen() {
                 {/* Paginação */}
                 {items.length > 0 && page < pages && (
                   <View style={{ alignItems: "center", marginTop: 8 }}>
-                    <Button mode="outlined" onPress={() => setPage((p) => Math.min(p + 1, pages))} icon="chevron-down">
+                    <Button
+                      mode="outlined"
+                      onPress={() => setPage((p) => Math.min(p + 1, pages))}
+                      icon="chevron-down"
+                    >
                       Ver mais
                     </Button>
                     <Text style={{ opacity: 0.6, marginTop: 4 }}>
@@ -539,7 +762,10 @@ export default function FeedScreen() {
                 borderColor: BORDER,
               }}
             >
-              <Text variant="titleMedium" style={{ fontWeight: "bold", marginBottom: 10 }}>
+              <Text
+                variant="titleMedium"
+                style={{ fontWeight: "bold", marginBottom: 10 }}
+              >
                 Filtros
               </Text>
 
@@ -556,7 +782,11 @@ export default function FeedScreen() {
                   (todas)
                 </FilterChip>
                 {allTags.map((t) => (
-                  <FilterChip key={t} selected={tag === t} onPress={() => setTag(tag === t ? "" : t)}>
+                  <FilterChip
+                    key={t}
+                    selected={tag === t}
+                    onPress={() => setTag(tag === t ? "" : t)}
+                  >
                     {t}
                   </FilterChip>
                 ))}
@@ -565,22 +795,38 @@ export default function FeedScreen() {
               <Text variant="labelLarge" style={{ marginBottom: 6 }}>
                 Biblioteca
               </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                <FilterChip selected={!libraryId} onPress={() => setLibraryId(undefined)}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8 }}
+              >
+                <FilterChip
+                  selected={!libraryId}
+                  onPress={() => setLibraryId(undefined)}
+                >
                   (todas)
                 </FilterChip>
                 {allLibraries.map((lib) => (
                   <FilterChip
                     key={lib.id}
                     selected={libraryId === lib.id}
-                    onPress={() => setLibraryId(libraryId === lib.id ? undefined : lib.id)}
+                    onPress={() =>
+                      setLibraryId(libraryId === lib.id ? undefined : lib.id)
+                    }
                   >
                     {lib.name}
                   </FilterChip>
                 ))}
               </ScrollView>
 
-              <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 16, gap: 8 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "flex-end",
+                  marginTop: 16,
+                  gap: 8,
+                }}
+              >
                 <Button
                   mode="text"
                   onPress={() => {

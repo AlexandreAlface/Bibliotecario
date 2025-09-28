@@ -354,35 +354,50 @@ export default function FamiliasScreen() {
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
           {/* Título com ícone */}
           <FadeIn>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            <FlexibleCard
+              backgroundColor={theme.colors.surface}
+              elevation={1}
+              padding={16}
+              style={{
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: theme.colors.outlineVariant,
+              }}
             >
               <View
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: theme.colors.primaryContainer,
-                }}
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
               >
-                <Icon
-                  name="account-group-outline"
-                  size={20}
-                  color={theme.colors.onPrimaryContainer}
-                />
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: theme.colors.primaryContainer,
+                  }}
+                >
+                  <Icon
+                    name="account-group-outline"
+                    size={22}
+                    color={theme.colors.onPrimaryContainer}
+                  />
+                </View>
+
+                <Text
+                  style={{
+                    fontSize: 24,
+                    lineHeight: 28,
+                    fontWeight: "900",
+                    color: theme.colors.onSurface,
+                  }}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  Família
+                </Text>
               </View>
-              <Text
-                style={{
-                  fontSize: 22,
-                  fontWeight: "800",
-                  color: theme.colors.onBackground,
-                }}
-              >
-                Família
-              </Text>
-            </View>
+            </FlexibleCard>
           </FadeIn>
 
           {/* WhiteCard: Perfil (COLAPSÁVEL) */}

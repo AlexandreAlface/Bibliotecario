@@ -31,6 +31,8 @@ import {
   updateSlotStatus,
 } from "src/services/librarian/consultations";
 
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons"; // (se ainda não estiver neste ficheiro)
+
 /* ---------------- helpers de data ---------------- */
 function startOfDay(d: Date) {
   const x = new Date(d);
@@ -535,29 +537,64 @@ export default function AgendaPage() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* Filtros + criar */}
+          {/* ===== Header Top: título + ícone ===== */}
           <FlexibleCard
+            backgroundColor={theme.colors.surface}
+            elevation={1}
+            padding={16}
+            style={{
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: theme.colors.outlineVariant,
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: theme.colors.primaryContainer,
+                }}
+              >
+                <Icon
+                  name="calendar-month"
+                  size={22}
+                  color={theme.colors.onPrimaryContainer}
+                />
+              </View>
+              <Text
+                style={{
+                  fontSize: 24,
+                  fontWeight: "900",
+                  color: theme.colors.onSurface,
+                }}
+              >
+                Agenda
+              </Text>
+            </View>
+          </FlexibleCard>
+
+          {/* ===== Filtros + criar ===== */}
+          <FlexibleCard
+            title="Filtros"
             backgroundColor={theme.colors.surface}
             elevation={1}
             padding={14}
             style={{ borderRadius: 12 }}
           >
-            <Text
-              style={{
-                fontSize: 20,
-                fontWeight: "800",
-                color: theme.colors.onSurface,
-              }}
-            >
-              Agenda — Horários
-            </Text>
+            {/* (removido o <Text> "Agenda — Horários") */}
 
             <View
               style={{
                 flexDirection: "row",
                 flexWrap: "wrap",
                 gap: 8,
-                marginTop: 10,
+                marginTop: 2,
                 alignItems: "center",
               }}
             >
@@ -588,15 +625,13 @@ export default function AgendaPage() {
               />
             </View>
 
+            {/* Botão criar slot (mantens comentado se quiseres) */}
             {/* <View style={{ marginTop: 12 }}>
-              <PrimaryButton
-                label="Novo horário"
-                onPress={() => setShowCreate(true)}
-              />
+              <PrimaryButton label="Novo horário" onPress={() => setShowCreate(true)} />
             </View> */}
           </FlexibleCard>
 
-          {/* Lista de slots */}
+          {/* ===== Lista de slots ===== */}
           <FlexibleCard
             backgroundColor={theme.colors.surface}
             elevation={1}
@@ -664,7 +699,6 @@ export default function AgendaPage() {
                           </Text>
                         )}
 
-                        {/* Ações: bloquear / desbloquear com icons */}
                         <View
                           style={{
                             flexDirection: "row",

@@ -98,6 +98,12 @@ export default function LibrarianHomeScreen() {
     []
   );
 
+  const libraryLabel =
+    (user as any)?.library?.name ||
+    (user as any)?.libraryName ||
+    (user as any)?.organization?.name ||
+    undefined;
+
   // KPIs
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
@@ -221,12 +227,79 @@ export default function LibrarianHomeScreen() {
                 <Text
                   variant="titleLarge"
                   style={{ fontWeight: "900", color: theme.colors.onSurface }}
+                  numberOfLines={1}
                 >
-                  Olá, {displayName.split(" ")[0]} 👋
+                  Olá, {displayName} 👋
                 </Text>
+
                 <Text style={{ opacity: 0.7, marginTop: 2 }}>
                   {todayStr.charAt(0).toUpperCase() + todayStr.slice(1)}
                 </Text>
+
+                {/* chips de contexto */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    marginTop: 6,
+                  }}
+                >
+                  {!!libraryLabel && (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        paddingVertical: 4,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        backgroundColor: theme.colors.secondaryContainer,
+                      }}
+                    >
+                      <Icon
+                        name="library"
+                        size={14}
+                        color={theme.colors.onSecondaryContainer}
+                      />
+                      <Text
+                        style={{
+                          color: theme.colors.onSecondaryContainer,
+                          fontWeight: "700",
+                        }}
+                        numberOfLines={1}
+                      >
+                        {libraryLabel}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                      paddingVertical: 4,
+                      paddingHorizontal: 10,
+                      borderRadius: 999,
+                      backgroundColor: theme.colors.secondaryContainer,
+                    }}
+                  >
+                    <Icon
+                      name="account-badge"
+                      size={14}
+                      color={theme.colors.onSecondaryContainer}
+                    />
+                    <Text
+                      style={{
+                        color: theme.colors.onSecondaryContainer,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Bibliotecário
+                    </Text>
+                  </View>
+                </View>
               </View>
 
               <IconButton
@@ -280,17 +353,6 @@ export default function LibrarianHomeScreen() {
                 <View style={{ flex: 1, minWidth: 140 }} />
               </View>
             </View>
-
-            <View style={{ marginTop: 12, flexDirection: "row", gap: 10 }}>
-              <PrimaryButton
-                label="Abrir Consultas"
-                onPress={() => router.push("/librarian/Consultas")}
-              />
-              <SecondaryButton
-                label="Abrir Agenda"
-                onPress={() => router.push("/librarian/Agenda")}
-              />
-            </View>
           </FlexibleCard>
 
           {/* Resumo com KPIs live */}
@@ -320,12 +382,24 @@ export default function LibrarianHomeScreen() {
                   borderColor: theme.colors.outlineVariant,
                 }}
               >
-                <Text style={{ opacity: 0.7 }}>Pedidos de consulta (hoje)</Text>
-                <Text style={{ fontWeight: "900", fontSize: 22 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <Icon
+                    name="calendar-clock"
+                    size={18}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={{ opacity: 0.7 }}>
+                    Pedidos de consulta (hoje)
+                  </Text>
+                </View>
+                <Text style={{ fontWeight: "900", fontSize: 22, marginTop: 6 }}>
                   {pendingToday === null || loading ? "—" : pendingToday}
                 </Text>
               </TouchableOpacity>
 
+              {/* Horários livres (hoje) */}
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={() => router.push("/librarian/slots")}
@@ -338,8 +412,17 @@ export default function LibrarianHomeScreen() {
                   borderColor: theme.colors.outlineVariant,
                 }}
               >
-                <Text style={{ opacity: 0.7 }}>Horários livres (hoje)</Text>
-                <Text style={{ fontWeight: "900", fontSize: 22 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
+                  <Icon
+                    name="timetable"
+                    size={18}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={{ opacity: 0.7 }}>Horários livres (hoje)</Text>
+                </View>
+                <Text style={{ fontWeight: "900", fontSize: 22, marginTop: 6 }}>
                   {openSlotsToday === null || loading ? "—" : openSlotsToday}
                 </Text>
               </TouchableOpacity>

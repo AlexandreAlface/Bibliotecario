@@ -23,16 +23,36 @@ import {
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
 /* ---------- helpers ---------- */
-function InfoRow({ label, value }: { label: string; value?: string | null }) {
+function InfoRow({
+  label,
+  value,
+  icon,
+}: {
+  label: string;
+  value?: string | null;
+  icon?: React.ComponentProps<typeof Icon>["name"];
+}) {
   const theme = useTheme();
   if (!value) return null;
   return (
-    <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 2 }}>
-      <Text style={{ fontWeight: "700", color: theme.colors.onSurface }}>
-        {label}:{" "}
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        marginTop: 4,
+      }}
+    >
+      {icon ? (
+        <Icon name={icon} size={16} color={theme.colors.onSurfaceVariant} />
+      ) : null}
+      <Text style={{ color: theme.colors.onSurfaceVariant }}>
+        <Text style={{ fontWeight: "700", color: theme.colors.onSurface }}>
+          {label}:{" "}
+        </Text>
+        {value}
       </Text>
-      {value}
-    </Text>
+    </View>
   );
 }
 const fmtDate = (d?: string | null) =>
@@ -103,12 +123,14 @@ function CollapsibleSection({
   title,
   right,
   count,
+  icon,
   children,
   defaultCollapsed = false,
 }: {
   title: string;
   right?: React.ReactNode; // conteúdo rico mostrado quando EXPANDIDO
   count?: number; // número de itens mostrado quando COLAPSADO
+  icon?: React.ComponentProps<typeof Icon>["name"];
   children: React.ReactNode;
   defaultCollapsed?: boolean;
 }) {
@@ -151,22 +173,31 @@ function CollapsibleSection({
         accessibilityRole="button"
         accessibilityLabel={`${collapsed ? "Expandir" : "Colapsar"} ${title}`}
       >
-        <Text
+        <View
           style={{
-            fontWeight: "800",
-            fontSize: 18,
-            color: theme.colors.onSurface,
-            flexShrink: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
             flex: 1,
+            minWidth: 0,
           }}
-          numberOfLines={1}
         >
-          {title}
-        </Text>
+          {icon ? (
+            <Icon name={icon} size={20} color={theme.colors.onSurface} />
+          ) : null}
+          <Text
+            style={{
+              fontWeight: "800",
+              fontSize: 18,
+              color: theme.colors.onSurface,
+              flexShrink: 1,
+            }}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+        </View>
 
-        {/* Header-right:
-            - quando colapsado → mostra count
-            - quando expandido → mostra 'right' rico (se existir) */}
         {showCollapsedCount ? (
           <View
             style={{
@@ -176,7 +207,9 @@ function CollapsibleSection({
               backgroundColor: theme.colors.secondaryContainer,
             }}
           >
-            <Text style={{ color: theme.colors.onSecondaryContainer, fontSize: 12 }}>
+            <Text
+              style={{ color: theme.colors.onSecondaryContainer, fontSize: 12 }}
+            >
               {count}
             </Text>
           </View>
@@ -234,7 +267,6 @@ export default function FamilyProfileScreen() {
   }, [load]);
 
   const goBackToFamilies = React.useCallback(() => {
-    // força SEMPRE a lista de famílias
     router.navigate("/librarian/Familias");
   }, [router]);
 
@@ -250,7 +282,7 @@ export default function FamilyProfileScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* Header: voltar + nome/email */}
+          {/* Header compacto: voltar + icon tile + identificação */}
           <FlexibleCard
             backgroundColor={theme.colors.surface}
             elevation={1}
@@ -258,14 +290,31 @@ export default function FamilyProfileScreen() {
             style={{ borderRadius: 12 }}
           >
             <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
             >
               <IconButton
                 icon="arrow-left"
                 onPress={goBackToFamilies}
                 accessibilityLabel="Voltar"
               />
-              <View style={{ flex: 1 }}>
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: theme.colors.primaryContainer,
+                }}
+              >
+                <Icon
+                  name="account-group-outline"
+                  size={22}
+                  color={theme.colors.onPrimaryContainer}
+                />
+              </View>
+
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Text
                   style={{
                     fontWeight: "900",
@@ -276,13 +325,38 @@ export default function FamilyProfileScreen() {
                 >
                   {data?.family?.fullName ?? "Família"}
                 </Text>
-                <Text style={{ opacity: 0.75 }} numberOfLines={1}>
-                  {data?.family?.email ?? "—"}
-                </Text>
+
+                {/* email como row com ícone */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    marginTop: 2,
+                  }}
+                >
+                  <Icon
+                    name="email-outline"
+                    size={16}
+                    color={theme.colors.onSurfaceVariant}
+                  />
+                  <Text style={{ opacity: 0.75 }} numberOfLines={1}>
+                    {data?.family?.email ?? "—"}
+                  </Text>
+                </View>
+
                 {!!data && (
                   <View style={{ marginTop: 6 }}>
-                    <InfoRow label="Telefone" value={data.family.phone ?? ""} />
-                    <InfoRow label="Morada" value={data.family.address ?? ""} />
+                    <InfoRow
+                      label="Telefone"
+                      value={data.family.phone ?? ""}
+                      icon="phone"
+                    />
+                    <InfoRow
+                      label="Morada"
+                      value={data.family.address ?? ""}
+                      icon="home-outline"
+                    />
                   </View>
                 )}
               </View>
@@ -315,6 +389,7 @@ export default function FamilyProfileScreen() {
               {/* Crianças */}
               <CollapsibleSection
                 title="Crianças"
+                icon="account-child-outline"
                 count={data.children.length}
                 right={
                   <View
@@ -345,7 +420,7 @@ export default function FamilyProfileScreen() {
                     style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
                   >
                     {data.children.map((c) => (
-                      <Chip key={c.id} compact>
+                      <Chip key={c.id} compact icon="account-child">
                         {c.name}
                       </Chip>
                     ))}
@@ -356,6 +431,7 @@ export default function FamilyProfileScreen() {
               {/* Conquistas */}
               <CollapsibleSection
                 title="Conquistas"
+                icon="trophy-outline"
                 count={data.badges.length}
                 right={
                   <View
@@ -406,11 +482,14 @@ export default function FamilyProfileScreen() {
               {/* Leituras (em curso + reservas) */}
               <CollapsibleSection
                 title="Leituras"
+                icon="book-open-variant"
                 count={data.readings.length + data.reservations.length}
                 right={
                   <View style={{ flexDirection: "row", gap: 6 }}>
-                    <Chip compact>{data.readings.length} a ler</Chip>
-                    <Chip compact mode="outlined">
+                    <Chip compact icon="book-open-variant">
+                      {data.readings.length} a ler
+                    </Chip>
+                    <Chip compact mode="outlined" icon="bookmark-outline">
                       {data.reservations.length} reservas
                     </Chip>
                   </View>
@@ -434,6 +513,7 @@ export default function FamilyProfileScreen() {
                           borderColor: theme.colors.outlineVariant,
                           borderRadius: 10,
                           padding: 10,
+                          alignItems: "center",
                         }}
                       >
                         <Image
@@ -449,9 +529,23 @@ export default function FamilyProfileScreen() {
                           <Text style={{ fontWeight: "700" }}>
                             {r.book.title}
                           </Text>
-                          <Text style={{ opacity: 0.7, marginTop: 2 }}>
-                            A ler desde {fmtDate(r.startedAt)}
-                          </Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                              marginTop: 2,
+                            }}
+                          >
+                            <Icon
+                              name="calendar-start"
+                              size={14}
+                              color={theme.colors.onSurfaceVariant}
+                            />
+                            <Text style={{ opacity: 0.7 }}>
+                              A ler desde {fmtDate(r.startedAt)}
+                            </Text>
+                          </View>
                         </View>
                       </View>
                     ))}
@@ -466,6 +560,7 @@ export default function FamilyProfileScreen() {
                           borderColor: theme.colors.outlineVariant,
                           borderRadius: 10,
                           padding: 10,
+                          alignItems: "center",
                         }}
                       >
                         <Image
@@ -481,9 +576,23 @@ export default function FamilyProfileScreen() {
                           <Text style={{ fontWeight: "700" }}>
                             {r.book.title}
                           </Text>
-                          <Text style={{ opacity: 0.7, marginTop: 2 }}>
-                            Reservado em {fmtDate(r.reservedAt)}
-                          </Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                              marginTop: 2,
+                            }}
+                          >
+                            <Icon
+                              name="bookmark-outline"
+                              size={14}
+                              color={theme.colors.onSurfaceVariant}
+                            />
+                            <Text style={{ opacity: 0.7 }}>
+                              Reservado em {fmtDate(r.reservedAt)}
+                            </Text>
+                          </View>
                         </View>
                       </View>
                     ))}
@@ -494,6 +603,7 @@ export default function FamilyProfileScreen() {
               {/* Avaliações */}
               <CollapsibleSection
                 title="Avaliações"
+                icon="star-outline"
                 count={data.ratings.length}
                 right={
                   <View
@@ -535,9 +645,24 @@ export default function FamilyProfileScreen() {
                         <Text style={{ fontWeight: "700" }}>
                           {r.book.title}
                         </Text>
-                        <Text style={{ marginTop: 2 }}>
-                          ⭐ {r.stars}/5 • {fmtDate(r.ratedAt)}
-                        </Text>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                            marginTop: 2,
+                          }}
+                        >
+                          <Icon
+                            name="star"
+                            size={14}
+                            color={theme.colors.onSurfaceVariant}
+                          />
+                          <Text>
+                            {" "}
+                            {r.stars}/5 • {fmtDate(r.ratedAt)}
+                          </Text>
+                        </View>
                         {!!r.comment && (
                           <Text style={{ marginTop: 4, opacity: 0.85 }}>
                             “{r.comment}”
@@ -552,6 +677,7 @@ export default function FamilyProfileScreen() {
               {/* Consultas (próximas + recentes) */}
               <CollapsibleSection
                 title="Consultas"
+                icon="calendar-clock"
                 count={
                   data.upcomingConsultations.length +
                   data.recentConsultations.length
@@ -568,9 +694,21 @@ export default function FamilyProfileScreen() {
                     {/* Próximas */}
                     {data.upcomingConsultations.length > 0 && (
                       <View>
-                        <Text style={{ fontWeight: "800", marginBottom: 6 }}>
-                          Próximas
-                        </Text>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                            marginBottom: 6,
+                          }}
+                        >
+                          <Icon
+                            name="calendar-arrow-right"
+                            size={16}
+                            color={theme.colors.onSurface}
+                          />
+                          <Text style={{ fontWeight: "800" }}>Próximas</Text>
+                        </View>
                         <View style={{ rowGap: 8 }}>
                           {data.upcomingConsultations.map((c) => {
                             const childName =
@@ -599,16 +737,44 @@ export default function FamilyProfileScreen() {
                                   </Text>
                                   <StatusPill status={(c as any)?.status} />
                                 </View>
-                                <Text style={{ marginTop: 2, opacity: 0.8 }}>
-                                  {fmtDate(c.startAt)}
-                                  {c.library?.name
-                                    ? ` • ${c.library?.name}`
-                                    : ""}
-                                </Text>
-                                {!!childName && (
-                                  <Text style={{ marginTop: 2, opacity: 0.8 }}>
-                                    Criança: {childName}
+                                <View
+                                  style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    marginTop: 2,
+                                  }}
+                                >
+                                  <Icon
+                                    name="calendar"
+                                    size={14}
+                                    color={theme.colors.onSurfaceVariant}
+                                  />
+                                  <Text style={{ opacity: 0.8 }}>
+                                    {fmtDate(c.startAt)}
+                                    {c.library?.name
+                                      ? ` • ${c.library?.name}`
+                                      : ""}
                                   </Text>
+                                </View>
+                                {!!childName && (
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      marginTop: 2,
+                                    }}
+                                  >
+                                    <Icon
+                                      name="account-child-outline"
+                                      size={14}
+                                      color={theme.colors.onSurfaceVariant}
+                                    />
+                                    <Text style={{ opacity: 0.8 }}>
+                                      Criança: {childName}
+                                    </Text>
+                                  </View>
                                 )}
                               </View>
                             );
@@ -617,7 +783,7 @@ export default function FamilyProfileScreen() {
                       </View>
                     )}
 
-                    {/* Recentes — apenas desta família, com criança + estado */}
+                    {/* Recentes — apenas desta família */}
                     {(() => {
                       const recent =
                         data.recentConsultations?.filter((c: any) =>
@@ -628,9 +794,21 @@ export default function FamilyProfileScreen() {
                       if (recent.length === 0) return null;
                       return (
                         <View>
-                          <Text style={{ fontWeight: "800", marginBottom: 6 }}>
-                            Recentes
-                          </Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                              marginBottom: 6,
+                            }}
+                          >
+                            <Icon
+                              name="history"
+                              size={16}
+                              color={theme.colors.onSurface}
+                            />
+                            <Text style={{ fontWeight: "800" }}>Recentes</Text>
+                          </View>
                           <View style={{ rowGap: 8 }}>
                             {recent.map((c: any) => {
                               const childName =
@@ -661,19 +839,45 @@ export default function FamilyProfileScreen() {
                                     <StatusPill status={status} />
                                   </View>
 
-                                  <Text style={{ marginTop: 2, opacity: 0.8 }}>
-                                    {fmtDate(c.startAt)}
-                                    {c.library?.name
-                                      ? ` • ${c.library?.name}`
-                                      : ""}
-                                  </Text>
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      marginTop: 2,
+                                    }}
+                                  >
+                                    <Icon
+                                      name="calendar"
+                                      size={14}
+                                      color={theme.colors.onSurfaceVariant}
+                                    />
+                                    <Text style={{ opacity: 0.8 }}>
+                                      {fmtDate(c.startAt)}
+                                      {c.library?.name
+                                        ? ` • ${c.library?.name}`
+                                        : ""}
+                                    </Text>
+                                  </View>
 
                                   {!!childName && (
-                                    <Text
-                                      style={{ marginTop: 2, opacity: 0.8 }}
+                                    <View
+                                      style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        marginTop: 2,
+                                      }}
                                     >
-                                      Criança: {childName}
-                                    </Text>
+                                      <Icon
+                                        name="account-child-outline"
+                                        size={14}
+                                        color={theme.colors.onSurfaceVariant}
+                                      />
+                                      <Text style={{ opacity: 0.8 }}>
+                                        Criança: {childName}
+                                      </Text>
+                                    </View>
                                   )}
                                 </View>
                               );
