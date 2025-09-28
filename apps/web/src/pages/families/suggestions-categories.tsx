@@ -23,9 +23,17 @@ import {
   Select,
   MenuItem,
   InputLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
 } from "@mui/material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
-import { StarRounded } from "@mui/icons-material";
+import InfoRounded from "@mui/icons-material/InfoRounded";
+import MenuBookRounded from "@mui/icons-material/MenuBookRounded";
+import SpeedRounded from "@mui/icons-material/SpeedRounded";
+import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
+import PersonOutlineRounded from "@mui/icons-material/PersonOutlineRounded";
+import CategoryRounded from "@mui/icons-material/CategoryRounded";
 import { useUserSession } from "../../contexts/UserSession";
 import {
   getSugestoesQuiz,
@@ -75,16 +83,130 @@ function toggle(list: string[], v: string) {
   return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
 }
 
+/* ------------ Modal de detalhes ------------ */
+function BookDetailsDialog({
+  open,
+  book,
+  onClose,
+  onReserve,
+  reserving,
+  reserved,
+  disabled,
+}: {
+  open: boolean;
+  book: BookLite | null;
+  onClose: () => void;
+  onReserve: (isbn: string) => void;
+  reserving?: boolean;
+  reserved?: boolean;
+  disabled?: boolean;
+}) {
+  if (!book) return null;
+
+  const cover = book.coverUrl || "/placeholder-book.jpg";
+  const authors =
+    (book as any)?.authors ||
+    (book as any)?.author ||
+    ((book as any)?.authorName ? [((book as any).authorName as string)] : []);
+  const categories =
+    (book as any)?.categories ||
+    (book as any)?.genres ||
+    (book as any)?.tags ||
+    [];
+  const hasSummary = !!(book.summary && String(book.summary).trim());
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle sx={{ fontWeight: 900, display: "flex", alignItems: "center", gap: 1 }}>
+        <MenuBookRounded fontSize="small" />
+        {book.title}
+      </DialogTitle>
+      <DialogContent dividers>
+        <Stack direction="row" spacing={2}>
+          <Box
+            component="img"
+            src={cover}
+            alt={book.title}
+            onError={(e: any) => {
+              if (!e.currentTarget.src.includes("placeholder-book.jpg"))
+                e.currentTarget.src = "/placeholder-book.jpg";
+            }}
+            sx={{
+              width: { xs: 160, sm: 200 },
+              height: { xs: 230, sm: 300 },
+              objectFit: "cover",
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              flexShrink: 0,
+            }}
+          />
+          <Stack spacing={1} sx={{ minWidth: 0, flex: 1 }}>
+            {typeof book.score === "number" && (
+              <Chip
+                size="small"
+                icon={<SpeedRounded fontSize="small" />}
+                label={`score ${book.score.toFixed(3)}`}
+                sx={{ width: "fit-content" }}
+              />
+            )}
+
+            {Array.isArray(authors) && authors.length > 0 && (
+              <Typography sx={{ opacity: 0.9, display: "flex", alignItems: "center", gap: 0.5 }}>
+                <PersonOutlineRounded fontSize="small" /> <b>Autor(es):</b>&nbsp;
+                {authors.join(", ")}
+              </Typography>
+            )}
+
+            {Array.isArray(categories) && categories.length > 0 && (
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center">
+                <CategoryRounded fontSize="small" />
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  {categories.slice(0, 8).map((c: any, i: number) => (
+                    <Chip key={i} size="small" label={String(c)} />
+                  ))}
+                </Stack>
+              </Stack>
+            )}
+          </Stack>
+        </Stack>
+
+        {hasSummary ? (
+          <Typography sx={{ mt: 2, whiteSpace: "pre-line" }}>{book.summary}</Typography>
+        ) : (
+          <Stack direction="row" alignItems="center" gap={1} sx={{ mt: 2, opacity: 0.85 }}>
+            <ArticleOutlined />
+            <Typography>Sem resumo disponível.</Typography>
+          </Stack>
+        )}
+
+        <Stack direction="row" gap={1.5} sx={{ mt: 2 }}>
+          <Button
+            variant="contained"
+            onClick={() => onReserve(book.isbn)}
+            disabled={!!reserving || !!reserved || !!disabled}
+          >
+            {reserved ? "Reservado" : reserving ? "A reservar..." : "Reservar"}
+          </Button>
+          <Button onClick={onClose}>Fechar</Button>
+        </Stack>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ------------ cartão ------------ */
 function SuggestionCard({
   book,
   onReserve,
+  onOpenDetails,
   reserving,
   reserved,
   disabled,
 }: {
   book: BookLite;
   onReserve: (isbn: string) => void;
+  onOpenDetails: (book: BookLite) => void;
   reserving?: boolean;
   reserved?: boolean;
   disabled?: boolean;
@@ -109,6 +231,11 @@ function SuggestionCard({
         component="img"
         src={cover}
         alt={book.title}
+        onClick={() => onOpenDetails(book)}
+        onKeyDown={(e: any) => e.key === "Enter" && onOpenDetails(book)}
+        tabIndex={0}
+        role="button"
+        aria-label={`Abrir detalhes de ${book.title}`}
         onError={(e: any) => {
           if (!e.currentTarget.src.includes("placeholder-book.jpg"))
             e.currentTarget.src = "/placeholder-book.jpg";
@@ -120,8 +247,10 @@ function SuggestionCard({
           borderRadius: 2,
           border: "1px solid",
           borderColor: "divider",
+          cursor: "pointer",
         }}
       />
+
       <Typography
         fontWeight={900}
         sx={{
@@ -137,7 +266,15 @@ function SuggestionCard({
         {book.title}
       </Typography>
 
-      {/* resumo/descrição (se houver) */}
+      {typeof book.score === "number" && (
+        <Chip
+          size="small"
+          icon={<SpeedRounded fontSize="small" />}
+          label={`score ${book.score.toFixed(3)}`}
+          sx={{ mt: 0.5, width: "fit-content" }}
+        />
+      )}
+
       {book.summary && (
         <Typography
           variant="body2"
@@ -156,29 +293,25 @@ function SuggestionCard({
         </Typography>
       )}
 
-      {typeof book.score === "number" && (
-        <Typography variant="caption" sx={{ opacity: 0.7, mt: 0.25 }}>
-          score {book.score.toFixed(3)}
-        </Typography>
-      )}
-      <Box sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 0.25 }}>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <StarRounded
-            key={i}
-            fontSize="small"
-            sx={{ opacity: i < 4 ? 1 : 0.35 }}
-          />
-        ))}
-      </Box>
-      <Button
-        size="small"
-        variant="contained"
-        sx={{ mt: 1, borderRadius: 2 }}
-        onClick={() => onReserve(book.isbn)}
-        disabled={isBusy}
-      >
-        {reserved ? "Reservado" : reserving ? "A reservar..." : "Reservar"}
-      </Button>
+      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+        <Button
+          size="small"
+          variant="contained"
+          sx={{ borderRadius: 2 }}
+          onClick={() => onReserve(book.isbn)}
+          disabled={isBusy}
+        >
+          {reserved ? "Reservado" : reserving ? "A reservar..." : "Reservar"}
+        </Button>
+        <Button
+          size="small"
+          variant="text"
+          startIcon={<InfoRounded />}
+          onClick={() => onOpenDetails(book)}
+        >
+          Ver mais
+        </Button>
+      </Stack>
     </Box>
   );
 }
@@ -224,6 +357,10 @@ export default function SuggestionsByCategoriesPage() {
   const [reservedByIsbn, setReservedByIsbn] = useState<Record<string, boolean>>(
     {}
   );
+
+  // modal de detalhes
+  const [openDetails, setOpenDetails] = useState(false);
+  const [selected, setSelected] = useState<BookLite | null>(null);
 
   const subtitle = useMemo(
     () => "Escolhe categorias para afinar as sugestões",
@@ -656,6 +793,10 @@ export default function SuggestionsByCategoriesPage() {
                   key={b.isbn}
                   book={b}
                   onReserve={onReserve}
+                  onOpenDetails={(bk) => {
+                    setSelected(bk);
+                    setOpenDetails(true);
+                  }}
                   reserving={!!busyByIsbn[b.isbn]}
                   reserved={!!reservedByIsbn[b.isbn]}
                   disabled={!childId}
@@ -691,7 +832,7 @@ export default function SuggestionsByCategoriesPage() {
               </FormControl>
 
               <Pagination
-                count={Math.max(1, Math.ceil(total / perPage))}
+                count={pageCount}
                 page={page}
                 onChange={(_, p) => setPage(p)}
                 color="primary"
@@ -707,6 +848,17 @@ export default function SuggestionsByCategoriesPage() {
           </Typography>
         )}
       </WhiteCard>
+
+      {/* Modal de detalhes */}
+      <BookDetailsDialog
+        open={openDetails}
+        book={selected}
+        onClose={() => setOpenDetails(false)}
+        onReserve={onReserve}
+        reserving={selected ? !!busyByIsbn[selected.isbn] : false}
+        reserved={selected ? !!reservedByIsbn[selected.isbn] : false}
+        disabled={!childId}
+      />
 
       <Snackbar
         open={!!toast}
