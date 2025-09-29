@@ -10,6 +10,8 @@ export type ConsultaLite = {
   librarianId?: number;
   librarianName?: string;
   childId?: number;
+  libraryId?: number;
+  libraryName?: string;
 };
 
 export type ConsultationFull = {
@@ -231,6 +233,7 @@ export async function createConsultationWithSlot(payload: {
   childId?: number;
   libraryId?: number;
   slotId: number;
+  notes?: string; // ⬅️ NOVO: descrição opcional
 }): Promise<ConsultaLite> {
   const url = `${API_BASE}/consultations`;
   const data = await fetchJson(url, {

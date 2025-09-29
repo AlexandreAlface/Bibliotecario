@@ -4,6 +4,7 @@ import {
   Avatar,
   Box,
   Button,
+  Chip,
   Container,
   Dialog,
   DialogActions,
@@ -11,6 +12,7 @@ import {
   DialogTitle,
   Divider,
   IconButton,
+  InputAdornment,
   Stack,
   TextField,
   Tooltip,
@@ -19,7 +21,16 @@ import {
 import { WhiteCard } from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
 // lucide icons
-import { RefreshCw, UserPlus, Trash2, Search } from "lucide-react";
+import {
+  RefreshCw,
+  UserPlus,
+  Trash2,
+  Search,
+  Mail,
+  Phone,
+  Building2,
+  Shield,
+} from "lucide-react";
 
 import {
   getMyLibrary,
@@ -161,40 +172,52 @@ export default function AdminLibrarians() {
     }
   }
 
+  const count = filtered.length;
+
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       {/* Cabeçalho */}
       <Stack
         direction="row"
         alignItems="center"
         justifyContent="space-between"
-        sx={{ mb: 2 }}
+        sx={{ mb: 2, gap: 1 }}
       >
-        <Box>
+        <Stack spacing={0.25}>
           <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
             Bibliotecários
           </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.8 }}>
-            {libLoading ? (
-              "A carregar biblioteca…"
-            ) : libErr ? (
-              libErr
-            ) : myLib ? (
-              <>
-                Biblioteca: <b>{myLib.name}</b>
-              </>
-            ) : (
-              "—"
+          <Stack direction="row" spacing={0.75} alignItems="center">
+            <Chip
+              size="small"
+              variant="outlined"
+              icon={<Building2 size={14} />}
+              label={
+                libLoading
+                  ? "A carregar biblioteca…"
+                  : libErr
+                  ? libErr
+                  : myLib
+                  ? myLib.name
+                  : "—"
+              }
+            />
+            {!!count && (
+              <Chip
+                size="small"
+                label={`${count} ${count === 1 ? "registo" : "registos"}`}
+              />
             )}
-          </Typography>
-        </Box>
+          </Stack>
+        </Stack>
 
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
           <Tooltip title="Atualizar">
             <span>
               <IconButton
                 onClick={() => void reload()}
                 disabled={loading || !myLib?.id}
+                aria-label="Atualizar"
               >
                 <RefreshCw size={18} />
               </IconButton>
@@ -214,25 +237,28 @@ export default function AdminLibrarians() {
 
       {/* Barra de filtro */}
       <WhiteCard sx={{ mb: 2 }}>
-        <TextField
-          placeholder="Filtrar por nome ou email…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <Box component="span" sx={{ mr: 1, display: "inline-flex" }}>
-                <Search size={16} />
-              </Box>
-            ),
-          }}
-          sx={{ minWidth: 320 }}
-          disabled={!myLib?.id}
-        />
-        {err && (
-          <Typography color="error" sx={{ mt: 1 }}>
-            {err}
-          </Typography>
-        )}
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="center">
+          <TextField
+            placeholder="Filtrar por nome ou email…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            size="small"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search size={16} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ minWidth: 320, maxWidth: 520 }}
+            disabled={!myLib?.id}
+          />
+          {err && (
+            <Typography color="error" sx={{ ml: { sm: "auto" } }}>
+              {err}
+            </Typography>
+          )}
+        </Stack>
       </WhiteCard>
 
       {/* Lista */}
@@ -254,20 +280,67 @@ export default function AdminLibrarians() {
                 spacing={1.25}
                 alignItems="center"
               >
-                <Avatar>{initials(u.fullName)}</Avatar>
+                <Avatar sx={{ width: 40, height: 40 }}>
+                  {initials(u.fullName)}
+                </Avatar>
+
                 <Box flex={1} minWidth={0}>
-                  <Typography fontWeight={900} noWrap title={u.fullName}>
-                    {u.fullName}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                    {u.email}
-                  </Typography>
+                  <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                    <Typography fontWeight={900} noWrap title={u.fullName}>
+                      {u.fullName}
+                    </Typography>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      icon={<Shield size={14} />}
+                      label="Bibliotecário"
+                    />
+                  </Stack>
+
+                  <Stack
+                    direction="row"
+                    spacing={1.5}
+                    useFlexGap
+                    flexWrap="wrap"
+                    sx={{ mt: 0.25 }}
+                  >
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        opacity: 0.9,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                        minWidth: 220,
+                      }}
+                    >
+                      <Mail size={14} />{" "}
+                      <a href={`mailto:${u.email}`}>{u.email}</a>
+                    </Typography>
+                    {!!(u as any).phone && (
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          opacity: 0.9,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                          minWidth: 160,
+                        }}
+                      >
+                        <Phone size={14} />{" "}
+                        <a href={`tel:${(u as any).phone}`}>{(u as any).phone}</a>
+                      </Typography>
+                    )}
+                  </Stack>
                 </Box>
+
                 <Tooltip title="Remover da biblioteca">
                   <span>
                     <IconButton
                       onClick={() => void remove(u.id)}
                       disabled={loading}
+                      aria-label="Remover"
                     >
                       <Trash2 size={18} />
                     </IconButton>
@@ -295,6 +368,13 @@ export default function AdminLibrarians() {
               onChange={(e) => setFullName(e.target.value)}
               autoFocus
               required
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Shield size={16} />
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               label="Email"
@@ -302,11 +382,25 @@ export default function AdminLibrarians() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Mail size={16} />
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               label="Telefone (opcional)"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Phone size={16} />
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               label="Palavra-passe (opcional)"

@@ -1,3 +1,4 @@
+// apps/web/src/pages/agendas.tsx
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { flushSync } from "react-dom";
 import {
@@ -28,6 +29,7 @@ import {
   TextField,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
+
 import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import TodayRounded from "@mui/icons-material/TodayRounded";
@@ -35,6 +37,15 @@ import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import CancelRounded from "@mui/icons-material/CancelRounded";
+import EventNoteRounded from "@mui/icons-material/EventNoteRounded";
+import EventRepeatRounded from "@mui/icons-material/EventRepeatRounded";
+import InfoRounded from "@mui/icons-material/InfoRounded";
+import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
+import BlockRounded from "@mui/icons-material/BlockRounded";
+import EditCalendarRounded from "@mui/icons-material/EditCalendarRounded";
+import LaunchRounded from "@mui/icons-material/LaunchRounded";
+import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
+import PersonRounded from "@mui/icons-material/PersonRounded";
 
 import { useUserSession } from "../../contexts/UserSession";
 import {
@@ -50,14 +61,21 @@ import {
 } from "../../services/consultations";
 import type { SlotLite } from "../../services/consultations";
 
-const STATUS_CFG: Record<
-  string,
-  { label: string; color: "success" | "warning" | "error" | "default" }
-> = {
-  CONFIRMED: { label: "Confirmado", color: "success" },
-  PENDING: { label: "Pendente", color: "warning" },
-  DECLINED: { label: "Recusado", color: "error" },
-  CANCELLED: { label: "Cancelado", color: "default" },
+/* ---------- Status config com ícones ---------- */
+type StatusCfg = {
+  label: string;
+  color: "success" | "warning" | "error" | "default";
+  Icon?: React.ElementType;
+};
+const STATUS_CFG: Record<string, StatusCfg> = {
+  CONFIRMED: {
+    label: "Confirmado",
+    color: "success",
+    Icon: CheckCircleRounded,
+  },
+  PENDING: { label: "Pendente", color: "warning", Icon: ScheduleRounded },
+  DECLINED: { label: "Recusado", color: "error", Icon: CancelRounded },
+  CANCELLED: { label: "Cancelado", color: "default", Icon: BlockRounded },
 };
 
 function startOfDay(d: Date) {
@@ -68,7 +86,10 @@ function startOfDay(d: Date) {
 function fmtYMD(d?: string | Date | null) {
   if (!d) return "";
   const x = typeof d === "string" ? new Date(d) : d;
-  return x.toISOString().slice(0, 10);
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, "0");
+  const day = String(x.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 function parts(iso?: string) {
   if (!iso) return { day: "—", mon: "—", time: "" };
@@ -84,9 +105,11 @@ function parts(iso?: string) {
 function CardHeader({
   title,
   action,
+  icon,
 }: {
   title: string;
   action?: React.ReactNode;
+  icon?: React.ReactNode;
 }) {
   return (
     <Stack
@@ -95,7 +118,12 @@ function CardHeader({
       justifyContent="space-between"
       sx={{ mb: 1.25 }}
     >
-      <Typography variant="h6" fontWeight={900}>
+      <Typography
+        variant="h6"
+        fontWeight={900}
+        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+      >
+        {icon}
         {title}
       </Typography>
       {action}
@@ -107,10 +135,9 @@ function CardHeader({
 function ConsultaRow({ c, onClick }: { c: ConsultaLite; onClick: () => void }) {
   const iso = c.scheduledAt || c.date;
   const { day, mon, time } = parts(iso);
-  const cfg = STATUS_CFG[(c.status || "").toUpperCase()] || {
-    label: c.status || "",
-    color: "default",
-  };
+  const raw = (c.status || "").toUpperCase();
+  const cfg = STATUS_CFG[raw] || { label: c.status || "", color: "default" };
+  const Ico = (cfg as any).Icon as React.ElementType | undefined;
 
   return (
     <Box
@@ -189,6 +216,7 @@ function ConsultaRow({ c, onClick }: { c: ConsultaLite; onClick: () => void }) {
             {!!cfg.label && (
               <Chip
                 size="small"
+                icon={Ico ? <Ico fontSize="small" /> : undefined}
                 color={cfg.color}
                 label={cfg.label}
                 variant="outlined"
@@ -197,7 +225,10 @@ function ConsultaRow({ c, onClick }: { c: ConsultaLite; onClick: () => void }) {
           </Stack>
         </Box>
 
-        <RouteLink href="/consultas">Ver</RouteLink>
+        <RouteLink href="/consultas">
+          Ver{" "}
+          <LaunchRounded style={{ verticalAlign: "middle", marginLeft: 4 }} />
+        </RouteLink>
       </Stack>
     </Box>
   );
@@ -243,18 +274,9 @@ export default function AgendasPage() {
       librarianId: number,
       declineProposalId?: number
     ) => {
-      console.debug("[dialog] open request", {
-        consultationId,
-        librarianId,
-        declineProposalId,
-      });
       flushSync(() => {
         setDialogData({ consultationId, librarianId, declineProposalId });
         setDialogOpen(true);
-      });
-      console.debug("[dialog] opened ->", {
-        nextOpen: true,
-        nextLib: librarianId,
       });
     },
     []
@@ -452,7 +474,6 @@ export default function AgendasPage() {
     if (!cancelTarget) return;
     try {
       setBusyDetail("cancel");
-      console.debug("[cancel] POST /consultations/%s/cancel", cancelTarget.id);
       await cancelConsultation(cancelTarget.id, reason);
       await reloadConsultas();
       await reloadFamilyProposals();
@@ -467,19 +488,42 @@ export default function AgendasPage() {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       <Typography
         variant="h3"
         fontWeight={900}
-        sx={{ mb: 2, letterSpacing: 0.3 }}
+        sx={{
+          mb: 2,
+          letterSpacing: 0.3,
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+        }}
       >
+        <EventNoteRounded fontSize="large" />
         {titleLeft}
       </Typography>
 
-      {/* ---- Pedidos de reagendamento (família) ---- */}
+      {/* ---- Pedidos de reagendamento (família) ---- */
+      /* Barra extra com ícone e tooltips */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
-          <CardHeader title="Pedidos de reagendamento" />
+          <CardHeader
+            title="Pedidos de reagendamento"
+            icon={<EventRepeatRounded />}
+            action={
+              <Tooltip title="Atualizar pedidos">
+                <span>
+                  <IconButton
+                    onClick={() => void reloadFamilyProposals()}
+                    disabled={loadingProps}
+                  >
+                    <EventRepeatRounded />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            }
+          />
           {errProps && (
             <Typography color="error" sx={{ mb: 1 }}>
               {errProps}
@@ -570,6 +614,7 @@ export default function AgendasPage() {
                             }
                             openRescheduleDialog(cId, Number(libId), p.id);
                           }}
+                          startIcon={<EditCalendarRounded />}
                           disabled={busyProposal === p.id}
                         >
                           Propor outro horário
@@ -607,6 +652,7 @@ export default function AgendasPage() {
                             }
                             openRescheduleDialog(cId, Number(libId), p.id);
                           }}
+                          startIcon={<EditCalendarRounded />}
                           disabled={busyProposal === p.id}
                         >
                           Editar horário
@@ -687,7 +733,7 @@ export default function AgendasPage() {
       {/* -------- Topo: criança -------- */}
       {!asChild && !!user?.children?.length && (
         <WhiteCard sx={{ mb: 2 }}>
-          <CardHeader title="Escolher criança" />
+          <CardHeader title="Escolher criança" icon={<PeopleAltRounded />} />
           <AvatarSelect
             label="Filtrar por criança"
             options={selectOptions}
@@ -701,13 +747,14 @@ export default function AgendasPage() {
       {/* Modo CRIANÇA → apenas mostra quem está ativo (sem escolher) */}
       {asChild && user?.actingChild && (
         <WhiteCard sx={{ mb: 2 }}>
-          <CardHeader title="A atuar como" />
+          <CardHeader title="A atuar como" icon={<PersonRounded />} />
           <Stack direction="row" spacing={1.25} alignItems="center">
             <Avatar
               src={(user.actingChild as any).avatarUrl || undefined}
               sx={{ width: 36, height: 36 }}
             />
             <Typography fontWeight={900}>{user.actingChild.name}</Typography>
+            <Chip size="small" label="Modo criança" variant="outlined" />
           </Stack>
         </WhiteCard>
       )}
@@ -718,17 +765,30 @@ export default function AgendasPage() {
           <WhiteCard>
             <CardHeader
               title={month.title.charAt(0).toUpperCase() + month.title.slice(1)}
+              icon={<CalendarMonthRounded />}
               action={
                 <Stack direction="row" spacing={1}>
-                  <IconButton onClick={goPrev} aria-label="Mês anterior">
-                    <ChevronLeftRounded />
-                  </IconButton>
-                  <IconButton onClick={goNext} aria-label="Mês seguinte">
-                    <ChevronRightRounded />
-                  </IconButton>
-                  <IconButton onClick={goToday} aria-label="Hoje">
-                    <TodayRounded />
-                  </IconButton>
+                  <Tooltip title="Mês anterior">
+                    <span>
+                      <IconButton onClick={goPrev} aria-label="Mês anterior">
+                        <ChevronLeftRounded />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Mês seguinte">
+                    <span>
+                      <IconButton onClick={goNext} aria-label="Mês seguinte">
+                        <ChevronRightRounded />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Hoje">
+                    <span>
+                      <IconButton onClick={goToday} aria-label="Hoje">
+                        <TodayRounded />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                 </Stack>
               }
             />
@@ -833,6 +893,7 @@ export default function AgendasPage() {
                 day: "2-digit",
                 month: "2-digit",
               })}
+              icon={<TodayRounded />}
             />
             <Box
               sx={{
@@ -871,7 +932,7 @@ export default function AgendasPage() {
         {/* Coluna 3: Detalhe */}
         <Grid item xs={12} md={3}>
           <WhiteCard>
-            <CardHeader title="Detalhe" />
+            <CardHeader title="Detalhe" icon={<InfoRounded />} />
             {focused ? (
               <>
                 <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
@@ -904,19 +965,20 @@ export default function AgendasPage() {
                       minute: "2-digit",
                     })}
                   />
-                  {!!focused.status && (
-                    <Chip
-                      label={
-                        STATUS_CFG[(focused.status || "").toUpperCase()]
-                          ?.label || focused.status
-                      }
-                      color={
-                        STATUS_CFG[(focused.status || "").toUpperCase()]
-                          ?.color || "default"
-                      }
-                      variant="outlined"
-                    />
-                  )}
+                  {!!focused.status &&
+                    (() => {
+                      const raw = (focused.status || "").toUpperCase();
+                      const cfg = STATUS_CFG[raw];
+                      const Ico = cfg?.Icon;
+                      return (
+                        <Chip
+                          icon={Ico ? <Ico fontSize="small" /> : undefined}
+                          label={cfg?.label || focused.status}
+                          color={cfg?.color || "default"}
+                          variant="outlined"
+                        />
+                      );
+                    })()}
                 </Stack>
 
                 {!!(focused as any)?.librarianName && (
@@ -932,9 +994,8 @@ export default function AgendasPage() {
                     <Button
                       type="button"
                       variant="contained"
+                      startIcon={<EditCalendarRounded />}
                       onClick={async () => {
-                        console.log("CLICK reagendar", proposals.length);
-
                         const hasPending = proposals.some(
                           (p) =>
                             p.consultation?.id === focused!.id &&
@@ -968,7 +1029,6 @@ export default function AgendasPage() {
                           }
                         }
 
-                        console.log("libId (final)", libId);
                         if (!libId) {
                           alert(
                             "Não foi possível identificar o bibliotecário desta consulta."
@@ -987,6 +1047,7 @@ export default function AgendasPage() {
                       type="button"
                       variant="outlined"
                       color="error"
+                      startIcon={<CancelRounded />}
                       onClick={() => {
                         setCancelTarget(focused);
                         setCancelOpen(true);
@@ -999,7 +1060,11 @@ export default function AgendasPage() {
                 )}
 
                 <RouteLink href="/consultas">
-                  Abrir página de consultas
+                  Abrir página de consultas{" "}
+                  <LaunchRounded
+                    fontSize="small"
+                    style={{ verticalAlign: "middle" }}
+                  />
                 </RouteLink>
               </>
             ) : (
@@ -1018,7 +1083,7 @@ export default function AgendasPage() {
         whenISO={cancelTarget?.scheduledAt || cancelTarget?.date}
         busy={busyDetail === "cancel"}
         onClose={() => setCancelOpen(false)}
-        onConfirm={(reason?: string) => void handleConfirmCancel(reason)}
+        onConfirm={(reason?: string) => handleConfirmCancel(reason)}
       />
     </Container>
   );
@@ -1043,10 +1108,6 @@ function SlotPickerDialog({
   const [moreLoading, setMoreLoading] = useState(false);
   const [windowEnd, setWindowEnd] = useState<Date | null>(null);
   const [noMore, setNoMore] = useState(false);
-
-  useEffect(() => {
-    console.debug("[SlotPickerDialog] render open:", open, "lib:", librarianId);
-  }, [open, librarianId]);
 
   useEffect(() => {
     if (!open || !librarianId) return;
@@ -1307,6 +1368,7 @@ function ConfirmCancelDialog({
           color="error"
           variant="contained"
           disabled={!!busy}
+          startIcon={<CancelRounded />}
         >
           {busy ? "A cancelar…" : "Confirmar cancelamento"}
         </Button>

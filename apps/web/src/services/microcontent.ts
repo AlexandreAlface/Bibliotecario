@@ -13,6 +13,10 @@ export type MicroContentItem = {
   author?: { id: number; name: string } | null;
   createdAt?: string;
   updatedAt?: string;
+
+  // 👇 NOVO
+  seen?: boolean;
+  interactionsCount?: number;
 };
 
 export async function listMicroContentsPublic(params: {

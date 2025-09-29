@@ -1,3 +1,4 @@
+// apps/web/src/pages/reviews.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Container,
@@ -13,9 +14,23 @@ import {
   Snackbar,
   Alert,
   Divider,
+  Chip,
+  Tooltip,
+  Box,
+  Skeleton,
+  InputAdornment,
 } from "@mui/material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import StarRounded from "@mui/icons-material/StarRounded";
+import RateReviewRounded from "@mui/icons-material/RateReviewRounded";
+import TuneRounded from "@mui/icons-material/TuneRounded";
+import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import StarBorderRounded from "@mui/icons-material/StarBorderRounded";
+import SaveRounded from "@mui/icons-material/SaveRounded";
+import UpdateRounded from "@mui/icons-material/UpdateRounded";
+import ModeCommentRounded from "@mui/icons-material/ModeCommentRounded";
+import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import {
   WhiteCard,
   AvatarSelect,
@@ -35,6 +50,29 @@ type Row = {
   comment?: string | null;
   ratedAt?: string | null;
 };
+
+function SkeletonCard() {
+  return (
+    <Box
+      sx={{
+        width: 260,
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 1,
+        overflow: "hidden",
+      }}
+    >
+      <Skeleton variant="rectangular" width="100%" height={320} />
+      <Box sx={{ p: 1.5 }}>
+        <Skeleton width="70%" height={24} />
+        <Skeleton width="40%" height={16} sx={{ mt: 1 }} />
+        <Skeleton width="60%" height={28} sx={{ mt: 1 }} />
+        <Skeleton width="100%" height={48} sx={{ mt: 1 }} />
+        <Skeleton width="100%" height={36} sx={{ mt: 1 }} />
+      </Box>
+    </Box>
+  );
+}
 
 export default function ReviewsPage() {
   const { user, asChild } = useUserSession();
@@ -60,6 +98,7 @@ export default function ReviewsPage() {
 
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
   const [comment, setComment] = useState<Record<string, string>>({});
   const [stars, setStars] = useState<Record<string, number>>({});
   const [toast, setToast] = useState<{
@@ -107,25 +146,30 @@ export default function ReviewsPage() {
 
   async function load() {
     if (!childId) return; // não disparamos sem criança (família)
-    const data = await listPendingRatings({
-      childId,
-      familyId: familyIdForAuth, // header x-user-id
-      limit: 200,
-    });
+    setLoading(true);
+    try {
+      const data = await listPendingRatings({
+        childId,
+        familyId: familyIdForAuth, // header x-user-id
+        limit: 200,
+      });
 
-    const onlyFinished = (data as any[]).filter(
-      (r) => r.status === "finished"
-    ) as Row[];
+      const onlyFinished = (data as any[]).filter(
+        (r) => r.status === "finished"
+      ) as Row[];
 
-    const seedStars: Record<string, number> = {};
-    const seedComment: Record<string, string> = {};
-    for (const r of onlyFinished) {
-      if (typeof r.stars === "number") seedStars[r.isbn] = r.stars;
-      if (r.comment) seedComment[r.isbn] = r.comment;
+      const seedStars: Record<string, number> = {};
+      const seedComment: Record<string, string> = {};
+      for (const r of onlyFinished) {
+        if (typeof r.stars === "number") seedStars[r.isbn] = r.stars;
+        if (r.comment) seedComment[r.isbn] = r.comment;
+      }
+      setStars(seedStars);
+      setComment(seedComment);
+      setRows(onlyFinished);
+    } finally {
+      setLoading(false);
     }
-    setStars(seedStars);
-    setComment(seedComment);
-    setRows(onlyFinished);
   }
 
   useEffect(() => {
@@ -144,27 +188,33 @@ export default function ReviewsPage() {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <WhiteCard>
-          <Typography variant="h5" fontWeight={900} sx={{ mb: 1 }}>
-            Avaliar Leituras
-          </Typography>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+            <RateReviewRounded />
+            <Typography variant="h5" fontWeight={900}>
+              Avaliar Leituras
+            </Typography>
+          </Stack>
           <Typography sx={{ mt: 1.5, mb: 2, opacity: 0.8 }}>
             Escolhe o perfil da criança para veres as leituras terminadas e
             deixares a avaliação.
           </Typography>
-          <AvatarSelect
-            label="Escolher criança"
-            options={childOptions}
-            value={localChildId || undefined}
-            onChange={(id) => setLocalChildId(id ?? "")}
-            minWidth={280}
-          />
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <PeopleAltRounded />
+            <AvatarSelect
+              label="Escolher criança"
+              options={childOptions}
+              value={localChildId || undefined}
+              onChange={(id) => setLocalChildId(id ?? "")}
+              minWidth={280}
+            />
+          </Stack>
         </WhiteCard>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       {/* Contexto em modo família (filtro LOCAL; não muda active user) */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
@@ -175,7 +225,13 @@ export default function ReviewsPage() {
             useFlexGap
             flexWrap="wrap"
           >
-            <Typography fontWeight={900}>Filtrar por criança</Typography>
+            <Typography
+              fontWeight={900}
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+            >
+              <PeopleAltRounded fontSize="small" />
+              Filtrar por criança
+            </Typography>
             <AvatarSelect
               label="Escolher criança"
               options={childOptions}
@@ -194,12 +250,31 @@ export default function ReviewsPage() {
           alignItems="center"
           sx={{ mb: 1 }}
         >
-          <Typography variant="h4" fontWeight={900}>
+          <Typography
+            variant="h4"
+            fontWeight={900}
+            sx={{ display: "flex", alignItems: "center", gap: 1 }}
+          >
+            <RateReviewRounded />
             Avaliar Leituras
           </Typography>
-          <IconButton onClick={load} title="Atualizar" disabled={!childId}>
-            <RefreshRounded />
-          </IconButton>
+          <Tooltip title="Atualizar lista">
+            <span>
+              <IconButton onClick={load} aria-label="Atualizar" disabled={!childId || loading}>
+                <RefreshRounded />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
+
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={1}
+          sx={{ mb: 0.5, opacity: 0.9 }}
+        >
+          <TuneRounded fontSize="small" />
+          <Typography variant="body2">Filtros</Typography>
         </Stack>
 
         <FilterBar
@@ -212,18 +287,30 @@ export default function ReviewsPage() {
 
         <Divider sx={{ mb: 2 }} />
 
-        {pageItems.length === 0 ? (
+        {/* Loading skeletons */}
+        {loading && (
+          <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </Stack>
+        )}
+
+        {!loading && pageItems.length === 0 ? (
           <Typography sx={{ opacity: 0.75 }}>
             {childId
               ? "Sem resultados para os filtros aplicados."
               : "Escolhe uma criança para ver leituras terminadas."}
           </Typography>
-        ) : (
+        ) : null}
+
+        {!loading && pageItems.length > 0 && (
           <>
             <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
               {pageItems.map((r) => {
                 const currentStars = stars[r.isbn] ?? r.stars ?? 0;
                 const hasExisting = typeof r.stars === "number" && r.stars > 0;
+                const isBusy = busy === r.isbn;
 
                 return (
                   <Card key={r.isbn} sx={{ width: 260 }}>
@@ -245,28 +332,55 @@ export default function ReviewsPage() {
                         }
                       }}
                     />
-                    <CardContent>
+                    <CardContent sx={{ pb: 1 }}>
                       <Typography fontWeight={900} noWrap title={r.title}>
                         {r.title}
                       </Typography>
 
-                      {r.ratedAt && (
-                        <Typography
-                          variant="caption"
-                          sx={{ opacity: 0.65, display: "block", mb: 0.5 }}
-                        >
-                          Avaliado em{" "}
-                          {new Date(r.ratedAt).toLocaleDateString("pt-PT")}
-                        </Typography>
-                      )}
+                      <Stack
+                        direction="row"
+                        spacing={0.5}
+                        useFlexGap
+                        flexWrap="wrap"
+                        sx={{ mt: 0.5 }}
+                      >
+                        {hasExisting ? (
+                          <Chip
+                            size="small"
+                            color="success"
+                            icon={<CheckCircleRounded fontSize="small" />}
+                            label="Avaliado"
+                            variant="outlined"
+                          />
+                        ) : (
+                          <Chip
+                            size="small"
+                            icon={<StarBorderRounded fontSize="small" />}
+                            label="Por avaliar"
+                            variant="outlined"
+                          />
+                        )}
+                        {r.ratedAt && (
+                          <Chip
+                            size="small"
+                            icon={<CalendarMonthRounded fontSize="small" />}
+                            label={new Date(r.ratedAt).toLocaleDateString(
+                              "pt-PT"
+                            )}
+                          />
+                        )}
+                      </Stack>
 
                       <Rating
                         value={currentStars}
                         onChange={(_, v) =>
                           setStars((s) => ({ ...s, [r.isbn]: v || 0 }))
                         }
-                        sx={{ mt: 0.5 }}
+                        sx={{ mt: 1 }}
+                        getLabelText={(val) => `${val} estrelas`}
+                        aria-label={`Avaliar ${r.title}`}
                       />
+
                       <TextField
                         size="small"
                         placeholder="Comentário (opcional)"
@@ -280,13 +394,23 @@ export default function ReviewsPage() {
                         multiline
                         rows={2}
                         sx={{ mt: 1, width: "100%" }}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <ModeCommentRounded fontSize="small" />
+                            </InputAdornment>
+                          ),
+                        }}
                       />
                     </CardContent>
-                    <CardActions>
+                    <CardActions sx={{ p: 1.25, pt: 1 }}>
                       <Button
                         variant="contained"
                         fullWidth
-                        disabled={!!busy || !(stars[r.isbn] ?? r.stars ?? 0)}
+                        startIcon={
+                          hasExisting ? <UpdateRounded /> : <SaveRounded />
+                        }
+                        disabled={isBusy || !(stars[r.isbn] ?? r.stars ?? 0)}
                         onClick={async () => {
                           try {
                             setBusy(r.isbn);
@@ -321,7 +445,9 @@ export default function ReviewsPage() {
                           }
                         }}
                       >
-                        {hasExisting
+                        {isBusy
+                          ? "A guardar…"
+                          : hasExisting
                           ? "Atualizar avaliação"
                           : "Guardar avaliação"}
                       </Button>

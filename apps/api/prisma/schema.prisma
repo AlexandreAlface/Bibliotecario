@@ -34,7 +34,9 @@ enum ProposalActor {
   SYSTEM
 }
 
-/* 👇 NOVO: tipo de micro-conteúdo */
+/**
+ * 👇 NOVO: tipo de micro-conteúdo
+ */
 enum MicroContentType {
   BIBLIOTERAPIA
   DICA
@@ -75,7 +77,9 @@ model User {
   newsletterSubscriptions NewsletterSubscription[]
   microInteractions       MicroInteraction[]
 
-  /* 👇 opcional: autor de micro-conteúdos */
+  /**
+   * 👇 opcional: autor de micro-conteúdos
+   */
   microContents MicroContent[] @relation("MicroContentAuthor")
 }
 
@@ -104,7 +108,9 @@ model Library {
 
   libraryBooks LibraryBook[]
 
-  /* 👇 NOVO: conteúdos associados a esta biblioteca */
+  /**
+   * 👇 NOVO: conteúdos associados a esta biblioteca
+   */
   microContents MicroContent[]
 }
 
@@ -159,7 +165,9 @@ model Book {
 
   libraries LibraryBook[]
 
-  /* 👇 NOVO: ponte N:N com micro-conteúdos */
+  /**
+   * 👇 NOVO: ponte N:N com micro-conteúdos
+   */
   microContents MicroContentBook[]
 }
 
@@ -444,22 +452,30 @@ model NewsletterSubscription {
 
 model MicroContent {
   id          Int              @id @default(autoincrement())
-  /* 👇 NOVOS CAMPOS */
+  /**
+   * 👇 NOVOS CAMPOS
+   */
   type        MicroContentType @default(BIBLIOTERAPIA)
   text        String
   tags        String[]         @default([])
   isPublished Boolean          @default(true)
   publishedAt DateTime?        @default(now())
 
-  /* associação direta à biblioteca (opcional) */
-  library     Library? @relation(fields: [libraryId], references: [id])
-  libraryId   Int?
+  /**
+   * associação direta à biblioteca (opcional)
+   */
+  library   Library? @relation(fields: [libraryId], references: [id])
+  libraryId Int?
 
-  /* autor (opcional) */
-  author      User?    @relation("MicroContentAuthor", fields: [authorId], references: [id])
-  authorId    Int?
+  /**
+   * autor (opcional)
+   */
+  author   User? @relation("MicroContentAuthor", fields: [authorId], references: [id])
+  authorId Int?
 
-  /* N:N com livros por ISBN */
+  /**
+   * N:N com livros por ISBN
+   */
   books MicroContentBook[]
 
   interactions MicroInteraction[]
@@ -480,15 +496,18 @@ model MicroInteraction {
   microContentId Int
   interactedAt   DateTime     @default(now())
 
+  @@unique([userId, microContentId])
   @@index([userId, microContentId])
 }
 
-/* 👇 NOVO: tabela ponte N:N MicroContent ↔ Book (por ISBN) */
+/**
+ * 👇 NOVO: tabela ponte N:N MicroContent ↔ Book (por ISBN)
+ */
 model MicroContentBook {
   microContent   MicroContent @relation(fields: [microContentId], references: [id], onDelete: Cascade)
   microContentId Int
 
-  book   Book   @relation(fields: [bookIsbn], references: [isbn], onDelete: Cascade)
+  book     Book   @relation(fields: [bookIsbn], references: [isbn], onDelete: Cascade)
   bookIsbn String
 
   @@id([microContentId, bookIsbn])
@@ -499,8 +518,8 @@ model LibraryBook {
   library   Library @relation(fields: [libraryId], references: [id], onDelete: Cascade)
   libraryId Int
 
-  book      Book    @relation(fields: [bookIsbn], references: [isbn], onDelete: Cascade)
-  bookIsbn  String
+  book     Book   @relation(fields: [bookIsbn], references: [isbn], onDelete: Cascade)
+  bookIsbn String
 
   quantity    Int?
   shelfCode   String?

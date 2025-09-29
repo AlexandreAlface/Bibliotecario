@@ -1,5 +1,5 @@
 // apps/web/src/pages/admin/Slots.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type JSX } from "react";
 import {
   Autocomplete,
   Box,
@@ -19,9 +19,23 @@ import {
   ToggleButtonGroup,
   Tooltip,
   Typography,
+  InputAdornment,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
+import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
+import TodayRounded from "@mui/icons-material/TodayRounded";
+import TuneRounded from "@mui/icons-material/TuneRounded";
+import PersonOutline from "@mui/icons-material/PersonOutline";
+import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
+import BlockRounded from "@mui/icons-material/BlockRounded";
+import LockRounded from "@mui/icons-material/LockRounded";
+import LockOpenRounded from "@mui/icons-material/LockOpenRounded";
+import ReportGmailerrorredRounded from "@mui/icons-material/ReportGmailerrorredRounded";
+import LocalLibraryRounded from "@mui/icons-material/LocalLibraryRounded";
+
 import { Info } from "lucide-react";
 import { Paginator, WhiteCard } from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
@@ -70,6 +84,11 @@ const STATUS_COLOR: Record<
   OPEN: "success",
   BOOKED: "warning",
   BLOCKED: "error",
+};
+const STATUS_ICON: Record<SlotStatus, JSX.Element> = {
+  OPEN: <CheckCircleRounded />,
+  BOOKED: <EventAvailableRounded />,
+  BLOCKED: <BlockRounded />,
 };
 
 const PAGE_SIZE_OPTIONS = [8, 10, 12, 16, 20, 24, 32, 50] as const;
@@ -288,17 +307,29 @@ export default function AdminSlots() {
   }, [items, pageBlocks]);
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Cabeçalho + biblioteca (sem seletor) */}
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      {/* Cabeçalho + biblioteca */}
       <Stack
         direction="row"
         alignItems="center"
         justifyContent="space-between"
         sx={{ mb: 2 }}
       >
-        <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
-          Gestão de slots {library ? `— ${library.name}` : ""}
-        </Typography>
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <AccessTimeRounded />
+          <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
+            Gestão de slots
+          </Typography>
+          {library && (
+            <Chip
+              size="small"
+              icon={<LocalLibraryRounded />}
+              label={library.name}
+              variant="outlined"
+              sx={{ borderRadius: 2 }}
+            />
+          )}
+        </Stack>
         <Tooltip title="Atualizar">
           <span>
             <IconButton
@@ -321,33 +352,65 @@ export default function AdminSlots() {
       )}
 
       {/* ----- SLOTS ----- */}
-      <WhiteCard sx={{ mb: 3 }}>
-        <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
-          Slots de consultas
-        </Typography>
+      <WhiteCard sx={{ mb: 3, p: { xs: 2, md: 2.5 } }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+          <TodayRounded fontSize="small" />
+          <Typography variant="h6" fontWeight={900}>
+            Slots de consultas
+          </Typography>
+        </Stack>
 
         {/* Filtros */}
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          sx={{ mb: 1, opacity: 0.85 }}
+        >
+          <TuneRounded fontSize="small" />
+          <Typography variant="subtitle2" fontWeight={700}>
+            Filtros
+          </Typography>
+        </Stack>
+
         <Grid container spacing={1.5} sx={{ mb: 1 }}>
           <Grid item xs={12} md={4}>
             <Stack direction="row" spacing={1}>
               <TextField
+                size="small"
                 label="De"
                 type="date"
                 value={fromY}
                 onChange={(e) => setFromY(e.target.value)}
                 InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: 180 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <CalendarMonthRounded fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ minWidth: 200 }}
               />
               <TextField
+                size="small"
                 label="Até"
                 type="date"
                 value={toY}
                 onChange={(e) => setToY(e.target.value)}
                 InputLabelProps={{ shrink: true }}
-                sx={{ minWidth: 180 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <CalendarMonthRounded fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ minWidth: 200 }}
               />
             </Stack>
           </Grid>
+
           <Grid item xs={12} md={4}>
             <Autocomplete
               options={librarians}
@@ -356,10 +419,26 @@ export default function AdminSlots() {
               getOptionLabel={(o) => o?.fullName ?? ""}
               isOptionEqualToValue={(o, v) => o.id === v.id}
               renderInput={(params) => (
-                <TextField {...params} label="Bibliotecário (opcional)" />
+                <TextField
+                  {...params}
+                  size="small"
+                  label="Bibliotecário (opcional)"
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: (
+                      <>
+                        <InputAdornment position="start">
+                          <PersonOutline fontSize="small" />
+                        </InputAdornment>
+                        {params.InputProps.startAdornment}
+                      </>
+                    ),
+                  }}
+                />
               )}
             />
           </Grid>
+
           <Grid item xs={12} md={4}>
             <Stack
               direction={{ xs: "column", md: "row" }}
@@ -387,11 +466,15 @@ export default function AdminSlots() {
                 >
                   {(["OPEN", "BOOKED", "BLOCKED"] as SlotStatus[]).map((s) => (
                     <ToggleButton key={s} value={s}>
-                      {STATUS_LABEL[s]}
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        {STATUS_ICON[s]}
+                        <span>{STATUS_LABEL[s]}</span>
+                      </Stack>
                     </ToggleButton>
                   ))}
                 </ToggleButtonGroup>
               </Stack>
+
               <TextField
                 select
                 size="small"
@@ -418,10 +501,18 @@ export default function AdminSlots() {
 
         {/* Lista (paginada) */}
         {slotsErr && (
-          <Typography color="error" sx={{ mb: 1 }}>
-            {slotsErr}
-          </Typography>
+          <Stack
+            direction="row"
+            spacing={0.75}
+            alignItems="center"
+            sx={{ mb: 1 }}
+            color="error.main"
+          >
+            <ReportGmailerrorredRounded fontSize="small" />
+            <Typography color="error">{slotsErr}</Typography>
+          </Stack>
         )}
+
         {slotsLoading ? (
           <Typography sx={{ opacity: 0.7 }}>A carregar…</Typography>
         ) : !libraryId ? (
@@ -459,26 +550,45 @@ export default function AdminSlots() {
                     alignItems="center"
                   >
                     <Box flex={1} minWidth={0}>
-                      <Typography
-                        fontWeight={900}
-                        noWrap
-                        title={s.librarian?.fullName || ""}
-                      >
-                        {s.librarian?.fullName || "—"}
-                      </Typography>
                       <Stack
                         direction="row"
                         spacing={1}
-                        sx={{ mt: 0.5 }}
+                        alignItems="center"
+                        sx={{ mb: 0.25 }}
+                      >
+                        <Typography
+                          fontWeight={900}
+                          noWrap
+                          title={s.librarian?.fullName || ""}
+                        >
+                          {s.librarian?.fullName || "—"}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          icon={STATUS_ICON[s.status]}
+                          color={STATUS_COLOR[s.status]}
+                          variant="outlined"
+                          label={STATUS_LABEL[s.status]}
+                          sx={{ borderRadius: 2 }}
+                        />
+                      </Stack>
+
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{ mt: 0.25 }}
                         useFlexGap
                         flexWrap="wrap"
                       >
                         <Chip
                           size="small"
+                          icon={<CalendarMonthRounded />}
                           label={a.toLocaleDateString("pt-PT")}
+                          sx={{ borderRadius: 2 }}
                         />
                         <Chip
                           size="small"
+                          icon={<AccessTimeRounded />}
                           label={`${a.toLocaleTimeString("pt-PT", {
                             hour: "2-digit",
                             minute: "2-digit",
@@ -486,18 +596,15 @@ export default function AdminSlots() {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}`}
-                        />
-                        <Chip
-                          size="small"
-                          color={STATUS_COLOR[s.status]}
+                          sx={{ borderRadius: 2 }}
                           variant="outlined"
-                          label={STATUS_LABEL[s.status]}
                         />
                         {s.consultationId && (
                           <Chip
                             size="small"
                             color="warning"
                             label={`Consulta #${s.consultationId}`}
+                            sx={{ borderRadius: 2 }}
                           />
                         )}
                         {hitsGlobal && (
@@ -505,6 +612,7 @@ export default function AdminSlots() {
                             size="small"
                             color="error"
                             label="Bloqueio global"
+                            sx={{ borderRadius: 2 }}
                           />
                         )}
                       </Stack>
@@ -518,6 +626,7 @@ export default function AdminSlots() {
                             size="small"
                             variant="outlined"
                             color="error"
+                            startIcon={<LockRounded />}
                             disabled={!canBlock}
                             onClick={() =>
                               void setSlotStatus(
@@ -543,6 +652,7 @@ export default function AdminSlots() {
                             size="small"
                             variant="contained"
                             color="success"
+                            startIcon={<LockOpenRounded />}
                             disabled={!canUnblock}
                             onClick={() =>
                               void setSlotStatus(libraryId!, s.id, "OPEN").then(
@@ -593,8 +703,8 @@ export default function AdminSlots() {
                   O que é um bloqueio global?
                 </Typography>
                 <Typography variant="body2" sx={{ mt: 0.5 }}>
-                  Janela de <b>indisponibilidade da biblioteca</b>
-                  (feriados, eventos internos, manutenção). Aplica-se a{" "}
+                  Janela de <b>indisponibilidade da biblioteca</b> (feriados,
+                  eventos internos, manutenção). Aplica-se a{" "}
                   <b>todos os bibliotecários</b>.
                 </Typography>
               </Box>
@@ -615,18 +725,26 @@ export default function AdminSlots() {
           variant="contained"
           onClick={() => setOpen(true)}
           disabled={!libraryId}
+          startIcon={<BlockRounded />}
         >
           Novo bloqueio
         </Button>
       </Stack>
 
       {err && (
-        <Typography color="error" sx={{ mb: 1 }}>
-          {err}
-        </Typography>
+        <Stack
+          direction="row"
+          spacing={0.75}
+          alignItems="center"
+          sx={{ mb: 1 }}
+          color="error.main"
+        >
+          <ReportGmailerrorredRounded fontSize="small" />
+          <Typography color="error">{err}</Typography>
+        </Stack>
       )}
 
-      <WhiteCard>
+      <WhiteCard sx={{ p: { xs: 2, md: 2.5 } }}>
         {loading ? (
           <Typography sx={{ opacity: 0.7 }}>A carregar…</Typography>
         ) : items.length === 0 ? (
@@ -641,11 +759,15 @@ export default function AdminSlots() {
                   spacing={1.25}
                   alignItems="center"
                 >
-                  <Typography fontWeight={900}>
-                    {new Date(b.startAt).toLocaleString("pt-PT")} —{" "}
-                    {new Date(b.endAt).toLocaleString("pt-PT")}
-                  </Typography>
-                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                  <Chip
+                    size="small"
+                    icon={<CalendarMonthRounded />}
+                    label={`${new Date(b.startAt).toLocaleString(
+                      "pt-PT"
+                    )} — ${new Date(b.endAt).toLocaleString("pt-PT")}`}
+                    sx={{ borderRadius: 2 }}
+                  />
+                  <Typography variant="body2" sx={{ opacity: 0.85 }}>
                     {b.reason || "—"}
                   </Typography>
                   <Box sx={{ ml: "auto" }}>
@@ -653,6 +775,7 @@ export default function AdminSlots() {
                       color="error"
                       variant="outlined"
                       onClick={() => void del(b.id)}
+                      startIcon={<BlockRounded />}
                     >
                       Remover
                     </Button>
@@ -722,7 +845,11 @@ export default function AdminSlots() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={createBlock}>
+          <Button
+            variant="contained"
+            onClick={createBlock}
+            startIcon={<LockRounded />}
+          >
             Criar
           </Button>
         </DialogActions>

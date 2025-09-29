@@ -15,9 +15,10 @@ import {
   Stack,
   Typography,
   Skeleton,
-  Button,
   TextField,
   useTheme,
+  InputAdornment,
+  Tooltip,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
@@ -29,6 +30,10 @@ import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import CancelRounded from "@mui/icons-material/CancelRounded";
 import BlockRounded from "@mui/icons-material/BlockRounded";
 import LockOpenRounded from "@mui/icons-material/LockOpenRounded";
+import SearchRounded from "@mui/icons-material/SearchRounded";
+import PendingActionsRounded from "@mui/icons-material/PendingActionsRounded";
+import RefreshRounded from "@mui/icons-material/RefreshRounded";
+import FilterListRounded from "@mui/icons-material/FilterListRounded";
 
 import { useUserSession } from "../../contexts/UserSession";
 import {
@@ -51,7 +56,10 @@ function startOfDay(d: Date) {
 function fmtYMD(d?: string | Date | null) {
   if (!d) return "";
   const x = typeof d === "string" ? new Date(d) : d;
-  return x.toISOString().slice(0, 10);
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, "0");
+  const day = String(x.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 function parts(iso?: string) {
   if (!iso) return { day: "—", mon: "—", time: "" };
@@ -139,7 +147,7 @@ function Dot({ color, title }: { color: string; title?: string }) {
   );
 }
 
-/* ------- Cancel Dialog (custom, sem popups nativos) ------- */
+/* ------- Cancel Dialog (custom) ------- */
 function CancelDialog({
   open,
   onClose,
@@ -413,6 +421,45 @@ function DayItemRow({
   );
 }
 
+/* ---------- Toggle chip helper ---------- */
+/* ---------- Toggle chip helper ---------- */
+function ToggleChip({
+  active,
+  onToggle,
+  label,
+  color = "default",
+  icon,
+  tooltip,
+}: {
+  active: boolean;
+  onToggle: () => void;
+  label: string;
+  color?:
+    | "default"
+    | "primary"
+    | "secondary"
+    | "success"
+    | "warning"
+    | "info"
+    | "error";
+  icon?: React.ReactElement; // 👈 antes era React.ReactNode
+  tooltip?: string;
+}) {
+  const chip = (
+    <Chip
+      clickable
+      size="small"
+      variant={active ? "filled" : "outlined"}
+      color={color}
+      onClick={onToggle}
+      label={label}
+      icon={icon} // agora o tipo bate certo com o Chip
+    />
+  );
+  return tooltip ? <Tooltip title={tooltip}>{chip}</Tooltip> : chip;
+}
+
+
 /* =================== Página =================== */
 export default function LibrarianAgenda() {
   const theme = useTheme();
@@ -432,6 +479,14 @@ export default function LibrarianAgenda() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelId, setCancelId] = useState<number | null>(null);
   const [cancelBusy, setCancelBusy] = useState<boolean>(false);
+
+  // filtros
+  const [query, setQuery] = useState("");
+  const [showPending, setShowPending] = useState(true);
+  const [showConfirmed, setShowConfirmed] = useState(true);
+  const [showSlotsOpen, setShowSlotsOpen] = useState(true);
+  const [showSlotsBlocked, setShowSlotsBlocked] = useState(false);
+  const [showSlotsBooked, setShowSlotsBooked] = useState(false);
 
   const goPrev = () => {
     const d = new Date(monthRef);
@@ -519,7 +574,7 @@ export default function LibrarianAgenda() {
         status: s.status,
         librarianId: s.librarianId,
         libraryId: s.libraryId,
-        libraryName: s.libraryName,
+        libraryName: (s as any).libraryName,
       };
       map.set(key, [...(map.get(key) || []), it]);
     }
@@ -560,7 +615,6 @@ export default function LibrarianAgenda() {
   }, [monthRef]);
 
   const todayFirstWithItems = useMemo(() => {
-    // tenta hoje senão o primeiro com items
     const todayKey = fmtYMD(new Date());
     if ((dayItems.get(todayKey) || []).length > 0) return todayKey;
     for (const c of month.cells) {
@@ -570,7 +624,6 @@ export default function LibrarianAgenda() {
   }, [dayItems, month.cells, selectedDate]);
 
   useEffect(() => {
-    // se o dia selecionado não tiver items, salta para o primeiro com items
     if ((dayItems.get(selectedDate) || []).length === 0) {
       setSelectedDate(todayFirstWithItems);
     }
@@ -581,7 +634,7 @@ export default function LibrarianAgenda() {
     [dayItems, selectedDate]
   );
 
-  // cores dos pontos no calendário
+  // legend colors
   const dotColor = (it: DayItem, palette: any) => {
     if (it.kind === "CONSULTA") {
       const s = (it.status || "").toUpperCase();
@@ -597,6 +650,77 @@ export default function LibrarianAgenda() {
       return palette.divider;
     }
   };
+
+  // filtros aplicados à lista do dia
+  const filteredItemsForSelected = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const matchQuery = (it: DayItem) => {
+      if (!q) return true;
+      if (it.kind === "CONSULTA") {
+        return (
+          it.title?.toLowerCase().includes(q) ||
+          (it.librarianName || "").toLowerCase().includes(q)
+        );
+      }
+      // Slot
+      const a = new Date(it.startAt);
+      const b = new Date((it as any).endAt);
+      const tr = `${a.toLocaleTimeString("pt-PT", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })} — ${b.toLocaleTimeString("pt-PT", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+      return (
+        (it.libraryName || "").toLowerCase().includes(q) ||
+        tr.toLowerCase().includes(q)
+      );
+    };
+    return itemsForSelected.filter((it) => {
+      if (!matchQuery(it)) return false;
+
+      if (it.kind === "CONSULTA") {
+        const s = (it.status || "").toUpperCase();
+        if (s === "PENDING" && !showPending) return false;
+        if (s === "CONFIRMED" && !showConfirmed) return false;
+        if (!["PENDING", "CONFIRMED", "DECLINED", "CANCELLED"].includes(s))
+          return false;
+        return true;
+      }
+
+      // SLOT
+      if (it.status === "OPEN" && !showSlotsOpen) return false;
+      if (it.status === "BLOCKED" && !showSlotsBlocked) return false;
+      if (it.status === "BOOKED" && !showSlotsBooked) return false;
+      return true;
+    });
+  }, [
+    itemsForSelected,
+    query,
+    showPending,
+    showConfirmed,
+    showSlotsOpen,
+    showSlotsBlocked,
+    showSlotsBooked,
+  ]);
+
+  // contadores rápidos do dia
+  const counts = useMemo(() => {
+    const c = { pending: 0, confirmed: 0, open: 0, blocked: 0, booked: 0 };
+    for (const it of itemsForSelected) {
+      if (it.kind === "CONSULTA") {
+        const s = (it.status || "").toUpperCase();
+        if (s === "PENDING") c.pending++;
+        else if (s === "CONFIRMED") c.confirmed++;
+      } else {
+        if (it.status === "OPEN") c.open++;
+        else if (it.status === "BLOCKED") c.blocked++;
+        else if (it.status === "BOOKED") c.booked++;
+      }
+    }
+    return c;
+  }, [itemsForSelected]);
 
   // handlers de ações
   const handleConfirm = async (id: number) => {
@@ -665,14 +789,24 @@ export default function LibrarianAgenda() {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography
-        variant="h3"
-        fontWeight={900}
-        sx={{ mb: 2, letterSpacing: 0.3 }}
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ mb: 2 }}
       >
-        Agenda do bibliotecário
-      </Typography>
+        <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
+          Agenda do bibliotecário
+        </Typography>
+        <Tooltip title="Atualizar">
+          <span>
+            <IconButton onClick={reloadAll} disabled={loading}>
+              <RefreshRounded />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Stack>
 
       <Grid container spacing={2}>
         {/* Coluna 1: Calendário */}
@@ -702,20 +836,28 @@ export default function LibrarianAgenda() {
                 label="Consulta confirmada"
                 color="success"
                 variant="outlined"
+                icon={<CheckCircleRounded fontSize="small" />}
               />
               <Chip
                 size="small"
                 label="Consulta pendente"
                 color="warning"
                 variant="outlined"
+                icon={<PendingActionsRounded fontSize="small" />}
               />
               <Chip
                 size="small"
                 label="Slot aberto"
                 color="info"
                 variant="outlined"
+                icon={<LockOpenRounded fontSize="small" />}
               />
-              <Chip size="small" label="Slot bloqueado" variant="outlined" />
+              <Chip
+                size="small"
+                label="Slot bloqueado"
+                variant="outlined"
+                icon={<BlockRounded fontSize="small" />}
+              />
             </Stack>
 
             {/* grelha */}
@@ -818,6 +960,76 @@ export default function LibrarianAgenda() {
                 )
               }
             />
+
+            {/* Toolbar: pesquisa + filtros */}
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={1}
+              alignItems={{ xs: "stretch", md: "center" }}
+              justifyContent="space-between"
+              sx={{ mb: 1 }}
+              useFlexGap
+              flexWrap="wrap"
+            >
+              <TextField
+                placeholder="Procurar (título, biblioteca, hora)…"
+                size="small"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                sx={{ minWidth: 260 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRounded fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                <Chip
+                  size="small"
+                  label="Filtros"
+                  variant="outlined"
+                  icon={<FilterListRounded fontSize="small" />}
+                  sx={{ mr: 0.5 }}
+                />
+                <ToggleChip
+                  active={showPending}
+                  onToggle={() => setShowPending((v) => !v)}
+                  label={`Pendentes (${counts.pending})`}
+                  color="warning"
+                  icon={<PendingActionsRounded fontSize="small" />}
+                />
+                <ToggleChip
+                  active={showConfirmed}
+                  onToggle={() => setShowConfirmed((v) => !v)}
+                  label={`Confirmadas (${counts.confirmed})`}
+                  color="success"
+                  icon={<CheckCircleRounded fontSize="small" />}
+                />
+                <ToggleChip
+                  active={showSlotsOpen}
+                  onToggle={() => setShowSlotsOpen((v) => !v)}
+                  label={`Slots abertos (${counts.open})`}
+                  color="info"
+                  icon={<LockOpenRounded fontSize="small" />}
+                />
+                <ToggleChip
+                  active={showSlotsBlocked}
+                  onToggle={() => setShowSlotsBlocked((v) => !v)}
+                  label={`Bloqueados (${counts.blocked})`}
+                  icon={<BlockRounded fontSize="small" />}
+                />
+                <ToggleChip
+                  active={showSlotsBooked}
+                  onToggle={() => setShowSlotsBooked((v) => !v)}
+                  label={`Reservados (${counts.booked})`}
+                  color="secondary"
+                  icon={<CalendarMonthRounded fontSize="small" />}
+                />
+              </Stack>
+            </Stack>
+
             <Box
               sx={{
                 flex: 1,
@@ -835,12 +1047,12 @@ export default function LibrarianAgenda() {
                   <Skeleton height={86} />
                   <Skeleton height={86} />
                 </Stack>
-              ) : itemsForSelected.length ? (
+              ) : filteredItemsForSelected.length ? (
                 <Stack
                   spacing={1.25}
                   divider={<Divider sx={{ borderColor: "divider" }} />}
                 >
-                  {itemsForSelected.map((it) => (
+                  {filteredItemsForSelected.map((it) => (
                     <DayItemRow
                       key={`${it.kind}-${it.id}`}
                       item={it}
@@ -854,7 +1066,7 @@ export default function LibrarianAgenda() {
                 </Stack>
               ) : (
                 <Typography sx={{ opacity: 0.7 }}>
-                  Sem itens neste dia.
+                  Sem itens com os filtros atuais.
                 </Typography>
               )}
             </Box>

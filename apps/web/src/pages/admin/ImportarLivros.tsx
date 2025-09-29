@@ -166,7 +166,7 @@ export default function ImportarLivros() {
     : undefined;
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       <Stack
         direction="row"
         alignItems="center"

@@ -2,13 +2,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Box,
-  Button,
+  Chip,
   Container,
-  Divider,
   IconButton,
   Skeleton,
   Stack,
-  TextField,
   Tooltip,
   Typography,
   useTheme,
@@ -17,14 +15,16 @@ import Grid from "@mui/material/GridLegacy";
 import {
   ResponsiveContainer,
   CartesianGrid,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   Tooltip as RTooltip,
-  LineChart,
-  Line,
   Legend,
+  ComposedChart,
+  Bar,
+  Line,
+  AreaChart,
+  Area,
+  ReferenceLine,
 } from "recharts";
 import { alpha } from "@mui/material/styles";
 
@@ -36,10 +36,10 @@ import {
   Clock4,
   ShieldBan,
   RefreshCw,
-  ArrowRight,
+  Building2,
 } from "lucide-react";
 
-import { WhiteCard, RouteLink } from "@bibliotecario/ui-web";
+import { WhiteCard } from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
 import {
   listLibrarySlots,
@@ -70,30 +70,66 @@ function StatTile({
   value,
   icon,
   hint,
+  color = "default",
 }: {
   label: string;
   value: number | string;
   icon?: React.ReactNode;
   hint?: string;
+  color?:
+    | "primary"
+    | "secondary"
+    | "success"
+    | "warning"
+    | "error"
+    | "info"
+    | "default";
 }) {
+  const theme = useTheme();
+  const palette =
+    color === "default" ? theme.palette.grey : (theme.palette as any)[color];
+  const accent =
+    color === "default" ? theme.palette.text.secondary : palette.main;
+
   return (
     <Box
-      sx={(t) => ({
+      sx={{
         p: 2,
         borderRadius: 3,
-        border: "1px solid",
-        borderColor: "divider",
         bgcolor: "background.paper",
-        boxShadow: `0 1px 0 ${alpha(t.palette.common.black, 0.05)}`,
-      })}
+        border: "1px solid",
+        borderColor: theme.palette.divider,
+        boxShadow: theme.shadows[1],
+      }}
     >
       <Stack direction="row" alignItems="center" spacing={1.25}>
-        {!!icon && <Box sx={{ opacity: 0.9 }}>{icon}</Box>}
+        {!!icon && (
+          <Box
+            sx={{
+              display: "inline-flex",
+              p: 1,
+              borderRadius: 2,
+              bgcolor: alpha(accent, 0.12),
+              color: accent,
+              lineHeight: 0,
+            }}
+          >
+            {icon}
+          </Box>
+        )}
         <Box>
           <Typography variant="caption" sx={{ opacity: 0.7 }}>
             {label}
           </Typography>
-          <Typography variant="h5" fontWeight={900} lineHeight={1}>
+          <Typography
+            variant="h5"
+            fontWeight={900}
+            lineHeight={1}
+            sx={{
+              color:
+                color === "default" ? theme.palette.text.primary : palette.dark,
+            }}
+          >
             {typeof value === "number" ? nf.format(value) : value}
           </Typography>
           {hint && (
@@ -109,18 +145,28 @@ function StatTile({
 
 function ChartCard({
   title,
+  subtitle,
   children,
   height = 360,
 }: {
   title: string;
+  subtitle?: string;
   children: React.ReactNode;
   height?: number;
 }) {
   return (
     <WhiteCard sx={{ p: 2, height }}>
-      <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+      <Typography variant="h6" fontWeight={900} sx={{ mb: 0.5 }}>
         {title}
       </Typography>
+      {subtitle && (
+        <Typography
+          variant="caption"
+          sx={{ opacity: 0.7, display: "block", mb: 1 }}
+        >
+          {subtitle}
+        </Typography>
+      )}
       {children}
     </WhiteCard>
   );
@@ -260,48 +306,88 @@ export default function AdminHome() {
   }, [myLib?.id]);
 
   const weekly = metrics?.weeklyConsultations ?? [];
-  const util = metrics?.slotUtilization ?? [];
   const lastWeekCount = useMemo(
     () => (weekly.length ? weekly[weekly.length - 1]?.count ?? 0 : 0),
     [weekly]
   );
+  const util = metrics?.slotUtilization ?? [];
+
+  // ---- média móvel (4 semanas) — calculada **dentro** do componente ----
+  type WeeklyPoint = { week: string; count: number; ma4?: number };
+  const weeklyWithMA: WeeklyPoint[] = useMemo(() => {
+    const arr: WeeklyPoint[] = weekly.map((w: any) => ({
+      week: String(w?.week ?? ""),
+      count: Number(w?.count ?? 0),
+    }));
+    return arr.map((w, i) => {
+      const from = Math.max(0, i - 3);
+      const slice = arr.slice(from, i + 1);
+      const avg =
+        slice.reduce((acc, p) => acc + (p?.count ?? 0), 0) / slice.length;
+      return { ...w, ma4: Number(avg.toFixed(2)) };
+    });
+  }, [weekly]);
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       {/* Header */}
-      <Stack
-        direction="row"
-        alignItems="center"
-        justifyContent="space-between"
-        sx={{ mb: 2 }}
-      >
-        <Box>
-          <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
-            Admin — Biblioteca
-          </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.8 }}>
-            {libLoading ? (
-              "A carregar biblioteca…"
-            ) : libErr ? (
-              libErr
-            ) : myLib ? (
-              <>
-                Biblioteca: <b>{myLib.name}</b>
-              </>
-            ) : (
-              "—"
-            )}
-          </Typography>
-        </Box>
+      <WhiteCard sx={{ mb: 2, p: 2 }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          spacing={1}
+          flexWrap="wrap"
+        >
+          <Stack spacing={0.25}>
+            <Typography
+              variant="h4"
+              fontWeight={900}
+              sx={{ letterSpacing: 0.3 }}
+            >
+              Painel da biblioteca
+            </Typography>
+            <Stack
+              direction="row"
+              spacing={0.75}
+              alignItems="center"
+              flexWrap="wrap"
+            >
+              <Chip
+                size="small"
+                icon={<Building2 size={14} />}
+                label={
+                  libLoading
+                    ? "A carregar…"
+                    : libErr
+                    ? libErr
+                    : myLib
+                    ? myLib.name
+                    : "—"
+                }
+                sx={{ mr: 0.5 }}
+              />
+              {updatedAt && (
+                <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                  Atualizado às {updatedAt.toLocaleTimeString("pt-PT")}
+                </Typography>
+              )}
+            </Stack>
+          </Stack>
 
-        <Tooltip title="Atualizar">
-          <span>
-            <IconButton onClick={() => void reloadAll()} disabled={!myLib?.id}>
-              <RefreshCw size={18} />
-            </IconButton>
-          </span>
-        </Tooltip>
-      </Stack>
+          <Tooltip title="Atualizar">
+            <span>
+              <IconButton
+                onClick={() => void reloadAll()}
+                disabled={!myLib?.id}
+                aria-label="Atualizar"
+              >
+                <RefreshCw size={18} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
+      </WhiteCard>
 
       {err && (
         <Typography color="error" sx={{ mb: 1 }}>
@@ -311,7 +397,7 @@ export default function AdminHome() {
 
       {/* KPIs */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={2}>
           {loading ? (
             <Skeleton variant="rounded" height={80} />
           ) : (
@@ -319,10 +405,11 @@ export default function AdminHome() {
               label="Consultas (semana)"
               value={lastWeekCount}
               icon={<CalendarCheck2 size={22} />}
+              color="primary"
             />
           )}
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={2}>
           {loading ? (
             <Skeleton variant="rounded" height={80} />
           ) : (
@@ -330,10 +417,11 @@ export default function AdminHome() {
               label="Bibliotecários ativos"
               value={metrics?.activeLibrarians ?? 0}
               icon={<IdCard size={22} />}
+              color="info"
             />
           )}
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={2}>
           {loading ? (
             <Skeleton variant="rounded" height={80} />
           ) : (
@@ -341,11 +429,12 @@ export default function AdminHome() {
               label="Famílias atendidas"
               value={metrics?.familiesServed ?? 0}
               icon={<Users size={22} />}
+              color="secondary"
             />
           )}
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={2}>
           {loading ? (
             <Skeleton variant="rounded" height={80} />
           ) : (
@@ -353,10 +442,11 @@ export default function AdminHome() {
               label="Slots hoje (abertos)"
               value={slotsToday.open}
               icon={<Clock4 size={22} />}
+              color="success"
             />
           )}
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={2}>
           {loading ? (
             <Skeleton variant="rounded" height={80} />
           ) : (
@@ -364,10 +454,11 @@ export default function AdminHome() {
               label="Slots hoje (reservados)"
               value={slotsToday.booked}
               icon={<Clock4 size={22} />}
+              color="warning"
             />
           )}
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={2}>
           {loading ? (
             <Skeleton variant="rounded" height={80} />
           ) : (
@@ -375,17 +466,22 @@ export default function AdminHome() {
               label="Bloqueios ativos"
               value={blocksCount}
               icon={<ShieldBan size={22} />}
+              color="error"
             />
           )}
         </Grid>
       </Grid>
 
-      {/* Gráficos */}
+      {/* Gráficos (2) */}
       <Grid container spacing={2}>
+        {/* 1) Consultas por semana (barras + média móvel) */}
         <Grid item xs={12} md={7}>
-          <ChartCard title="Consultas por semana">
+          <ChartCard
+            title="Consultas por semana"
+            subtitle="Barras: total de consultas por semana. A linha mostra a média móvel das últimas 4 semanas."
+          >
             <ResponsiveContainer width="100%" height="85%">
-              <BarChart data={weekly}>
+              <ComposedChart data={weeklyWithMA}>
                 <defs>
                   <linearGradient id="barColor" x1="0" y1="0" x2="0" y2="1">
                     <stop
@@ -410,21 +506,49 @@ export default function AdminHome() {
                   }
                 />
                 <YAxis allowDecimals={false} />
+                <Legend />
                 <RTooltip content={<WeeklyTooltip />} />
                 <Bar
                   dataKey="count"
+                  name="Consultas"
                   fill="url(#barColor)"
                   radius={[6, 6, 0, 0]}
                 />
-              </BarChart>
+                <Line
+                  type="monotone"
+                  dataKey="ma4"
+                  name="Média móvel (4s)"
+                  stroke={theme.palette.secondary.main}
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </ChartCard>
         </Grid>
 
+        {/* 2) Utilização de slots (%) (área + linhas de referência) */}
         <Grid item xs={12} md={5}>
-          <ChartCard title="Utilização de slots (%)">
+          <ChartCard
+            title="Utilização de slots (%)"
+            subtitle="Percentagem diária de utilização dos slots. Linhas de referência: 50% (razoável) e 70% (boa utilização)."
+            height={360}
+          >
             <ResponsiveContainer width="100%" height="85%">
-              <LineChart data={metrics?.slotUtilization ?? []}>
+              <AreaChart data={util}>
+                <defs>
+                  <linearGradient id="utilGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="0%"
+                      stopColor={theme.palette.secondary.main}
+                      stopOpacity={0.35}
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor={alpha(theme.palette.secondary.main, 0.06)}
+                    />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
@@ -438,73 +562,41 @@ export default function AdminHome() {
                 <YAxis domain={[0, 100]} />
                 <Legend />
                 <RTooltip content={<UtilTooltip />} />
-                <Line
+                <ReferenceLine
+                  y={70}
+                  stroke={theme.palette.success.main}
+                  strokeDasharray="4 4"
+                  label={{
+                    value: "70% bom",
+                    position: "right",
+                    fill: theme.palette.success.main,
+                    fontSize: 12,
+                  }}
+                />
+                <ReferenceLine
+                  y={50}
+                  stroke={theme.palette.warning.main}
+                  strokeDasharray="4 4"
+                  label={{
+                    value: "50% ok",
+                    position: "right",
+                    fill: theme.palette.warning.main,
+                    fontSize: 12,
+                  }}
+                />
+                <Area
                   type="monotone"
                   dataKey="percent"
                   name="Utilização"
                   stroke={theme.palette.secondary.main}
                   strokeWidth={2}
-                  dot={false}
+                  fill="url(#utilGrad)"
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
           </ChartCard>
         </Grid>
       </Grid>
-
-      {/* Atalhos */}
-      <WhiteCard sx={{ mt: 2, p: 2 }}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1}
-          divider={<Divider orientation="vertical" flexItem />}
-          alignItems="center"
-          justifyContent="space-between"
-        >
-          <Typography variant="h6" fontWeight={900}>
-            Atalhos
-          </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            <Button
-              variant="outlined"
-              component={RouteLink as any}
-              href="/admin/slots"
-              endIcon={<ArrowRight size={16} />}
-            >
-              Gestão de slots
-            </Button>
-            <Button
-              variant="outlined"
-              component={RouteLink as any}
-              href="/admin/familias"
-              endIcon={<ArrowRight size={16} />}
-            >
-              Famílias
-            </Button>
-            <Button
-              variant="outlined"
-              component={RouteLink as any}
-              href="/admin/eventos"
-              endIcon={<ArrowRight size={16} />}
-            >
-              Eventos culturais
-            </Button>
-            <Button
-              variant="outlined"
-              component={RouteLink as any}
-              href="/admin/consultas/pendentes"
-              endIcon={<ArrowRight size={16} />}
-            >
-              Backlog de consultas
-            </Button>
-          </Stack>
-          <Typography variant="caption" sx={{ opacity: 0.6 }}>
-            {updatedAt
-              ? `Atualizado ${updatedAt.toLocaleTimeString("pt-PT")}`
-              : "—"}
-          </Typography>
-        </Stack>
-      </WhiteCard>
     </Container>
   );
 }

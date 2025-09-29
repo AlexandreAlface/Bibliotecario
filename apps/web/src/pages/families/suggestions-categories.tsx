@@ -34,6 +34,28 @@ import SpeedRounded from "@mui/icons-material/SpeedRounded";
 import ArticleOutlined from "@mui/icons-material/ArticleOutlined";
 import PersonOutlineRounded from "@mui/icons-material/PersonOutlineRounded";
 import CategoryRounded from "@mui/icons-material/CategoryRounded";
+import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
+import BookmarkAddRounded from "@mui/icons-material/BookmarkAddRounded";
+import BookmarkAddedRounded from "@mui/icons-material/BookmarkAddedRounded";
+import HourglassTopRounded from "@mui/icons-material/HourglassTopRounded";
+import SearchOffRounded from "@mui/icons-material/SearchOffRounded";
+import NightlightRounded from "@mui/icons-material/NightlightRounded";
+import FreeBreakfastRounded from "@mui/icons-material/FreeBreakfastRounded";
+import DirectionsCarRounded from "@mui/icons-material/DirectionsCarRounded";
+import Diversity3Rounded from "@mui/icons-material/Diversity3Rounded";
+import ReplayRounded from "@mui/icons-material/ReplayRounded";
+import TuneRounded from "@mui/icons-material/TuneRounded";
+import SubjectRounded from "@mui/icons-material/SubjectRounded";
+import ImageRounded from "@mui/icons-material/ImageRounded";
+import PhotoLibraryRounded from "@mui/icons-material/PhotoLibraryRounded";
+import CollectionsBookmarkRounded from "@mui/icons-material/CollectionsBookmarkRounded";
+import ChildCareRounded from "@mui/icons-material/ChildCareRounded";
+import QuizRounded from "@mui/icons-material/QuizRounded";
+import SchoolRounded from "@mui/icons-material/SchoolRounded";
+import SentimentSatisfiedRounded from "@mui/icons-material/SentimentSatisfiedRounded";
+import VolunteerActivismRounded from "@mui/icons-material/VolunteerActivismRounded";
+import TravelExploreRounded from "@mui/icons-material/TravelExploreRounded";
+
 import { useUserSession } from "../../contexts/UserSession";
 import {
   getSugestoesQuiz,
@@ -115,9 +137,19 @@ function BookDetailsDialog({
     [];
   const hasSummary = !!(book.summary && String(book.summary).trim());
 
+  const reserveIcon = reserved ? (
+    <BookmarkAddedRounded />
+  ) : reserving ? (
+    <HourglassTopRounded />
+  ) : (
+    <BookmarkAddRounded />
+  );
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ fontWeight: 900, display: "flex", alignItems: "center", gap: 1 }}>
+      <DialogTitle
+        sx={{ fontWeight: 900, display: "flex", alignItems: "center", gap: 1 }}
+      >
         <MenuBookRounded fontSize="small" />
         {book.title}
       </DialogTitle>
@@ -152,14 +184,28 @@ function BookDetailsDialog({
             )}
 
             {Array.isArray(authors) && authors.length > 0 && (
-              <Typography sx={{ opacity: 0.9, display: "flex", alignItems: "center", gap: 0.5 }}>
-                <PersonOutlineRounded fontSize="small" /> <b>Autor(es):</b>&nbsp;
+              <Typography
+                sx={{
+                  opacity: 0.9,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                }}
+              >
+                <PersonOutlineRounded fontSize="small" /> <b>Autor(es):</b>
+                &nbsp;
                 {authors.join(", ")}
               </Typography>
             )}
 
             {Array.isArray(categories) && categories.length > 0 && (
-              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center">
+              <Stack
+                direction="row"
+                spacing={1}
+                useFlexGap
+                flexWrap="wrap"
+                alignItems="center"
+              >
                 <CategoryRounded fontSize="small" />
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                   {categories.slice(0, 8).map((c: any, i: number) => (
@@ -172,9 +218,20 @@ function BookDetailsDialog({
         </Stack>
 
         {hasSummary ? (
-          <Typography sx={{ mt: 2, whiteSpace: "pre-line" }}>{book.summary}</Typography>
+          <Typography sx={{ mt: 2, whiteSpace: "pre-line" }}>
+            <ArticleOutlined
+              fontSize="small"
+              style={{ verticalAlign: "middle", marginRight: 6 }}
+            />
+            {book.summary}
+          </Typography>
         ) : (
-          <Stack direction="row" alignItems="center" gap={1} sx={{ mt: 2, opacity: 0.85 }}>
+          <Stack
+            direction="row"
+            alignItems="center"
+            gap={1}
+            sx={{ mt: 2, opacity: 0.85 }}
+          >
             <ArticleOutlined />
             <Typography>Sem resumo disponível.</Typography>
           </Stack>
@@ -183,12 +240,15 @@ function BookDetailsDialog({
         <Stack direction="row" gap={1.5} sx={{ mt: 2 }}>
           <Button
             variant="contained"
+            startIcon={reserveIcon}
             onClick={() => onReserve(book.isbn)}
             disabled={!!reserving || !!reserved || !!disabled}
           >
             {reserved ? "Reservado" : reserving ? "A reservar..." : "Reservar"}
           </Button>
-          <Button onClick={onClose}>Fechar</Button>
+          <Button onClick={onClose} startIcon={<InfoRounded />}>
+            Fechar
+          </Button>
         </Stack>
       </DialogContent>
     </Dialog>
@@ -213,6 +273,14 @@ function SuggestionCard({
 }) {
   const cover = book.coverUrl || "/placeholder-book.jpg";
   const isBusy = !!reserving || !!reserved || !!disabled;
+
+  const reserveIcon = reserved ? (
+    <BookmarkAddedRounded />
+  ) : reserving ? (
+    <HourglassTopRounded />
+  ) : (
+    <BookmarkAddRounded />
+  );
 
   return (
     <Box
@@ -289,6 +357,10 @@ function SuggestionCard({
           }}
           title={book.summary}
         >
+          <ArticleOutlined
+            fontSize="inherit"
+            style={{ verticalAlign: "text-bottom", marginRight: 6 }}
+          />
           {book.summary}
         </Typography>
       )}
@@ -298,6 +370,7 @@ function SuggestionCard({
           size="small"
           variant="contained"
           sx={{ borderRadius: 2 }}
+          startIcon={reserveIcon}
           onClick={() => onReserve(book.isbn)}
           disabled={isBusy}
         >
@@ -518,25 +591,39 @@ export default function SuggestionsByCategoriesPage() {
   // ---- BLOQUEIO: escolher criança em modo família ----
   if (mustPickChild) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
         <WhiteCard>
-          <Typography variant="h5" fontWeight={900} sx={{ mb: 1 }}>
+          <Typography
+            variant="h5"
+            fontWeight={900}
+            sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
+          >
+            <MenuBookRounded />
             Sugestões de Leitura
           </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.75 }}>
-            {subtitle}
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 0.25 }}>
+          <Typography sx={{ opacity: 0.75 }}>
             <RouteLink href="/suggestions" weight={600}>
+              <QuizRounded fontSize="inherit" style={{ marginRight: 4 }} />
               Quiz
             </RouteLink>
             {" · "}
             <RouteLink href="/suggestions-categories" weight={600}>
+              <CategoryRounded fontSize="inherit" style={{ marginRight: 4 }} />
               Categorias
             </RouteLink>
           </Typography>
 
-          <Typography sx={{ mt: 1.5, mb: 2, opacity: 0.8 }}>
+          <Typography
+            sx={{
+              mt: 1.5,
+              mb: 2,
+              opacity: 0.8,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
+            <PersonOutlineRounded />
             Escolhe o perfil da criança para ver sugestões e reservar.
           </Typography>
 
@@ -555,7 +642,7 @@ export default function SuggestionsByCategoriesPage() {
   const pageCount = Math.max(1, Math.ceil(total / perPage));
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       {/* Barra de contexto em modo família (filtro LOCAL) */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
@@ -566,7 +653,13 @@ export default function SuggestionsByCategoriesPage() {
             useFlexGap
             flexWrap="wrap"
           >
-            <Typography fontWeight={900}>Filtrar por criança</Typography>
+            <Typography
+              fontWeight={900}
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+            >
+              <PersonOutlineRounded />
+              Filtrar por criança
+            </Typography>
             <AvatarSelect
               label="Escolher criança"
               options={childOptions}
@@ -587,25 +680,49 @@ export default function SuggestionsByCategoriesPage() {
           sx={{ mb: 1 }}
         >
           <Box>
-            <Typography variant="h4" fontWeight={900}>
+            <Typography
+              variant="h4"
+              fontWeight={900}
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+            >
+              <MenuBookRounded />
               Sugestões de Leitura
             </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.75 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                opacity: 0.75,
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+              }}
+            >
+              <InfoRounded fontSize="small" />
               {subtitle}
             </Typography>
             <Typography variant="body2" sx={{ mt: 0.25 }}>
               <RouteLink href="/suggestions" weight={600}>
+                <QuizRounded fontSize="inherit" style={{ marginRight: 4 }} />
                 Quiz
               </RouteLink>
               {" · "}
               <RouteLink href="/suggestions-categories" weight={600}>
+                <CategoryRounded fontSize="inherit" style={{ marginRight: 4 }} />
                 Categorias
               </RouteLink>
             </Typography>
             {!!updatedAt && (
-              <Typography variant="caption" sx={{ opacity: 0.6 }}>
-                Última atualização:{" "}
-                {new Date(updatedAt).toLocaleString("pt-PT")}
+              <Typography
+                variant="caption"
+                sx={{
+                  opacity: 0.6,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                }}
+              >
+                <AccessTimeRounded fontSize="inherit" />
+                Última atualização: {new Date(updatedAt).toLocaleString("pt-PT")}
               </Typography>
             )}
           </Box>
@@ -617,7 +734,11 @@ export default function SuggestionsByCategoriesPage() {
                 </IconButton>
               </span>
             </Tooltip>
-            <PrimaryButton onClick={applyFilters} disabled={loading}>
+            <PrimaryButton
+              startIcon={<TuneRounded />}
+              onClick={applyFilters}
+              disabled={loading}
+            >
               Ver resultados
             </PrimaryButton>
           </Stack>
@@ -629,7 +750,12 @@ export default function SuggestionsByCategoriesPage() {
         <Stack spacing={3} sx={{ mb: 2 }}>
           {/* Faixa etária */}
           <Box>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+            <Typography
+              variant="h6"
+              fontWeight={900}
+              sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
+            >
+              <ChildCareRounded />
               Faixa Etária
             </Typography>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
@@ -652,7 +778,12 @@ export default function SuggestionsByCategoriesPage() {
 
           {/* Géneros */}
           <Box>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+            <Typography
+              variant="h6"
+              fontWeight={900}
+              sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
+            >
+              <CategoryRounded />
               Géneros
             </Typography>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
@@ -680,19 +811,25 @@ export default function SuggestionsByCategoriesPage() {
 
           {/* Formato */}
           <Box>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+            <Typography
+              variant="h6"
+              fontWeight={900}
+              sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
+            >
+              <MenuBookRounded />
               Formato
             </Typography>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
               {[
-                { k: "ilustrado", label: "Ilustrações" },
-                { k: "curto", label: "Texto equilibrado" },
-                { k: "imagens", label: "Imagens" },
-                { k: "serie", label: "Série/Coleção" },
-              ].map(({ k, label }) => (
+                { k: "ilustrado", label: "Ilustrações", icon: <ImageRounded /> },
+                { k: "curto", label: "Texto equilibrado", icon: <SubjectRounded /> },
+                { k: "imagens", label: "Imagens", icon: <PhotoLibraryRounded /> },
+                { k: "serie", label: "Série/Coleção", icon: <CollectionsBookmarkRounded /> },
+              ].map(({ k, label, icon }) => (
                 <Chip
                   key={k}
                   label={label}
+                  icon={icon}
                   variant={filters.format.includes(k) ? "filled" : "outlined"}
                   color={filters.format.includes(k) ? "primary" : "default"}
                   onClick={() =>
@@ -705,18 +842,29 @@ export default function SuggestionsByCategoriesPage() {
 
           {/* Objetivos */}
           <Box>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+            <Typography
+              variant="h6"
+              fontWeight={900}
+              sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
+            >
+              <TravelExploreRounded />
               Objetivos
             </Typography>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-              {["divertir", "aprender", "emocionar", "explorar"].map((o) => (
+              {[
+                { k: "divertir", label: "Divertir", icon: <SentimentSatisfiedRounded /> },
+                { k: "aprender", label: "Aprender", icon: <SchoolRounded /> },
+                { k: "emocionar", label: "Emocionar", icon: <VolunteerActivismRounded /> },
+                { k: "explorar", label: "Explorar", icon: <TravelExploreRounded /> },
+              ].map(({ k, label, icon }) => (
                 <Chip
-                  key={o}
-                  label={o[0].toUpperCase() + o.slice(1)}
-                  variant={filters.goals.includes(o) ? "filled" : "outlined"}
-                  color={filters.goals.includes(o) ? "primary" : "default"}
+                  key={k}
+                  label={label}
+                  icon={icon}
+                  variant={filters.goals.includes(k) ? "filled" : "outlined"}
+                  color={filters.goals.includes(k) ? "primary" : "default"}
                   onClick={() =>
-                    setFilters((f) => ({ ...f, goals: toggle(f.goals, o) }))
+                    setFilters((f) => ({ ...f, goals: toggle(f.goals, k) }))
                   }
                 />
               ))}
@@ -725,19 +873,25 @@ export default function SuggestionsByCategoriesPage() {
 
           {/* Momento de leitura */}
           <Box>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+            <Typography
+              variant="h6"
+              fontWeight={900}
+              sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
+            >
+              <AccessTimeRounded />
               Momento de leitura
             </Typography>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
               {[
-                { k: "antes-de-dormir", label: "Antes de dormir" },
-                { k: "pequeno-almoco", label: "Pequeno-almoço" },
-                { k: "viagens", label: "Viagens" },
-                { k: "lazer-familiar", label: "Lazer familiar" },
-              ].map(({ k, label }) => (
+                { k: "antes-de-dormir", label: "Antes de dormir", icon: <NightlightRounded /> },
+                { k: "pequeno-almoco", label: "Pequeno-almoço", icon: <FreeBreakfastRounded /> },
+                { k: "viagens", label: "Viagens", icon: <DirectionsCarRounded /> },
+                { k: "lazer-familiar", label: "Lazer familiar", icon: <Diversity3Rounded /> },
+              ].map(({ k, label, icon }) => (
                 <Chip
                   key={k}
                   label={label}
+                  icon={icon}
                   variant={filters.moment === k ? "filled" : "outlined"}
                   color={filters.moment === k ? "primary" : "default"}
                   onClick={() =>
@@ -753,6 +907,7 @@ export default function SuggestionsByCategoriesPage() {
 
           <Stack direction="row" spacing={1}>
             <Button
+              startIcon={<ReplayRounded />}
               onClick={() => {
                 const reset: Filters = {
                   genres: [],
@@ -769,6 +924,7 @@ export default function SuggestionsByCategoriesPage() {
             </Button>
             <Button
               variant="contained"
+              startIcon={<TuneRounded />}
               onClick={applyFilters}
               disabled={loading}
               sx={{ borderRadius: 2 }}
@@ -782,7 +938,10 @@ export default function SuggestionsByCategoriesPage() {
 
         {/* Resultados */}
         {loading && (
-          <Typography sx={{ opacity: 0.7 }}>A preparar sugestões…</Typography>
+          <Typography sx={{ opacity: 0.7, display: "flex", alignItems: "center", gap: 0.5 }}>
+            <HourglassTopRounded />
+            A preparar sugestões…
+          </Typography>
         )}
 
         {!loading && items && items.length > 0 && (
@@ -825,6 +984,7 @@ export default function SuggestionsByCategoriesPage() {
                 >
                   {[6, 8, 12, 16, 20, 24, 32, 48].map((n) => (
                     <MenuItem key={n} value={n}>
+                      <MenuBookRounded fontSize="small" style={{ marginRight: 6 }} />
                       {n}
                     </MenuItem>
                   ))}
@@ -843,7 +1003,8 @@ export default function SuggestionsByCategoriesPage() {
         )}
 
         {!loading && items && items.length === 0 && (
-          <Typography sx={{ opacity: 0.7 }}>
+          <Typography sx={{ opacity: 0.7, display: "flex", alignItems: "center", gap: 0.5 }}>
+            <SearchOffRounded />
             Sem resultados. Ajusta os filtros e tenta novamente.
           </Typography>
         )}

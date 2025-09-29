@@ -34,6 +34,11 @@ import {
   ChevronUp,
   Search,
   RefreshCw,
+  Users,
+  UserRound,
+  SlidersHorizontal,
+  Building2,
+  ExternalLink,
 } from "lucide-react";
 
 import { WhiteCard, RouteLink } from "@bibliotecario/ui-web";
@@ -166,6 +171,64 @@ function calcAge(isoDate?: string | null) {
   return Math.max(0, age);
 }
 
+// 🔽 junta estas helpers perto das outras (a seguir a calcAge, por exemplo)
+
+function diffMonths(isoDate?: string | null) {
+  if (!isoDate) return null;
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  let months =
+    (now.getFullYear() - d.getFullYear()) * 12 +
+    (now.getMonth() - d.getMonth());
+  if (now.getDate() < d.getDate()) months -= 1;
+  return Math.max(0, months);
+}
+
+function ageLabelFromData(ageYears?: number | null, birthDate?: string | null) {
+  // prioridade: valor já calculado → anos; se 0 anos, usar meses por data
+  if (typeof ageYears === "number") {
+    if (ageYears > 0) return `${ageYears}a`;
+    if (ageYears === 0 && birthDate) {
+      const m = diffMonths(birthDate);
+      return m != null ? (m > 0 ? `${m}m` : "<1m") : "0a";
+    }
+  }
+  // fallback só com a data
+  if (birthDate) {
+    const y = calcAge(birthDate);
+    if (y === 0) {
+      const m = diffMonths(birthDate);
+      return m != null ? (m > 0 ? `${m}m` : "<1m") : "0a";
+    }
+    if (y != null) return `${y}a`;
+  }
+  return "—";
+}
+
+function mapGender(g?: string | null) {
+  if (!g) return "—";
+  const s = g.trim().toUpperCase();
+  const MAP: Record<string, string> = {
+    M: "Masculino",
+    MALE: "Masculino",
+    MASCULINO: "Masculino",
+    F: "Feminino",
+    FEMALE: "Feminino",
+    FEMININO: "Feminino",
+    NB: "Não-binário",
+    N: "Não-binário",
+    NONBINARY: "Não-binário",
+    NON_BINARY: "Não-binário",
+    O: "Outro",
+    OTHER: "Outro",
+    X: "Não especificado",
+    U: "Não especificado",
+    UNSPECIFIED: "Não especificado",
+  };
+  return MAP[s] ?? g; // se vier algo diferente, mostra como veio
+}
+
 export default function AdminFamilies() {
   const { user } = useUserSession() as any;
 
@@ -255,14 +318,13 @@ export default function AdminFamilies() {
         signal,
       });
 
-      // ignora se entretanto foi feito outro pedido
       if (seq !== reqSeq.current) return;
 
       const normalized = (res.items || []).map(normalizeFamily);
       setItems((prev) => (reset ? normalized : [...prev, ...normalized]));
       setCursor(res.nextCursor ?? null);
     } catch (e: any) {
-      if (e?.name === "AbortError") return; // cancelado: ignorar
+      if (e?.name === "AbortError") return;
       setErr(e?.message || "Falha a carregar.");
     } finally {
       setLoading(false);
@@ -277,7 +339,7 @@ export default function AdminFamilies() {
     const controller = new AbortController();
     const t = setTimeout(() => {
       void search(true, controller.signal);
-    }, 100);
+    }, 150);
 
     return () => {
       controller.abort();
@@ -298,17 +360,29 @@ export default function AdminFamilies() {
   const isOpen = (id: number) => openIds.has(id);
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Cabeçalho (sem seletor) */}
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      {/* Cabeçalho */}
       <Stack
         direction="row"
         alignItems="center"
         justifyContent="space-between"
-        sx={{ mb: 2 }}
+        sx={{ mb: 2, gap: 1 }}
       >
-        <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
-          Famílias {library ? `— ${library.name}` : ""}
-        </Typography>
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <Users size={22} />
+          <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
+            Famílias
+          </Typography>
+          {library && (
+            <Chip
+              size="small"
+              icon={<Building2 size={14} />}
+              label={library.name}
+              variant="outlined"
+              sx={{ borderRadius: 2 }}
+            />
+          )}
+        </Stack>
 
         <Stack direction="row" spacing={1} alignItems="center">
           <Tooltip title="Atualizar">
@@ -331,7 +405,14 @@ export default function AdminFamilies() {
       )}
 
       {/* Filtros */}
-      <WhiteCard sx={{ mb: 2 }}>
+      <WhiteCard sx={{ mb: 2, p: { xs: 2, md: 2.5 } }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+          <SlidersHorizontal size={16} />
+          <Typography variant="subtitle2" fontWeight={700}>
+            Filtros
+          </Typography>
+        </Stack>
+
         <Stack
           direction={{ xs: "column", md: "row" }}
           spacing={1.25}
@@ -341,6 +422,7 @@ export default function AdminFamilies() {
           {/* Pesquisas por família */}
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             <TextField
+              size="small"
               placeholder="Pesquisar por nome/email/telefone/morada…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
@@ -351,25 +433,35 @@ export default function AdminFamilies() {
                   </InputAdornment>
                 ),
               }}
-              sx={{ minWidth: 280 }}
+              sx={{ minWidth: 320 }}
             />
             <TextField
+              size="small"
               label="Filho (nome)"
               value={childQ}
               onChange={(e) => setChildQ(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <UserRound size={16} />
+                  </InputAdornment>
+                ),
+              }}
               sx={{ minWidth: 220 }}
             />
             <TextField
+              size="small"
               label="Género (filho)"
               value={gender}
               onChange={(e) => setGender(e.target.value)}
-              sx={{ minWidth: 200 }}
+              sx={{ minWidth: 180 }}
             />
           </Stack>
 
           {/* Idades + hasChildren + ações */}
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             <TextField
+              size="small"
               label="Idade mínima"
               type="number"
               inputProps={{ min: 0, max: 99 }}
@@ -378,6 +470,7 @@ export default function AdminFamilies() {
               sx={{ width: 140 }}
             />
             <TextField
+              size="small"
               label="Idade máxima"
               type="number"
               inputProps={{ min: 0, max: 99 }}
@@ -402,6 +495,7 @@ export default function AdminFamilies() {
               variant="text"
               onClick={() => clearFilters()}
               disabled={!filtersActive || loading}
+              sx={{ ml: 0.5 }}
             >
               Limpar
             </Button>
@@ -422,7 +516,37 @@ export default function AdminFamilies() {
       </WhiteCard>
 
       {/* Lista */}
-      <WhiteCard>
+      <WhiteCard sx={{ p: { xs: 2, md: 2.5 } }}>
+        {/* Resumo topo */}
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          sx={{ mb: 1 }}
+        >
+          <Typography variant="body2" sx={{ opacity: 0.75 }}>
+            {loading
+              ? "A carregar…"
+              : items.length === 0
+              ? "Sem resultados."
+              : `A mostrar ${items.length}${cursor ? "+" : ""} famílias`}
+          </Typography>
+          {filtersActive && (
+            <Chip
+              size="small"
+              variant="outlined"
+              icon={<SlidersHorizontal size={14} />}
+              label="Filtros ativos"
+            />
+          )}
+        </Stack>
+
+        {!!err && (
+          <Typography color="error" sx={{ mb: 1 }}>
+            {err}
+          </Typography>
+        )}
+
         {!libraryId ? (
           <Typography sx={{ opacity: 0.7 }}>
             {libErr ?? "Sem biblioteca associada."}
@@ -466,11 +590,17 @@ export default function AdminFamilies() {
                             fontWeight={900}
                             noWrap
                             title={f.fullName}
-                            sx={{ maxWidth: { xs: "100%", md: 380 } }}
+                            sx={{ maxWidth: { xs: "100%", md: 420 } }}
                           >
                             {f.fullName}
                           </Typography>
-                          <Chip size="small" label={`${totalKids} filhos`} />
+                          <Chip
+                            size="small"
+                            icon={<Users size={14} />}
+                            label={`${totalKids} filhos`}
+                            variant="outlined"
+                            sx={{ borderRadius: 2 }}
+                          />
                         </Stack>
 
                         {/* Contactos/Info rápidos */}
@@ -542,10 +672,17 @@ export default function AdminFamilies() {
                                   size="small"
                                   label={
                                     c.name
-                                      ? `${c.name} (${c.ageYears ?? "—"}a)`
-                                      : `#${c.id} (${c.ageYears ?? "—"}a)`
+                                      ? `${c.name} (${ageLabelFromData(
+                                          c.ageYears,
+                                          c.birthDate
+                                        )})`
+                                      : `#${c.id} (${ageLabelFromData(
+                                          c.ageYears,
+                                          c.birthDate
+                                        )})`
                                   }
                                   variant="outlined"
+                                  sx={{ borderRadius: 2 }}
                                 />
                               </Tooltip>
                             ))}
@@ -554,6 +691,7 @@ export default function AdminFamilies() {
                                 size="small"
                                 label={`+${kids.length - 6} filhos`}
                                 variant="outlined"
+                                sx={{ borderRadius: 2 }}
                               />
                             )}
                           </Stack>
@@ -575,6 +713,7 @@ export default function AdminFamilies() {
                           {open ? "Ocultar detalhes" : "Ver detalhes"}
                         </Button>
                         <RouteLink href={`/librarian/familias`}>
+                          <ExternalLink size={16} style={{ marginRight: 6 }} />
                           Abrir gestão
                         </RouteLink>
                       </Stack>
@@ -648,9 +787,14 @@ export default function AdminFamilies() {
                                           : "—"}
                                       </TableCell>
                                       <TableCell align="right">
-                                        {age ?? "—"}
+                                        {ageLabelFromData(
+                                          c.ageYears,
+                                          c.birthDate
+                                        )}
                                       </TableCell>
-                                      <TableCell>{c.gender || "—"}</TableCell>
+                                      <TableCell>
+                                        {mapGender(c.gender)}
+                                      </TableCell>
                                       <TableCell align="right">
                                         {c.readingsCount ?? 0}
                                       </TableCell>
@@ -672,13 +816,16 @@ export default function AdminFamilies() {
             </Stack>
 
             {!!cursor && !!libraryId && (
-              <Button
-                sx={{ mt: 1.25 }}
-                onClick={() => void search(false)}
-                disabled={loading}
-              >
-                Ver mais
-              </Button>
+              <Box sx={{ display: "flex", justifyContent: "center", mt: 1.25 }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<ChevronDown size={16} />}
+                  onClick={() => void search(false)}
+                  disabled={loading}
+                >
+                  Ver mais
+                </Button>
+              </Box>
             )}
           </>
         )}

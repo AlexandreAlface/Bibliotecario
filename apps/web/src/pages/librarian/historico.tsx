@@ -80,10 +80,9 @@ function HistoryRow({
     color: "default",
   };
 
-  const subtitle =
-    c.child?.name
-      ? `Consulta de ${c.child.name} • com ${c.librarian?.fullName ?? "—"}`
-      : `Consulta com ${c.librarian?.fullName ?? "—"}`;
+  const subtitle = c.child?.name
+    ? `Consulta de ${c.child.name} • com ${c.librarian?.fullName ?? "—"}`
+    : `Consulta com ${c.librarian?.fullName ?? "—"}`;
 
   return (
     <Box
@@ -208,11 +207,13 @@ export default function HistoricoConsultasPage() {
   const [err, setErr] = useState<string | null>(null);
 
   // opções para o filtro por criança (usado só para famílias)
-  const childBaseOptions: AvatarOption[] = (user?.children || []).map((c: { id: any; name: any; }) => ({
-    id: String(c.id),
-    nome: c.name ?? "",
-    avatar: (c as any).avatarUrl ?? undefined,
-  }));
+  const childBaseOptions: AvatarOption[] = (user?.children || []).map(
+    (c: { id: any; name: any }) => ({
+      id: String(c.id),
+      nome: c.name ?? "",
+      avatar: (c as any).avatarUrl ?? undefined,
+    })
+  );
   const selectOptions: AvatarOption[] = [
     { id: "", nome: "Todos os filhos", avatar: undefined },
     ...childBaseOptions,
@@ -314,7 +315,7 @@ export default function HistoricoConsultasPage() {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       <Typography
         variant="h3"
         fontWeight={900}
@@ -331,7 +332,12 @@ export default function HistoricoConsultasPage() {
           alignItems={{ xs: "stretch", md: "center" }}
           justifyContent="space-between"
         >
-          <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+          <Stack
+            direction="row"
+            spacing={1.5}
+            alignItems="center"
+            flexWrap="wrap"
+          >
             <TextField
               label="De"
               type="date"
@@ -385,7 +391,13 @@ export default function HistoricoConsultasPage() {
         </Stack>
 
         {/* Status */}
-        <Stack direction="row" spacing={1} sx={{ mt: 1 }} useFlexGap flexWrap="wrap">
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ mt: 1 }}
+          useFlexGap
+          flexWrap="wrap"
+        >
           {["COMPLETED", "CANCELLED", "DECLINED", "CONFIRMED", "PENDING"].map(
             (s) => {
               const active = statusSet.has(s);

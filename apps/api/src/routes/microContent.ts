@@ -271,6 +271,7 @@ r.get("/micro-contents", async (req, res) => {
   if (!q.success) return res.status(400).json({ error: "bad_query" });
 
   const { q: query, type, tag, libraryId, page = 1, limit = 12 } = q.data;
+
   const where: any = { isPublished: true };
   if (libraryId != null) where.libraryId = libraryId;
   if (type) where.type = type;
@@ -282,6 +283,27 @@ r.get("/micro-contents", async (req, res) => {
     ];
   }
 
+  const userId = (req.user as any)?.id as number | undefined;
+
+  const include: any = {
+    books: {
+      include: {
+        book: {
+          select: { isbn: true, title: true, coverUrl: true, summary: true },
+        },
+      },
+    },
+    library: { select: { id: true, name: true } },
+    _count: { select: { interactions: true } }, // 👈 total de interações
+  };
+  if (userId) {
+    // 👇 devolve apenas interações do utilizador corrente (para sabermos se já viu)
+    include.interactions = {
+      where: { userId },
+      select: { id: true },
+    };
+  }
+
   const [total, items] = await Promise.all([
     prisma.microContent.count({ where }),
     prisma.microContent.findMany({
@@ -289,21 +311,7 @@ r.get("/micro-contents", async (req, res) => {
       orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
       skip: (page - 1) * limit,
       take: limit,
-      include: {
-        books: {
-          include: {
-            book: {
-              select: {
-                isbn: true,
-                title: true,
-                coverUrl: true,
-                summary: true,
-              },
-            },
-          },
-        },
-        library: { select: { id: true, name: true } },
-      },
+      include,
     }),
   ]);
 
@@ -311,19 +319,22 @@ r.get("/micro-contents", async (req, res) => {
     total,
     page,
     limit,
-    items: items.map((mc) => ({
+    items: items.map((mc: any) => ({
       id: mc.id,
       text: mc.text,
       type: mc.type,
       tags: mc.tags,
       library: mc.library ? { id: mc.library.id, name: mc.library.name } : null,
       publishedAt: mc.publishedAt,
-      books: mc.books.map((b) => ({
+      books: mc.books.map((b: any) => ({
         isbn: b.bookIsbn,
         title: b.book?.title ?? "",
         coverUrl: b.book?.coverUrl ?? null,
         summary: b.book?.summary ?? null,
       })),
+      // 👇 NOVO
+      interactionsCount: mc._count?.interactions ?? 0,
+      seen: userId ? (Array.isArray(mc.interactions) && mc.interactions.length > 0) : false,
     })),
   });
 });
@@ -331,11 +342,17 @@ r.get("/micro-contents", async (req, res) => {
 // POST /micro-interactions  { microContentId: number }
 r.post("/micro-interactions", async (req, res) => {
   requireUser(req, res);
-  const id = Number(req.body?.microContentId);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "bad_body" });
+  const microContentId = Number(req.body?.microContentId);
+  const userId = (req.user as any).id as number;
+  if (!Number.isFinite(microContentId))
+    return res.status(400).json({ error: "bad_body" });
 
-  await prisma.microInteraction.create({
-    data: { microContentId: id, userId: (req.user as any).id },
+  await prisma.microInteraction.upsert({
+    where: {
+      userId_microContentId: { userId, microContentId },
+    },
+    update: {}, // nada a atualizar; só garantir existência
+    create: { userId, microContentId },
   });
 
   res.json({ ok: true });

@@ -13,6 +13,7 @@ const r = Router();
 
 /* ======================== Criação ======================== */
 // POST /api/consultations
+// POST /api/consultations (aceita notas/descrição)
 r.post("/", withUser, requireFamilyOrLibrarian, async (req, res) => {
   try {
     const {
@@ -23,6 +24,7 @@ r.post("/", withUser, requireFamilyOrLibrarian, async (req, res) => {
       mode,
       location,
       slotId,
+      notes, // ⬅️ NOVO
     } = req.body as {
       familyId: number | string;
       librarianId: number | string;
@@ -31,6 +33,7 @@ r.post("/", withUser, requireFamilyOrLibrarian, async (req, res) => {
       mode?: string;
       location?: string;
       slotId?: number | string;
+      notes?: string;
     };
 
     const _familyId = Number(familyId);
@@ -40,21 +43,17 @@ r.post("/", withUser, requireFamilyOrLibrarian, async (req, res) => {
     const _slotId = slotId != null ? Number(slotId) : undefined;
 
     if (!Number.isFinite(_familyId) || !Number.isFinite(_librarianId)) {
-      return res
-        .status(400)
-        .json({ error: "familyId e librarianId obrigatórios" });
+      return res.status(400).json({ error: "familyId e librarianId obrigatórios" });
     }
+
+    const safeNotes = typeof notes === "string" ? notes.slice(0, 500) : null; // guarda até 500 chars
 
     if (_slotId) {
       const result = await prisma.$transaction(async (tx) => {
-        const slot = await tx.consultationSlot.findUnique({
-          where: { id: _slotId },
-        });
+        const slot = await tx.consultationSlot.findUnique({ where: { id: _slotId } });
         if (!slot) throw new Error("slot inexistente");
-        if (slot.status !== $Enums.SlotStatus.OPEN)
-          throw new Error("slot indisponível");
-        if (slot.librarianId !== _librarianId)
-          throw new Error("slot pertence a outro bibliotecário");
+        if (slot.status !== $Enums.SlotStatus.OPEN) throw new Error("slot indisponível");
+        if (slot.librarianId !== _librarianId) throw new Error("slot pertence a outro bibliotecário");
 
         const c = await tx.consultation.create({
           data: {
@@ -69,14 +68,11 @@ r.post("/", withUser, requireFamilyOrLibrarian, async (req, res) => {
             status: $Enums.ConsultationStatus.PENDING,
             slot: { connect: { id: _slotId } },
             events: { create: [{ type: "REQUESTED" }] },
+            notes: safeNotes,
           },
         });
 
-        await tx.consultationSlot.update({
-          where: { id: _slotId },
-          data: { status: $Enums.SlotStatus.BOOKED },
-        });
-
+        await tx.consultationSlot.update({ where: { id: _slotId }, data: { status: $Enums.SlotStatus.BOOKED } });
         return c;
       });
 
@@ -94,15 +90,14 @@ r.post("/", withUser, requireFamilyOrLibrarian, async (req, res) => {
         location,
         status: $Enums.ConsultationStatus.PENDING,
         events: { create: [{ type: "REQUESTED" }] },
+        notes: safeNotes,
       },
     });
 
     return res.json(c);
   } catch (e: any) {
     console.error(e);
-    return res
-      .status(400)
-      .json({ error: e?.message ?? "failed to create consultation" });
+    return res.status(400).json({ error: e?.message ?? "failed to create consultation" });
   }
 });
 

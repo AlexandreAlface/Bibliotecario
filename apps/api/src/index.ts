@@ -88,7 +88,7 @@ app.use("/api/consultations", consultations); // /api/consultations/...
 app.use("/api/consultations", slots); // /api/consultations/slots, /api/consultations/librarians/:id/slots, etc.
 app.use("/api/consultations", proposals);
 app.use("/api", eventsRouter);
-app.use("/api", booksRouter);
+app.use("/api/books", booksRouter); 
 app.use("/api/badge-assignments", badgeAssignmentsRouter);
 app.use("/api", recommendationsRouter);
 app.use("/api", reservationsRouter);

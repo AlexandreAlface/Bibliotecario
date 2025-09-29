@@ -3,6 +3,7 @@ import { api } from "./https";
 
 export type BookLite = {
   id: number;
+  isbn?: string; // NEW
   title: string;
   coverUrl?: string | null;
   date?: string | null;
@@ -10,8 +11,8 @@ export type BookLite = {
   finishedAt?: string | null;
   childId?: number;
   childName?: string | null;
-  stars?: number | null; // ⬅️ novo
-  comment?: string | null; // ⬅️ novo
+  stars?: number | null;
+  comment?: string | null;
 };
 
 type GetOpts = { childId?: number; familyId?: number };
@@ -31,6 +32,7 @@ export async function getLeiturasAtuais(
   return arr.map(
     (r: any): BookLite => ({
       id: Number(r.id ?? 0),
+      isbn: r.isbn ?? undefined, // NEW (o /api/readings já devolve)
       title: r.title ?? "Livro",
       coverUrl: r.coverUrl ?? null,
       date: r.date ?? null,
@@ -81,7 +83,7 @@ export type PendingRating = {
   finishedAt?: string | null;
   stars: number | null; // do utilizador atual
   comment?: string | null;
-  ratedAt?: string | null; 
+  ratedAt?: string | null;
 };
 
 export async function listPendingRatings(ctx: {

@@ -10,10 +10,18 @@ import {
   Typography,
   Avatar,
   Tooltip,
+  LinearProgress,
 } from "@mui/material";
+
+import MilitaryTechRounded from "@mui/icons-material/MilitaryTechRounded";
 import EmojiEventsRounded from "@mui/icons-material/EmojiEventsRounded";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import LockOutlined from "@mui/icons-material/LockOutlined";
+import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
+import PersonRounded from "@mui/icons-material/PersonRounded";
+import InsightsRounded from "@mui/icons-material/InsightsRounded";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
 
 import { useUserSession } from "../../contexts/UserSession";
 import {
@@ -26,9 +34,11 @@ import {
 /* --- UI helpers --- */
 function SectionHeader({
   title,
+  icon,
   action,
 }: {
   title: string;
+  icon?: React.ReactNode;
   action?: React.ReactNode;
 }) {
   return (
@@ -38,7 +48,12 @@ function SectionHeader({
       justifyContent="space-between"
       sx={{ mb: 1.25 }}
     >
-      <Typography variant="h6" fontWeight={900}>
+      <Typography
+        variant="h6"
+        fontWeight={900}
+        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+      >
+        {icon}
         {title}
       </Typography>
       {action}
@@ -59,24 +74,36 @@ function BadgeCard({
   const isTrophy = String(badge.type).toUpperCase().includes("TROF");
   const Icon = isTrophy ? EmojiEventsRounded : VerifiedRounded;
 
+  const bg = isEarned ? "success.light" : "background.paper";
+  const border = isEarned ? "success.main" : "divider";
+
   return (
     <Box
       onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : -1}
       sx={{
         p: 1.25,
         borderRadius: 2,
         border: "1px solid",
-        borderColor: isEarned ? "success.light" : "divider",
-        bgcolor: isEarned ? "success.light" : "background.paper",
-        color: isEarned ? "success.contrastText" : "inherit",
-        cursor: "pointer",
+        borderColor: border,
+        bgcolor: bg,
+        cursor: onClick ? "pointer" : "default",
         "&:hover": { bgcolor: isEarned ? "success.main" : "action.hover" },
         transition: "background-color .15s ease",
       }}
       title={badge.criteria || ""}
     >
       <Stack direction="row" spacing={1.25} alignItems="center">
-        <Avatar sx={{ width: 32, height: 32 }}>
+        <Avatar
+          sx={{
+            width: 36,
+            height: 36,
+            bgcolor: isTrophy ? "warning.main" : "primary.main",
+            color: "primary.contrastText",
+            opacity: isEarned ? 1 : 0.65,
+          }}
+        >
           <Icon fontSize="small" />
         </Avatar>
 
@@ -85,26 +112,18 @@ function BadgeCard({
             {badge.name}
           </Typography>
 
-          {!isTrophy && !!badge.criteria && (
-            <Typography
-              variant="caption"
-              sx={{
-                opacity: 0.85,
-                display: "-webkit-box",
-                WebkitLineClamp: 1,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              }}
-            >
-              {badge.criteria}
-            </Typography>
-          )}
-
-          {isTrophy && !!badge.criteria && (
+          {!!badge.criteria && (
             <Tooltip arrow placement="top" title={badge.criteria}>
               <Typography
                 variant="caption"
-                sx={{ opacity: 0.65, textDecoration: "underline" }}
+                sx={{
+                  opacity: 0.8,
+                  display: "-webkit-box",
+                  WebkitLineClamp: 1,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                  textDecoration: "underline",
+                }}
               >
                 ver critério
               </Typography>
@@ -112,9 +131,13 @@ function BadgeCard({
           )}
         </Box>
 
-        {isEarned && (
+        {isEarned ? (
           <Tooltip title={new Date(earnedAt!).toLocaleString("pt-PT")}>
-            <CheckCircleRounded />
+            <CheckCircleRounded color="success" />
+          </Tooltip>
+        ) : (
+          <Tooltip title="Por conquistar">
+            <LockOutlined sx={{ opacity: 0.6 }} />
           </Tooltip>
         )}
       </Stack>
@@ -225,6 +248,16 @@ export default function AchievementsPage() {
   const countEarned = (arr: Badge[]) =>
     arr.filter((b) => earnedById.has(b.id)).length;
 
+  // progresso para resumo
+  const stampsEarned = countEarned(groups.stamps);
+  const trophiesEarned = countEarned(groups.trophies);
+  const stampsPct =
+    groups.stamps.length > 0 ? (stampsEarned / groups.stamps.length) * 100 : 0;
+  const trophiesPct =
+    groups.trophies.length > 0
+      ? (trophiesEarned / groups.trophies.length) * 100
+      : 0;
+
   // detalhe selecionado
   const focusedBadge = useMemo(
     () =>
@@ -238,19 +271,26 @@ export default function AchievementsPage() {
     : undefined;
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       <Typography
         variant="h3"
         fontWeight={900}
-        sx={{ mb: 2, letterSpacing: 0.3 }}
+        sx={{
+          mb: 2,
+          letterSpacing: 0.3,
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+        }}
       >
+        <MilitaryTechRounded fontSize="large" />
         Conquistas
       </Typography>
 
       {/* Seletor de criança — só em modo família (apenas filtra, não muda active user) */}
       {!asChild && !!user?.children?.length && (
         <WhiteCard sx={{ mb: 2 }}>
-          <SectionHeader title="Escolher criança" />
+          <SectionHeader title="Escolher criança" icon={<PeopleAltRounded />} />
           <AvatarSelect
             label="Filtrar por criança"
             options={childOptions}
@@ -264,50 +304,75 @@ export default function AchievementsPage() {
       {/* Em modo criança, mostra apenas info do perfil ativo */}
       {asChild && (
         <WhiteCard sx={{ mb: 2 }}>
-          <SectionHeader title="A atuar como" />
+          <SectionHeader title="A atuar como" icon={<PersonRounded />} />
           <Stack direction="row" spacing={1.25} alignItems="center">
             <Avatar sx={{ width: 32, height: 32 }}>
               {(user?.actingChild?.name || "?").charAt(0)}
             </Avatar>
             <Typography fontWeight={900}>{user?.actingChild?.name}</Typography>
-            <Chip size="small" label="Modo criança" />
+            <Chip size="small" label="Modo criança" variant="outlined" />
           </Stack>
         </WhiteCard>
       )}
 
       {/* Resumo */}
       <WhiteCard sx={{ mb: 2 }}>
-        <SectionHeader title="Resumo" />
-        <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
-          <Chip
-            icon={<VerifiedRounded />}
-            label={`Selos: ${countEarned(groups.stamps)} / ${
-              groups.stamps.length
-            }`}
-          />
-          <Chip
-            icon={<EmojiEventsRounded />}
-            label={`Troféus: ${countEarned(groups.trophies)} / ${
-              groups.trophies.length
-            }`}
-          />
-          {!Number.isFinite(activeChildId) && (
-            <Typography sx={{ opacity: 0.8 }}>
-              {asChild
-                ? "Sem criança ativa."
-                : "Escolhe uma criança para ver as conquistas."}
+        <SectionHeader title="Resumo" icon={<InsightsRounded />} />
+        <Stack spacing={1.25}>
+          <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
+            <Chip
+              icon={<VerifiedRounded />}
+              label={`Selos: ${stampsEarned} / ${groups.stamps.length}`}
+            />
+            <Chip
+              icon={<EmojiEventsRounded />}
+              label={`Troféus: ${trophiesEarned} / ${groups.trophies.length}`}
+            />
+            {!Number.isFinite(activeChildId) && (
+              <Typography sx={{ opacity: 0.8 }}>
+                {asChild
+                  ? "Sem criança ativa."
+                  : "Escolhe uma criança para ver as conquistas."}
+              </Typography>
+            )}
+            {loading && (
+              <Typography sx={{ opacity: 0.8 }}>A carregar…</Typography>
+            )}
+          </Stack>
+
+          {/* barras de progresso */}
+          <Stack spacing={1}>
+            <Typography
+              variant="caption"
+              sx={{ display: "flex", alignItems: "center", gap: 0.5, opacity: 0.8 }}
+            >
+              <VerifiedRounded fontSize="small" /> Progresso de selos
             </Typography>
-          )}
-          {loading && (
-            <Typography sx={{ opacity: 0.8 }}>A carregar…</Typography>
-          )}
+            <LinearProgress
+              variant="determinate"
+              value={Math.round(stampsPct)}
+              sx={{ borderRadius: 999 }}
+            />
+            <Typography
+              variant="caption"
+              sx={{ display: "flex", alignItems: "center", gap: 0.5, opacity: 0.8 }}
+            >
+              <EmojiEventsRounded fontSize="small" /> Progresso de troféus
+            </Typography>
+            <LinearProgress
+              color="warning"
+              variant="determinate"
+              value={Math.round(trophiesPct)}
+              sx={{ borderRadius: 999 }}
+            />
+          </Stack>
         </Stack>
       </WhiteCard>
 
       <Stack spacing={2}>
         {/* Selos */}
         <WhiteCard>
-          <SectionHeader title="Selos" />
+          <SectionHeader title="Selos" icon={<VerifiedRounded />} />
           {groups.stamps.length ? (
             <Box
               sx={{
@@ -332,7 +397,7 @@ export default function AchievementsPage() {
 
         {/* Troféus */}
         <WhiteCard>
-          <SectionHeader title="Troféus" />
+          <SectionHeader title="Troféus" icon={<EmojiEventsRounded />} />
           {groups.trophies.length ? (
             <Box
               sx={{
@@ -361,7 +426,7 @@ export default function AchievementsPage() {
       {/* Detalhe da conquista */}
       {focusedId != null && (
         <WhiteCard sx={{ mt: 2 }}>
-          <SectionHeader title="Detalhe da conquista" />
+          <SectionHeader title="Detalhe da conquista" icon={<InfoOutlined />} />
           {!focusedBadge ? (
             <Typography>Badge não encontrado.</Typography>
           ) : (
@@ -390,7 +455,7 @@ export default function AchievementsPage() {
                     ).toLocaleDateString("pt-PT")}`}
                   />
                 ) : (
-                  <Chip label="Por conquistar" />
+                  <Chip icon={<LockOutlined />} label="Por conquistar" />
                 )}
               </Stack>
               {!!focusedBadge.criteria && (

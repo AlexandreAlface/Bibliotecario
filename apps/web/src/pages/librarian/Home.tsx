@@ -9,6 +9,8 @@ import {
   Tooltip,
   Typography,
   useTheme,
+  Skeleton,
+  Button,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
@@ -18,6 +20,8 @@ import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
 import PendingActionsRounded from "@mui/icons-material/PendingActionsRounded";
 import AvTimerRounded from "@mui/icons-material/AvTimerRounded";
 import TodayRounded from "@mui/icons-material/TodayRounded";
+import PlaceRounded from "@mui/icons-material/PlaceRounded";
+import PersonRounded from "@mui/icons-material/PersonRounded";
 
 import { WhiteCard, RouteLink } from "@bibliotecario/ui-web";
 import { useUserSession } from "../../contexts/UserSession";
@@ -73,11 +77,14 @@ function parts(iso?: string) {
   };
 }
 
+/* ---------- Header card ---------- */
 function CardHeader({
   title,
+  icon,
   action,
 }: {
   title: string;
+  icon?: React.ReactNode;
   action?: React.ReactNode;
 }) {
   return (
@@ -87,9 +94,12 @@ function CardHeader({
       justifyContent="space-between"
       sx={{ mb: 1.25 }}
     >
-      <Typography variant="h6" fontWeight={900}>
-        {title}
-      </Typography>
+      <Stack direction="row" spacing={1} alignItems="center">
+        {icon}
+        <Typography variant="h6" fontWeight={900}>
+          {title}
+        </Typography>
+      </Stack>
       {action}
     </Stack>
   );
@@ -139,6 +149,22 @@ function StatTile({
         </Typography>
       )}
     </Box>
+  );
+}
+
+/* ---------- Skeletons ---------- */
+function KPISkeleton() {
+  return <Skeleton variant="rounded" height={120} />;
+}
+function ListSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <Stack spacing={1.25}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <Box key={i} sx={{ p: 1, borderRadius: 2 }}>
+          <Skeleton variant="rounded" height={64} />
+        </Box>
+      ))}
+    </Stack>
   );
 }
 
@@ -193,11 +219,7 @@ function ConsultaRow({ c }: { c: ConsultaLite }) {
           <Typography fontWeight={900} noWrap title={c.title}>
             {c.title}
           </Typography>
-          {!!(c as any).childName && (
-            <Typography variant="body2" sx={{ opacity: 0.8 }} noWrap>
-              de {(c as any).childName}
-            </Typography>
-          )}
+
           <Stack
             direction="row"
             spacing={1}
@@ -205,6 +227,21 @@ function ConsultaRow({ c }: { c: ConsultaLite }) {
             useFlexGap
             flexWrap="wrap"
           >
+            {!!(c as any).childName && (
+              <Chip
+                size="small"
+                icon={<PersonRounded fontSize="small" />}
+                label={`de ${(c as any).childName}`}
+              />
+            )}
+            {!!(c as any).library?.name && (
+              <Chip
+                size="small"
+                icon={<PlaceRounded fontSize="small" />}
+                label={(c as any).library?.name}
+                variant="outlined"
+              />
+            )}
             {!!iso && (
               <Chip
                 size="small"
@@ -233,7 +270,14 @@ function ConsultaRow({ c }: { c: ConsultaLite }) {
           </Stack>
         </Box>
 
-        <RouteLink href="/librarian/agenda">Abrir</RouteLink>
+        <Button
+          size="small"
+          variant="outlined"
+          component={RouteLink as any}
+          href="/librarian/agenda"
+        >
+          Abrir
+        </Button>
       </Stack>
     </Box>
   );
@@ -255,12 +299,13 @@ function PendingRow({ c }: { c: ConsultationFull }) {
         borderRadius: 2.5,
       }}
     >
-      <Stack direction="row" spacing={1.25} alignItems="center">
+      <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap">
         <Chip
           size="small"
           variant="outlined"
           color={scfg.color}
           label={scfg.label}
+          icon={<PendingActionsRounded fontSize="small" />}
         />
         <Chip
           size="small"
@@ -277,10 +322,22 @@ function PendingRow({ c }: { c: ConsultationFull }) {
             })}
           />
         )}
-        <Typography variant="body2" sx={{ ml: "auto", opacity: 0.85 }}>
-          {c.child?.name ? `de ${c.child.name}` : ""}
-          {c.library?.name ? ` • ${c.library.name}` : ""}
-        </Typography>
+        {c.child?.name && (
+          <Chip
+            size="small"
+            icon={<PersonRounded fontSize="small" />}
+            label={`de ${c.child.name}`}
+            variant="outlined"
+          />
+        )}
+        {c.library?.name && (
+          <Chip
+            size="small"
+            icon={<PlaceRounded fontSize="small" />}
+            label={c.library.name}
+            variant="outlined"
+          />
+        )}
       </Stack>
     </Box>
   );
@@ -340,6 +397,10 @@ function SlotRow({
 }
 
 /* =================== Página =================== */
+const VISIBLE_UPCOMING = 8;
+const VISIBLE_PENDING = 8;
+const VISIBLE_SLOTS = 8;
+
 export default function LibrarianHome() {
   const theme = useTheme();
   const { user } = useUserSession();
@@ -349,6 +410,7 @@ export default function LibrarianHome() {
   const [upcoming, setUpcoming] = useState<ConsultaLite[]>([]);
   const [pending, setPending] = useState<ConsultationFull[]>([]);
   const [openSlots, setOpenSlots] = useState<SlotLite[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // KPI counts
   const today = startOfDay(new Date());
@@ -399,35 +461,40 @@ export default function LibrarianHome() {
   async function loadAll() {
     if (!librarianId) return;
 
-    const now = new Date();
-    const twoWeeks = addDays(now, 14);
+    try {
+      setLoading(true);
 
-    const [co, pend, slots] = await Promise.allSettled([
-      getNextConsultas(12, { librarianId }), // próximos compromissos
-      getConsultationsHistory({
-        librarianId,
-        status: ["PENDING"],
-        limit: 8,
-        order: "asc",
-        // a API do histórico aceita from/to; se não for necessário, ignora silenciosamente
-        from: startOfDay(addDays(now, -30)).toISOString(),
-        to: endOfDay(addDays(now, 30)).toISOString(),
-      }),
-      listOpenSlots({
-        librarianId,
-        from: startOfDay(now).toISOString(),
-        to: endOfDay(twoWeeks).toISOString(),
-      }),
-    ]);
+      const now = new Date();
+      const twoWeeks = addDays(now, 14);
 
-    if (co.status === "fulfilled") setUpcoming(co.value || []);
-    else setUpcoming([]);
+      const [co, pend, slots] = await Promise.allSettled([
+        getNextConsultas(24, { librarianId }), // traz mais, mostramos parte
+        getConsultationsHistory({
+          librarianId,
+          status: ["PENDING"],
+          limit: 24,
+          order: "asc",
+          from: startOfDay(addDays(now, -30)).toISOString(),
+          to: endOfDay(addDays(now, 30)).toISOString(),
+        }),
+        listOpenSlots({
+          librarianId,
+          from: startOfDay(now).toISOString(),
+          to: endOfDay(twoWeeks).toISOString(),
+        }),
+      ]);
 
-    if (pend.status === "fulfilled") setPending((pend.value as any) || []);
-    else setPending([]);
+      if (co.status === "fulfilled") setUpcoming(co.value || []);
+      else setUpcoming([]);
 
-    if (slots.status === "fulfilled") setOpenSlots(slots.value || []);
-    else setOpenSlots([]);
+      if (pend.status === "fulfilled") setPending((pend.value as any) || []);
+      else setPending([]);
+
+      if (slots.status === "fulfilled") setOpenSlots(slots.value || []);
+      else setOpenSlots([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -436,7 +503,7 @@ export default function LibrarianHome() {
   }, [librarianId]);
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       <Stack
         direction="row"
         alignItems="center"
@@ -458,31 +525,43 @@ export default function LibrarianHome() {
       {/* KPIs */}
       <Grid container spacing={2}>
         <Grid item xs={12} md={4}>
-          <StatTile
-            label="Consultas hoje"
-            value={kpiToday}
-            sublabel="na sua agenda"
-            gradient={gPrimary}
-            icon={<TodayRounded />}
-          />
+          {loading ? (
+            <KPISkeleton />
+          ) : (
+            <StatTile
+              label="Consultas hoje"
+              value={kpiToday}
+              sublabel="na sua agenda"
+              gradient={gPrimary}
+              icon={<TodayRounded />}
+            />
+          )}
         </Grid>
         <Grid item xs={12} md={4}>
-          <StatTile
-            label="Consultas (7 dias)"
-            value={kpiWeek}
-            sublabel="confirmadas e pendentes"
-            gradient={gSuccess}
-            icon={<EventAvailableRounded />}
-          />
+          {loading ? (
+            <KPISkeleton />
+          ) : (
+            <StatTile
+              label="Consultas (7 dias)"
+              value={kpiWeek}
+              sublabel="confirmadas e pendentes"
+              gradient={gSuccess}
+              icon={<EventAvailableRounded />}
+            />
+          )}
         </Grid>
         <Grid item xs={12} md={4}>
-          <StatTile
-            label="Pendências"
-            value={pending.length}
-            sublabel="a aguardar decisão"
-            gradient={gWarning}
-            icon={<PendingActionsRounded />}
-          />
+          {loading ? (
+            <KPISkeleton />
+          ) : (
+            <StatTile
+              label="Pendências"
+              value={pending.length}
+              sublabel="a aguardar decisão"
+              gradient={gWarning}
+              icon={<PendingActionsRounded />}
+            />
+          )}
         </Grid>
       </Grid>
 
@@ -500,8 +579,16 @@ export default function LibrarianHome() {
           >
             <CardHeader
               title="Próximas consultas"
+              icon={<EventAvailableRounded fontSize="small" />}
               action={
-                <RouteLink href="/librarian/agenda">Abrir agenda</RouteLink>
+                <Button
+                  size="small"
+                  variant="text"
+                  component={RouteLink as any}
+                  href="/librarian/agenda"
+                >
+                  Ver agenda
+                </Button>
               }
             />
             <Box
@@ -516,15 +603,30 @@ export default function LibrarianHome() {
                 },
               }}
             >
-              {upcoming.length ? (
-                <Stack
-                  spacing={1.25}
-                  divider={<Divider sx={{ borderColor: "divider" }} />}
-                >
-                  {upcoming.map((c) => (
-                    <ConsultaRow key={c.id} c={c} />
-                  ))}
-                </Stack>
+              {loading ? (
+                <ListSkeleton rows={4} />
+              ) : upcoming.length ? (
+                <>
+                  <Stack
+                    spacing={1.25}
+                    divider={<Divider sx={{ borderColor: "divider" }} />}
+                  >
+                    {upcoming.slice(0, VISIBLE_UPCOMING).map((c) => (
+                      <ConsultaRow key={c.id} c={c} />
+                    ))}
+                  </Stack>
+                  {upcoming.length > VISIBLE_UPCOMING && (
+                    <Box sx={{ mt: 1.25, textAlign: "right" }}>
+                      <Button
+                        size="small"
+                        component={RouteLink as any}
+                        href="/librarian/agenda"
+                      >
+                        Ver todas ({upcoming.length})
+                      </Button>
+                    </Box>
+                  )}
+                </>
               ) : (
                 <Typography sx={{ opacity: 0.7 }}>
                   Sem consultas agendadas.
@@ -534,7 +636,7 @@ export default function LibrarianHome() {
           </WhiteCard>
         </Grid>
 
-        {/* Pendentes (ligar à página de gestão) */}
+        {/* Pendentes */}
         <Grid item xs={12} md={6} sx={{ display: "flex" }}>
           <WhiteCard
             sx={{
@@ -546,10 +648,16 @@ export default function LibrarianHome() {
           >
             <CardHeader
               title="Consultas pendentes"
+              icon={<PendingActionsRounded fontSize="small" />}
               action={
-                <RouteLink href="/librarian/consultas/pendentes">
+                <Button
+                  size="small"
+                  variant="text"
+                  component={RouteLink as any}
+                  href="/librarian/consultas/pendentes"
+                >
                   Gerir
-                </RouteLink>
+                </Button>
               }
             />
             <Box
@@ -564,15 +672,30 @@ export default function LibrarianHome() {
                 },
               }}
             >
-              {pending.length ? (
-                <Stack
-                  spacing={1.25}
-                  divider={<Divider sx={{ borderColor: "divider" }} />}
-                >
-                  {pending.map((c) => (
-                    <PendingRow key={c.id} c={c} />
-                  ))}
-                </Stack>
+              {loading ? (
+                <ListSkeleton rows={4} />
+              ) : pending.length ? (
+                <>
+                  <Stack
+                    spacing={1.25}
+                    divider={<Divider sx={{ borderColor: "divider" }} />}
+                  >
+                    {pending.slice(0, VISIBLE_PENDING).map((c) => (
+                      <PendingRow key={c.id} c={c} />
+                    ))}
+                  </Stack>
+                  {pending.length > VISIBLE_PENDING && (
+                    <Box sx={{ mt: 1.25, textAlign: "right" }}>
+                      <Button
+                        size="small"
+                        component={RouteLink as any}
+                        href="/librarian/consultas/pendentes"
+                      >
+                        Ver todas ({pending.length})
+                      </Button>
+                    </Box>
+                  )}
+                </>
               ) : (
                 <Typography sx={{ opacity: 0.7 }}>
                   Sem pendências no momento.
@@ -594,8 +717,16 @@ export default function LibrarianHome() {
           >
             <CardHeader
               title="Slots abertos (14 dias)"
+              icon={<AvTimerRounded fontSize="small" />}
               action={
-                <RouteLink href="/librarian/slots">Gerir slots</RouteLink>
+                <Button
+                  size="small"
+                  variant="text"
+                  component={RouteLink as any}
+                  href="/librarian/slots"
+                >
+                  Gerir slots
+                </Button>
               }
             />
             <Box
@@ -610,61 +741,40 @@ export default function LibrarianHome() {
                 },
               }}
             >
-              {openSlots.length ? (
-                <Stack
-                  spacing={1.25}
-                  divider={<Divider sx={{ borderColor: "divider" }} />}
-                >
-                  {openSlots.slice(0, 10).map((s) => (
-                    <SlotRow key={s.id} s={s} librariesMap={librariesMap} />
-                  ))}
-                </Stack>
+              {loading ? (
+                <ListSkeleton rows={4} />
+              ) : openSlots.length ? (
+                <>
+                  <Stack
+                    spacing={1.25}
+                    divider={<Divider sx={{ borderColor: "divider" }} />}
+                  >
+                    {openSlots.slice(0, VISIBLE_SLOTS).map((s) => (
+                      <SlotRow
+                        key={`${s.id}-${s.startAt}`}
+                        s={s}
+                        librariesMap={librariesMap}
+                      />
+                    ))}
+                  </Stack>
+                  {openSlots.length > VISIBLE_SLOTS && (
+                    <Box sx={{ mt: 1.25, textAlign: "right" }}>
+                      <Button
+                        size="small"
+                        component={RouteLink as any}
+                        href="/librarian/slots"
+                      >
+                        Ver mais slots ({openSlots.length - VISIBLE_SLOTS})
+                      </Button>
+                    </Box>
+                  )}
+                </>
               ) : (
                 <Typography sx={{ opacity: 0.7 }}>
                   Não há slots abertos nos próximos 14 dias.
                 </Typography>
               )}
             </Box>
-          </WhiteCard>
-        </Grid>
-
-        {/* Acesso rápido */}
-        <Grid item xs={12} md={6} sx={{ display: "flex" }}>
-          <WhiteCard sx={{ flex: 1, minHeight: 220 }}>
-            <CardHeader title="Acesso rápido" />
-            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-              <Chip
-                clickable
-                variant="outlined"
-                icon={<EventAvailableRounded />}
-                label="Ver agenda"
-                component="a"
-                href="/librarian/agenda"
-              />
-              <Chip
-                clickable
-                variant="outlined"
-                icon={<PendingActionsRounded />}
-                label="Consultas pendentes"
-                component="a"
-                href="/librarian/consultas/pendentes"
-              />
-              <Chip
-                clickable
-                variant="outlined"
-                icon={<AvTimerRounded />}
-                label="Gerir slots"
-                component="a"
-                href="/librarian/slots"
-              />
-              <Chip
-                clickable
-                variant="outlined"
-                label="Famílias"
-                component="a"
-                href="/librarian/familias"
-              />
-            </Stack>
           </WhiteCard>
         </Grid>
       </Grid>

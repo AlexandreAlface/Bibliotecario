@@ -1,5 +1,5 @@
-// apps/web/src/pages/familia.tsx
-import { useEffect, useMemo, useState } from "react";
+// apps/web/src/pages/familia.tsx (versão melhorada)
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { WhiteCard, PrimaryButton, RouteLink } from "@bibliotecario/ui-web";
 import {
   Avatar,
@@ -15,6 +15,8 @@ import {
   Alert,
   CircularProgress,
   MenuItem,
+  InputAdornment,
+  Skeleton,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import EditRounded from "@mui/icons-material/EditRounded";
@@ -24,11 +26,24 @@ import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
+import EmailRounded from "@mui/icons-material/EmailRounded";
+import PhoneIphoneRounded from "@mui/icons-material/PhoneIphoneRounded";
+import HomeRounded from "@mui/icons-material/HomeRounded";
+import BadgeRounded from "@mui/icons-material/BadgeRounded";
+import PersonRounded from "@mui/icons-material/PersonRounded";
+import SearchRounded from "@mui/icons-material/SearchRounded";
+import ClearRounded from "@mui/icons-material/ClearRounded";
+import ManRounded from "@mui/icons-material/ManRounded";
+import WomanRounded from "@mui/icons-material/WomanRounded";
+import TransgenderRounded from "@mui/icons-material/TransgenderRounded";
 
 import { useUserSession } from "../../contexts/UserSession";
 import { getLeiturasAtuais, type BookLite } from "../../services/readings";
 import { getBadgesRecent, type BadgeLite } from "../../services/badges";
-import { getNextConsultas, type ConsultaLite } from "../../services/consultations";
+import {
+  getNextConsultas,
+  type ConsultaLite,
+} from "../../services/consultations";
 import { getSugestoesPerfil } from "../../services/books";
 import { getMe, updateMe } from "@/services/auth";
 import {
@@ -65,12 +80,31 @@ function toYMD(d?: string | null) {
   return `${y}-${m}-${dd}`;
 }
 
+// saneadores básicos (pt-PT)
+const sanitizeName = (s: string) =>
+  s
+    .normalize("NFKC")
+    // permite letras (com acentos), espaço, hífen e apóstrofo
+    .replace(/[^\p{L}\s\-']+/gu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+const sanitizePhone = (s: string) => s.replace(/[^0-9]/g, "").slice(0, 9);
+const sanitizeCC = (s: string) =>
+  s
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 12);
+
 /* ====== género: mapeamento M/F/O <-> labels e normalização ====== */
 type GenderCode = "M" | "F" | "O" | "";
-const GENDER_OPTS: { code: GenderCode; label: string }[] = [
-  { code: "M", label: "Masculino" },
-  { code: "F", label: "Feminino" },
-  { code: "O", label: "Outro" },
+const GENDER_OPTS: {
+  code: GenderCode;
+  label: string;
+  icon: React.ReactElement;
+}[] = [
+  { code: "M", label: "Masculino", icon: <ManRounded fontSize="small" /> },
+  { code: "F", label: "Feminino", icon: <WomanRounded fontSize="small" /> },
+  { code: "O", label: "Outro", icon: <TransgenderRounded fontSize="small" /> },
 ];
 function toGenderCode(raw?: string | null): GenderCode {
   const s = (raw ?? "").toString().trim().toLowerCase();
@@ -91,6 +125,74 @@ type UIChild = {
   readerProfile?: string | null;
   avatarUrl?: string | null;
 };
+
+// Cabeçalho de secção reutilizável
+const SectionHeader = memo(function SectionHeader({
+  title,
+  icon,
+  action,
+}: {
+  title: string;
+  icon?: React.ReactElement;
+  action?: React.ReactNode;
+}) {
+  return (
+    <Stack
+      direction="row"
+      alignItems="center"
+      justifyContent="space-between"
+      sx={{ mb: 1.25 }}
+    >
+      <Stack direction="row" spacing={1} alignItems="center">
+        {icon}
+        <Typography variant="h6" fontWeight={900} component="h2">
+          {title}
+        </Typography>
+      </Stack>
+      {action}
+    </Stack>
+  );
+});
+
+const ChildListItem = memo(function ChildListItem({
+  c,
+  active,
+  onClick,
+}: {
+  c: UIChild;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Box
+      onClick={onClick}
+      role="button"
+      aria-pressed={active}
+      sx={{
+        p: 1,
+        borderRadius: 2,
+        border: "1px solid",
+        borderColor: active ? "primary.main" : "divider",
+        bgcolor: active ? "primary.light" : "background.paper",
+        cursor: "pointer",
+      }}
+    >
+      <Stack direction="row" alignItems="center" spacing={1}>
+        <Avatar src={c.avatarUrl || undefined} sx={{ width: 32, height: 32 }}>
+          {(c.name || "?").charAt(0)}
+        </Avatar>
+        <Box minWidth={0} flex={1}>
+          <Typography fontWeight={800} noWrap title={c.name}>
+            {c.name}
+          </Typography>
+          <Typography variant="caption" sx={{ opacity: 0.7 }}>
+            {ageFrom(c.birthDate)}
+          </Typography>
+        </Box>
+      </Stack>
+    </Box>
+  );
+});
 
 export default function FamilyPage() {
   const { user } = useUserSession();
@@ -128,7 +230,7 @@ export default function FamilyPage() {
     [children, activeId]
   );
 
-  // estado: form família
+  // estado: form família (com validação leve)
   const [fullName, setFullName] = useState(user?.fullName || "");
   const [email, setEmail] = useState(user?.email || "");
   const [phone, setPhone] = useState(user?.phone || "");
@@ -137,6 +239,15 @@ export default function FamilyPage() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [saveErr, setSaveErr] = useState<string | null>(null);
+
+  // erros do form
+  const [errors, setErrors] = useState<{
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    citizenCard?: string;
+    address?: string;
+  }>({});
 
   useEffect(() => {
     setFullName(user?.fullName || "");
@@ -152,9 +263,30 @@ export default function FamilyPage() {
     user?.address,
   ]);
 
-  async function onSave() {
+  const validateFamilyForm = useCallback(() => {
+    const next: typeof errors = {};
+    if (!fullName.trim()) next.fullName = "Obrigatório.";
+    else if (fullName.trim().length < 3) next.fullName = "Nome muito curto.";
+
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email))
+      next.email = "Email inválido.";
+
+    if (phone && !/^(9\d{8}|2\d{8})$/.test(phone))
+      next.phone = "Telefone (9 dígitos).";
+
+    if (citizenCard && !/^[0-9]{8}[A-Z0-9]{1,4}$/.test(citizenCard))
+      next.citizenCard = "Ex.: 00000000ZZ4";
+
+    if (address && address.length < 5) next.address = "Morada muito curta.";
+
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  }, [fullName, email, phone, citizenCard, address]);
+
+  const onSave = useCallback(async () => {
     setSaveMsg(null);
     setSaveErr(null);
+    if (!validateFamilyForm()) return;
     setSaving(true);
     try {
       await updateMe({ fullName, email, phone, citizenCard, address });
@@ -165,7 +297,7 @@ export default function FamilyPage() {
       setSaving(false);
       setTimeout(() => setSaveMsg(null), 2500);
     }
-  }
+  }, [validateFamilyForm, fullName, email, phone, citizenCard, address]);
 
   // pesquisa na lista de crianças
   const [q, setQ] = useState("");
@@ -183,6 +315,7 @@ export default function FamilyPage() {
   const [sugLoading, setSugLoading] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
     (async () => {
       if (!Number.isFinite(activeId)) {
         setLeituras([]);
@@ -196,27 +329,32 @@ export default function FamilyPage() {
           getLeiturasAtuais(6, { childId: Number(activeId) }),
           getBadgesRecent(6, { childId: Number(activeId) }),
         ]);
+        if (!mounted) return;
         setLeituras(le as any);
         setBadges(ba as any);
       } finally {
-        setLoadingChild(false);
+        if (mounted) setLoadingChild(false);
       }
 
       const famId = Number(user?.id);
       if (Number.isFinite(famId)) {
         try {
           const next = await getNextConsultas(6, { familyId: famId });
+          if (!mounted) return;
           setConsultas(
             next.filter((c: any) => Number(c.childId) === Number(activeId))
           );
         } catch {
-          setConsultas([]);
+          if (mounted) setConsultas([]);
         }
       }
     })();
+    return () => {
+      mounted = false;
+    };
   }, [activeId, user?.id]);
 
-  async function generateSuggestions() {
+  const generateSuggestions = useCallback(async () => {
     if (!Number.isFinite(activeId)) return;
     setSugLoading(true);
     try {
@@ -224,7 +362,7 @@ export default function FamilyPage() {
     } finally {
       setSugLoading(false);
     }
-  }
+  }, [activeId]);
 
   function authorOf(b: BookLite): string | undefined {
     return (
@@ -246,7 +384,7 @@ export default function FamilyPage() {
   const [formGender, setFormGender] = useState<GenderCode>(""); // M/F/O/""
   const [formProfile, setFormProfile] = useState("");
 
-  function openEdit(c: UIChild) {
+  const openEdit = useCallback((c: UIChild) => {
     setActiveId(Number(c.id));
     setEditIsNew(false);
     setFormName(c.name || "");
@@ -255,8 +393,9 @@ export default function FamilyPage() {
     setFormProfile(c.readerProfile || "");
     setEditErr(null);
     setEditOpen(true);
-  }
-  function openCreate() {
+  }, []);
+
+  const openCreate = useCallback(() => {
     setActiveId(NaN);
     setEditIsNew(true);
     setFormName("");
@@ -265,11 +404,19 @@ export default function FamilyPage() {
     setFormProfile("");
     setEditErr(null);
     setEditOpen(true);
-  }
+  }, []);
+
+  // validação leve do editor da criança
+  const childErrors = useMemo(() => {
+    const e: { name?: string } = {};
+    if (!formName.trim()) e.name = "Obrigatório.";
+    else if (formName.trim().length < 2) e.name = "Nome muito curto.";
+    return e;
+  }, [formName]);
 
   /* -------------- UI -------------- */
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       {/* Título */}
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
         <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
@@ -292,180 +439,245 @@ export default function FamilyPage() {
           sx={{ display: "flex", flexDirection: "column", gap: 2 }}
         >
           <WhiteCard sx={{ mx: "auto", width: "100%", maxWidth: 720 }}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              sx={{ mb: 1.25 }}
-            >
-              <Typography variant="h6" fontWeight={900}>
-                Dados da Família
-              </Typography>
-              <PrimaryButton
-                onClick={onSave}
-                startIcon={
-                  saving ? <CircularProgress size={16} /> : <EditRounded />
-                }
-                disabled={saving}
-              >
-                Guardar
-              </PrimaryButton>
-            </Stack>
+            <SectionHeader
+              title="Dados da Família"
+              icon={<PersonRounded />}
+              action={
+                <PrimaryButton
+                  onClick={onSave}
+                  startIcon={
+                    saving ? <CircularProgress size={16} /> : <EditRounded />
+                  }
+                  disabled={saving}
+                  aria-label="Guardar dados da família"
+                >
+                  Guardar
+                </PrimaryButton>
+              }
+            />
 
             {saveMsg && (
-              <Alert severity="success" sx={{ mb: 1 }}>
+              <Alert severity="success" sx={{ mb: 1 }} aria-live="polite">
                 {saveMsg}
               </Alert>
             )}
             {saveErr && (
-              <Alert severity="error" sx={{ mb: 1 }}>
+              <Alert severity="error" sx={{ mb: 1 }} aria-live="assertive">
                 {saveErr}
               </Alert>
             )}
 
-            <Grid container spacing={1.25}>
+            <Grid
+              container
+              spacing={1.25}
+              component="form"
+              noValidate
+              onSubmit={(e) => e.preventDefault()}
+            >
               <Grid item xs={12} md={6}>
                 <TextField
                   label="Nome completo"
+                  placeholder="Ex.: Ana Martins"
                   value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  onChange={(e) => setFullName(sanitizeName(e.target.value))}
                   size="small"
                   fullWidth
+                  inputProps={{ maxLength: 80 }}
+                  error={!!errors.fullName}
+                  helperText={errors.fullName || " "}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonRounded fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
                 <TextField
+                  type="email"
                   label="Email"
+                  placeholder="ana@email.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value.trim())}
                   size="small"
                   fullWidth
+                  error={!!errors.email}
+                  helperText={errors.email || " "}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <EmailRounded fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
                 <TextField
                   label="Telefone"
+                  placeholder="912345678"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(sanitizePhone(e.target.value))}
                   size="small"
                   fullWidth
+                  inputProps={{
+                    inputMode: "numeric",
+                    pattern: "^(9\\d{8}|2\\d{8})$",
+                    maxLength: 9,
+                  }}
+                  error={!!errors.phone}
+                  helperText={errors.phone || " "}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PhoneIphoneRounded fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </Grid>
               <Grid item xs={12} md={6}>
                 <TextField
                   label="Cartão de cidadão"
+                  placeholder="00000000ZZ4"
                   value={citizenCard}
-                  onChange={(e) => setCitizenCard(e.target.value)}
+                  onChange={(e) => setCitizenCard(sanitizeCC(e.target.value))}
                   size="small"
                   fullWidth
+                  inputProps={{
+                    inputMode: "text",
+                    pattern: "^[0-9]{8}[A-Z0-9]{1,4}$",
+                    maxLength: 12,
+                  }}
+                  error={!!errors.citizenCard}
+                  helperText={errors.citizenCard || " "}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <BadgeRounded fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </Grid>
               <Grid item xs={12}>
                 <TextField
                   label="Morada"
+                  placeholder="Rua da Biblioteca, 123"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   size="small"
                   fullWidth
+                  inputProps={{ maxLength: 120 }}
+                  error={!!errors.address}
+                  helperText={errors.address || " "}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <HomeRounded fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </Grid>
             </Grid>
           </WhiteCard>
 
-          {/* >>>> EDITOR DA CRIANÇA AQUI, POR BAIXO DO FORM DA FAMÍLIA <<<< */}
+          {/* EDITOR DA CRIANÇA */}
           {editOpen && (
             <WhiteCard sx={{ mx: "auto", width: "100%", maxWidth: 720 }}>
-              <Stack
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
-                sx={{ mb: 1 }}
-              >
-                <Typography variant="h6" fontWeight={900}>
-                  {editIsNew ? "Adicionar criança" : "Editar criança"}
-                </Typography>
-                <Stack direction="row" spacing={1}>
-                  {!editIsNew && activeChild && (
-                    <Tooltip title="Remover criança">
-                      <span>
-                        <PrimaryButton
-                          variant="outlined"
-                          color="error"
-                          onClick={async () => {
-                            if (!activeChild) return;
-                            if (!confirm(`Remover ${activeChild.name}?`))
-                              return;
-                            setEditSaving(true);
-                            setEditErr(null);
-                            try {
-                              await deleteChildSvc(activeChild.id);
-                              const me = await getMe();
-                              const newKids = (me.children || []) as any[];
-                              setChildren(newKids as any);
-                              setActiveId(newKids[0]?.id ?? NaN);
-                              setEditOpen(false);
-                            } catch (e: any) {
-                              setEditErr(e?.message || "Erro ao remover.");
-                            } finally {
-                              setEditSaving(false);
-                            }
-                          }}
-                        >
-                          Remover
-                        </PrimaryButton>
-                      </span>
-                    </Tooltip>
-                  )}
-                  <PrimaryButton
-                    variant="outlined"
-                    onClick={() => setEditOpen(false)}
-                  >
-                    Cancelar
-                  </PrimaryButton>
-                  <PrimaryButton
-                    onClick={async () => {
-                      if (!formName.trim()) {
-                        setEditErr("O nome é obrigatório.");
-                        return;
-                      }
-                      setEditSaving(true);
-                      setEditErr(null);
-                      const payload = {
-                        name: formName.trim(),
-                        birthDate: formBirth
-                          ? new Date(formBirth).toISOString()
-                          : null,
-                        gender: (formGender || null) as "M" | "F" | "O" | null,
-                        readerProfile: formProfile || null,
-                      };
-                      try {
-                        if (editIsNew) {
-                          const saved = await createChild(payload);
-                          const me = await getMe();
-                          setChildren((me.children || []) as any);
-                          setActiveId(Number(saved.id));
-                        } else if (activeChild) {
-                          const saved = await updateChildSvc(
-                            activeChild.id,
-                            payload
-                          );
-                          const me = await getMe();
-                          setChildren((me.children || []) as any);
-                          setActiveId(Number(saved.id));
+              <SectionHeader
+                title={editIsNew ? "Adicionar criança" : "Editar criança"}
+                icon={<FamilyRestroomRounded />}
+                action={
+                  <Stack direction="row" spacing={1}>
+                    {!editIsNew && activeChild && (
+                      <Tooltip title="Remover criança">
+                        <span>
+                          <PrimaryButton
+                            variant="outlined"
+                            color="error"
+                            onClick={async () => {
+                              if (!activeChild) return;
+                              if (!confirm(`Remover ${activeChild.name}?`))
+                                return;
+                              setEditSaving(true);
+                              setEditErr(null);
+                              try {
+                                await deleteChildSvc(activeChild.id);
+                                const me = await getMe();
+                                const newKids = (me!.children || []) as any[];
+                                setChildren(newKids as any);
+                                setActiveId(newKids[0]?.id ?? NaN);
+                                setEditOpen(false);
+                              } catch (e: any) {
+                                setEditErr(e?.message || "Erro ao remover.");
+                              } finally {
+                                setEditSaving(false);
+                              }
+                            }}
+                          >
+                            Remover
+                          </PrimaryButton>
+                        </span>
+                      </Tooltip>
+                    )}
+                    <PrimaryButton
+                      variant="outlined"
+                      onClick={() => setEditOpen(false)}
+                    >
+                      Cancelar
+                    </PrimaryButton>
+                    <PrimaryButton
+                      onClick={async () => {
+                        if (!formName.trim()) {
+                          setEditErr("O nome é obrigatório.");
+                          return;
                         }
-                        setEditOpen(false);
-                      } catch (e: any) {
-                        setEditErr(e?.message || "Falha ao guardar.");
-                      } finally {
-                        setEditSaving(false);
-                      }
-                    }}
-                    disabled={editSaving}
-                  >
-                    {editSaving ? "A guardar…" : "Guardar"}
-                  </PrimaryButton>
-                </Stack>
-              </Stack>
+                        setEditSaving(true);
+                        setEditErr(null);
+                        const payload = {
+                          name: sanitizeName(formName.trim()),
+                          // enviar YYYY-MM-DD diretamente para evitar TZ shift
+                          birthDate: formBirth || null,
+                          gender: (formGender || null) as
+                            | "M"
+                            | "F"
+                            | "O"
+                            | null,
+                          readerProfile: formProfile || null,
+                        };
+                        try {
+                          if (editIsNew) {
+                            const saved = await createChild(payload);
+                            const me = await getMe();
+                            setChildren((me!.children || []) as any);
+                            setActiveId(Number((saved as any).id));
+                          } else if (activeChild) {
+                            const saved = await updateChildSvc(
+                              activeChild.id,
+                              payload
+                            );
+                            const me = await getMe();
+                            setChildren((me!.children || []) as any);
+                            setActiveId(Number((saved as any).id));
+                          }
+                          setEditOpen(false);
+                        } catch (e: any) {
+                          setEditErr(e?.message || "Falha ao guardar.");
+                        } finally {
+                          setEditSaving(false);
+                        }
+                      }}
+                      disabled={editSaving || !!childErrors.name}
+                    >
+                      {editSaving ? "A guardar…" : "Guardar"}
+                    </PrimaryButton>
+                  </Stack>
+                }
+              />
 
               {editErr && (
                 <Alert severity="error" sx={{ mb: 1 }}>
@@ -473,15 +685,25 @@ export default function FamilyPage() {
                 </Alert>
               )}
 
-              <Grid container spacing={1.25}>
+              <Grid
+                container
+                spacing={1.25}
+                component="form"
+                noValidate
+                onSubmit={(e) => e.preventDefault()}
+              >
                 <Grid item xs={12} md={6}>
                   <TextField
                     label="Nome"
+                    placeholder="Ex.: João"
                     value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
+                    onChange={(e) => setFormName(sanitizeName(e.target.value))}
                     size="small"
                     fullWidth
                     autoFocus
+                    inputProps={{ maxLength: 60 }}
+                    error={!!childErrors.name}
+                    helperText={childErrors.name || " "}
                   />
                 </Grid>
                 <Grid item xs={12} md={6}>
@@ -510,7 +732,10 @@ export default function FamilyPage() {
                   >
                     {GENDER_OPTS.map((opt) => (
                       <MenuItem key={opt.code} value={opt.code}>
-                        {opt.label}
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          {opt.icon}
+                          <span>{opt.label}</span>
+                        </Stack>
                       </MenuItem>
                     ))}
                   </TextField>
@@ -526,6 +751,8 @@ export default function FamilyPage() {
                     fullWidth
                     multiline
                     minRows={2}
+                    inputProps={{ maxLength: 280 }}
+                    helperText={`${formProfile.length}/280`}
                   />
                 </Grid>
               </Grid>
@@ -542,19 +769,19 @@ export default function FamilyPage() {
         >
           {/* Lista / Pesquisa */}
           <WhiteCard sx={{ mx: "auto", width: "100%", maxWidth: 520 }}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              sx={{ mb: 1 }}
-            >
-              <Typography variant="h6" fontWeight={900}>
-                Dados das Crianças
-              </Typography>
-              <PrimaryButton onClick={openCreate} size="small">
-                + Adicionar criança
-              </PrimaryButton>
-            </Stack>
+            <SectionHeader
+              title="Dados das Crianças"
+              icon={<FamilyRestroomRounded />}
+              action={
+                <PrimaryButton
+                  onClick={openCreate}
+                  size="small"
+                  aria-label="Adicionar criança"
+                >
+                  + Adicionar criança
+                </PrimaryButton>
+              }
+            />
 
             <TextField
               value={q}
@@ -563,46 +790,38 @@ export default function FamilyPage() {
               placeholder="Pesquisar criança…"
               fullWidth
               sx={{ mb: 1 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRounded fontSize="small" />
+                  </InputAdornment>
+                ),
+                endAdornment: q ? (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="Limpar pesquisa"
+                      size="small"
+                      onClick={() => setQ("")}
+                    >
+                      <ClearRounded fontSize="small" />
+                    </IconButton>
+                  </InputAdornment>
+                ) : undefined,
+              }}
             />
 
             <Stack
               spacing={0.75}
               sx={{ maxHeight: 240, overflowY: "auto", pr: 0.5 }}
             >
-              {filtered.map((c) => {
-                const isActive = Number(c.id) === Number(activeId);
-                return (
-                  <Box
-                    key={c.id}
-                    onClick={() => openEdit(c)}
-                    sx={{
-                      p: 1,
-                      borderRadius: 2,
-                      border: "1px solid",
-                      borderColor: isActive ? "primary.main" : "divider",
-                      bgcolor: isActive ? "primary.light" : "background.paper",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <Avatar
-                        src={c.avatarUrl || undefined}
-                        sx={{ width: 32, height: 32 }}
-                      >
-                        {(c.name || "?").charAt(0)}
-                      </Avatar>
-                      <Box minWidth={0} flex={1}>
-                        <Typography fontWeight={800} noWrap title={c.name}>
-                          {c.name}
-                        </Typography>
-                        <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                          {ageFrom(c.birthDate)}
-                        </Typography>
-                      </Box>
-                    </Stack>
-                  </Box>
-                );
-              })}
+              {filtered.map((c) => (
+                <ChildListItem
+                  key={c.id}
+                  c={c}
+                  active={Number(c.id) === Number(activeId)}
+                  onClick={() => openEdit(c)}
+                />
+              ))}
               {filtered.length === 0 && (
                 <Typography sx={{ opacity: 0.7 }}>Sem resultados.</Typography>
               )}
@@ -611,49 +830,45 @@ export default function FamilyPage() {
 
           {/* Painel da criança ativa */}
           <WhiteCard sx={{ mx: "auto", width: "100%", maxWidth: 520 }}>
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="space-between"
-              sx={{ mb: 1 }}
-            >
-              <Typography variant="h6" fontWeight={900}>
-                {activeChild ? activeChild.name : "Seleciona uma criança"}
-              </Typography>
-
-              <Stack direction="row" spacing={1} alignItems="center">
-                {activeChild && (
-                  <PrimaryButton
-                    onClick={() => openEdit(activeChild)}
-                    size="small"
-                  >
-                    Editar dados
-                  </PrimaryButton>
-                )}
-                <Tooltip title="Gerar sugestões para esta criança">
-                  <span>
-                    <IconButton
+            <SectionHeader
+              title={activeChild ? activeChild.name : "Seleciona uma criança"}
+              icon={<PersonRounded />}
+              action={
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {activeChild && (
+                    <PrimaryButton
+                      onClick={() => openEdit(activeChild)}
                       size="small"
-                      onClick={generateSuggestions}
-                      disabled={!activeChild || sugLoading}
-                      aria-label="Gerar sugestões"
                     >
-                      <RefreshRounded fontSize="small" />
-                    </IconButton>
-                  </span>
-                </Tooltip>
-                <RouteLink href="/agenda">Ver Agenda</RouteLink>
-              </Stack>
-            </Stack>
+                      Editar dados
+                    </PrimaryButton>
+                  )}
+                  <Tooltip title="Gerar sugestões para esta criança">
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={generateSuggestions}
+                        disabled={!activeChild || sugLoading}
+                        aria-label="Gerar sugestões"
+                      >
+                        <RefreshRounded fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <RouteLink href="/agenda">Ver Agenda</RouteLink>
+                </Stack>
+              }
+            />
 
             {!activeChild ? (
               <Typography sx={{ opacity: 0.7 }}>
                 Escolhe uma criança para ver a atividade.
               </Typography>
             ) : loadingChild ? (
-              <Stack direction="row" spacing={1} alignItems="center">
-                <CircularProgress size={18} />
-                <Typography sx={{ opacity: 0.8 }}>A carregar…</Typography>
+              <Stack spacing={1}>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} variant="rounded" height={64} />
+                ))}
               </Stack>
             ) : (
               <Stack spacing={1.25}>

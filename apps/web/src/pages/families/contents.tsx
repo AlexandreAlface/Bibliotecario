@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+// apps/web/src/pages/FamilyContentsPage.tsx
+import { useEffect, useState, Fragment } from "react";
 import {
   Box,
   Chip,
@@ -12,6 +13,11 @@ import {
   Card,
   CardContent,
   CardMedia,
+  IconButton,
+  Tooltip,
+  LinearProgress,
+  InputAdornment,
+  Divider,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import { WhiteCard, PrimaryButton } from "@bibliotecario/ui-web";
@@ -19,8 +25,23 @@ import {
   listMicroContentsPublic,
   markMicroContentSeen,
 } from "@/services/microcontent";
-
 import type { MicroContentItem } from "@/services/microcontent";
+
+/* ---------- Ícones ---------- */
+import RefreshRounded from "@mui/icons-material/RefreshRounded";
+import SearchRounded from "@mui/icons-material/SearchRounded";
+import TagRounded from "@mui/icons-material/TagRounded";
+import LocalLibraryRounded from "@mui/icons-material/LocalLibraryRounded";
+import PsychologyRounded from "@mui/icons-material/PsychologyRounded";
+import TipsAndUpdatesRounded from "@mui/icons-material/TipsAndUpdatesRounded";
+import FactCheckRounded from "@mui/icons-material/FactCheckRounded";
+import MoreHorizRounded from "@mui/icons-material/MoreHorizRounded";
+import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import DoneAllRounded from "@mui/icons-material/DoneAllRounded";
+import LibraryBooksRounded from "@mui/icons-material/LibraryBooksRounded";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import FilterAltOffRounded from "@mui/icons-material/FilterAltOffRounded";
 
 const TYPES: MicroContentItem["type"][] = [
   "BIBLIOTERAPIA",
@@ -30,6 +51,34 @@ const TYPES: MicroContentItem["type"][] = [
 ];
 
 type LibraryLite = { id: number; name: string };
+
+/* Helpers para meta de tipos (ícone + cor do chip) */
+function typeIcon(t?: string) {
+  switch (t) {
+    case "BIBLIOTERAPIA":
+      return <PsychologyRounded fontSize="small" />;
+    case "DICA":
+      return <TipsAndUpdatesRounded fontSize="small" />;
+    case "FACTO":
+      return <FactCheckRounded fontSize="small" />;
+    default:
+      return <MoreHorizRounded fontSize="small" />;
+  }
+}
+function typeChipColor(
+  t?: string
+): "default" | "primary" | "success" | "warning" {
+  switch (t) {
+    case "BIBLIOTERAPIA":
+      return "success";
+    case "DICA":
+      return "primary";
+    case "FACTO":
+      return "warning";
+    default:
+      return "default";
+  }
+}
 
 export default function FamilyContentsPage() {
   const [items, setItems] = useState<MicroContentItem[]>([]);
@@ -44,46 +93,60 @@ export default function FamilyContentsPage() {
 
   const [tagOptions, setTagOptions] = useState<string[]>([]);
   const [libraries, setLibraries] = useState<LibraryLite[]>([]);
+  const [loading, setLoading] = useState(false);
 
   async function load(p = page) {
-    const res: any = await listMicroContentsPublic({
-      q: q || undefined,
-      type: type || undefined,
-      tag: tag || undefined,
-      libraryId: libraryId ? Number(libraryId) : undefined,
-      page: p,
-      limit,
-    });
+    setLoading(true);
+    try {
+      const res: any = await listMicroContentsPublic({
+        q: q || undefined,
+        type: type || undefined,
+        tag: tag || undefined,
+        libraryId: libraryId ? Number(libraryId) : undefined,
+        page: p,
+        limit,
+      });
 
-    setItems(res.items as MicroContentItem[]);
-    setTotal(Number(res.total || 0));
+      setItems(res.items as MicroContentItem[]);
+      setTotal(Number(res.total || 0));
 
-    // ---- opções de tags (tipado) ----
-    const rawTags: string[] = [
-      ...((Array.isArray(res.tags) ? res.tags : []) as unknown[]),
-      ...(((res.items || []) as unknown[]).flatMap((mc: any) =>
-        Array.isArray(mc?.tags) ? mc.tags : []
-      ) as unknown[]),
-    ].filter((t): t is string => typeof t === "string");
+      // ---- tags disponíveis (consolidadas) ----
+      const rawTags: string[] = [
+        ...((Array.isArray(res.tags) ? res.tags : []) as unknown[]),
+        ...(((res.items || []) as unknown[]).flatMap((mc: any) =>
+          Array.isArray(mc?.tags) ? mc.tags : []
+        ) as unknown[]),
+      ].filter((t): t is string => typeof t === "string");
 
-    const dedupTags: string[] = Array.from(new Set(rawTags)).sort((a, b) =>
-      a.localeCompare(b)
-    );
-    setTagOptions(dedupTags);
+      const dedupTags: string[] = Array.from(new Set(rawTags)).sort((a, b) =>
+        a.localeCompare(b)
+      );
+      setTagOptions(dedupTags);
 
-    // ---- opções de bibliotecas (deduzidas dos conteúdos) ----
-    const libs: LibraryLite[] = Array.from(
-      new Map(
-        ((res.items || []) as any[])
-          .map((mc) =>
-            mc?.library?.id
-              ? [mc.library.id, { id: Number(mc.library.id), name: String(mc.library.name || `Biblioteca #${mc.library.id}`) }]
-              : null
-          )
-          .filter(Boolean) as [number, LibraryLite][]
-      ).values()
-    ).sort((a, b) => a.name.localeCompare(b.name));
-    setLibraries(libs);
+      // ---- bibliotecas (a partir dos conteúdos) ----
+      const libs: LibraryLite[] = Array.from(
+        new Map(
+          ((res.items || []) as any[])
+            .map((mc) =>
+              mc?.library?.id
+                ? [
+                    mc.library.id,
+                    {
+                      id: Number(mc.library.id),
+                      name: String(
+                        mc.library.name || `Biblioteca #${mc.library.id}`
+                      ),
+                    },
+                  ]
+                : null
+            )
+            .filter(Boolean) as [number, LibraryLite][]
+        ).values()
+      ).sort((a, b) => a.name.localeCompare(b.name));
+      setLibraries(libs);
+    } finally {
+      setLoading(false);
+    }
   }
 
   // pesquisa automática quando muda página/tipo/biblioteca
@@ -105,99 +168,247 @@ export default function FamilyContentsPage() {
   const pages = Math.max(1, Math.ceil(total / limit));
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       <WhiteCard>
         <Stack spacing={2}>
+          {/* Cabeçalho */}
           <Stack
             direction="row"
             alignItems="center"
             justifyContent="space-between"
           >
             <Box>
-              <Typography variant="h4" fontWeight={900}>
+              <Typography
+                variant="h4"
+                fontWeight={900}
+                sx={{ display: "flex", alignItems: "center", gap: 1 }}
+              >
+                <PsychologyRounded />
                 Conteúdos & Biblioterapia
               </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.75 }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  opacity: 0.75,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                }}
+              >
+                <InfoOutlined fontSize="small" />
                 Dicas, biblioterapia e conteúdos associados a livros.
               </Typography>
+              {!!total && (
+                <Typography
+                  variant="caption"
+                  sx={{ opacity: 0.7, display: "flex", gap: 0.5, mt: 0.25 }}
+                >
+                  <LibraryBooksRounded fontSize="inherit" />
+                  {total} resultado{total === 1 ? "" : "s"}
+                </Typography>
+              )}
             </Box>
-            <PrimaryButton
-              onClick={() => {
-                setPage(1);
-                load(1);
-              }}
-            >
-              Atualizar
-            </PrimaryButton>
+            <Tooltip title="Atualizar lista">
+              <span>
+                <PrimaryButton
+                  startIcon={<RefreshRounded />}
+                  onClick={() => {
+                    setPage(1);
+                    load(1);
+                  }}
+                >
+                  Atualizar
+                </PrimaryButton>
+              </span>
+            </Tooltip>
           </Stack>
 
           {/* Filtros */}
-          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-            <TextField
-              size="small"
-              placeholder="Pesquisar…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              sx={{ minWidth: 260 }}
-            />
+          <Stack spacing={1.5}>
+            <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              <TextField
+                size="small"
+                placeholder="Pesquisar…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                sx={{ minWidth: 260 }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRounded />
+                    </InputAdornment>
+                  ),
+                }}
+              />
 
-            <TextField
-              select
-              size="small"
-              label="Tipo"
-              value={type}
-              onChange={(e) => {
-                setType(e.target.value);
-                setPage(1);
-              }}
-              sx={{ width: 180 }}
-            >
-              <MenuItem value="">Todos</MenuItem>
-              {TYPES.map((t) => (
-                <MenuItem key={t} value={t}>
-                  {t}
+              {/* Tipo */}
+              <TextField
+                select
+                size="small"
+                label="Tipo"
+                value={type}
+                onChange={(e) => {
+                  setType(e.target.value);
+                  setPage(1);
+                }}
+                sx={{ width: 220 }}
+              >
+                <MenuItem value="">
+                  <Fragment>
+                    <MoreHorizRounded
+                      fontSize="small"
+                      style={{ marginRight: 8 }}
+                    />
+                    Todos
+                  </Fragment>
                 </MenuItem>
-              ))}
-            </TextField>
+                {TYPES.map((t) => (
+                  <MenuItem key={t} value={t}>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      {typeIcon(t)}
+                      {t}
+                    </span>
+                  </MenuItem>
+                ))}
+              </TextField>
 
-            <TextField
-              select
-              size="small"
-              label="Tag"
-              value={tag}
-              onChange={(e) => {
-                setTag(e.target.value);
-                setPage(1);
-              }}
-              sx={{ width: 220 }}
-            >
-              <MenuItem value="">Todas</MenuItem>
-              {tagOptions.map((t) => (
-                <MenuItem key={t} value={t}>
-                  {t}
+              {/* Tag (única) */}
+              <TextField
+                select
+                size="small"
+                label="Tag"
+                value={tag}
+                onChange={(e) => {
+                  setTag(e.target.value);
+                  setPage(1);
+                }}
+                sx={{ width: 240 }}
+              >
+                <MenuItem value="">
+                  <Fragment>
+                    <TagRounded fontSize="small" style={{ marginRight: 8 }} />
+                    Todas
+                  </Fragment>
                 </MenuItem>
-              ))}
-            </TextField>
+                {tagOptions.map((t) => (
+                  <MenuItem key={t} value={t}>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <TagRounded fontSize="small" />
+                      {t}
+                    </span>
+                  </MenuItem>
+                ))}
+              </TextField>
 
-            <TextField
-              select
-              size="small"
-              label="Biblioteca"
-              value={libraryId}
-              onChange={(e) => {
-                setLibraryId(e.target.value);
-                setPage(1);
-              }}
-              sx={{ width: 240 }}
-            >
-              <MenuItem value="">Todas</MenuItem>
-              {libraries.map((lib) => (
-                <MenuItem key={lib.id} value={String(lib.id)}>
-                  {lib.name}
+              {/* Biblioteca */}
+              <TextField
+                select
+                size="small"
+                label="Biblioteca"
+                value={libraryId}
+                onChange={(e) => {
+                  setLibraryId(e.target.value);
+                  setPage(1);
+                }}
+                sx={{ width: 260 }}
+              >
+                <MenuItem value="">
+                  <Fragment>
+                    <LocalLibraryRounded
+                      fontSize="small"
+                      style={{ marginRight: 8 }}
+                    />
+                    Todas
+                  </Fragment>
                 </MenuItem>
-              ))}
-            </TextField>
+                {libraries.map((lib) => (
+                  <MenuItem key={lib.id} value={String(lib.id)}>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <LocalLibraryRounded fontSize="small" />
+                      {lib.name}
+                    </span>
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              {/* Limpar filtros */}
+              <Button
+                size="small"
+                variant="text"
+                startIcon={<FilterAltOffRounded />}
+                onClick={() => {
+                  setQ("");
+                  setType("");
+                  setTag("");
+                  setLibraryId("");
+                  setPage(1);
+                  load(1);
+                }}
+              >
+                Limpar
+              </Button>
+            </Stack>
+
+            {/* “Tag cloud” rápida (1 tag ativa de cada vez) */}
+            {tagOptions.length > 0 && (
+              <>
+                <Divider sx={{ my: 0.5 }} />
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  useFlexGap
+                  flexWrap="wrap"
+                  alignItems="center"
+                >
+                  <Typography variant="body2" sx={{ opacity: 0.75 }}>
+                    Tags populares:
+                  </Typography>
+                  {tagOptions.slice(0, 10).map((t) => {
+                    const active = tag === t;
+                    return (
+                      <Chip
+                        key={t}
+                        size="small"
+                        icon={<TagRounded fontSize="small" />}
+                        label={t}
+                        variant={active ? "filled" : "outlined"}
+                        color={active ? "primary" : "default"}
+                        onClick={() => {
+                          setTag(active ? "" : t);
+                          setPage(1);
+                        }}
+                      />
+                    );
+                  })}
+                </Stack>
+              </>
+            )}
           </Stack>
+
+          {/* Loading */}
+          {loading && (
+            <Box sx={{ mt: 1 }}>
+              <LinearProgress />
+            </Box>
+          )}
 
           {/* Lista */}
           <Grid container spacing={2}>
@@ -210,6 +421,7 @@ export default function FamilyContentsPage() {
                 <Grid item key={mc.id} xs={12} md={6}>
                   <WhiteCard sx={{ p: 2, height: "100%" }}>
                     <Stack spacing={1}>
+                      {/* Chips de meta */}
                       <Stack
                         direction="row"
                         spacing={1}
@@ -217,32 +429,47 @@ export default function FamilyContentsPage() {
                         flexWrap="wrap"
                         alignItems="center"
                       >
-                        <Chip size="small" label={mc.type} />
+                        <Chip
+                          size="small"
+                          color={typeChipColor(mc.type)}
+                          icon={typeIcon(mc.type)}
+                          label={mc.type}
+                          variant="filled"
+                        />
                         {mc.tags.map((t) => (
                           <Chip
                             key={t}
                             size="small"
+                            icon={<TagRounded fontSize="small" />}
                             label={t}
                             variant="outlined"
+                            onClick={() => {
+                              // clicar num tag aplica-o ao filtro
+                              setTag(t);
+                              setPage(1);
+                            }}
                           />
                         ))}
                         {mc.library ? (
                           <Chip
                             size="small"
                             variant="outlined"
-                            label={`Biblioteca: ${mc.library.name}`}
+                            icon={<LocalLibraryRounded fontSize="small" />}
+                            label={mc.library.name}
                           />
                         ) : null}
                         {seen ? (
                           <Chip
                             size="small"
                             color="success"
+                            icon={<CheckCircleRounded fontSize="small" />}
                             label="Visto"
                             variant="filled"
                           />
                         ) : null}
                       </Stack>
 
+                      {/* Texto */}
                       <Typography sx={{ whiteSpace: "pre-wrap" }}>
                         {mc.text}
                       </Typography>
@@ -250,7 +477,15 @@ export default function FamilyContentsPage() {
                       {/* Livros associados */}
                       {!!mc.books?.length && (
                         <Stack spacing={1}>
-                          <Typography variant="subtitle2">
+                          <Typography
+                            variant="subtitle2"
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 0.5,
+                            }}
+                          >
+                            <LibraryBooksRounded fontSize="small" />
                             Livros relacionados
                           </Typography>
                           <Stack
@@ -305,24 +540,40 @@ export default function FamilyContentsPage() {
                         </Stack>
                       )}
 
+                      {/* Ações */}
                       <Stack direction="row" spacing={1}>
-                        <Button
-                          size="small"
-                          onClick={async () => {
-                            if (seen) return;
-                            await markMicroContentSeen(mc.id);
-                            setItems((arr) =>
-                              arr.map((x) =>
-                                x.id === mc.id
-                                  ? ({ ...x, seen: true } as any)
-                                  : x
-                              )
-                            );
-                          }}
-                          disabled={seen}
+                        <Tooltip
+                          title={
+                            seen ? "Já marcado como visto" : "Marcar como visto"
+                          }
                         >
-                          {seen ? "Visto" : "Marcar como visto"}
-                        </Button>
+                          <span>
+                            <Button
+                              size="small"
+                              startIcon={
+                                seen ? (
+                                  <CheckCircleRounded />
+                                ) : (
+                                  <DoneAllRounded />
+                                )
+                              }
+                              onClick={async () => {
+                                if (seen) return;
+                                await markMicroContentSeen(mc.id);
+                                setItems((arr) =>
+                                  arr.map((x) =>
+                                    x.id === mc.id
+                                      ? ({ ...x, seen: true } as any)
+                                      : x
+                                  )
+                                );
+                              }}
+                              disabled={seen}
+                            >
+                              {seen ? "Visto" : "Marcar como visto"}
+                            </Button>
+                          </span>
+                        </Tooltip>
                       </Stack>
                     </Stack>
                   </WhiteCard>
@@ -331,11 +582,14 @@ export default function FamilyContentsPage() {
             })}
           </Grid>
 
-          <Stack direction="row" justifyContent="center">
+          {/* Paginação */}
+          <Stack direction="row" justifyContent="center" sx={{ mt: 1 }}>
             <Pagination
               count={pages}
               page={page}
               onChange={(_, p) => setPage(p)}
+              shape="rounded"
+              color="primary"
             />
           </Stack>
         </Stack>

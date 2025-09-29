@@ -37,6 +37,11 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
+  RefreshCw,
+  Building2,
+  User2,
+  MapPin,
+  ArrowRightLeft,
 } from "lucide-react";
 import type { SlotLite } from "@/services/consultations";
 
@@ -57,10 +62,51 @@ function fmtRange(start?: string | Date | null, end?: string | Date | null) {
   return `${fmtDate.format(a)}, ${fmtTime.format(a)} — ${fmtTime.format(b)}`;
 }
 
-function SectionHeader({ title, count }: { title: string; count: number }) {
+function PageHeader({
+  title,
+  onRefresh,
+  loading,
+}: {
+  title: string;
+  onRefresh: () => void;
+  loading?: boolean;
+}) {
+  return (
+    <Stack
+      direction="row"
+      alignItems="center"
+      justifyContent="space-between"
+      sx={{ mb: 1 }}
+    >
+      <Typography variant="h5" fontWeight={900}>
+        {title}
+      </Typography>
+      <Tooltip title="Atualizar">
+        <span>
+          <IconButton onClick={onRefresh} disabled={!!loading}>
+            <RefreshCw size={18} />
+          </IconButton>
+        </span>
+      </Tooltip>
+    </Stack>
+  );
+}
+
+function SectionHeader({
+  title,
+  count,
+  icon,
+}: {
+  title: string;
+  count: number;
+  icon?: React.ReactNode;
+}) {
   return (
     <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-      <Typography variant="subtitle1">{title}</Typography>
+      {!!icon && <Box sx={{ lineHeight: 0 }}>{icon}</Box>}
+      <Typography variant="subtitle1" fontWeight={700}>
+        {title}
+      </Typography>
       <Chip
         size="small"
         label={count}
@@ -160,7 +206,10 @@ export default function LibrarianConsultasPendentes() {
 
   return (
     <Box sx={{ py: 3, display: "grid", gap: 3 }}>
-      <Typography variant="h5">Pedidos de consulta</Typography>
+
+        <Typography variant="h3" fontWeight={900} sx={{ mb: 2 }}>
+          Pedidos de consulta
+        </Typography>
 
       {err && (
         <Alert severity="error" variant="outlined">
@@ -184,6 +233,7 @@ export default function LibrarianConsultasPendentes() {
         <SectionHeader
           title="Solicitações com proposta de horário"
           count={consultasComSlotSemPropDoBibliotecario.length}
+          icon={<CalendarClock size={18} />}
         />
         {consultasComSlotSemPropDoBibliotecario.length === 0 && !loading && (
           <Empty>Sem pedidos com horário.</Empty>
@@ -205,6 +255,7 @@ export default function LibrarianConsultasPendentes() {
         <SectionHeader
           title="Propostas de reagendamento"
           count={propostas.length}
+          icon={<ArrowRightLeft size={18} />}
         />
         {propostas.length === 0 && !loading && (
           <Empty>Sem propostas pendentes.</Empty>
@@ -255,6 +306,9 @@ function PedidoComSlotCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [librarianId, c.id, c.startAt, c.endAt]);
 
+  const hasChild = !!c.child?.name;
+  const hasLib = !!c.library?.name;
+
   return (
     <LineCard tone={msg ? "warn" : "default"}>
       <Stack
@@ -263,24 +317,63 @@ function PedidoComSlotCard({
         justifyContent="space-between"
         spacing={2}
       >
-        <Stack spacing={0.5}>
+        <Stack spacing={0.75}>
           <Stack direction="row" alignItems="center" spacing={1}>
             <Users size={18} />
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" fontWeight={700}>
               {c.family?.fullName ?? `Família #${c.familyId}`}
             </Typography>
-            <Chip size="small" label="Pendente" variant="outlined" />
+            <Chip
+              size="small"
+              label="Pendente"
+              variant="outlined"
+              icon={<AlertTriangle size={14} />}
+            />
           </Stack>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Clock3 size={16} />
-            <Typography variant="body2" sx={{ opacity: 0.75 }}>
-              {fmtRange(c.startAt, c.endAt)}
-            </Typography>
+
+          {/* Metadados com ícones */}
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            flexWrap="wrap"
+            useFlexGap
+          >
+            <Chip
+              size="small"
+              variant="outlined"
+              icon={<Clock3 size={14} />}
+              label={fmtRange(c.startAt, c.endAt)}
+            />
+            {hasChild && (
+              <Chip
+                size="small"
+                variant="outlined"
+                icon={<User2 size={14} />}
+                label={c.child.name}
+              />
+            )}
+            {hasLib && (
+              <Chip
+                size="small"
+                variant="outlined"
+                icon={<Building2 size={14} />}
+                label={c.library.name}
+              />
+            )}
+            {c.location && (
+              <Chip
+                size="small"
+                variant="outlined"
+                icon={<MapPin size={14} />}
+                label={String(c.location)}
+              />
+            )}
             {msg && (
               <Chip
                 size="small"
                 color="warning"
-                icon={<AlertTriangle size={16} />}
+                icon={<AlertTriangle size={14} />}
                 label={msg}
               />
             )}
@@ -288,41 +381,53 @@ function PedidoComSlotCard({
         </Stack>
 
         <Stack direction="row" spacing={1}>
-          <PrimaryButton
-            onClick={async () => {
-              try {
-                setMsg(null);
-                await confirmConsultation(c.id);
-                onChanged();
-              } catch (e: any) {
-                const m = e?.message?.includes("conflict")
-                  ? "Conflito com outra consulta confirmada"
-                  : e?.message || "Erro";
-                setMsg(m);
-              }
-            }}
-            startIcon={<CheckCircle2 size={18} />}
-          >
-            Aceitar
-          </PrimaryButton>
+          <Tooltip title="Aceitar e confirmar este horário">
+            <span>
+              <PrimaryButton
+                onClick={async () => {
+                  try {
+                    setMsg(null);
+                    await confirmConsultation(c.id);
+                    onChanged();
+                  } catch (e: any) {
+                    const m = e?.message?.includes("conflict")
+                      ? "Conflito com outra consulta confirmada"
+                      : e?.message || "Erro";
+                    setMsg(m);
+                  }
+                }}
+                startIcon={<CheckCircle2 size={18} />}
+              >
+                Aceitar
+              </PrimaryButton>
+            </span>
+          </Tooltip>
 
-          <SecondaryButton
-            onClick={() => setOpenReschedule(true)}
-            startIcon={<CalendarClock size={18} />}
-          >
-            Reagendar
-          </SecondaryButton>
+          <Tooltip title="Propor novo horário">
+            <span>
+              <SecondaryButton
+                onClick={() => setOpenReschedule(true)}
+                startIcon={<CalendarClock size={18} />}
+              >
+                Reagendar
+              </SecondaryButton>
+            </span>
+          </Tooltip>
 
-          <SecondaryButton
-            variant="outlined"
-            onClick={async () => {
-              await declineConsultation(c.id);
-              onChanged();
-            }}
-            startIcon={<XCircle size={18} />}
-          >
-            Recusar
-          </SecondaryButton>
+          <Tooltip title="Recusar pedido">
+            <span>
+              <SecondaryButton
+                variant="outlined"
+                onClick={async () => {
+                  await declineConsultation(c.id);
+                  onChanged();
+                }}
+                startIcon={<XCircle size={18} />}
+              >
+                Recusar
+              </SecondaryButton>
+            </span>
+          </Tooltip>
         </Stack>
       </Stack>
 
@@ -399,6 +504,9 @@ function PropostaRow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [librarianId, p?.id]);
 
+  const hasChild = !!p.consultation?.child?.name;
+  const hasLib = !!p.consultation?.library?.name;
+
   return (
     <LineCard tone={msg ? "warn" : "default"}>
       <Stack
@@ -407,16 +515,21 @@ function PropostaRow({
         justifyContent="space-between"
         spacing={2}
       >
-        <Stack spacing={0.5}>
+        <Stack spacing={0.75}>
           <Stack direction="row" alignItems="center" spacing={1}>
             <Users size={18} />
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" fontWeight={700}>
               {p.consultation.family?.fullName}
             </Typography>
             <Chip
               size="small"
-              label={isFromFamily ? "Proposta da família" : "Proposta do bibliotecário"}
+              label={
+                isFromFamily
+                  ? "Proposta da família"
+                  : "Proposta do bibliotecário"
+              }
               variant="outlined"
+              icon={<ArrowRightLeft size={14} />}
             />
             {!canAccept && (
               <Chip
@@ -428,7 +541,7 @@ function PropostaRow({
             )}
           </Stack>
 
-          {/* Horário antigo e novo */}
+          {/* Horário antigo e novo + metadados */}
           <Stack
             direction="row"
             spacing={1}
@@ -440,7 +553,7 @@ function PropostaRow({
               <Chip
                 size="small"
                 variant="outlined"
-                icon={<Clock3 size={16} />}
+                icon={<Clock3 size={14} />}
                 label={`Antigo: ${fmtRange(fromStart, fromEnd)}`}
               />
             )}
@@ -448,14 +561,38 @@ function PropostaRow({
               size="small"
               color="primary"
               variant="outlined"
-              icon={<CalendarClock size={16} />}
+              icon={<CalendarClock size={14} />}
               label={`Proposto: ${fmtRange(start, end)}`}
             />
+            {hasChild && (
+              <Chip
+                size="small"
+                variant="outlined"
+                icon={<User2 size={14} />}
+                label={p.consultation.child.name}
+              />
+            )}
+            {hasLib && (
+              <Chip
+                size="small"
+                variant="outlined"
+                icon={<Building2 size={14} />}
+                label={p.consultation.library.name}
+              />
+            )}
+            {p.consultation?.location && (
+              <Chip
+                size="small"
+                variant="outlined"
+                icon={<MapPin size={14} />}
+                label={String(p.consultation.location)}
+              />
+            )}
             {msg && (
               <Chip
                 size="small"
                 color="warning"
-                icon={<AlertTriangle size={16} />}
+                icon={<AlertTriangle size={14} />}
                 label={msg}
               />
             )}
@@ -464,51 +601,63 @@ function PropostaRow({
 
         <Stack direction="row" spacing={1}>
           {canAccept && (
-            <PrimaryButton
-              onClick={async () => {
-                try {
-                  await acceptProposal(p.id);
-                  onChanged();
-                } catch (e: any) {
-                  // 403 vem do backend quando quem propôs tenta aceitar
-                  const m = String(e?.message || "");
-                  if (m.includes("forbidden")) {
-                    setMsg("Não pode aceitar a própria proposta.");
-                  } else if (m.includes("conflict")) {
-                    setMsg("Conflito com outra consulta confirmada");
-                  } else {
-                    setMsg(e?.message || "Erro");
-                  }
-                }
-              }}
-              startIcon={<CheckCircle2 size={18} />}
-            >
-              Aceitar
-            </PrimaryButton>
+            <Tooltip title="Aceitar a proposta da família">
+              <span>
+                <PrimaryButton
+                  onClick={async () => {
+                    try {
+                      await acceptProposal(p.id);
+                      onChanged();
+                    } catch (e: any) {
+                      const m = String(e?.message || "");
+                      if (m.includes("forbidden")) {
+                        setMsg("Não pode aceitar a própria proposta.");
+                      } else if (m.includes("conflict")) {
+                        setMsg("Conflito com outra consulta confirmada");
+                      } else {
+                        setMsg(e?.message || "Erro");
+                      }
+                    }
+                  }}
+                  startIcon={<CheckCircle2 size={18} />}
+                >
+                  Aceitar
+                </PrimaryButton>
+              </span>
+            </Tooltip>
           )}
 
           {canDecline && (
-            <SecondaryButton
-              variant="outlined"
-              onClick={async () => {
-                try {
-                  await declineProposal(p.id);
-                  onChanged();
-                } catch (e: any) {
-                  setMsg(e?.message || "Erro ao cancelar/recusar");
-                }
-              }}
-              startIcon={<XCircle size={18} />}
+            <Tooltip
+              title={
+                isFromFamily
+                  ? "Recusar proposta da família"
+                  : "Cancelar a sua proposta"
+              }
             >
-              {isFromFamily ? "Recusar" : "Cancelar proposta"}
-            </SecondaryButton>
+              <span>
+                <SecondaryButton
+                  variant="outlined"
+                  onClick={async () => {
+                    try {
+                      await declineProposal(p.id);
+                      onChanged();
+                    } catch (e: any) {
+                      setMsg(e?.message || "Erro ao cancelar/recusar");
+                    }
+                  }}
+                  startIcon={<XCircle size={18} />}
+                >
+                  {isFromFamily ? "Recusar" : "Cancelar"}
+                </SecondaryButton>
+              </span>
+            </Tooltip>
           )}
         </Stack>
       </Stack>
     </LineCard>
   );
 }
-
 
 /* --------- Dialog: selector de slots (com seleção + confirmar) --------- */
 function SlotPickerDialog({
@@ -660,6 +809,7 @@ function SlotPickerDialog({
                       label={`${fmtTime.format(a)} — ${fmtTime.format(b)}`}
                       variant={isSelected ? "filled" : "outlined"}
                       color={isSelected ? "primary" : "default"}
+                      icon={<Clock3 size={14} />}
                       sx={{ mb: 1 }}
                     />
                   );

@@ -11,6 +11,18 @@ export type BookLite = {
   why?: string[]; // explicações (opcional)
 };
 
+export type BookDetails = {
+  isbn: string;
+  title: string;
+  coverUrl?: string | null;
+  summary?: string | null;
+  authors?: string[] | string | null;
+  categories?: string[] | string | null;
+  genres?: string[] | string | null;
+  publicationYear?: number | null;
+  ageRange?: string | null;
+};
+
 export type QuizAnswer = { id: string; value: any };
 
 export type PaginatedBooks = { items: BookLite[]; total: number };
@@ -39,6 +51,22 @@ function parseAxiosError(e: any): ApiError {
   // útil em dev
   console.error("[API ERROR]", { status, code, data });
   return new ApiError(status, msg, code, data);
+}
+
+export async function getBookByIsbn(isbn: string): Promise<BookDetails> {
+  try {
+    const { data } = await api.get(`/books/${encodeURIComponent(isbn)}`);
+    return data as BookDetails;
+  } catch (e1) {
+    // fallback simples (se tiveres busca por querystring)
+    try {
+      const { data } = await api.get(`/books`, { params: { isbn } });
+      return (Array.isArray(data) ? data[0] : data) as BookDetails;
+    } catch (e2) {
+      // devolve estrutura mínima para o modal não falhar
+      return { isbn, title: "Livro", summary: null };
+    }
+  }
 }
 
 /**

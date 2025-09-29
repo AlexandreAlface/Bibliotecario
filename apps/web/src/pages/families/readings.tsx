@@ -9,10 +9,15 @@ import {
   CardActions,
   Button,
   IconButton,
-  Divider,
   Snackbar,
   Alert,
+  DialogContent,
+  Dialog,
+  Chip,
+  DialogTitle,
+  Box,
 } from "@mui/material";
+import { LoadingButton } from "@mui/lab";
 import Rating from "@mui/material/Rating";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import TuneRounded from "@mui/icons-material/TuneRounded";
@@ -32,6 +37,17 @@ import {
   startReading,
   finishReading,
 } from "@/services/readings";
+import {
+  ArticleOutlined,
+  BookmarkRounded,
+  CalendarMonthRounded,
+  CategoryRounded,
+  InfoRounded,
+  MenuBookRounded,
+  PersonOutlineRounded,
+  SpeedRounded,
+} from "@mui/icons-material";
+import { getBookByIsbn } from "@/services/books";
 
 type PendingRow = {
   isbn: string;
@@ -44,6 +60,7 @@ type PendingRow = {
 type HistoryRow = {
   id: number;
   title: string;
+  isbn?: string;
   coverUrl?: string | null;
   date?: string; // ISO (finishedAt || startedAt)
   childId?: number;
@@ -51,6 +68,127 @@ type HistoryRow = {
   stars?: number;
   comment?: string | null;
 };
+
+function BookDetailsDialog({
+  open,
+  book,
+  onClose,
+}: {
+  open: boolean;
+  book: (import("@/services/books").BookDetails & { score?: number }) | null;
+  onClose: () => void;
+}) {
+  if (!book) return null;
+
+  const authors = Array.isArray(book.authors)
+    ? book.authors
+    : typeof book.authors === "string"
+    ? [book.authors]
+    : [];
+  const categoriesRaw =
+    (Array.isArray(book.categories) && book.categories) ||
+    (Array.isArray(book.genres) && book.genres) ||
+    (typeof book.categories === "string" ? [book.categories] : []) ||
+    (typeof book.genres === "string" ? [book.genres] : []);
+  const categories = (categoriesRaw || []).slice(0, 12);
+
+  const hasSummary = !!(book.summary && String(book.summary).trim());
+  const cover = book.coverUrl || "/placeholder-book.jpg";
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle
+        sx={{ fontWeight: 900, display: "flex", alignItems: "center", gap: 1 }}
+      >
+        <MenuBookRounded fontSize="small" />
+        {book.title}
+      </DialogTitle>
+      <DialogContent dividers>
+        <Stack direction="row" spacing={2}>
+          <Box
+            component="img"
+            src={cover}
+            alt={book.title}
+            onError={(e: any) => {
+              if (!e.currentTarget.src.includes("placeholder-book.jpg"))
+                e.currentTarget.src = "/placeholder-book.jpg";
+            }}
+            sx={{
+              width: { xs: 160, sm: 200 },
+              height: { xs: 230, sm: 300 },
+              objectFit: "cover",
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              flexShrink: 0,
+            }}
+          />
+          <Stack spacing={1} sx={{ minWidth: 0, flex: 1 }}>
+            {typeof (book as any).score === "number" && (
+              <Chip
+                size="small"
+                icon={<SpeedRounded fontSize="small" />}
+                label={`score ${(book as any).score.toFixed(3)}`}
+                sx={{ width: "fit-content" }}
+              />
+            )}
+
+            {authors.length > 0 && (
+              <Typography
+                sx={{
+                  opacity: 0.9,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                }}
+              >
+                <PersonOutlineRounded fontSize="small" /> <b>Autor(es):</b>
+                &nbsp;{authors.join(", ")}
+              </Typography>
+            )}
+
+            {categories.length > 0 && (
+              <Stack
+                direction="row"
+                spacing={1}
+                useFlexGap
+                flexWrap="wrap"
+                alignItems="center"
+              >
+                <CategoryRounded fontSize="small" />
+                <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                  {categories.map((c, i) => (
+                    <Chip key={i} size="small" label={String(c)} />
+                  ))}
+                </Stack>
+              </Stack>
+            )}
+          </Stack>
+        </Stack>
+
+        {hasSummary ? (
+          <Typography sx={{ mt: 2, whiteSpace: "pre-line" }}>
+            {book.summary}
+          </Typography>
+        ) : (
+          <Stack
+            direction="row"
+            alignItems="center"
+            gap={1}
+            sx={{ mt: 2, opacity: 0.8 }}
+          >
+            <ArticleOutlined />
+            <Typography>Sem resumo disponível.</Typography>
+          </Stack>
+        )}
+
+        <Stack direction="row" gap={1.5} sx={{ mt: 2 }}>
+          <Button onClick={onClose}>Fechar</Button>
+        </Stack>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function ReadingsPage() {
   const { user, asChild } = useUserSession();
@@ -60,7 +198,7 @@ export default function ReadingsPage() {
 
   // ID efetivo para chamadas: actingChild em modo criança; localChildId em família
   const childId = asChild
-    ? Number((user?.actingChild?.id as any))
+    ? Number(user?.actingChild?.id as any)
     : localChildId
     ? Number(localChildId)
     : undefined;
@@ -74,6 +212,49 @@ export default function ReadingsPage() {
     msg: string;
     type: "success" | "error";
   } | null>(null);
+
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailBook, setDetailBook] = useState<
+    import("@/services/books").BookDetails | null
+  >(null);
+  const [detailLoadingIsbn, setDetailLoadingIsbn] = useState<string | null>(
+    null
+  );
+
+  async function openDetailsByIsbn(
+    isbn?: string,
+    fallbackTitle?: string,
+    fallbackCover?: string | null
+  ) {
+    if (!isbn) return;
+
+    // 1) semear logo com o novo ISBN (evita ver o anterior por 1 frame)
+    setDetailBook({
+      isbn,
+      title: fallbackTitle || "Livro",
+      coverUrl: fallbackCover ?? null,
+      summary: null,
+    });
+    setDetailOpen(true);
+    setDetailLoadingIsbn(isbn);
+
+    // 2) depois vai buscar o detalhe e atualiza
+    try {
+      const b = await getBookByIsbn(isbn);
+      setDetailBook({
+        isbn,
+        title: b.title || fallbackTitle || "Livro",
+        coverUrl: b.coverUrl ?? fallbackCover ?? null,
+        summary: b.summary ?? null,
+        authors: b.authors ?? null,
+        categories: (b as any).categories ?? (b as any).genres ?? null,
+      });
+    } catch {
+      /* silencioso: fica com o fallback */
+    } finally {
+      setDetailLoadingIsbn(null);
+    }
+  }
 
   const mustPickChild = !asChild && !childId;
 
@@ -168,7 +349,11 @@ export default function ReadingsPage() {
 
   // ---------- Carregamento ----------
   async function loadAll() {
-    if (!childId && !familyId) return;
+    // 🚫 Em modo família, obriga a escolher criança primeiro
+    if (!asChild && !childId) return;
+
+    // Em modo criança, precisa de childId válido
+    if (asChild && !childId) return;
 
     const [pRows, hRaw] = await Promise.all([
       listPendingRatings({ childId, familyId, limit: 80 }),
@@ -181,6 +366,7 @@ export default function ReadingsPage() {
 
     const hRows: HistoryRow[] = hRaw.map((r: any) => ({
       id: Number(r.id),
+      isbn: r.isbn, // NEW
       title: r.title,
       coverUrl: r.coverUrl ?? undefined,
       date: r.date || undefined,
@@ -200,7 +386,7 @@ export default function ReadingsPage() {
   useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [childId, familyId]);
+  }, [childId, familyId, asChild]);
 
   const headerRight = useMemo(
     () => (
@@ -212,8 +398,33 @@ export default function ReadingsPage() {
     [childId, familyId, mustPickChild]
   );
 
+  /* ===================== GATE: MODO FAMÍLIA → OBRIGA ESCOLHER CRIANÇA ===================== */
+  if (mustPickChild) {
+    return (
+      <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+        <WhiteCard>
+          <Typography variant="h5" fontWeight={900} sx={{ mb: 1 }}>
+            Leituras
+          </Typography>
+          <Typography sx={{ opacity: 0.8, mb: 2 }}>
+            Escolhe primeiro a criança para veres reservas, leituras em curso e
+            histórico — e poderes iniciar/terminar leituras.
+          </Typography>
+          <AvatarSelect
+            label="Escolher criança"
+            options={childOptions}
+            value={localChildId || undefined}
+            onChange={(id) => setLocalChildId(id ?? "")}
+            minWidth={280}
+          />
+        </WhiteCard>
+      </Container>
+    );
+  }
+
+  /* ===================== CONTEÚDO PRINCIPAL (após escolher criança / modo criança) ===================== */
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       {/* Contexto em modo família (seletor LOCAL; não muda active user) */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
@@ -244,7 +455,12 @@ export default function ReadingsPage() {
           alignItems="center"
           sx={{ mb: 1 }}
         >
-          <Typography variant="h4" fontWeight={900}>
+          <Typography
+            variant="h4"
+            fontWeight={900}
+            sx={{ display: "flex", alignItems: "center", gap: 1 }}
+          >
+            <AutoStoriesRounded />
             Leituras em Curso
           </Typography>
           {headerRight}
@@ -261,13 +477,7 @@ export default function ReadingsPage() {
           chipIcons={pendingIcons}
         />
 
-        
-
-        {mustPickChild ? (
-          <Typography sx={{ opacity: 0.75 }}>
-            Escolhe a criança para veres reservas e leituras em curso.
-          </Typography>
-        ) : pendingPageItems.length === 0 ? (
+        {pendingPageItems.length === 0 ? (
           <Typography sx={{ opacity: 0.75 }}>
             Não há reservas por iniciar nem leituras por terminar.
           </Typography>
@@ -292,18 +502,41 @@ export default function ReadingsPage() {
                       objectFit: "cover",
                       borderTopLeftRadius: 4,
                       borderTopRightRadius: 4,
+                      cursor: "pointer",
                     }}
+                    onClick={() =>
+                      openDetailsByIsbn(r.isbn, r.title, r.coverUrl ?? null)
+                    }
                   />
                   <CardContent>
                     <Typography fontWeight={900} noWrap title={r.title}>
                       {r.title}
                     </Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{ opacity: 0.75, display: "block", mt: 0.5 }}
-                    >
-                      {r.status === "reserved" ? "Reservado" : "A ler"}
-                    </Typography>
+
+                    <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+                      <Chip
+                        size="small"
+                        icon={
+                          r.status === "reserved" ? (
+                            <BookmarkRounded fontSize="small" />
+                          ) : (
+                            <AutoStoriesRounded fontSize="small" />
+                          )
+                        }
+                        label={r.status === "reserved" ? "Reservado" : "A ler"}
+                        variant={
+                          r.status === "reserved" ? "outlined" : "filled"
+                        }
+                      />
+                      {typeof r.stars === "number" && (
+                        <Chip
+                          size="small"
+                          icon={<StarRounded fontSize="small" />}
+                          label={`${r.stars}/5`}
+                          variant="outlined"
+                        />
+                      )}
+                    </Stack>
                   </CardContent>
                   <CardActions>
                     {r.status === "reserved" ? (
@@ -361,6 +594,18 @@ export default function ReadingsPage() {
                         Terminar
                       </Button>
                     )}
+
+                    <LoadingButton
+                      size="small"
+                      startIcon={<InfoRounded />}
+                      loading={detailLoadingIsbn === r.isbn}
+                      loadingPosition="start"
+                      onClick={() =>
+                        openDetailsByIsbn(r.isbn, r.title, r.coverUrl ?? null)
+                      }
+                    >
+                      Ver mais
+                    </LoadingButton>
                   </CardActions>
                 </Card>
               ))}
@@ -386,7 +631,12 @@ export default function ReadingsPage() {
           justifyContent="space-between"
           sx={{ mb: 1 }}
         >
-          <Typography variant="h5" fontWeight={900}>
+          <Typography
+            variant="h5"
+            fontWeight={900}
+            sx={{ display: "flex", alignItems: "center", gap: 1 }}
+          >
+            <CalendarMonthRounded />
             Histórico de leituras
           </Typography>
           <Stack
@@ -410,13 +660,9 @@ export default function ReadingsPage() {
           chipIcons={historyIcons}
         />
 
-        
-
         {historyPageItems.length === 0 ? (
           <Typography sx={{ opacity: 0.75 }}>
-            {childId || familyId
-              ? "Sem resultados para os filtros aplicados."
-              : "Escolhe uma criança para ver o histórico."}
+            Sem resultados para os filtros aplicados.
           </Typography>
         ) : (
           <>
@@ -439,32 +685,39 @@ export default function ReadingsPage() {
                       objectFit: "cover",
                       borderTopLeftRadius: 4,
                       borderTopRightRadius: 4,
+                      cursor: row.isbn ? "pointer" : "default",
                     }}
+                    onClick={() =>
+                      row.isbn &&
+                      openDetailsByIsbn(
+                        row.isbn,
+                        row.title,
+                        row.coverUrl ?? null
+                      )
+                    }
                   />
                   <CardContent>
                     <Typography fontWeight={900} noWrap title={row.title}>
                       {row.title}
                     </Typography>
 
-                    <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                      {row.date
-                        ? new Date(row.date).toLocaleDateString("pt-PT")
-                        : row.childName ?? ""}
-                    </Typography>
-
-                    {typeof row.stars === "number" && (
-                      <Stack
-                        direction="row"
-                        alignItems="center"
-                        spacing={0.5}
-                        sx={{ mt: 0.5 }}
-                      >
-                        <Rating value={row.stars} readOnly size="small" />
-                        <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                          {row.stars}/5
-                        </Typography>
-                      </Stack>
-                    )}
+                    <Stack direction="row" spacing={0.5} sx={{ mt: 0.5 }}>
+                      {row.date && (
+                        <Chip
+                          size="small"
+                          icon={<CalendarMonthRounded fontSize="small" />}
+                          label={new Date(row.date).toLocaleDateString("pt-PT")}
+                        />
+                      )}
+                      {typeof row.stars === "number" && (
+                        <Chip
+                          size="small"
+                          icon={<StarRounded fontSize="small" />}
+                          label={`${row.stars}/5`}
+                          variant="outlined"
+                        />
+                      )}
+                    </Stack>
 
                     {row.comment && (
                       <Typography
@@ -475,6 +728,25 @@ export default function ReadingsPage() {
                       </Typography>
                     )}
                   </CardContent>
+                  <CardActions>
+                    <LoadingButton
+                      size="small"
+                      startIcon={<InfoRounded />}
+                      loading={detailLoadingIsbn === row.isbn}
+                      loadingPosition="start"
+                      onClick={() =>
+                        row.isbn &&
+                        openDetailsByIsbn(
+                          row.isbn,
+                          row.title,
+                          row.coverUrl ?? null
+                        )
+                      }
+                      disabled={!row.isbn}
+                    >
+                      Ver mais
+                    </LoadingButton>
+                  </CardActions>
                 </Card>
               ))}
             </Stack>
@@ -503,6 +775,16 @@ export default function ReadingsPage() {
           </Alert>
         </Snackbar>
       )}
+
+      <BookDetailsDialog
+        key={detailBook?.isbn || "empty"}
+        open={detailOpen}
+        book={detailBook}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetailBook(null);
+        }}
+      />
     </Container>
   );
 }
