@@ -1,21 +1,33 @@
 // apps/web/src/pages/admin/Feeds.tsx
 import { useEffect, useState } from "react";
 import {
-  Autocomplete,
+  Alert,
   Box,
   Button,
   Container,
   Divider,
   IconButton,
+  InputAdornment,
   Stack,
   TextField,
   Tooltip,
   Typography,
+  Chip,
+  Paper,
 } from "@mui/material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
+import RssFeedRounded from "@mui/icons-material/RssFeedRounded";
+import AddLinkRounded from "@mui/icons-material/AddLinkRounded";
+import LinkRounded from "@mui/icons-material/LinkRounded";
+import OpenInNewRounded from "@mui/icons-material/OpenInNewRounded";
+import SaveRounded from "@mui/icons-material/SaveRounded";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import UpdateRounded from "@mui/icons-material/UpdateRounded";
+import LibraryBooksRounded from "@mui/icons-material/LibraryBooksRounded";
+
 import { WhiteCard } from "@bibliotecario/ui-web";
 import {
-  listMyLibraries,
+  getMyLibrary,
   listFeeds,
   addFeed,
   updateFeed,
@@ -24,27 +36,29 @@ import {
   type LibraryLite,
 } from "@/services/feeds";
 
-export default function AdminFeeds() {
-  // bibliotecas do admin
-  const [libraries, setLibraries] = useState<LibraryLite[]>([]);
-  // biblioteca selecionada — CONTROLADO desde o 1º render (null)
-  const [selectedLib, setSelectedLib] = useState<LibraryLite | null>(null);
+/* util */
+function isValidUrl(u: string) {
+  try {
+    const x = new URL(u);
+    return x.protocol === "http:" || x.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
-  // feeds da biblioteca
+export default function AdminFeeds() {
+  const [library, setLibrary] = useState<LibraryLite | null>(null);
   const [feeds, setFeeds] = useState<FeedLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // form "Adicionar"
   const [url, setUrl] = useState("");
-  const [ttl, setTtl] = useState<number | "">("");
+  const urlOk = url.trim() !== "" && isValidUrl(url.trim());
 
-  async function loadLibraries() {
+  async function loadLibrary() {
     setErr(null);
-    const libs = await listMyLibraries();
-    setLibraries(libs);
-    // se ainda não houver selecionada, escolhe a 1ª (continua controlado: null -> objeto)
-    if (!selectedLib && libs.length) setSelectedLib(libs[0]);
+    const lib = await getMyLibrary();
+    setLibrary(lib);
   }
 
   async function loadFeeds(libId?: number) {
@@ -52,18 +66,20 @@ export default function AdminFeeds() {
       setFeeds([]);
       return;
     }
-    setErr(null);
-    const items = await listFeeds(libId);
-    setFeeds(items);
+    try {
+      setErr(null);
+      const items = await listFeeds(libId);
+      setFeeds(items);
+    } catch (e: any) {
+      setFeeds([]);
+      setErr(e?.message || "Falha a carregar feeds (sem permissões?)");
+    }
   }
 
   async function reloadAll() {
     try {
       setLoading(true);
-      await loadLibraries();
-      // a seguir ao loadLibraries, selectedLib pode mudar no mesmo tick.
-      // portanto pedimos feeds com o id mais recente numa microtask:
-      queueMicrotask(() => void loadFeeds(selectedLib?.id ?? null as any));
+      await loadLibrary();
     } catch (e: any) {
       setErr(e?.message || "Falha a carregar feeds");
     } finally {
@@ -76,31 +92,23 @@ export default function AdminFeeds() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // quando a biblioteca selecionada mudar, carrega feeds dessa lib
   useEffect(() => {
-    if (selectedLib?.id) void loadFeeds(selectedLib.id);
+    if (library?.id) void loadFeeds(library.id);
     else setFeeds([]);
-  }, [selectedLib?.id]);
-
-  const canAdd = !!selectedLib && !!url.trim();
+  }, [library?.id]);
 
   async function onAdd() {
-    if (!selectedLib) return;
+    if (!library || !urlOk) return;
     const created = await addFeed({
-      libraryId: selectedLib.id,
+      libraryId: library.id,
       url: url.trim(),
-      ttl: ttl === "" ? null : Number(ttl),
     });
     setFeeds((prev) => [...prev, created]);
     setUrl("");
-    setTtl("");
   }
 
   async function onSaveRow(f: FeedLite, patch: Partial<FeedLite>) {
-    const upd = await updateFeed(f.id, {
-      url: patch.url ?? f.url,
-      ttl: patch.ttl === undefined ? f.ttl : patch.ttl,
-    });
+    const upd = await updateFeed(f.id, { url: patch.url ?? f.url });
     setFeeds((prev) => prev.map((x) => (x.id === f.id ? upd : x)));
   }
 
@@ -110,9 +118,29 @@ export default function AdminFeeds() {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-        <Typography variant="h3" fontWeight={900}>Feeds RSS da biblioteca</Typography>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      {/* Header */}
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ mb: 2, gap: 1 }}
+      >
+        <Stack direction="row" spacing={1.25} alignItems="center">
+          <RssFeedRounded />
+          <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
+            Feeds RSS da biblioteca
+          </Typography>
+          {library && (
+            <Chip
+              size="small"
+              icon={<LibraryBooksRounded />}
+              label={library.name}
+              variant="outlined"
+              sx={{ ml: 0.5 }}
+            />
+          )}
+        </Stack>
         <Tooltip title="Atualizar">
           <span>
             <IconButton onClick={() => void reloadAll()} disabled={loading}>
@@ -123,52 +151,76 @@ export default function AdminFeeds() {
       </Stack>
 
       {!!err && (
-        <Typography color="error" sx={{ mb: 1 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
           {err}
-        </Typography>
+        </Alert>
       )}
 
-      {/* Filtro + adicionar */}
-      <WhiteCard sx={{ mb: 2 }}>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} alignItems="center">
-          <Autocomplete
-            options={libraries}
-            loading={loading}
-            value={selectedLib}                          
-            onChange={(_, val) => setSelectedLib(val)}
-            isOptionEqualToValue={(opt, val) => opt.id === val.id}
-            getOptionLabel={(o) => o?.name ?? ""}
-            renderInput={(params) => <TextField {...params} label="Biblioteca" />}
-            sx={{ minWidth: 320 }}
-          />
+      <WhiteCard sx={{ mb: 2, p: { xs: 2, md: 2.5 } }}>
+        <Stack spacing={1.25}>
+          <Typography variant="body1" sx={{ opacity: 0.85 }}>
+            Biblioteca:{" "}
+            <strong>{library ? library.name : "— (sem associação)"}</strong>
+          </Typography>
 
-          <Box sx={{ flex: 1 }} />
-
-          <TextField
-            fullWidth
-            label="URL do feed"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            sx={{ minWidth: 360 }}
-          />
-          <TextField
-            label="TTL (min)"
-            type="number"
-            value={ttl}
-            onChange={(e) => setTtl(e.target.value === "" ? "" : Number(e.target.value))}
-            sx={{ width: 160 }}
-          />
-          <Button variant="contained" onClick={onAdd} disabled={!canAdd}>
-            Adicionar
-          </Button>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.25}
+            alignItems={{ xs: "stretch", sm: "center" }}
+          >
+            <TextField
+              fullWidth
+              label="URL do feed"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && urlOk) onAdd();
+              }}
+              error={url.trim() !== "" && !urlOk}
+              helperText={
+                url.trim() && !urlOk
+                  ? "Insere um URL válido (http/https)."
+                  : "Ex.: https://site.pt/feed"
+              }
+              sx={{ minWidth: 360 }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LinkRounded fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Tooltip title={urlOk ? "Adicionar feed" : "Insere um URL válido"}>
+              <span>
+                <Button
+                  variant="contained"
+                  startIcon={<AddLinkRounded />}
+                  onClick={onAdd}
+                  disabled={!library || !urlOk}
+                >
+                  Adicionar
+                </Button>
+              </span>
+            </Tooltip>
+          </Stack>
         </Stack>
       </WhiteCard>
 
-      {/* Lista */}
-      <WhiteCard>
-        <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
-          Feeds ativos {selectedLib ? `— ${selectedLib.name}` : ""}
-        </Typography>
+      <WhiteCard sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ mb: 1 }}
+        >
+          <Typography variant="h6" fontWeight={900}>
+            Feeds ativos {library ? `— ${library.name}` : ""}
+          </Typography>
+          <Typography variant="body2" sx={{ opacity: 0.7 }}>
+            {loading ? "A carregar…" : `${feeds.length} feed(s)`}
+          </Typography>
+        </Stack>
 
         {feeds.length === 0 ? (
           <Typography sx={{ opacity: 0.7 }}>
@@ -177,7 +229,12 @@ export default function AdminFeeds() {
         ) : (
           <Stack spacing={1.25} divider={<Divider />}>
             {feeds.map((f) => (
-              <FeedRow key={f.id} feed={f} onSave={onSaveRow} onRemove={onRemove} />
+              <FeedRow
+                key={f.id}
+                feed={f}
+                onSave={onSaveRow}
+                onRemove={onRemove}
+              />
             ))}
           </Stack>
         )}
@@ -186,7 +243,7 @@ export default function AdminFeeds() {
   );
 }
 
-/* —— Row editável —— */
+/* —— Row editável (sem TTL) —— */
 function FeedRow({
   feed,
   onSave,
@@ -197,28 +254,65 @@ function FeedRow({
   onRemove: (id: number) => Promise<void>;
 }) {
   const [url, setUrl] = useState(feed.url);
-  const [ttl, setTtl] = useState<number | "">(feed.ttl ?? "");
-  const changed = url !== feed.url || (ttl === "" ? null : ttl) !== feed.ttl;
+  const [busy, setBusy] = useState(false);
+  const changed = url !== feed.url;
+  const ok = isValidUrl(url);
+
+  async function doSave() {
+    if (!changed || !ok) return;
+    try {
+      setBusy(true);
+      await onSave(feed, { url });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doRemove() {
+    if (!confirm("Remover este feed?")) return;
+    try {
+      setBusy(true);
+      await onRemove(feed.id);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 12 }}>
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: { xs: "1fr", sm: "1fr auto auto auto" },
+        gap: 12,
+        alignItems: "center",
+      }}
+    >
+      {/* URL + meta */}
       <Box>
         <TextField
           label="URL"
           fullWidth
           value={url}
           onChange={(e) => setUrl(e.target.value)}
+          error={!!url && !ok}
+          helperText={!!url && !ok ? "URL inválido" : " "}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <LinkRounded fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
           sx={{ mb: 0.5 }}
         />
-        <Stack direction="row" spacing={2} alignItems="center">
-          <TextField
-            label="TTL (min)"
-            type="number"
-            value={ttl}
-            onChange={(e) => setTtl(e.target.value === "" ? "" : Number(e.target.value))}
-            sx={{ width: 160 }}
-          />
-          <Typography variant="body2" sx={{ opacity: 0.7 }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          sx={{ opacity: 0.8 }}
+        >
+          <UpdateRounded fontSize="small" />
+          <Typography variant="body2">
             Última atualização:{" "}
             {feed.lastBuildDate
               ? new Date(feed.lastBuildDate).toLocaleString("pt-PT")
@@ -227,18 +321,66 @@ function FeedRow({
         </Stack>
       </Box>
 
-      <Stack direction="row" spacing={1} alignItems="center">
-        <Button
-          variant="outlined"
-          disabled={!changed}
-          onClick={() => onSave(feed, { url, ttl: ttl === "" ? null : Number(ttl) })}
+      {/* Abrir */}
+      <Box sx={{ justifySelf: "end" }}>
+        <Tooltip title="Abrir feed">
+          <span>
+            <Button
+              variant="outlined"
+              size="small"
+              href={feed.url}
+              target="_blank"
+              rel="noreferrer"
+              startIcon={<OpenInNewRounded />}
+            >
+              Abrir
+            </Button>
+          </span>
+        </Tooltip>
+      </Box>
+
+      {/* Guardar */}
+      <Box sx={{ justifySelf: "end" }}>
+        <Tooltip
+          title={
+            changed
+              ? ok
+                ? "Guardar alterações"
+                : "URL inválido"
+              : "Sem alterações"
+          }
         >
-          Guardar
-        </Button>
-        <Button color="error" onClick={() => onRemove(feed.id)}>
-          Remover
-        </Button>
-      </Stack>
+          <span>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<SaveRounded />}
+              disabled={!changed || !ok || busy}
+              onClick={doSave}
+            >
+              Guardar
+            </Button>
+          </span>
+        </Tooltip>
+      </Box>
+
+      {/* Remover */}
+      <Box sx={{ justifySelf: "end" }}>
+        <Tooltip title="Remover feed">
+          <span>
+            <Button
+              color="error"
+              variant="outlined"
+              size="small"
+              startIcon={<DeleteOutlineIcon />}
+              onClick={doRemove}
+              disabled={busy}
+            >
+              Remover
+            </Button>
+          </span>
+        </Tooltip>
+      </Box>
     </Box>
   );
 }

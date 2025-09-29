@@ -1,7 +1,6 @@
 // apps/web/src/pages/admin/Families.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Autocomplete,
   Avatar,
   Box,
   Button,
@@ -39,9 +38,7 @@ import {
 
 import { WhiteCard, RouteLink } from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
-import { listMyLibraries } from "@/services/adminMetrics";
-
-type LibraryLite = { id: number; name: string };
+import { getMyLibrary, type LibraryLite } from "@/services/admin";
 
 type ChildLiteFull = {
   id: number;
@@ -172,34 +169,32 @@ function calcAge(isoDate?: string | null) {
 export default function AdminFamilies() {
   const { user } = useUserSession() as any;
 
-  // ---- Bibliotecas do admin ----
-  const [libraries, setLibraries] = useState<LibraryLite[]>([]);
+  // ---- Biblioteca do admin (única) ----
+  const [library, setLibrary] = useState<LibraryLite | null>(null);
   const [libraryId, setLibraryId] = useState<number | null>(null);
-  const [libsLoading, setLibsLoading] = useState(false);
-  const [libsErr, setLibsErr] = useState<string | null>(null);
+  const [libLoading, setLibLoading] = useState(false);
+  const [libErr, setLibErr] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        setLibsLoading(true);
-        const libs = await listMyLibraries();
-        setLibraries(libs || []);
-        const fallback =
-          Number(
-            (user?.userLibraries?.[0]?.libraryId as any) ??
-              (user as any)?.libraryId ??
-              0
-          ) || null;
-        const initial =
-          libs?.[0]?.id ??
-          (fallback && libs?.some((l) => l.id === fallback) ? fallback : null);
-        setLibraryId(initial);
+        setLibLoading(true);
+        const lib = await getMyLibrary();
+        if (!lib) {
+          setLibrary(null);
+          setLibraryId(null);
+          setLibErr("Não estás associado a nenhuma biblioteca.");
+        } else {
+          setLibrary(lib);
+          setLibraryId(lib.id);
+          setLibErr(null);
+        }
       } catch (e: any) {
-        setLibraries([]);
+        setLibrary(null);
         setLibraryId(null);
-        setLibsErr(e?.message || "Falha a carregar bibliotecas.");
+        setLibErr(e?.message || "Falha a carregar a tua biblioteca.");
       } finally {
-        setLibsLoading(false);
+        setLibLoading(false);
       }
     })();
   }, [user?.id]);
@@ -274,7 +269,7 @@ export default function AdminFamilies() {
     }
   }
 
-  // ✅ AUTO-APLICAR FILTROS (debounce 350ms)
+  // ✅ AUTO-APLICAR FILTROS (debounce)
   useEffect(() => {
     if (!libraryId) return;
     setCursor(null);
@@ -304,7 +299,7 @@ export default function AdminFamilies() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Cabeçalho com seletor de biblioteca */}
+      {/* Cabeçalho (sem seletor) */}
       <Stack
         direction="row"
         alignItems="center"
@@ -312,25 +307,16 @@ export default function AdminFamilies() {
         sx={{ mb: 2 }}
       >
         <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
-          Famílias por biblioteca
+          Famílias {library ? `— ${library.name}` : ""}
         </Typography>
 
         <Stack direction="row" spacing={1} alignItems="center">
-          <Autocomplete
-            sx={{ minWidth: 280 }}
-            options={libraries}
-            loading={libsLoading}
-            value={libraries.find((l) => l.id === libraryId) || null}
-            onChange={(_, v) => setLibraryId(v ? v.id : null)}
-            getOptionLabel={(o) => o?.name ?? ""}
-            isOptionEqualToValue={(o, v) => o.id === v.id}
-            renderInput={(params) => (
-              <TextField {...params} label="Biblioteca" />
-            )}
-          />
           <Tooltip title="Atualizar">
             <span>
-              <IconButton onClick={() => void search(true)} disabled={loading}>
+              <IconButton
+                onClick={() => void search(true)}
+                disabled={loading || !libraryId || libLoading}
+              >
                 <RefreshCw size={18} />
               </IconButton>
             </span>
@@ -338,14 +324,9 @@ export default function AdminFamilies() {
         </Stack>
       </Stack>
 
-      {!!libsErr && (
+      {!!libErr && (
         <Typography color="error" sx={{ mb: 2 }}>
-          {libsErr}
-        </Typography>
-      )}
-      {libraries.length === 0 && !libsLoading && (
-        <Typography color="warning.main" sx={{ mb: 2 }}>
-          Não tens bibliotecas atribuídas.
+          {libErr}
         </Typography>
       )}
 
@@ -417,14 +398,6 @@ export default function AdminFamilies() {
               <ToggleButton value="false">Sem filhos</ToggleButton>
             </ToggleButtonGroup>
 
-            {/* Botões continuam úteis, mas já não são necessários */}
-            {/* <Button
-              variant="contained"
-              onClick={() => void search(true)}
-              disabled={!libraryId || loading}
-            >
-              Aplicar filtros
-            </Button> */}
             <Button
               variant="text"
               onClick={() => clearFilters()}
@@ -452,7 +425,7 @@ export default function AdminFamilies() {
       <WhiteCard>
         {!libraryId ? (
           <Typography sx={{ opacity: 0.7 }}>
-            Seleciona uma biblioteca para ver as famílias.
+            {libErr ?? "Sem biblioteca associada."}
           </Typography>
         ) : items.length === 0 ? (
           <Typography sx={{ opacity: 0.7 }}>

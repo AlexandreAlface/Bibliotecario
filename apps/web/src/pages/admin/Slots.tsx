@@ -32,11 +32,12 @@ import {
   listLibrarySlots,
   setSlotStatus,
   listLibraryLibrarians,
+  getMyLibrary,
   type BlockSlot,
   type SlotLite,
   type LibrarianLite,
+  type LibraryLite,
 } from "@/services/admin";
-import { listMyLibraries } from "@/services/adminMetrics";
 
 function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -55,7 +56,6 @@ function endOfDayISO(d = new Date()) {
   return x.toISOString();
 }
 
-type LibraryLite = { id: number; name: string };
 type SlotStatus = "OPEN" | "BOOKED" | "BLOCKED";
 
 const STATUS_LABEL: Record<SlotStatus, string> = {
@@ -78,9 +78,8 @@ type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
 export default function AdminSlots() {
   const { user } = useUserSession() as any;
 
-  // ---------- Bibliotecas ----------
-  const [libraries, setLibraries] = useState<LibraryLite[]>([]);
-  const [libraryId, setLibraryId] = useState<number | null>(null);
+  // ---------- Biblioteca do admin ----------
+  const [library, setLibrary] = useState<LibraryLite | null>(null);
   const [libsLoading, setLibsLoading] = useState(false);
   const [libsErr, setLibsErr] = useState<string | null>(null);
 
@@ -88,22 +87,24 @@ export default function AdminSlots() {
     (async () => {
       try {
         setLibsLoading(true);
-        const libs = await listMyLibraries();
-        setLibraries(libs || []);
-        setLibraryId((prev) =>
-          prev && libs.some((l: any) => l.id === prev)
-            ? prev
-            : libs[0]?.id ?? null
-        );
+        const lib = await getMyLibrary();
+        if (!lib) {
+          setLibrary(null);
+          setLibsErr("Não estás associado a nenhuma biblioteca.");
+        } else {
+          setLibrary(lib);
+          setLibsErr(null);
+        }
       } catch (e: any) {
-        setLibraries([]);
-        setLibraryId(null);
-        setLibsErr(e?.message || "Falha a carregar bibliotecas.");
+        setLibrary(null);
+        setLibsErr(e?.message || "Falha a carregar a tua biblioteca.");
       } finally {
         setLibsLoading(false);
       }
     })();
   }, [user?.id]);
+
+  const libraryId = library?.id ?? null;
 
   // ---------- Filtros de SLOTS ----------
   const [fromY, setFromY] = useState(ymd(new Date()));
@@ -155,7 +156,7 @@ export default function AdminSlots() {
       });
       setSlots(res);
 
-      // fallback para bibliotecários
+      // fallback para bibliotecários (derivados dos próprios slots)
       if (librarians.length === 0) {
         const map = new Map<number, LibrarianLite>();
         for (const s of res) {
@@ -183,6 +184,7 @@ export default function AdminSlots() {
 
   useEffect(() => {
     void reloadSlots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [libraryId, fromY, toY, librarianId, statuses.join(",")]);
 
   // ---------- Paginação de slots ----------
@@ -287,7 +289,7 @@ export default function AdminSlots() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Cabeçalho + biblioteca */}
+      {/* Cabeçalho + biblioteca (sem seletor) */}
       <Stack
         direction="row"
         alignItems="center"
@@ -295,34 +297,21 @@ export default function AdminSlots() {
         sx={{ mb: 2 }}
       >
         <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
-          Gestão de slots
+          Gestão de slots {library ? `— ${library.name}` : ""}
         </Typography>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Autocomplete
-            sx={{ minWidth: 280 }}
-            options={libraries}
-            loading={libsLoading}
-            value={libraries.find((l) => l.id === libraryId) || null}
-            onChange={(_, v) => setLibraryId(v ? v.id : null)}
-            getOptionLabel={(o) => o?.name ?? ""}
-            isOptionEqualToValue={(o, v) => o.id === v.id}
-            renderInput={(params) => (
-              <TextField {...params} label="Biblioteca" />
-            )}
-          />
-          <Tooltip title="Atualizar">
-            <span>
-              <IconButton
-                onClick={() => {
-                  void reloadSlots();
-                  void reloadBlocks();
-                }}
-              >
-                <RefreshRounded />
-              </IconButton>
-            </span>
-          </Tooltip>
-        </Stack>
+        <Tooltip title="Atualizar">
+          <span>
+            <IconButton
+              onClick={() => {
+                void reloadSlots();
+                void reloadBlocks();
+              }}
+              disabled={!libraryId || libsLoading}
+            >
+              <RefreshRounded />
+            </IconButton>
+          </span>
+        </Tooltip>
       </Stack>
 
       {!!libsErr && (
@@ -435,6 +424,10 @@ export default function AdminSlots() {
         )}
         {slotsLoading ? (
           <Typography sx={{ opacity: 0.7 }}>A carregar…</Typography>
+        ) : !libraryId ? (
+          <Typography sx={{ opacity: 0.7 }}>
+            {libsErr ?? "Sem biblioteca associada."}
+          </Typography>
         ) : slots.length === 0 ? (
           <Typography sx={{ opacity: 0.7 }}>
             Sem slots no intervalo/critério.

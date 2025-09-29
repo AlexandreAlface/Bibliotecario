@@ -1,5 +1,7 @@
+// apps/web/src/pages/admin/Events.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -20,6 +22,7 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  Pagination,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import SearchIcon from "@mui/icons-material/Search";
@@ -31,6 +34,13 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import CloseIcon from "@mui/icons-material/Close";
+import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
+import PlaceOutlined from "@mui/icons-material/PlaceOutlined";
+import NotesRounded from "@mui/icons-material/NotesRounded";
+import CategoryRounded from "@mui/icons-material/CategoryRounded";
+import LocalActivityOutlined from "@mui/icons-material/LocalActivityOutlined";
+import RssFeedRounded from "@mui/icons-material/RssFeedRounded";
+import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 
 import { WhiteCard } from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
@@ -39,8 +49,9 @@ import {
   listLibraryEvents,
   upsertEvent,
   type EventLite,
+  getMyLibrary,
+  type LibraryLite,
 } from "@/services/admin";
-import { listMyLibraries } from "@/services/adminMetrics";
 import {
   listEventReservations,
   updateEventReservationStatus,
@@ -53,9 +64,7 @@ const API_BASE =
   (import.meta as any).env?.VITE_API_URL?.replace(/\/$/, "") || "/api";
 
 type ViewFilter = "upcoming" | "past" | "all";
-type LibraryLite = { id: number; name: string };
 
-/* util */
 function toDateTimeLocalString(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
@@ -63,7 +72,7 @@ function toDateTimeLocalString(d: Date) {
   )}:${pad(d.getMinutes())}`;
 }
 
-/* --------------------- Chips de estado (reservas) --------------------- */
+/* ====== Chips ====== */
 function StatusChip({ s }: { s: "PENDING" | "CONFIRMED" }) {
   return (
     <Chip
@@ -71,11 +80,11 @@ function StatusChip({ s }: { s: "PENDING" | "CONFIRMED" }) {
       label={s === "CONFIRMED" ? "Confirmada" : "Pendente"}
       color={s === "CONFIRMED" ? "success" : "default"}
       variant={s === "CONFIRMED" ? "filled" : "outlined"}
+      sx={{ borderRadius: 2 }}
     />
   );
 }
 
-/* --------------------- Resumo de inscritos --------------------- */
 function EventSummary({ eventId }: { eventId?: number }) {
   const [sum, setSum] = useState<{
     capacity: number | null;
@@ -91,18 +100,38 @@ function EventSummary({ eventId }: { eventId?: number }) {
   }, [eventId]);
   if (!sum) return null;
   return (
-    <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-      <Chip label={`Confirmadas: ${sum.confirmed}`} color="success" />
-      <Chip label={`Pendentes: ${sum.pending}`} variant="outlined" />
-      <Chip label={`Total: ${sum.total}`} variant="outlined" />
+    <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap" }}>
+      <Chip
+        icon={<CheckCircleOutlineIcon />}
+        label={`Confirmadas: ${sum.confirmed}`}
+        color="success"
+        sx={{ borderRadius: 2 }}
+      />
+      <Chip
+        icon={<HighlightOffIcon />}
+        label={`Pendentes: ${sum.pending}`}
+        variant="outlined"
+        sx={{ borderRadius: 2 }}
+      />
+      <Chip
+        icon={<PeopleOutlineIcon />}
+        label={`Total: ${sum.total}`}
+        variant="outlined"
+        sx={{ borderRadius: 2 }}
+      />
       {sum.capacity != null && (
-        <Chip label={`Capacidade: ${sum.capacity}`} color="primary" />
+        <Chip
+          icon={<LocalActivityOutlined />}
+          label={`Capacidade: ${sum.capacity}`}
+          color="primary"
+          sx={{ borderRadius: 2 }}
+        />
       )}
     </Stack>
   );
 }
 
-/* --------------------- Tabela + ações de inscritos --------------------- */
+/* ====== Tabela de inscritos ====== */
 function ReservationsTable({ eventId }: { eventId?: number }) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -128,17 +157,24 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
 
   useEffect(() => {
     void load();
-  }, [eventId]); // 1ª carga
+  }, [eventId]);
 
   return (
     <Stack spacing={1.25}>
-      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+      <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap">
         <TextField
           size="small"
           label="Pesquisar"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && load()}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" />
+              </InputAdornment>
+            ),
+          }}
         />
         <TextField
           select
@@ -146,41 +182,48 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
           label="Estado"
           value={status}
           onChange={(e) => setStatus(e.target.value as any)}
-          sx={{ width: 180 }}
+          sx={{ width: 200 }}
         >
           <MenuItem value="">Todos</MenuItem>
           <MenuItem value="PENDING">Pendentes</MenuItem>
           <MenuItem value="CONFIRMED">Confirmadas</MenuItem>
         </TextField>
-        <Button onClick={load} disabled={loading}>
-          Atualizar
-        </Button>
+        <Tooltip title="Atualizar lista">
+          <span>
+            <Button onClick={load} disabled={loading}>
+              Atualizar
+            </Button>
+          </span>
+        </Tooltip>
       </Stack>
 
-      {/* adicionar manualmente */}
-      <Stack direction="row" spacing={1} alignItems="center">
+      <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap">
         <TextField
           size="small"
           label="ID da família"
           value={familyIdInput}
           onChange={(e) => setFamilyIdInput(e.target.value)}
-          sx={{ width: 180 }}
+          sx={{ width: 220 }}
         />
-        <Button
-          variant="outlined"
-          onClick={async () => {
-            if (!eventId || !Number(familyIdInput)) return;
-            try {
-              await createEventReservation(eventId, Number(familyIdInput));
-              setFamilyIdInput("");
-              await load();
-            } catch (e: any) {
-              alert(e?.message || "Falha ao adicionar inscrição.");
-            }
-          }}
-        >
-          Adicionar inscrição
-        </Button>
+        <Tooltip title="Adicionar inscrição manual">
+          <span>
+            <Button
+              variant="outlined"
+              onClick={async () => {
+                if (!eventId || !Number(familyIdInput)) return;
+                try {
+                  await createEventReservation(eventId, Number(familyIdInput));
+                  setFamilyIdInput("");
+                  await load();
+                } catch (e: any) {
+                  alert(e?.message || "Falha ao adicionar inscrição.");
+                }
+              }}
+            >
+              Adicionar inscrição
+            </Button>
+          </span>
+        </Tooltip>
       </Stack>
 
       <Table size="small">
@@ -272,7 +315,7 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
               </TableCell>
             </TableRow>
           ))}
-          {rows.length === 0 && !loading && (
+          {rows.length === 0 && (
             <TableRow>
               <TableCell colSpan={6}>Sem inscrições.</TableCell>
             </TableRow>
@@ -287,8 +330,7 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
 export default function AdminEvents() {
   const { user } = useUserSession() as any;
 
-  // bibliotecas
-  const [libraries, setLibraries] = useState<LibraryLite[]>([]);
+  const [library, setLibrary] = useState<LibraryLite | null>(null);
   const [libsLoading, setLibsLoading] = useState(false);
   const [libsErr, setLibsErr] = useState<string | null>(null);
 
@@ -296,42 +338,33 @@ export default function AdminEvents() {
     (async () => {
       try {
         setLibsLoading(true);
-        const libs = await listMyLibraries();
-        setLibraries(libs || []);
+        const lib = await getMyLibrary();
+        setLibrary(lib);
+        if (!lib) setLibsErr("Não estás associado a nenhuma biblioteca.");
       } catch (e: any) {
-        setLibraries([]);
-        setLibsErr(e?.message || "Falha a carregar bibliotecas.");
+        setLibrary(null);
+        setLibsErr(e?.message || "Falha a carregar a tua biblioteca.");
       } finally {
         setLibsLoading(false);
       }
     })();
   }, [user?.id]);
 
-  const [libraryId, setLibraryId] = useState<number | null>(null);
-  useEffect(() => {
-    setLibraryId((prev) =>
-      prev && libraries.some((l) => l.id === prev)
-        ? prev
-        : libraries[0]?.id ?? null
-    );
-  }, [libraries]);
+  const libraryId = library?.id ?? null;
 
-  // eventos
   const [events, setEvents] = useState<EventLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // filtros principais
   const [q, setQ] = useState("");
   const [vf, setVf] = useState<ViewFilter>("upcoming");
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [catSel, setCatSel] = useState<string>("");
 
-  // filtros extra
-  const [src, setSrc] = useState<"" | "FEED" | "MANUAL">(""); // fonte
-  const [fromDate, setFromDate] = useState<string>(""); // yyyy-MM-dd
-  const [toDate, setToDate] = useState<string>(""); // yyyy-MM-dd
-  const [catSel, setCatSel] = useState<string>(""); // categoria (select)
+  const [page, setPage] = useState(1);
+  const perPage = 8;
 
-  // categorias únicas para o select
   const categories = useMemo(() => {
     const s = new Set<string>();
     for (const ev of events) {
@@ -341,7 +374,6 @@ export default function AdminEvents() {
     return Array.from(s).sort((a, b) => a.localeCompare(b));
   }, [events]);
 
-  // form adicionar
   const [evTitle, setEvTitle] = useState("");
   const [evStart, setEvStart] = useState<string>("");
   const [evEnd, setEvEnd] = useState<string>("");
@@ -370,6 +402,10 @@ export default function AdminEvents() {
     if (libraryId) void reload();
   }, [libraryId]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [q, vf, fromDate, toDate, catSel, events.length]);
+
   async function addEvent() {
     if (!libraryId || !evTitle || !evStart) return;
     try {
@@ -379,6 +415,7 @@ export default function AdminEvents() {
         endDate: evEnd || undefined,
         location: evLoc || undefined,
         description: evDesc || undefined,
+        category: library?.name?.trim() || undefined, // default nome da biblioteca
       } as any);
       setEvTitle("");
       setEvStart("");
@@ -391,41 +428,33 @@ export default function AdminEvents() {
     }
   }
 
-  // filtro completo
   const filtered = useMemo(() => {
     const now = Date.now();
     const fromMs = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
     const toMs = toDate ? new Date(`${toDate}T23:59:59`).getTime() : null;
-
     return events.filter((ev) => {
-      const source = (ev as any).source as "FEED" | "MANUAL" | undefined;
-
-      // texto (título/local)
       const inQuery =
         !q ||
         ev.title.toLowerCase().includes(q.toLowerCase()) ||
         (ev.location ?? "").toLowerCase().includes(q.toLowerCase());
       if (!inQuery) return false;
 
-      // categoria (select)
       if (catSel && (ev.category || "") !== catSel) return false;
 
-      // fonte
-      if (src && source !== src) return false;
-
-      // período
       const start = new Date(ev.startDate).getTime();
       const end = ev.endDate ? new Date(ev.endDate).getTime() : start;
       if (fromMs && end < fromMs) return false;
       if (toMs && start > toMs) return false;
 
-      // janela rápida
       const ongoing = ev.endDate ? start <= now && end >= now : false;
       if (vf === "upcoming") return ongoing || start >= now;
       if (vf === "past") return end < now && !ongoing;
       return true;
     });
-  }, [events, q, vf, src, fromDate, toDate, catSel]);
+  }, [events, q, vf, fromDate, toDate, catSel]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / perPage));
+  const pageSlice = filtered.slice((page - 1) * perPage, page * perPage);
 
   function ensureStartPreset() {
     if (evStart) return;
@@ -435,94 +464,90 @@ export default function AdminEvents() {
     setEvStart(toDateTimeLocalString(d));
   }
 
-  // Drawer de inscritos (por baixo do header)
   const [drawer, setDrawer] = useState<{
     open: boolean;
     event: EventLite | null;
-  }>({ open: false, event: null });
+  }>({
+    open: false,
+    event: null,
+  });
 
   return (
-    <Container
-      maxWidth="xl"                                       // <- mais largo
-      sx={{ py: 4, maxWidth: 1600 }}                      // <- até 1600px
-    >
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      {/* Header só com título */}
       <Stack
         direction="row"
-        justifyContent="space-between"
         alignItems="center"
-        sx={{ mb: 2, gap: 1 }}
+        sx={{ mb: 2, gap: 1.25, flexWrap: "wrap" }}
       >
+        <CalendarMonthRounded />
         <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
-          Eventos culturais
+          Eventos culturais {library ? `— ${library.name}` : ""}
         </Typography>
-        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-          <TextField
-            select
+        {library && (
+          <Chip
             size="small"
-            label="Biblioteca"
-            value={libraryId ?? ""}
-            onChange={(e) => setLibraryId(Number(e.target.value))}
-            sx={{ minWidth: 220 }}
-            disabled={libsLoading || libraries.length === 0}
-          >
-            {libraries.map((lib) => (
-              <MenuItem key={lib.id} value={lib.id}>
-                {lib.name}
-              </MenuItem>
-            ))}
-          </TextField>
-
-          <ToggleButtonGroup
-            size="small"
-            value={vf}
-            exclusive
-            onChange={(_, v) => v && setVf(v)}
-            aria-label="Filtro de período"
-          >
-            <ToggleButton value="upcoming">Próximos</ToggleButton>
-            <ToggleButton value="past">Passados</ToggleButton>
-            <ToggleButton value="all">Todos</ToggleButton>
-          </ToggleButtonGroup>
-
-          <IconButton
-            onClick={() => void reload()}
-            disabled={loading || !libraryId}
-            aria-label="Recarregar"
-          >
-            <RefreshIcon />
-          </IconButton>
-        </Stack>
+            icon={<CategoryRounded />}
+            label={library.name}
+            variant="outlined"
+            sx={{ borderRadius: 2 }}
+          />
+        )}
       </Stack>
 
-      {libsErr && (
-        <Typography color="error" sx={{ mb: 1 }}>
+      {!!libsErr && (
+        <Alert severity="error" sx={{ mb: 2 }}>
           {libsErr}
-        </Typography>
+        </Alert>
       )}
-      {!libsErr && libraries.length === 0 && (
-        <Typography color="warning.main" sx={{ mb: 2 }}>
+      {!libsErr && !library && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
           {libsLoading
-            ? "A carregar bibliotecas…"
+            ? "A carregar biblioteca…"
             : "Não estás associado a nenhuma biblioteca. Pede a um administrador para te atribuir."}
-        </Typography>
+        </Alert>
       )}
-      {err && (
-        <Typography color="error" sx={{ mb: 1 }}>
+      {!!err && (
+        <Alert severity="error" sx={{ mb: 2 }}>
           {err}
-        </Typography>
+        </Alert>
       )}
 
       <Grid container spacing={2}>
-        {/* Lista + filtros detalhados */}
+        {/* Lista + filtros */}
         <Grid item xs={12} md={7}>
-          <WhiteCard>
-            <Stack spacing={1.25}>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1} flexWrap="wrap">
+          <WhiteCard sx={{ p: { xs: 2, md: 2.5 } }}>
+            <Stack spacing={1.5}>
+              {/* 👇 Filtros (agora dentro do WhiteCard) */}
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1.25}
+                flexWrap="wrap"
+                alignItems="center"
+              >
+                <ToggleButtonGroup
+                  size="small"
+                  value={vf}
+                  exclusive
+                  onChange={(_, v) => v && setVf(v)}
+                  aria-label="Filtro de período"
+                  sx={{ mr: { sm: 0.5 } }}
+                >
+                  <ToggleButton value="upcoming">Próximos</ToggleButton>
+                  <ToggleButton value="past">Passados</ToggleButton>
+                  <ToggleButton value="all">Todos</ToggleButton>
+                </ToggleButtonGroup>
+
+                {/* barra de pesquisa mais pequena */}
                 <TextField
-                  fullWidth
+                  size="small"
                   placeholder="Procurar por título ou local…"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
+                  sx={{
+                    width: { xs: "100%", sm: 360 }, // 👈 mais contida
+                    "& .MuiOutlinedInput-root": { borderRadius: 2 }, // 👈 canto discreto
+                  }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -531,18 +556,7 @@ export default function AdminEvents() {
                     ),
                   }}
                 />
-                <TextField
-                  select
-                  size="small"
-                  label="Fonte"
-                  value={src}
-                  onChange={(e) => setSrc(e.target.value as any)}
-                  sx={{ minWidth: 140 }}
-                >
-                  <MenuItem value="">Todas</MenuItem>
-                  <MenuItem value="FEED">Feed</MenuItem>
-                  <MenuItem value="MANUAL">Manual</MenuItem>
-                </TextField>
+
                 <TextField
                   size="small"
                   label="Desde"
@@ -565,18 +579,20 @@ export default function AdminEvents() {
                   label="Categoria"
                   value={catSel}
                   onChange={(e) => setCatSel(e.target.value)}
-                  sx={{ minWidth: 180 }}
+                  sx={{ minWidth: 200 }}
                 >
                   <MenuItem value="">Todas</MenuItem>
                   {categories.map((c) => (
-                    <MenuItem key={c} value={c}>{c}</MenuItem>
+                    <MenuItem key={c} value={c}>
+                      {c}
+                    </MenuItem>
                   ))}
                 </TextField>
+
                 <Button
                   variant="text"
                   onClick={() => {
                     setQ("");
-                    setSrc("");
                     setFromDate("");
                     setToDate("");
                     setCatSel("");
@@ -584,22 +600,34 @@ export default function AdminEvents() {
                 >
                   Limpar filtros
                 </Button>
+
+                {/* refresh agora aqui */}
+                <Tooltip title="Recarregar">
+                  <span>
+                    <IconButton
+                      onClick={() => void reload()}
+                      disabled={loading || !libraryId}
+                      aria-label="Recarregar"
+                      sx={{ ml: "auto" }}
+                    >
+                      <RefreshIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
               </Stack>
 
               <Divider />
 
-              <Stack spacing={1.25} divider={<Divider />}>
-                {filtered.map((ev) => {
+              {/* Lista */}
+              <Stack spacing={1.5} divider={<Divider />}>
+                {pageSlice.map((ev) => {
                   const start = new Date(ev.startDate);
                   const end = ev.endDate ? new Date(ev.endDate) : null;
                   const now = Date.now();
                   const ongoing =
                     end && start.getTime() <= now && end.getTime() >= now;
-                  const source = (ev as any).source as
-                    | "FEED"
-                    | "MANUAL"
-                    | undefined;
-                  const canDelete = source ? source !== "FEED" : true;
+                  const source = (ev as any).source as "FEED" | undefined;
+                  const canDelete = source !== "FEED";
 
                   return (
                     <Stack
@@ -609,49 +637,86 @@ export default function AdminEvents() {
                       alignItems="center"
                     >
                       <Box flex={1} minWidth={0}>
-                        <Stack direction="row" spacing={1} alignItems="center">
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          alignItems="center"
+                          sx={{ mb: 0.25, flexWrap: "wrap" }}
+                        >
                           <Typography fontWeight={900} noWrap title={ev.title}>
                             {ev.title}
                           </Typography>
-                          {source && (
+                          {source === "FEED" && (
                             <Chip
                               size="small"
-                              label={source === "FEED" ? "Feed" : "Manual"}
+                              icon={<RssFeedRounded />}
+                              label="Feed"
+                              sx={{ borderRadius: 2 }}
                             />
                           )}
                           {ongoing && (
                             <Chip
                               size="small"
                               color="success"
+                              icon={<AccessTimeRounded />}
                               label="A decorrer"
+                              sx={{ borderRadius: 2 }}
                             />
                           )}
                           {ev.category && (
                             <Chip
                               size="small"
                               variant="outlined"
+                              icon={<CategoryRounded />}
                               label={ev.category}
+                              sx={{ borderRadius: 2 }}
                             />
                           )}
                         </Stack>
+
                         <Typography variant="body2" sx={{ opacity: 0.8 }}>
                           {start.toLocaleString("pt-PT")}
                           {end ? ` — ${end.toLocaleString("pt-PT")}` : ""}
-                          {ev.location ? ` • ${ev.location}` : ""}
+                          {ev.location ? (
+                            <>
+                              {" "}
+                              •{" "}
+                              <PlaceOutlined
+                                fontSize="inherit"
+                                sx={{ mr: 0.25, verticalAlign: "text-bottom" }}
+                              />
+                              {ev.location}
+                            </>
+                          ) : null}
                         </Typography>
+
                         {!!ev.description && (
                           <Typography
                             variant="body2"
-                            sx={{ opacity: 0.8 }}
-                            noWrap
                             title={ev.description}
+                            sx={{
+                              opacity: 0.9,
+                              mt: 0.25,
+                              whiteSpace: "normal",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 3,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                            }}
                           >
+                            <NotesRounded
+                              fontSize="inherit"
+                              sx={{
+                                mr: 0.5,
+                                verticalAlign: "text-bottom",
+                                opacity: 0.8,
+                              }}
+                            />
                             {ev.description}
                           </Typography>
                         )}
                       </Box>
 
-                      {/* Botão de inscritos */}
                       <Tooltip title="Gerir inscritos">
                         <Button
                           size="small"
@@ -667,10 +732,13 @@ export default function AdminEvents() {
                         <Tooltip title="Remover evento">
                           <IconButton
                             color="error"
-                            onClick={() =>
-                              libraryId &&
-                              deleteEvent(libraryId, ev.id).then(reload)
-                            }
+                            onClick={async () => {
+                              if (!libraryId) return;
+                              const ok = confirm("Remover este evento?");
+                              if (!ok) return;
+                              await deleteEvent(libraryId, ev.id);
+                              await reload();
+                            }}
                             aria-label="Remover"
                           >
                             <DeleteOutlineIcon />
@@ -693,11 +761,22 @@ export default function AdminEvents() {
                   );
                 })}
 
-                {filtered.length === 0 && (
+                {pageSlice.length === 0 && (
                   <Typography sx={{ opacity: 0.7 }}>
                     {loading ? "A carregar…" : "Sem eventos a apresentar."}
                   </Typography>
                 )}
+              </Stack>
+
+              {/* Paginação */}
+              <Stack direction="row" justifyContent="center" sx={{ mt: 1 }}>
+                <Pagination
+                  count={pageCount}
+                  page={page}
+                  onChange={(_, p) => setPage(p)}
+                  color="primary"
+                  shape="rounded"
+                />
               </Stack>
             </Stack>
           </WhiteCard>
@@ -705,7 +784,7 @@ export default function AdminEvents() {
 
         {/* Adicionar manual */}
         <Grid item xs={12} md={5}>
-          <WhiteCard>
+          <WhiteCard sx={{ p: { xs: 2, md: 2.5 } }}>
             <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
               Adicionar evento (manual)
             </Typography>
@@ -736,6 +815,13 @@ export default function AdminEvents() {
                 label="Local (opcional)"
                 value={evLoc}
                 onChange={(e) => setEvLoc(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PlaceOutlined fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
               />
               <TextField
                 label="Descrição (opcional)"
@@ -743,25 +829,44 @@ export default function AdminEvents() {
                 onChange={(e) => setEvDesc(e.target.value)}
                 multiline
                 minRows={3}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <NotesRounded fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
               />
-              <Button
-                startIcon={<AddIcon />}
-                variant="contained"
-                onClick={addEvent}
-                disabled={!evTitle || !evStart || !libraryId}
+              <Tooltip
+                title={
+                  !libraryId
+                    ? "Sem biblioteca"
+                    : !evTitle || !evStart
+                    ? "Preenche título e início"
+                    : `Criar evento em ${library?.name}`
+                }
               >
-                Adicionar
-              </Button>
+                <span>
+                  <Button
+                    startIcon={<AddIcon />}
+                    variant="contained"
+                    onClick={addEvent}
+                    disabled={!evTitle || !evStart || !libraryId}
+                  >
+                    Adicionar
+                  </Button>
+                </span>
+              </Tooltip>
               <Typography variant="body2" sx={{ opacity: 0.7 }}>
-                Categoria será definida por defeito com o nome da biblioteca
-                selecionada.
+                Categoria é definida por defeito com o <b>nome da biblioteca</b>
+                .
               </Typography>
             </Stack>
           </WhiteCard>
         </Grid>
       </Grid>
 
-      {/* Drawer de gestão de inscritos — por baixo do header */}
+      {/* Drawer de inscritos */}
       <Drawer
         anchor="right"
         open={drawer.open}
@@ -769,12 +874,10 @@ export default function AdminEvents() {
         PaperProps={{
           sx: {
             width: { xs: "100%", sm: 860 },
-            // abaixo do header (56/64px) e altura ajustada
             top: { xs: 56, sm: 64 },
             height: { xs: "calc(100% - 56px)", sm: "calc(100% - 64px)" },
           },
         }}
-        // manter Drawer abaixo do AppBar
         sx={{ zIndex: (t) => t.zIndex.appBar - 1 }}
         ModalProps={{
           BackdropProps: { sx: { zIndex: (t) => t.zIndex.appBar - 2 } },

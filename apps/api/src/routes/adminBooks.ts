@@ -6,8 +6,11 @@ import * as XLSX from "xlsx";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import path from "node:path";
+import crypto from "node:crypto";
 import { prisma } from "../prisma.js";
 import { Prisma } from "@prisma/client";
+import { embedOne } from "../ai/embeddings.js";
+import { toSqlVector } from "../reco/utils.js";
 
 const r = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -34,7 +37,6 @@ type FinalCsvRow = {
   Colecao_Beja?: string;
   Assuntos_Beja?: string;
   CDU_Beja?: string;
-  // preserva link para enriquecer via catálogo Lisboa
   Hiperligacao?: string;
 };
 
@@ -102,46 +104,154 @@ async function withConcurrency<T, R>(
   return results;
 }
 
-// -------------------- Embeddings --------------------
-const EMB_MODEL =
-  process.env.OPENAI_EMBEDDINGS_MODEL || "text-embedding-3-small";
-const OPENAI_URL =
-  process.env.OPENAI_BASE_URL || "https://api.openai.com/v1/embeddings";
-const OPENAI_KEY = process.env.OPENAI_API_KEY || "";
+// -------------------- Embeddings (novo fluxo: hash + embedOne) --------------------
+function sha256(s: string) {
+  return crypto.createHash("sha256").update(s, "utf8").digest("hex");
+}
 
-function textForEmbedding(book: {
+/** texto consistente com o re-embed global */
+function buildBookEmbeddingText(b: {
   title?: string | null;
+  author?: string | null;
   summary?: string | null;
   category?: string | null;
+  collection?: string | null;
 }) {
-  const parts = [book.title, book.summary, book.category]
+  const parts = [b.title, b.author, b.collection, b.category, b.summary]
     .filter(Boolean)
-    .map((s) => String(s));
-  return parts.join("\n\n").slice(0, 8000) || "";
+    .map((x) => String(x));
+  return parts.join("\n\n").slice(0, 8000);
 }
 
-async function computeEmbedding(text: string): Promise<number[] | null> {
-  if (!text.trim()) return null;
-  if (!OPENAI_KEY) return new Array(1536).fill(0);
+async function ensureEmbeddingSchema() {
   try {
-    const resp = await fetch(OPENAI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_KEY}`,
-      },
-      body: JSON.stringify({ model: EMB_MODEL, input: text }),
-    });
-    if (!resp.ok) return null;
-    const data: any = await resp.json();
-    return data?.data?.[0]?.embedding ?? null;
-  } catch {
-    return null;
-  }
+    await prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS vector;`);
+  } catch {}
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "embedding" vector(1536);`
+    );
+  } catch {}
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "embedding_hash" text;`
+    );
+  } catch {}
+  try {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "embedding_at" timestamptz;`
+    );
+  } catch {}
 }
 
-function toPgVectorLiteral(vec: number[]) {
-  return `[${vec.join(",")}]`;
+/** Re-embute exatamente os ISBNs pedidos (idempotente via hash). */
+async function reembedByIsbns(
+  isbns: string[],
+  opts?: { concurrency?: number }
+): Promise<{ total: number; ok: number; fail: number }> {
+  await ensureEmbeddingSchema();
+
+  const uniq = Array.from(new Set(isbns.map(normalizeIsbn))).filter(Boolean);
+  let ok = 0,
+    fail = 0;
+
+  await withConcurrency(
+    uniq,
+    Math.max(1, Math.min(8, Number(opts?.concurrency ?? 4))),
+    async (isbn) => {
+      // ⚠️ usar queryRaw para incluir embedding_hash (fora do schema Prisma)
+      const rows = await prisma.$queryRaw<
+        {
+          isbn: string;
+          title: string | null;
+          author: string | null;
+          summary: string | null;
+          category: string | null;
+          collection: string | null;
+          embedding_hash: string | null;
+        }[]
+      >`
+        SELECT "isbn","title","author","summary","category","collection","embedding_hash"
+        FROM "Book"
+        WHERE "isbn" = ${isbn}
+        LIMIT 1;
+      `;
+      const b = rows[0];
+      if (!b) return;
+
+      const text = buildBookEmbeddingText(b);
+      const hash = sha256(text || "");
+      if (!text) {
+        // não temos texto — limpa embedding e hash
+        await prisma.$executeRaw`
+          UPDATE "Book"
+          SET "embedding" = NULL,
+              "embedding_hash" = NULL,
+              "embedding_at" = now()
+          WHERE "isbn" = ${isbn};
+        `;
+        ok++;
+        return;
+      }
+      if (b.embedding_hash === hash) {
+        // já atualizado
+        ok++;
+        return;
+      }
+
+      try {
+        const vec = await embedOne(text);
+        await prisma.$executeRaw`
+          UPDATE "Book"
+          SET "embedding" = ${toSqlVector(vec)}::vector,
+              "embedding_hash" = ${hash},
+              "embedding_at" = now()
+          WHERE "isbn" = ${isbn};
+        `;
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+  );
+
+  return { total: uniq.length, ok, fail };
+}
+
+/** Re-embute onde `embedding` (ou hash) estiver NULL. Pode limitar por biblioteca. */
+async function reembedWhereNull(opts?: {
+  libraryId?: number;
+  limit?: number;
+  concurrency?: number;
+}) {
+  await ensureEmbeddingSchema();
+  const { libraryId, limit = 200 } = opts || {};
+  let rows: { isbn: string }[] = [];
+
+  if (libraryId != null) {
+    rows = await prisma.$queryRaw<{ isbn: string }[]>`
+      SELECT b."isbn" AS isbn
+      FROM "Book" b
+      JOIN "LibraryBook" lb ON lb."bookIsbn" = b."isbn"
+      WHERE lb."libraryId" = ${libraryId}
+        AND (b."embedding" IS NULL OR b."embedding_hash" IS NULL)
+      ORDER BY b."isbn" ASC
+      LIMIT ${limit};
+    `;
+  } else {
+    rows = await prisma.$queryRaw<{ isbn: string }[]>`
+      SELECT "isbn" AS isbn
+      FROM "Book"
+      WHERE "embedding" IS NULL OR "embedding_hash" IS NULL
+      ORDER BY "isbn" ASC
+      LIMIT ${limit};
+    `;
+  }
+
+  return reembedByIsbns(
+    rows.map((r) => r.isbn),
+    { concurrency: opts?.concurrency ?? 4 }
+  );
 }
 
 // -------------------- Leitores --------------------
@@ -155,7 +265,6 @@ function readCsv(buffer: Buffer): any[] {
 }
 
 function readXls(buffer: Buffer): any[] {
-  // lê a folha ativa
   const wb = XLSX.read(buffer, {
     type: "buffer",
     cellHTML: false,
@@ -169,10 +278,8 @@ function readXls(buffer: Buffer): any[] {
     }) || wb.SheetNames[0];
   const ws = wb.Sheets[sheetName];
 
-  // 1) dados “normais”
   const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
 
-  // 2) cabeçalhos para mapear colunas
   const headerRows: any[][] = XLSX.utils.sheet_to_json(ws, {
     header: 1,
     defval: "",
@@ -181,10 +288,8 @@ function readXls(buffer: Buffer): any[] {
     String(h || "")
   );
 
-  // 3) varre as células à procura de hyperlinks (cell.l.Target)
   if (ws["!ref"] && headers.length) {
     const range = XLSX.utils.decode_range(ws["!ref"]);
-    // primeira linha de dados logo a seguir aos cabeçalhos
     const dataStartR = range.s.r + 1;
 
     for (let R = dataStartR; R <= range.e.r; R++) {
@@ -196,10 +301,7 @@ function readXls(buffer: Buffer): any[] {
         const cell: any = (ws as any)[cellRef];
         if (cell && cell.l && cell.l.Target) {
           const colName = headers[C - range.s.c];
-          if (colName) {
-            // substitui o valor textual pelo URL do hyperlink
-            rowObj[colName] = String(cell.l.Target).trim();
-          }
+          if (colName) rowObj[colName] = String(cell.l.Target).trim();
         }
       }
     }
@@ -385,9 +487,10 @@ async function upsertBooksAndLink(libraryId: number, rows: FinalCsvRow[]) {
 
         const toInvalidate = ups.filter((u) => u.invalidate).map((u) => u.isbn);
         if (toInvalidate.length) {
+          // zera hash para forçar re-embed no nosso fluxo
           await prisma.$executeRaw`
             UPDATE "Book"
-            SET "embedding" = NULL
+            SET "embedding_hash" = NULL
             WHERE "isbn" IN (${Prisma.join(toInvalidate)});
           `;
         }
@@ -503,7 +606,6 @@ async function fetchLisboaMeta(url: string) {
 
     const $ = cheerio.load(r.data || "");
 
-    // Meta tags (quando existem)
     let title =
       $('meta[property="og:title"]').attr("content") ||
       $('meta[name="title"]').attr("content") ||
@@ -520,7 +622,6 @@ async function fetchLisboaMeta(url: string) {
       $('meta[name="twitter:image"]').attr("content") ||
       undefined;
 
-    // Complementos do formulário "full"
     const $form = $('form[name="full"]');
     if ($form.length) {
       if (!title) {
@@ -543,18 +644,14 @@ async function fetchLisboaMeta(url: string) {
       }
     }
 
-    // ⬇️ 1º: tenta o link "Capa" (é a imagem grande)
     if (!image) {
       const capaHref = $("a")
         .filter((_, el) => $(el).text().trim().toLowerCase() === "capa")
         .first()
         .attr("href");
-      if (capaHref) {
-        image = absolutize(capaHref, url);
-      }
+      if (capaHref) image = absolutize(capaHref, url);
     }
 
-    // ⬇️ 2º: fallback para qualquer <img> com winlibimg.aspx (ignora qrcode)
     if (!image) {
       const img = $("img")
         .filter((_, el) => {
@@ -566,7 +663,6 @@ async function fetchLisboaMeta(url: string) {
       if (src) image = absolutize(src, url);
     }
 
-    // Normaliza para HTTPS p/ evitar mixed-content
     if (image) image = forceHttps(image);
 
     return { title, summary, image };
@@ -575,35 +671,13 @@ async function fetchLisboaMeta(url: string) {
   }
 }
 
-// -------------------- Reindex / Cleanup --------------------
-async function reindexEmbeddingsForIsbns(isbns: string[], concurrency = 4) {
-  const uniq = Array.from(new Set(isbns.map(normalizeIsbn))).filter(Boolean);
-  let done = 0,
-    ok = 0,
-    fail = 0;
-
-  await withConcurrency(uniq, concurrency, async (isbn) => {
-    const book = await prisma.book.findUnique({ where: { isbn } });
-    if (!book) {
-      done++;
-      return;
-    }
-    const text = textForEmbedding(book);
-    const emb = await computeEmbedding(text);
-    if (emb && Array.isArray(emb)) {
-      await prisma.$executeRaw`
-        UPDATE "Book"
-        SET "embedding" = CAST(${toPgVectorLiteral(emb)} AS vector)
-        WHERE "isbn" = ${isbn};
-      `;
-      ok++;
-    } else {
-      fail++;
-    }
-    done++;
-  });
-
-  return { total: uniq.length, done, ok, fail };
+// -------------------- Reindex / Cleanup (usando novo fluxo) --------------------
+async function reindexEmbeddingsForIsbns(
+  isbns: string[],
+  concurrency = 4
+): Promise<{ total: number; done: number; ok: number; fail: number }> {
+  const { total, ok, fail } = await reembedByIsbns(isbns, { concurrency });
+  return { total, done: total, ok, fail };
 }
 
 async function reindexEmbeddingsWhereNull(opts?: {
@@ -611,31 +685,8 @@ async function reindexEmbeddingsWhereNull(opts?: {
   limit?: number;
   concurrency?: number;
 }) {
-  const { libraryId, limit = 200, concurrency = 4 } = opts || {};
-  let rows: { isbn: string }[] = [];
-
-  if (libraryId != null) {
-    rows = await prisma.$queryRaw<{ isbn: string }[]>`
-      SELECT b."isbn" AS isbn
-      FROM "Book" b
-      JOIN "LibraryBook" lb ON lb."bookIsbn" = b."isbn"
-      WHERE lb."libraryId" = ${libraryId}
-        AND b."embedding" IS NULL
-      ORDER BY b."isbn" ASC
-      LIMIT ${limit};
-    `;
-  } else {
-    rows = await prisma.$queryRaw<{ isbn: string }[]>`
-      SELECT "isbn" AS isbn
-      FROM "Book"
-      WHERE "embedding" IS NULL
-      ORDER BY "isbn" ASC
-      LIMIT ${limit};
-    `;
-  }
-
-  const isbns = rows.map((r) => r.isbn);
-  return reindexEmbeddingsForIsbns(isbns, concurrency);
+  const res = await reembedWhereNull(opts);
+  return { total: res.total, done: res.total, ok: res.ok, fail: res.fail };
 }
 
 async function cleanupOrphanBooks(opts: { dryRun?: boolean } = {}) {
@@ -733,8 +784,10 @@ r.post(
       ok: number;
       fail: number;
     } | null = null;
-    if (recalc && isbnsToReindex.length)
+
+    if (recalc && isbnsToReindex.length) {
       embeddings = await reindexEmbeddingsForIsbns(isbnsToReindex, 4);
+    }
 
     res.json({
       ok: true,
@@ -840,7 +893,7 @@ r.post(
     const { inserted, updated, linked, isbnsToReindex } =
       await upsertBooksAndLink(libraryId, filtered);
 
-    // 7) Recalcular embeddings (opcional)
+    // 7) Recalcular embeddings (opcional) usando novo fluxo
     let embeddings: {
       total: number;
       done: number;
@@ -877,6 +930,7 @@ r.post("/admin/books/reindex-embeddings", async (req, res) => {
   const limit = req.body?.limit != null ? Number(req.body.limit) : 200;
   const concurrency =
     req.body?.concurrency != null ? Number(req.body.concurrency) : 4;
+
   const result = await reindexEmbeddingsWhereNull({
     libraryId,
     limit,

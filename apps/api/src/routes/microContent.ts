@@ -6,7 +6,10 @@ import { MicroContentType } from "@prisma/client";
 
 const r = Router();
 
-function requireUser(req: Request, res: Response): asserts req is Request & { user: Express.User } {
+function requireUser(
+  req: Request,
+  res: Response
+): asserts req is Request & { user: Express.User } {
   if (!req.user) {
     // podes também lançar erro; aqui devolvo 401 de forma explícita
     res.status(401).json({ error: "unauthenticated" });
@@ -23,12 +26,7 @@ const UpsertSchema = z.object({
   libraryId: z.number().int().optional().nullable(),
   bookIsbns: z.array(z.string().min(1)).default([]),
   isPublished: z.boolean().default(true),
-  publishedAt: z
-    .string()
-    .datetime()
-    .or(z.date())
-    .optional()
-    .nullable(),
+  publishedAt: z.string().datetime().or(z.date()).optional().nullable(),
 });
 
 const QueryListSchema = z.object({
@@ -51,6 +49,25 @@ const QueryListSchema = z.object({
     .transform((s) => Number(s))
     .optional(),
 });
+
+function normalizeTags(raw: unknown): string[] {
+  const arr = Array.isArray(raw) ? raw : String(raw ?? "").split(/[,\n;]+/g); // também aceita "a,b;c\nd"
+  const cleaned = arr
+    .map((s) => String(s).trim())
+    .filter(Boolean)
+    .map((s) => s.replace(/\s+/g, " ")) // colapsar espaços internos
+    .map((s) => s.slice(0, 64)); // limite “defensivo”
+  return Array.from(new Set(cleaned.map((t) => t))); // se preferires, .toLowerCase()
+}
+
+function normalizeIsbns(raw: unknown): string[] {
+  const arr = Array.isArray(raw) ? raw : String(raw ?? "").split(/[,\s;]+/g); // vírgula, espaço, ; e quebras de linha
+  const cleaned = arr
+    .map((s) => String(s).replace(/[-\s]/g, "").toUpperCase())
+    .filter(Boolean)
+    .filter((s) => /^\d{13}$|^\d{9}(\d|X)$/.test(s)); // ISBN-13 ou ISBN-10
+  return Array.from(new Set(cleaned));
+}
 
 /* -------------------- Admin: CRUD -------------------- */
 
@@ -109,8 +126,7 @@ r.get("/admin/micro-contents", async (req, res) => {
         title: b.book?.title ?? "",
         coverUrl: b.book?.coverUrl ?? null,
       })),
-      author:
-        mc.author != null ? { id: mc.author.id, name: mc.author.fullName } : null,
+      author: mc.author ? { id: mc.author.id, name: mc.author.fullName } : null,
       createdAt: mc.createdAt,
       updatedAt: mc.updatedAt,
     })),
@@ -120,46 +136,61 @@ r.get("/admin/micro-contents", async (req, res) => {
 // POST /admin/micro-contents
 r.post("/admin/micro-contents", async (req, res) => {
   requireUser(req, res);
-  const body = UpsertSchema.safeParse(req.body);
-  if (!body.success) return res.status(400).json({ error: "bad_body" });
+  const parsed = UpsertSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "bad_body" });
 
-  const {
-    text,
-    type,
-    tags,
-    libraryId,
-    bookIsbns,
-    isPublished,
-    publishedAt,
-  } = body.data;
+  // normalizar/validar
+  const text = parsed.data.text;
+  const type = parsed.data.type;
+  const tags = normalizeTags(parsed.data.tags);
+  const bookIsbns = normalizeIsbns(parsed.data.bookIsbns);
+  const isPublished = parsed.data.isPublished;
+  const publishedAt = parsed.data.publishedAt
+    ? new Date(parsed.data.publishedAt as any)
+    : undefined;
 
-  const created = await prisma.microContent.create({
-    data: {
-      text,
-      type,
-      tags,
-      isPublished,
-      publishedAt: publishedAt ? new Date(publishedAt as any) : undefined,
-      libraryId: libraryId ?? undefined,
-      authorId: (req.user as any)?.id ?? undefined,
-      books: {
-        createMany: {
-          data: Array.from(new Set(bookIsbns)).map((isbn) => ({
-            bookIsbn: isbn,
-          })),
-          skipDuplicates: true,
+  // (opcional) se quiseres forçar à biblioteca do admin no servidor:
+  // const defaultLibraryId = (req.user as any)?.userLibraries?.[0]?.libraryId;
+  const libraryId = parsed.data.libraryId ?? undefined;
+
+  try {
+    const created = await prisma.$transaction(async (tx) => {
+      const mc = await tx.microContent.create({
+        data: {
+          text,
+          type,
+          tags,
+          isPublished,
+          publishedAt,
+          libraryId,
+          authorId: (req.user as any)?.id ?? undefined,
         },
-      },
-    },
-    include: {
-      books: { include: { book: { select: { isbn: true, title: true, coverUrl: true } } } },
-    },
-  });
+      });
 
-  res.json({
-    ok: true,
-    id: created.id,
-  });
+      if (bookIsbns.length) {
+        const existing = await tx.book.findMany({
+          where: { isbn: { in: bookIsbns } },
+          select: { isbn: true },
+        });
+        if (existing.length) {
+          await tx.microContentBook.createMany({
+            data: existing.map((b) => ({
+              microContentId: mc.id,
+              bookIsbn: b.isbn,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      return mc;
+    });
+
+    res.json({ ok: true, id: created.id });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "create_failed" });
+  }
 });
 
 // PUT /admin/micro-contents/:id
@@ -168,40 +199,58 @@ r.put("/admin/micro-contents/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) return res.status(400).json({ error: "bad_id" });
 
-  const body = UpsertSchema.safeParse(req.body);
-  if (!body.success) return res.status(400).json({ error: "bad_body" });
+  const parsed = UpsertSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "bad_body" });
 
-  const { text, type, tags, libraryId, bookIsbns, isPublished, publishedAt } =
-    body.data;
+  const text = parsed.data.text;
+  const type = parsed.data.type;
+  const tags = normalizeTags(parsed.data.tags);
+  const bookIsbns = normalizeIsbns(parsed.data.bookIsbns);
+  const isPublished = parsed.data.isPublished;
+  const publishedAt = parsed.data.publishedAt
+    ? new Date(parsed.data.publishedAt as any)
+    : undefined;
+  const libraryId = parsed.data.libraryId ?? null;
 
-  // sync de livros
-  await prisma.$transaction(async (tx) => {
-    await tx.microContent.update({
-      where: { id },
-      data: {
-        text,
-        type,
-        tags,
-        isPublished,
-        publishedAt: publishedAt ? new Date(publishedAt as any) : undefined,
-        libraryId: libraryId ?? null,
-      },
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.microContent.update({
+        where: { id },
+        data: {
+          text,
+          type,
+          tags,
+          isPublished,
+          publishedAt,
+          libraryId,
+        },
+      });
+
+      // substituir associações (só para livros existentes)
+      await tx.microContentBook.deleteMany({ where: { microContentId: id } });
+
+      if (bookIsbns.length) {
+        const existing = await tx.book.findMany({
+          where: { isbn: { in: bookIsbns } },
+          select: { isbn: true },
+        });
+        if (existing.length) {
+          await tx.microContentBook.createMany({
+            data: existing.map((b) => ({
+              microContentId: id,
+              bookIsbn: b.isbn,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
     });
 
-    // substituir associações
-    await tx.microContentBook.deleteMany({ where: { microContentId: id } });
-    if (bookIsbns?.length) {
-      await tx.microContentBook.createMany({
-        data: Array.from(new Set(bookIsbns)).map((isbn) => ({
-          microContentId: id,
-          bookIsbn: isbn,
-        })),
-        skipDuplicates: true,
-      });
-    }
-  });
-
-  res.json({ ok: true });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "update_failed" });
+  }
 });
 
 // DELETE /admin/micro-contents/:id
@@ -243,7 +292,14 @@ r.get("/micro-contents", async (req, res) => {
       include: {
         books: {
           include: {
-            book: { select: { isbn: true, title: true, coverUrl: true, summary: true } },
+            book: {
+              select: {
+                isbn: true,
+                title: true,
+                coverUrl: true,
+                summary: true,
+              },
+            },
           },
         },
         library: { select: { id: true, name: true } },

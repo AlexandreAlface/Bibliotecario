@@ -1,3 +1,4 @@
+// apps/web/src/pages/admin/Metrics.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Box,
@@ -9,8 +10,6 @@ import {
   Typography,
   useTheme,
   Button,
-  CircularProgress,
-  Autocomplete,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
@@ -38,10 +37,9 @@ import {
 import { WhiteCard } from "@bibliotecario/ui-web";
 import {
   loadMetricsData,
-  // 👇 novo: lista de bibliotecas do admin
-  listMyLibraries,
   type ConsultationFull,
 } from "@/services/adminMetrics";
+import { getMyLibrary, type LibraryLite } from "@/services/admin";
 
 /* ---------- helpers ---------- */
 function startOfDay(d = new Date()) {
@@ -292,15 +290,13 @@ function StatTile({
 }
 
 /* =================== Página =================== */
-type LibraryLite = { id: number; name: string };
-
 export default function AdminMetrics() {
   const theme = useTheme();
 
-  // bibliotecas do admin
-  const [libs, setLibs] = useState<LibraryLite[]>([]);
-  const [libsLoading, setLibsLoading] = useState(false);
-  const [selectedLib, setSelectedLib] = useState<LibraryLite | null>(null);
+  // biblioteca do admin (única)
+  const [myLib, setMyLib] = useState<LibraryLite | null>(null);
+  const [libLoading, setLibLoading] = useState(false);
+  const [libErr, setLibErr] = useState<string | null>(null);
 
   // janela temporal (12 semanas)
   const [fromYmd, setFromYmd] = useState(
@@ -329,37 +325,38 @@ export default function AdminMetrics() {
   const gSuccess = `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.light} 100%)`;
   const gInfo = `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.light} 100%)`;
 
-  // carregar bibliotecas do admin
+  // carregar biblioteca do admin
   useEffect(() => {
     (async () => {
       try {
-        setLibsLoading(true);
-        const res = await listMyLibraries(); // deve devolver [{id,name}]
-        const withAll = [{ id: -1, name: "Todas as bibliotecas" }, ...res];
-        setLibs(withAll);
-        // se só existir 1 biblioteca real, pré-seleciona
-        if (res.length === 1) setSelectedLib(res[0]);
-        else setSelectedLib(withAll[0]); // default = Todas
-      } catch (e) {
-        setLibs([{ id: -1, name: "Todas as bibliotecas" }]);
-        setSelectedLib({ id: -1, name: "Todas as bibliotecas" });
+        setLibLoading(true);
+        const lib = await getMyLibrary();
+        if (!lib) {
+          setMyLib(null);
+          setLibErr("Não estás associado a nenhuma biblioteca.");
+        } else {
+          setMyLib(lib);
+          setLibErr(null);
+        }
+      } catch (e: any) {
+        setMyLib(null);
+        setLibErr(e?.message || "Falha a carregar a biblioteca.");
       } finally {
-        setLibsLoading(false);
+        setLibLoading(false);
       }
     })();
   }, []);
 
   // (re)carregar métricas
   async function reload() {
+    if (!myLib?.id) return;
     try {
       setLoading(true);
       setErr(null);
-      const libraryId =
-        selectedLib && selectedLib.id > 0 ? selectedLib.id : undefined;
       const { consultas: cons, openSlots: slots } = await loadMetricsData({
         from: startOfDay(new Date(fromYmd)).toISOString(),
         to: endOfDay(new Date(toYmd)).toISOString(),
-        libraryId,
+        libraryId: myLib.id, // <- sempre scoped à biblioteca do admin
       });
       setConsultas(cons);
       setOpenSlots(slots as any);
@@ -373,9 +370,9 @@ export default function AdminMetrics() {
   }
 
   useEffect(() => {
-    void reload();
+    if (myLib?.id) void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fromYmd, toYmd, selectedLib?.id]);
+  }, [fromYmd, toYmd, myLib?.id]);
 
   // agregações
   const weekly = useMemo(
@@ -440,7 +437,10 @@ export default function AdminMetrics() {
         </Typography>
         <Tooltip title="Atualizar">
           <span>
-            <IconButton onClick={() => void reload()} disabled={loading}>
+            <IconButton
+              onClick={() => void reload()}
+              disabled={loading || !myLib?.id}
+            >
               <RefreshRounded />
             </IconButton>
           </span>
@@ -498,33 +498,18 @@ export default function AdminMetrics() {
             </Button>
           </Stack>
 
-          {/* Biblioteca por nome (apenas as do admin) */}
-          <Autocomplete
-            sx={{ minWidth: 260 }}
-            loading={libsLoading}
-            options={libs}
-            value={selectedLib}
-            onChange={(_, v) => setSelectedLib(v)}
-            getOptionLabel={(o) => o?.name ?? ""}
-            isOptionEqualToValue={(o, v) => o.id === v.id}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Biblioteca"
-                InputProps={{
-                  ...params.InputProps,
-                  endAdornment: (
-                    <>
-                      {libsLoading ? (
-                        <CircularProgress color="inherit" size={16} />
-                      ) : null}
-                      {params.InputProps.endAdornment}
-                    </>
-                  ),
-                }}
-              />
+          {/* Biblioteca (info apenas) */}
+          <Typography variant="body2" sx={{ opacity: 0.8 }}>
+            {libLoading ? (
+              "A carregar biblioteca…"
+            ) : myLib ? (
+              <>
+                Biblioteca: <b>{myLib.name}</b>
+              </>
+            ) : (
+              libErr || "—"
             )}
-          />
+          </Typography>
         </Stack>
       </WhiteCard>
 
@@ -534,283 +519,301 @@ export default function AdminMetrics() {
         </Typography>
       )}
 
-      {/* KPIs */}
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={3}>
-          <StatTile
-            label="Consultas (janela)"
-            value={totalConsultas}
-            sublabel={`${fmtYMD(fromYmd)} — ${fmtYMD(toYmd)}`}
-            gradient={gPrimary}
-          />
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <StatTile
-            label="Taxa de confirmação"
-            value={`${taxaConfirm}%`}
-            sublabel={`${confirmadas} confirmadas/concluídas`}
-            gradient={gSuccess}
-          />
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <StatTile
-            label="Bibliotecários ativos"
-            value={activeLibrarians}
-            sublabel={`${familiasAtendidas} famílias atendidas`}
-            gradient={gSecondary}
-          />
-        </Grid>
-        <Grid item xs={12} md={3}>
-          <StatTile
-            label="Utilização média de slots"
-            value={`${utilizacaoMedia}%`}
-            sublabel={`booked ${bookedTotal} / abertos ${openTotal}`}
-            gradient={gInfo}
-          />
-        </Grid>
-      </Grid>
+      {!myLib?.id ? (
+        <WhiteCard>
+          <Typography sx={{ opacity: 0.8 }}>
+            {libLoading
+              ? "A carregar…"
+              : libErr || "Não tens biblioteca associada para ver métricas."}
+          </Typography>
+        </WhiteCard>
+      ) : (
+        <>
+          {/* KPIs */}
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={3}>
+              <StatTile
+                label="Consultas (janela)"
+                value={totalConsultas}
+                sublabel={`${fmtYMD(fromYmd)} — ${fmtYMD(toYmd)}`}
+                gradient={gPrimary}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <StatTile
+                label="Taxa de confirmação"
+                value={`${taxaConfirm}%`}
+                sublabel={`${confirmadas} confirmadas/concluídas`}
+                gradient={gSuccess}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <StatTile
+                label="Bibliotecários ativos"
+                value={activeLibrarians}
+                sublabel={`${familiasAtendidas} famílias atendidas`}
+                gradient={gSecondary}
+              />
+            </Grid>
+            <Grid item xs={12} md={3}>
+              <StatTile
+                label="Utilização média de slots"
+                value={`${utilizacaoMedia}%`}
+                sublabel={`booked ${bookedTotal} / abertos ${openTotal}`}
+                gradient={gInfo}
+              />
+            </Grid>
+          </Grid>
 
-      {/* Linha 1 */}
-      <Grid container spacing={2} sx={{ mt: 1 }}>
-        <Grid item xs={12} md={7} sx={{ display: "flex" }}>
-          <WhiteCard sx={CARD_SX}>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
-              Consultas por semana (por estado)
-            </Typography>
-            <Box sx={CHART_BOX_SX}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weekly}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" />
-                  <YAxis allowDecimals={false} />
-                  <RTooltip />
-                  <Legend />
-                  <Bar
-                    dataKey="CONFIRMED"
-                    name="Confirmada"
-                    stackId="a"
-                    fill={C.CONFIRMED}
-                  />
-                  <Bar
-                    dataKey="COMPLETED"
-                    name="Concluída"
-                    stackId="a"
-                    fill={C.COMPLETED}
-                  />
-                  <Bar
-                    dataKey="PENDING"
-                    name="Pendente"
-                    stackId="a"
-                    fill={C.PENDING}
-                  />
-                  <Bar
-                    dataKey="DECLINED"
-                    name="Recusada"
-                    stackId="a"
-                    fill={C.DECLINED}
-                  />
-                  <Bar
-                    dataKey="CANCELLED"
-                    name="Cancelada"
-                    stackId="a"
-                    fill={C.CANCELLED}
-                  />
-                  <Brush dataKey="label" height={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Box>
-          </WhiteCard>
-        </Grid>
+          {/* Linha 1 */}
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} md={7} sx={{ display: "flex" }}>
+              <WhiteCard sx={CARD_SX}>
+                <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+                  Consultas por semana (por estado)
+                </Typography>
+                <Box sx={CHART_BOX_SX}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={weekly}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="label" />
+                      <YAxis allowDecimals={false} />
+                      <RTooltip />
+                      <Legend />
+                      <Bar
+                        dataKey="CONFIRMED"
+                        name="Confirmada"
+                        stackId="a"
+                        fill={C.CONFIRMED}
+                      />
+                      <Bar
+                        dataKey="COMPLETED"
+                        name="Concluída"
+                        stackId="a"
+                        fill={C.COMPLETED}
+                      />
+                      <Bar
+                        dataKey="PENDING"
+                        name="Pendente"
+                        stackId="a"
+                        fill={C.PENDING}
+                      />
+                      <Bar
+                        dataKey="DECLINED"
+                        name="Recusada"
+                        stackId="a"
+                        fill={C.DECLINED}
+                      />
+                      <Bar
+                        dataKey="CANCELLED"
+                        name="Cancelada"
+                        stackId="a"
+                        fill={C.CANCELLED}
+                      />
+                      <Brush dataKey="label" height={20} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              </WhiteCard>
+            </Grid>
 
-        <Grid item xs={12} md={5} sx={{ display: "flex" }}>
-          <WhiteCard sx={CARD_SX}>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
-              Utilização de slots (%) por semana
-            </Typography>
-            <Box sx={CHART_BOX_SX}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={utilSerie}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" />
-                  <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                  <RTooltip formatter={(v: any) => `${v}%`} />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="utilizacao"
-                    name="Utilização"
-                    stroke={C.TOTAL}
-                    strokeWidth={3}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </Box>
-          </WhiteCard>
-        </Grid>
-      </Grid>
+            <Grid item xs={12} md={5} sx={{ display: "flex" }}>
+              <WhiteCard sx={CARD_SX}>
+                <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+                  Utilização de slots (%) por semana
+                </Typography>
+                <Box sx={CHART_BOX_SX}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={utilSerie}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="label" />
+                      <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                      <RTooltip formatter={(v: any) => `${v}%`} />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="utilizacao"
+                        name="Utilização"
+                        stroke={C.TOTAL}
+                        strokeWidth={3}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </Box>
+              </WhiteCard>
+            </Grid>
+          </Grid>
 
-      {/* Linha 2 */}
-      <Grid container spacing={2} sx={{ mt: 1 }}>
-        <Grid item xs={12} md={4} sx={{ display: "flex" }}>
-          <WhiteCard sx={CARD_SX}>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
-              Distribuição por estado
-            </Typography>
-            <Box sx={CHART_BOX_SX}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <RTooltip />
-                  <Legend />
-                  <Pie
-                    data={statusPie}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={80}
-                    outerRadius={120}
-                    paddingAngle={3}
-                  >
-                    {statusPie.map((entry, i) => {
-                      const map: any = {
-                        PENDING: C.PENDING,
-                        CONFIRMED: C.CONFIRMED,
-                        COMPLETED: C.COMPLETED,
-                        DECLINED: C.DECLINED,
-                        CANCELLED: C.CANCELLED,
-                      };
-                      return <Cell key={i} fill={map[entry.name] || "#ccc"} />;
-                    })}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </Box>
-          </WhiteCard>
-        </Grid>
+          {/* Linha 2 */}
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} md={4} sx={{ display: "flex" }}>
+              <WhiteCard sx={CARD_SX}>
+                <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+                  Distribuição por estado
+                </Typography>
+                <Box sx={CHART_BOX_SX}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <RTooltip />
+                      <Legend />
+                      <Pie
+                        data={statusPie}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={80}
+                        outerRadius={120}
+                        paddingAngle={3}
+                      >
+                        {statusPie.map((entry, i) => {
+                          const map: any = {
+                            PENDING: C.PENDING,
+                            CONFIRMED: C.CONFIRMED,
+                            COMPLETED: C.COMPLETED,
+                            DECLINED: C.DECLINED,
+                            CANCELLED: C.CANCELLED,
+                          };
+                          return (
+                            <Cell key={i} fill={map[entry.name] || "#ccc"} />
+                          );
+                        })}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Box>
+              </WhiteCard>
+            </Grid>
 
-        <Grid item xs={12} md={8} sx={{ display: "flex" }}>
-          <WhiteCard sx={CARD_SX}>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
-              Top bibliotecários (janela)
-            </Typography>
-            <Box sx={CHART_BOX_SX}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={topLibs}
-                  layout="vertical"
-                  margin={{ left: 24 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" />
-                  <RTooltip />
-                  <Bar dataKey="value" name="Consultas" fill={C.CONFIRMED} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Box>
-          </WhiteCard>
-        </Grid>
-      </Grid>
+            <Grid item xs={12} md={8} sx={{ display: "flex" }}>
+              <WhiteCard sx={CARD_SX}>
+                <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+                  Top bibliotecários (janela)
+                </Typography>
+                <Box sx={CHART_BOX_SX}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={topLibs}
+                      layout="vertical"
+                      margin={{ left: 24 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" allowDecimals={false} />
+                      <YAxis type="category" dataKey="name" />
+                      <RTooltip />
+                      <Bar
+                        dataKey="value"
+                        name="Consultas"
+                        fill={C.CONFIRMED}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              </WhiteCard>
+            </Grid>
+          </Grid>
 
-      {/* Linha 3 */}
-      <Grid container spacing={2} sx={{ mt: 1 }}>
-        <Grid item xs={12} md={4} sx={{ display: "flex" }}>
-          <WhiteCard sx={CARD_SX}>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
-              Consultas por dia da semana
-            </Typography>
-            <Box sx={CHART_BOX_SX}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weekday}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <RTooltip />
-                  <Bar dataKey="value" name="Consultas" fill={C.TOTAL} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Box>
-          </WhiteCard>
-        </Grid>
+          {/* Linha 3 */}
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} md={4} sx={{ display: "flex" }}>
+              <WhiteCard sx={CARD_SX}>
+                <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+                  Consultas por dia da semana
+                </Typography>
+                <Box sx={CHART_BOX_SX}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={weekday}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis allowDecimals={false} />
+                      <RTooltip />
+                      <Bar dataKey="value" name="Consultas" fill={C.TOTAL} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              </WhiteCard>
+            </Grid>
 
-        <Grid item xs={12} md={4} sx={{ display: "flex" }}>
-          <WhiteCard sx={CARD_SX}>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
-              Consultas por hora do dia
-            </Typography>
-            <Box sx={CHART_BOX_SX}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={hourly}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <RTooltip />
-                  <Bar dataKey="value" name="Consultas" fill={C.PENDING} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Box>
-          </WhiteCard>
-        </Grid>
+            <Grid item xs={12} md={4} sx={{ display: "flex" }}>
+              <WhiteCard sx={CARD_SX}>
+                <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+                  Consultas por hora do dia
+                </Typography>
+                <Box sx={CHART_BOX_SX}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={hourly}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis allowDecimals={false} />
+                      <RTooltip />
+                      <Bar dataKey="value" name="Consultas" fill={C.PENDING} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              </WhiteCard>
+            </Grid>
 
-        <Grid item xs={12} md={4} sx={{ display: "flex" }}>
-          <WhiteCard sx={CARD_SX}>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
-              Antecedência média (dias) por semana
-            </Typography>
-            <Box sx={CHART_BOX_SX}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={leadSerie}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" />
-                  <YAxis />
-                  <RTooltip />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    name="Dias"
-                    stroke={C.PENDING}
-                    fill={C.PENDING}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Box>
-          </WhiteCard>
-        </Grid>
-      </Grid>
+            <Grid item xs={12} md={4} sx={{ display: "flex" }}>
+              <WhiteCard sx={CARD_SX}>
+                <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+                  Antecedência média (dias) por semana
+                </Typography>
+                <Box sx={CHART_BOX_SX}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={leadSerie}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="label" />
+                      <YAxis />
+                      <RTooltip />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        name="Dias"
+                        stroke={C.PENDING}
+                        fill={C.PENDING}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </Box>
+              </WhiteCard>
+            </Grid>
+          </Grid>
 
-      {/* Medidor radial */}
-      <Grid container spacing={2} sx={{ mt: 1 }}>
-        <Grid item xs={12} md={6} sx={{ display: "flex" }}>
-          <WhiteCard sx={CARD_SX}>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
-              Utilização média de slots (janela)
-            </Typography>
-            <Box sx={CHART_BOX_SX}>
-              <ResponsiveContainer width="100%" height="100%">
-                <RadialBarChart
-                  innerRadius="60%"
-                  outerRadius="100%"
-                  data={[{ name: "Utilização", value: utilizacaoMedia }]}
-                  startAngle={90}
-                  endAngle={-270}
-                >
-                  <RadialBar
-                    dataKey="value"
-                    cornerRadius={8}
-                    fill={C.TOTAL}
-                  />
-                  <RTooltip formatter={(v: any) => `${v}%`} />
-                  <Legend />
-                </RadialBarChart>
-              </ResponsiveContainer>
-            </Box>
-            <Typography variant="body2" sx={{ opacity: 0.7, mt: 1 }}>
-              Aproximação: <b>booked</b> (confirmadas+concluídas) / (
-              <b>booked</b> + <b>abertos</b>)
-            </Typography>
-          </WhiteCard>
-        </Grid>
-      </Grid>
+          {/* Medidor radial */}
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12} md={6} sx={{ display: "flex" }}>
+              <WhiteCard sx={CARD_SX}>
+                <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+                  Utilização média de slots (janela)
+                </Typography>
+                <Box sx={CHART_BOX_SX}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadialBarChart
+                      innerRadius="60%"
+                      outerRadius="100%"
+                      data={[{ name: "Utilização", value: utilizacaoMedia }]}
+                      startAngle={90}
+                      endAngle={-270}
+                    >
+                      <RadialBar
+                        dataKey="value"
+                        cornerRadius={8}
+                        fill={C.TOTAL}
+                      />
+                      <RTooltip formatter={(v: any) => `${v}%`} />
+                      <Legend />
+                    </RadialBarChart>
+                  </ResponsiveContainer>
+                </Box>
+                <Typography variant="body2" sx={{ opacity: 0.7, mt: 1 }}>
+                  Aproximação: <b>booked</b> (confirmadas+concluídas) / (
+                  <b>booked</b> + <b>abertos</b>)
+                </Typography>
+              </WhiteCard>
+            </Grid>
+          </Grid>
+        </>
+      )}
     </Container>
   );
 }

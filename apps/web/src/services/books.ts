@@ -1,3 +1,4 @@
+// apps/web/src/services/books.ts
 import { api } from "./https";
 
 export type BookLite = {
@@ -5,15 +6,45 @@ export type BookLite = {
   isbn: string;
   title: string;
   coverUrl?: string | null;
-  summary?: string | null; // 👈 novo
+  summary?: string | null;
   score?: number;
-  why?: string[];
+  why?: string[]; // explicações (opcional)
 };
 
 export type QuizAnswer = { id: string; value: any };
 
 export type PaginatedBooks = { items: BookLite[]; total: number };
 
+class ApiError extends Error {
+  status: number;
+  code?: string;
+  details?: any;
+  constructor(status: number, message: string, code?: string, details?: any) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
+function parseAxiosError(e: any): ApiError {
+  const status = e?.response?.status ?? 0;
+  const data = e?.response?.data ?? {};
+  const code = data?.error ?? e?.code ?? "unknown_error";
+  const msg =
+    data?.message ??
+    data?.details ??
+    e?.message ??
+    "Falha a comunicar com o servidor";
+  // útil em dev
+  console.error("[API ERROR]", { status, code, data });
+  return new ApiError(status, msg, code, data);
+}
+
+/**
+ * Recomendações baseadas no perfil (vetor/idade/leitura).
+ * GET /recommendations/profile
+ */
 export async function getSugestoesPerfil(
   perPage = 12,
   who?: { childId?: number; familyId?: number; page?: number }
@@ -25,13 +56,21 @@ export async function getSugestoesPerfil(
   if (who?.childId) qs.set("childId", String(who.childId));
   if (who?.familyId) qs.set("familyId", String(who.familyId));
 
-  const { data } = await api.get<PaginatedBooks>(
-    `/recommendations/profile?${qs.toString()}`,
-    { withCredentials: true }
-  );
-  return data;
+  try {
+    const { data } = await api.get<PaginatedBooks>(
+      `/recommendations/profile?${qs.toString()}`,
+      { withCredentials: true }
+    );
+    return data;
+  } catch (e: any) {
+    throw parseAxiosError(e);
+  }
 }
 
+/**
+ * Recomendações baseadas no quiz.
+ * POST /recommendations/quiz
+ */
 export async function getSugestoesQuiz(
   answers: QuizAnswer[],
   perPage = 12,
@@ -44,9 +83,14 @@ export async function getSugestoesQuiz(
   if (who?.childId) qs.set("childId", String(who.childId));
   if (who?.familyId) qs.set("familyId", String(who.familyId));
 
-  const { data } = await api.post<PaginatedBooks>(
-    `/recommendations/quiz?${qs.toString()}`,
-    { answers }
-  );
-  return data;
+  try {
+    const { data } = await api.post<PaginatedBooks>(
+      `/recommendations/quiz?${qs.toString()}`,
+      { answers },
+      { withCredentials: true }
+    );
+    return data;
+  } catch (e: any) {
+    throw parseAxiosError(e);
+  }
 }

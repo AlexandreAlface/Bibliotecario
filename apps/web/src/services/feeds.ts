@@ -1,66 +1,77 @@
 // apps/web/src/services/feeds.ts
-export type LibraryLite = { id: number; name: string };
 export type FeedLite = {
   id: number;
-  libraryId: number;
   url: string;
-  ttl: number | null;
+  ttl?: number | null;
   lastBuildDate?: string | null;
 };
+export type LibraryLite = { id: number; name: string };
 
-function base() {
-  return (
-    (import.meta as any).env?.VITE_API_URL ||
-    (window as any).__API_BASE__ ||
-    "/api"
-  ).replace(/\/$/, "");
+const API_BASE =
+  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
+  "http://localhost:3333/api";
+
+async function j<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(txt || `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+function api(url: string, init?: RequestInit) {
+  return fetch(url, { credentials: "include", ...init });
 }
 
+/** Devolve a biblioteca associada ao utilizador (primeira associação). */
+export async function getMyLibrary(): Promise<LibraryLite | null> {
+  const res = await api(`${API_BASE}/admin/feeds/my-library`);
+  if (res.status === 404) return null;
+  return j<LibraryLite>(res);
+}
+
+/** (Opcional/legacy) Listar bibliotecas por métricas – pode não existir no backend atual. */
 export async function listMyLibraries(): Promise<LibraryLite[]> {
-  // usa a rota criada antes
-  const res = await fetch(`${base()}/libraries/mine`, { credentials: "include" });
-  if (!res.ok) throw new Error(`GET /libraries/mine ${res.status}`);
-  const data = await res.json();
-  return (data.items ?? []).map((x: any) => ({ id: Number(x.id), name: String(x.name) }));
+  const res = await api(`${API_BASE}/admin/metrics/libraries`);
+  return j<LibraryLite[]>(res);
 }
 
-export async function listFeeds(libraryId?: number): Promise<FeedLite[]> {
-  const url = new URL(`${base()}/admin/feeds`, window.location.origin);
-  if (libraryId) url.searchParams.set("libraryId", String(libraryId));
-  const res = await fetch(url.toString().replace(window.location.origin, ""), {
-    credentials: "include",
-  });
-  if (!res.ok) throw new Error(`GET /admin/feeds ${res.status}`);
-  const data = await res.json();
-  return data.items ?? [];
+/** Lista feeds da biblioteca (scoped) */
+export async function listFeeds(libraryId: number): Promise<FeedLite[]> {
+  const res = await api(`${API_BASE}/admin/libraries/${libraryId}/feeds`);
+  return j<FeedLite[]>(res);
 }
 
-export async function addFeed(input: { libraryId: number; url: string; ttl?: number | null }) {
-  const res = await fetch(`${base()}/admin/feeds`, {
+/** Adiciona feed na biblioteca (scoped) */
+export async function addFeed(args: {
+  libraryId: number;
+  url: string;
+  ttl?: number | null;
+}): Promise<FeedLite> {
+  const payload: any = { url: args.url };
+  if (args.ttl !== undefined) payload.ttl = args.ttl;
+  const res = await api(`${API_BASE}/admin/libraries/${args.libraryId}/feeds`, {
     method: "POST",
-    credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(`POST /admin/feeds ${res.status}`);
-  return (await res.json()) as FeedLite;
+  return j<FeedLite>(res);
 }
 
-export async function updateFeed(id: number, patch: { url?: string; ttl?: number | null }) {
-  const res = await fetch(`${base()}/admin/feeds/${id}`, {
-    method: "PUT",
-    credentials: "include",
+/** Atualiza feed (endpoint legacy por ID) */
+export async function updateFeed(
+  id: number,
+  patch: { url?: string; ttl?: number | null }
+): Promise<FeedLite> {
+  const res = await api(`${API_BASE}/admin/feeds/${id}`, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
-  if (!res.ok) throw new Error(`PUT /admin/feeds/${id} ${res.status}`);
-  return (await res.json()) as FeedLite;
+  return j<FeedLite>(res);
 }
 
-export async function removeFeed(id: number) {
-  const res = await fetch(`${base()}/admin/feeds/${id}`, {
-    method: "DELETE",
-    credentials: "include",
-  });
-  if (!res.ok && res.status !== 204) throw new Error(`DELETE /admin/feeds/${id} ${res.status}`);
+/** Remove feed (endpoint legacy por ID) */
+export async function removeFeed(id: number): Promise<void> {
+  const res = await api(`${API_BASE}/admin/feeds/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await res.text());
 }

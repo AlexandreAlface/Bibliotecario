@@ -1,6 +1,6 @@
+// apps/web/src/pages/admin/Librarians.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
-  Autocomplete,
   Avatar,
   Box,
   Button,
@@ -18,19 +18,17 @@ import {
 } from "@mui/material";
 import { WhiteCard } from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
-// lucide icons (evita @mui/icons-material para não bater no cache/MIME)
+// lucide icons
 import { RefreshCw, UserPlus, Trash2, Search } from "lucide-react";
 
 import {
+  getMyLibrary,
   listLibraryLibrarians,
   removeLibrarianFromLibrary,
   type LibrarianLite,
+  type LibraryLite,
 } from "@/services/admin";
-import { listMyLibraries } from "@/services/adminMetrics";
 import { createLibrarianAndAssign } from "@/services/admin.librarians.create";
-// 👇 novo service (ver secção 2)
-
-type LibraryLite = { id: number; name: string };
 
 const initials = (s?: string) =>
   (s || "")
@@ -44,36 +42,33 @@ const initials = (s?: string) =>
 export default function AdminLibrarians() {
   const { user } = useUserSession() as any;
 
-  // ---- Bibliotecas do admin ----
-  const [libraries, setLibraries] = useState<LibraryLite[]>([]);
-  const [libraryId, setLibraryId] = useState<number | null>(null);
-  const [libsLoading, setLibsLoading] = useState(false);
-  const [libsErr, setLibsErr] = useState<string | null>(null);
+  // ---- Biblioteca do admin ----
+  const [myLib, setMyLib] = useState<LibraryLite | null>(null);
+  const [libLoading, setLibLoading] = useState(false);
+  const [libErr, setLibErr] = useState<string | null>(null);
+
+  async function loadMyLibrary() {
+    try {
+      setLibLoading(true);
+      const lib = await getMyLibrary();
+      if (!lib) {
+        setMyLib(null);
+        setLibErr("Não estás associado a nenhuma biblioteca.");
+      } else {
+        setMyLib(lib);
+        setLibErr(null);
+      }
+    } catch (e: any) {
+      setMyLib(null);
+      setLibErr(e?.message || "Falha a carregar a tua biblioteca.");
+    } finally {
+      setLibLoading(false);
+    }
+  }
 
   useEffect(() => {
-    (async () => {
-      try {
-        setLibsLoading(true);
-        const libs = await listMyLibraries(); // [{id,name}]
-        setLibraries(libs || []);
-        const fallback =
-          Number(
-            (user?.userLibraries?.[0]?.libraryId as any) ??
-              (user as any)?.libraryId ??
-              0
-          ) || null;
-        const initial =
-          libs?.[0]?.id ??
-          (fallback && libs?.some((l) => l.id === fallback) ? fallback : null);
-        setLibraryId(initial);
-      } catch (e: any) {
-        setLibraries([]);
-        setLibraryId(null);
-        setLibsErr(e?.message || "Falha a carregar bibliotecas.");
-      } finally {
-        setLibsLoading(false);
-      }
-    })();
+    void loadMyLibrary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // ---- Dados ----
@@ -82,11 +77,11 @@ export default function AdminLibrarians() {
   const [err, setErr] = useState<string | null>(null);
 
   async function reload() {
-    if (!libraryId) return;
+    if (!myLib?.id) return;
     try {
       setLoading(true);
       setErr(null);
-      const arr = await listLibraryLibrarians(libraryId);
+      const arr = await listLibraryLibrarians(myLib.id);
       setItems(arr);
     } catch (e: any) {
       setErr(e?.message || "Falha a carregar.");
@@ -96,9 +91,8 @@ export default function AdminLibrarians() {
   }
 
   useEffect(() => {
-    void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [libraryId]);
+    if (myLib?.id) void reload();
+  }, [myLib?.id]);
 
   // ---- Filtro local por nome/email ----
   const [q, setQ] = useState("");
@@ -114,12 +108,12 @@ export default function AdminLibrarians() {
 
   // ---- Remover ----
   async function remove(id: number) {
-    if (!libraryId) return;
+    if (!myLib?.id) return;
     if (!confirm("Remover este bibliotecário da biblioteca?")) return;
     try {
       setLoading(true);
       setErr(null);
-      await removeLibrarianFromLibrary(libraryId, id);
+      await removeLibrarianFromLibrary(myLib.id, id);
       await reload();
     } catch (e: any) {
       setErr(e?.message || "Falha ao remover.");
@@ -143,7 +137,7 @@ export default function AdminLibrarians() {
   }
 
   async function submitCreate() {
-    if (!libraryId) return;
+    if (!myLib?.id) return;
     if (!fullName.trim() || !email.trim()) {
       alert("Nome e email são obrigatórios.");
       return;
@@ -151,7 +145,7 @@ export default function AdminLibrarians() {
     try {
       setLoading(true);
       setErr(null);
-      await createLibrarianAndAssign(libraryId, {
+      await createLibrarianAndAssign(myLib.id, {
         fullName: fullName.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
@@ -176,25 +170,32 @@ export default function AdminLibrarians() {
         justifyContent="space-between"
         sx={{ mb: 2 }}
       >
-        <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
-          Bibliotecários
-        </Typography>
+        <Box>
+          <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
+            Bibliotecários
+          </Typography>
+          <Typography variant="body2" sx={{ opacity: 0.8 }}>
+            {libLoading ? (
+              "A carregar biblioteca…"
+            ) : libErr ? (
+              libErr
+            ) : myLib ? (
+              <>
+                Biblioteca: <b>{myLib.name}</b>
+              </>
+            ) : (
+              "—"
+            )}
+          </Typography>
+        </Box>
 
         <Stack direction="row" spacing={1} alignItems="center">
-          <Autocomplete
-            sx={{ minWidth: 280 }}
-            options={libraries}
-            loading={libsLoading}
-            value={libraries.find((l) => l.id === libraryId) || null}
-            onChange={(_, v) => setLibraryId(v ? v.id : null)}
-            getOptionLabel={(o) => o?.name ?? ""}
-            isOptionEqualToValue={(o, v) => o.id === v.id}
-            renderInput={(params) => <TextField {...params} label="Biblioteca" />}
-          />
-
           <Tooltip title="Atualizar">
             <span>
-              <IconButton onClick={() => void reload()} disabled={loading}>
+              <IconButton
+                onClick={() => void reload()}
+                disabled={loading || !myLib?.id}
+              >
                 <RefreshCw size={18} />
               </IconButton>
             </span>
@@ -204,18 +205,12 @@ export default function AdminLibrarians() {
             variant="contained"
             startIcon={<UserPlus size={16} />}
             onClick={() => setOpen(true)}
-            disabled={!libraryId}
+            disabled={!myLib?.id}
           >
             Novo bibliotecário
           </Button>
         </Stack>
       </Stack>
-
-      {!!libsErr && (
-        <Typography color="error" sx={{ mb: 2 }}>
-          {libsErr}
-        </Typography>
-      )}
 
       {/* Barra de filtro */}
       <WhiteCard sx={{ mb: 2 }}>
@@ -231,6 +226,7 @@ export default function AdminLibrarians() {
             ),
           }}
           sx={{ minWidth: 320 }}
+          disabled={!myLib?.id}
         />
         {err && (
           <Typography color="error" sx={{ mt: 1 }}>
@@ -241,7 +237,11 @@ export default function AdminLibrarians() {
 
       {/* Lista */}
       <WhiteCard>
-        {filtered.length === 0 ? (
+        {!myLib?.id ? (
+          <Typography sx={{ opacity: 0.7 }}>
+            {libLoading ? "A carregar…" : libErr || "Sem biblioteca associada."}
+          </Typography>
+        ) : filtered.length === 0 ? (
           <Typography sx={{ opacity: 0.7 }}>
             {loading ? "A carregar…" : "Sem bibliotecários nesta biblioteca."}
           </Typography>
@@ -265,7 +265,10 @@ export default function AdminLibrarians() {
                 </Box>
                 <Tooltip title="Remover da biblioteca">
                   <span>
-                    <IconButton onClick={() => void remove(u.id)} disabled={loading}>
+                    <IconButton
+                      onClick={() => void remove(u.id)}
+                      disabled={loading}
+                    >
                       <Trash2 size={18} />
                     </IconButton>
                   </span>
@@ -277,7 +280,12 @@ export default function AdminLibrarians() {
       </WhiteCard>
 
       {/* Dialog criar */}
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
         <DialogTitle>Novo bibliotecário</DialogTitle>
         <DialogContent>
           <Stack spacing={1.25} sx={{ mt: 0.5 }}>
@@ -305,13 +313,17 @@ export default function AdminLibrarians() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              helperText="Se deixares vazio, é gerada uma palavra-passe temporária."
+              helperText="Se vazio, é gerada uma palavra-passe temporária."
             />
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={submitCreate} disabled={loading || !libraryId}>
+          <Button
+            variant="contained"
+            onClick={submitCreate}
+            disabled={loading || !myLib?.id}
+          >
             Criar e associar
           </Button>
         </DialogActions>

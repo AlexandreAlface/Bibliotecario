@@ -24,8 +24,8 @@ export type EventLite = {
   startDate: string;
   endDate?: string | null;
   location?: string | null;
-  description?: string | null; // 👈 novo
-  category?: string | null; // 👈 novo
+  description?: string | null;
+  category?: string | null;
   source?: "MANUAL" | "FEED";
 };
 export type LibraryLite = { id: number; name: string };
@@ -72,14 +72,19 @@ const API_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
   "http://localhost:3333/api";
 
-// --- helpers ---
 async function j<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(await res.text());
   return res.json() as Promise<T>;
 }
 function api(url: string, init?: RequestInit) {
-  // garante envio de cookies de sessão
   return fetch(url, { credentials: "include", ...init });
+}
+
+/** Biblioteca associada ao utilizador (primeira associação). */
+export async function getMyLibrary(): Promise<LibraryLite | null> {
+  const res = await api(`${API_BASE}/admin/feeds/my-library`);
+  if (res.status === 404) return null;
+  return j<LibraryLite>(res);
 }
 
 // --- métricas/admin ---
@@ -90,7 +95,7 @@ export async function getAdminMetrics(
   return j<AdminMetrics>(res);
 }
 
-/** Bibliotecas disponíveis para o admin / staff */
+/** (Legacy) Lista bibliotecas — pode não existir no backend atual */
 export async function listAdminLibraries(): Promise<LibraryLite[]> {
   const res = await api(`${API_BASE}/admin/metrics/libraries`);
   return j<LibraryLite[]>(res);
@@ -170,6 +175,7 @@ export async function deleteGlobalBlock(libraryId: number, blockId: number) {
 }
 
 // --- eventos & feeds ---
+
 export async function listLibraryEvents(
   libraryId: number
 ): Promise<EventLite[]> {
@@ -207,9 +213,7 @@ export async function upsertFeed(libraryId: number, feed: Partial<FeedLite>) {
 export async function deleteFeed(libraryId: number, id: number) {
   const res = await api(
     `${API_BASE}/admin/libraries/${libraryId}/feeds/${id}`,
-    {
-      method: "DELETE",
-    }
+    { method: "DELETE" }
   );
   if (!res.ok) throw new Error(await res.text());
 }
@@ -225,7 +229,7 @@ export async function listLibraryConsultations(
   if (opts?.statuses?.length)
     url.searchParams.set("status", opts.statuses.join(","));
   if (opts?.librarianId)
-    url.searchParams.set("librarianId", String(opts.librarianId));
+    url.searchParams.set("librarianId", String(opts?.librarianId));
   if (opts?.q) url.searchParams.set("q", opts.q);
   const res = await api(url.toString());
   return j<ConsultationLite[]>(res);

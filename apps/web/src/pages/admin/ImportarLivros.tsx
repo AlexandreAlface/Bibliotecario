@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import {
   Alert,
-  Autocomplete,
   Box,
   Button,
   Container,
@@ -29,14 +28,15 @@ import {
   cleanupOrphanBooks,
   type ImportResult,
 } from "@/services/adminBooks";
-import { listMyLibraries, type LibraryLite } from "@/services/feeds";
+import { getMyLibrary, type LibraryLite } from "@/services/admin";
 
 export default function ImportarLivros() {
-  const [libraries, setLibraries] = useState<LibraryLite[]>([]);
-  const [selectedLib, setSelectedLib] = useState<LibraryLite | null>(null);
+  // biblioteca do admin
+  const [myLib, setMyLib] = useState<LibraryLite | null>(null);
+  const [loadingLibs, setLoadingLibs] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   // loading por secção (evita “loading” global em todos os cards)
-  const [loadingLibs, setLoadingLibs] = useState(false);
   const [busyCsv, setBusyCsv] = useState(false);
   const [busyAuto, setBusyAuto] = useState(false);
   const [busyTools, setBusyTools] = useState(false);
@@ -53,35 +53,37 @@ export default function ImportarLivros() {
   const [recalcAuto, setRecalcAuto] = useState(true);
   const [resultAuto, setResultAuto] = useState<ImportResult | null>(null);
 
-  const [err, setErr] = useState<string | null>(null);
-
-  async function loadLibraries() {
+  async function loadMyLibrary() {
     try {
       setErr(null);
       setLoadingLibs(true);
-      const libs = await listMyLibraries();
-      setLibraries(libs);
-      if (!selectedLib && libs.length) setSelectedLib(libs[0]);
+      const lib = await getMyLibrary();
+      if (!lib) {
+        setMyLib(null);
+        setErr("Não estás associado a nenhuma biblioteca.");
+      } else {
+        setMyLib(lib);
+      }
     } catch (e: any) {
-      setErr(e?.message || "Falha a carregar bibliotecas.");
+      setErr(e?.message || "Falha a carregar a biblioteca.");
+      setMyLib(null);
     } finally {
       setLoadingLibs(false);
     }
   }
 
   useEffect(() => {
-    void loadLibraries();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void loadMyLibrary();
   }, []);
 
   async function onImportCsv() {
-    if (!selectedLib || !file) return;
+    if (!myLib?.id || !file) return;
     setBusyCsv(true);
     setErr(null);
     setResultCsv(null);
     try {
       // 👉 substitui sempre o catálogo desta biblioteca
-      const r = await importBooksCsv(selectedLib.id, file, {
+      const r = await importBooksCsv(myLib.id, file, {
         replace: true,
         recalc: recalcCsv,
       });
@@ -99,13 +101,13 @@ export default function ImportarLivros() {
   }
 
   async function onRunAuto() {
-    if (!selectedLib || filesAuto.length === 0) return;
+    if (!myLib?.id || filesAuto.length === 0) return;
     setBusyAuto(true);
     setErr(null);
     setResultAuto(null);
     try {
       // 👉 substitui sempre o catálogo + check Beja é aplicado no backend
-      const r = await runBooksPipeline(selectedLib.id, filesAuto, {
+      const r = await runBooksPipeline(myLib.id, filesAuto, {
         concurrency,
         recalc: recalcAuto,
       });
@@ -123,12 +125,12 @@ export default function ImportarLivros() {
   }
 
   async function onReindexNull() {
-    if (!selectedLib) return;
+    if (!myLib?.id) return;
     setBusyTools(true);
     setErr(null);
     try {
       const resp = await reindexEmbeddingsAdmin({
-        libraryId: selectedLib.id,
+        libraryId: myLib.id,
         limit: 300,
         concurrency: 4,
       });
@@ -156,9 +158,9 @@ export default function ImportarLivros() {
     }
   }
 
-  const autoDisabled = !selectedLib || filesAuto.length === 0 || busyAuto;
-  const autoDisabledReason = !selectedLib
-    ? "Escolhe uma biblioteca"
+  const autoDisabled = !myLib?.id || filesAuto.length === 0 || busyAuto;
+  const autoDisabledReason = !myLib?.id
+    ? "Sem biblioteca associada"
     : filesAuto.length === 0
     ? "Carrega pelo menos um ficheiro XLS/XLSX/CSV"
     : undefined;
@@ -174,10 +176,10 @@ export default function ImportarLivros() {
         <Typography variant="h3" fontWeight={900}>
           Importar livros
         </Typography>
-        <Tooltip title="Atualizar bibliotecas">
+        <Tooltip title="Atualizar">
           <span>
             <IconButton
-              onClick={() => void loadLibraries()}
+              onClick={() => void loadMyLibrary()}
               disabled={globalBusy}
             >
               <RefreshRounded />
@@ -192,18 +194,19 @@ export default function ImportarLivros() {
         </Alert>
       )}
 
-      {/* Seleção de biblioteca */}
-      <WhiteCard sx={{ mb: 2 }}>
-        <Autocomplete
-          options={libraries}
-          loading={loadingLibs}
-          value={selectedLib}
-          onChange={(_, val) => setSelectedLib(val)}
-          isOptionEqualToValue={(opt, val) => opt.id === val.id}
-          getOptionLabel={(o) => o?.name ?? ""}
-          renderInput={(params) => <TextField {...params} label="Biblioteca" />}
-          sx={{ minWidth: 320 }}
-        />
+      {/* Info da biblioteca */}
+      <WhiteCard sx={{ mb: 2, p: 2 }}>
+        <Typography variant="body2" sx={{ opacity: 0.85 }}>
+          {loadingLibs ? (
+            "A carregar biblioteca…"
+          ) : myLib ? (
+            <>
+              Biblioteca: <b>{myLib.name}</b>
+            </>
+          ) : (
+            "Sem biblioteca associada."
+          )}
+        </Typography>
       </WhiteCard>
 
       {/* —— Modo 1: CSV final —— */}
@@ -258,13 +261,19 @@ export default function ImportarLivros() {
             }
             label="Recalcular embeddings no fim"
           />
-          <Button
-            variant="contained"
-            onClick={() => void onImportCsv()}
-            disabled={!selectedLib || !file || busyCsv}
+          <Tooltip
+            title={!myLib?.id ? "Sem biblioteca associada" : "Importar CSV"}
           >
-            Importar
-          </Button>
+            <span>
+              <Button
+                variant="contained"
+                onClick={() => void onImportCsv()}
+                disabled={!myLib?.id || !file || busyCsv}
+              >
+                Importar
+              </Button>
+            </span>
+          </Tooltip>
         </Stack>
 
         {file && (
@@ -417,14 +426,18 @@ export default function ImportarLivros() {
       {/* Utilitários admin */}
       <WhiteCard>
         <Stack direction="row" spacing={1.25} alignItems="center">
-          <Button
-            variant="outlined"
-            startIcon={<RocketLaunchRounded />}
-            onClick={() => void onReindexNull()}
-            disabled={!selectedLib || busyTools}
-          >
-            Recalcular embeddings pendentes (biblioteca)
-          </Button>
+          <Tooltip title={!myLib?.id ? "Sem biblioteca associada" : ""}>
+            <span>
+              <Button
+                variant="outlined"
+                startIcon={<RocketLaunchRounded />}
+                onClick={() => void onReindexNull()}
+                disabled={!myLib?.id || busyTools}
+              >
+                Recalcular embeddings pendentes (biblioteca)
+              </Button>
+            </span>
+          </Tooltip>
           <Button
             variant="outlined"
             color="error"

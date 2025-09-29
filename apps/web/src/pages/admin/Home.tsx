@@ -1,7 +1,6 @@
 // apps/web/src/pages/admin/Home.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
-  Autocomplete,
   Box,
   Button,
   Container,
@@ -29,7 +28,7 @@ import {
 } from "recharts";
 import { alpha } from "@mui/material/styles";
 
-// lucide (mantemos para evitar MIME issues)
+// lucide
 import {
   CalendarCheck2,
   Users,
@@ -45,14 +44,13 @@ import { useUserSession } from "@/contexts/UserSession";
 import {
   listLibrarySlots,
   listGlobalBlocks,
+  getMyLibrary,
+  getAdminMetrics,
   type SlotLite,
   type BlockSlot,
-} from "@/services/admin";
-import {
-  getAdminMetrics,
-  listMyLibraries,
   type AdminMetrics,
-} from "@/services/adminMetrics";
+  type LibraryLite,
+} from "@/services/admin";
 
 // -------- helpers de datas --------
 function startOfDayISO(d = new Date()) {
@@ -66,8 +64,6 @@ function endOfDayISO(d = new Date()) {
   return x.toISOString();
 }
 const nf = new Intl.NumberFormat("pt-PT");
-
-type LibraryLite = { id: number; name: string };
 
 function StatTile({
   label,
@@ -175,36 +171,33 @@ export default function AdminHome() {
   const theme = useTheme();
   const { user } = useUserSession() as any;
 
-  // -------- bibliotecas (selector no header) --------
-  const [libraries, setLibraries] = useState<LibraryLite[]>([]);
-  const [libraryId, setLibraryId] = useState<number | null>(null);
-  const [libsLoading, setLibsLoading] = useState(false);
-  const [libsErr, setLibsErr] = useState<string | null>(null);
+  // -------- biblioteca única do admin --------
+  const [myLib, setMyLib] = useState<LibraryLite | null>(null);
+  const [libLoading, setLibLoading] = useState(false);
+  const [libErr, setLibErr] = useState<string | null>(null);
+
+  async function loadMyLibrary() {
+    try {
+      setLibLoading(true);
+      const lib = await getMyLibrary();
+      if (!lib) {
+        setMyLib(null);
+        setLibErr("Não estás associado a nenhuma biblioteca.");
+      } else {
+        setMyLib(lib);
+        setLibErr(null);
+      }
+    } catch (e: any) {
+      setMyLib(null);
+      setLibErr(e?.message || "Falha a carregar a tua biblioteca.");
+    } finally {
+      setLibLoading(false);
+    }
+  }
 
   useEffect(() => {
-    (async () => {
-      try {
-        setLibsLoading(true);
-        const libs = await listMyLibraries();
-        setLibraries(libs || []);
-        const fallback =
-          Number(
-            (user?.userLibraries?.[0]?.libraryId as any) ??
-              (user as any)?.libraryId ??
-              0
-          ) || null;
-        const initial =
-          libs?.[0]?.id ??
-          (fallback && libs?.some((l) => l.id === fallback) ? fallback : null);
-        setLibraryId(initial ?? null);
-      } catch (e: any) {
-        setLibraries([]);
-        setLibraryId(null);
-        setLibsErr(e?.message || "Falha a carregar bibliotecas.");
-      } finally {
-        setLibsLoading(false);
-      }
-    })();
+    void loadMyLibrary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // -------- dados --------
@@ -225,17 +218,17 @@ export default function AdminHome() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   async function reloadAll() {
-    if (!libraryId) return;
+    if (!myLib?.id) return;
     try {
       setLoading(true);
       setErr(null);
       const [m, slots, blocks] = await Promise.all([
-        getAdminMetrics(libraryId),
-        listLibrarySlots(libraryId, {
+        getAdminMetrics(myLib.id),
+        listLibrarySlots(myLib.id, {
           from: startOfDayISO(),
           to: endOfDayISO(),
         }),
-        listGlobalBlocks(libraryId),
+        listGlobalBlocks(myLib.id),
       ]);
 
       setMetrics(m);
@@ -263,8 +256,8 @@ export default function AdminHome() {
   }
 
   useEffect(() => {
-    if (libraryId) void reloadAll();
-  }, [libraryId]);
+    if (myLib?.id) void reloadAll();
+  }, [myLib?.id]);
 
   const weekly = metrics?.weeklyConsultations ?? [];
   const util = metrics?.slotUtilization ?? [];
@@ -282,40 +275,34 @@ export default function AdminHome() {
         justifyContent="space-between"
         sx={{ mb: 2 }}
       >
-        <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
-          Admin — Biblioteca
-        </Typography>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Autocomplete
-            sx={{ minWidth: 280 }}
-            options={libraries}
-            loading={libsLoading}
-            value={libraries.find((l) => l.id === libraryId) || null}
-            onChange={(_, v) => setLibraryId(v ? v.id : null)}
-            getOptionLabel={(o) => o?.name ?? ""}
-            isOptionEqualToValue={(o, v) => o.id === v.id}
-            renderInput={(params) => (
-              <TextField {...params} label="Biblioteca" />
+        <Box>
+          <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
+            Admin — Biblioteca
+          </Typography>
+          <Typography variant="body2" sx={{ opacity: 0.8 }}>
+            {libLoading ? (
+              "A carregar biblioteca…"
+            ) : libErr ? (
+              libErr
+            ) : myLib ? (
+              <>
+                Biblioteca: <b>{myLib.name}</b>
+              </>
+            ) : (
+              "—"
             )}
-          />
-          <Tooltip title="Atualizar">
-            <span>
-              <IconButton
-                onClick={() => void reloadAll()}
-                disabled={!libraryId}
-              >
-                <RefreshCw size={18} />
-              </IconButton>
-            </span>
-          </Tooltip>
-        </Stack>
+          </Typography>
+        </Box>
+
+        <Tooltip title="Atualizar">
+          <span>
+            <IconButton onClick={() => void reloadAll()} disabled={!myLib?.id}>
+              <RefreshCw size={18} />
+            </IconButton>
+          </span>
+        </Tooltip>
       </Stack>
 
-      {libsErr && (
-        <Typography color="error" sx={{ mb: 1 }}>
-          {libsErr}
-        </Typography>
-      )}
       {err && (
         <Typography color="error" sx={{ mb: 1 }}>
           {err}
@@ -437,7 +424,7 @@ export default function AdminHome() {
         <Grid item xs={12} md={5}>
           <ChartCard title="Utilização de slots (%)">
             <ResponsiveContainer width="100%" height="85%">
-              <LineChart data={util}>
+              <LineChart data={metrics?.slotUtilization ?? []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
