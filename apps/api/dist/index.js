@@ -107,6 +107,8 @@ app.use("/api", microContent_1.default);
         console.log("▶️  Ingestão inicial de eventos RSS …");
         await (0, rssService_1.fetchAndUpsertAllFeeds)({ force: true }); // primeira vez ignora TTL
         console.log("✅  Ingestão inicial concluída");
+        const res = await (0, badgesEngine_1.recomputeAllChildren)();
+        console.log("Badges recomputados:", res);
     }
     catch (e) {
         console.error("❌ Falha na ingestão inicial de RSS:", e);
@@ -119,6 +121,8 @@ node_cron_1.default.schedule("0 * * * *", async () => {
         console.log("⏰ Ingestão agendada de eventos RSS …");
         await (0, rssService_1.fetchAndUpsertAllFeeds)(); // respeita TTL
         console.log("✅ Ingestão agendada concluída");
+        const res = await (0, badgesEngine_1.recomputeAllChildren)();
+        console.log("Badges recomputados:", res);
     }
     catch (e) {
         console.error("❌ Falha na ingestão agendada de RSS:", e);

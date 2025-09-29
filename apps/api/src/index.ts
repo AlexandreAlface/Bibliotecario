@@ -39,9 +39,8 @@ import adminLibrariansRouter from "./routes/admin.librarian";
 import { adminMetricsRouter } from "./routes/adminMetrics";
 import culturalEventsRouter from "./routes/culturalEvents";
 import adminBooksRouter from "./routes/adminBooks";
-import publicRouter from "./routes/public.js"; 
+import publicRouter from "./routes/public.js";
 import microContentRoutes from "./routes/microContent";
-
 
 if (!process.env.DATABASE_URL) {
   console.error("DATABASE_URL não carregada. Verifica apps/api/.env");
@@ -77,7 +76,6 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/api/public", publicRouter);
 
-
 /* --------- Rotas (sem /v1) --------- */
 app.use("/api/auth", authRouter);
 app.use("/api", authChildRouter);
@@ -88,7 +86,7 @@ app.use("/api/consultations", consultations); // /api/consultations/...
 app.use("/api/consultations", slots); // /api/consultations/slots, /api/consultations/librarians/:id/slots, etc.
 app.use("/api/consultations", proposals);
 app.use("/api", eventsRouter);
-app.use("/api/books", booksRouter); 
+app.use("/api/books", booksRouter);
 app.use("/api/badge-assignments", badgeAssignmentsRouter);
 app.use("/api", recommendationsRouter);
 app.use("/api", reservationsRouter);
@@ -113,13 +111,15 @@ app.use("/api", culturalEventsRouter);
 app.use("/api", adminBooksRouter);
 app.use("/api", microContentRoutes);
 
-
 /* --------- Ingestão RSS --------- */
 (async () => {
   try {
     console.log("▶️  Ingestão inicial de eventos RSS …");
     await fetchAndUpsertAllFeeds({ force: true }); // primeira vez ignora TTL
     console.log("✅  Ingestão inicial concluída");
+
+    const res = await recomputeAllChildren();
+    console.log("Badges recomputados:", res);
   } catch (e) {
     console.error("❌ Falha na ingestão inicial de RSS:", e);
   }
@@ -132,6 +132,9 @@ cron.schedule("0 * * * *", async () => {
     console.log("⏰ Ingestão agendada de eventos RSS …");
     await fetchAndUpsertAllFeeds(); // respeita TTL
     console.log("✅ Ingestão agendada concluída");
+
+    const res = await recomputeAllChildren();
+    console.log("Badges recomputados:", res);
   } catch (e) {
     console.error("❌ Falha na ingestão agendada de RSS:", e);
   }
