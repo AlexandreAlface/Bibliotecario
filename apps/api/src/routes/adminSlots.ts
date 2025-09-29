@@ -30,13 +30,19 @@ r.get(
       defaultTo.setDate(defaultTo.getDate() + 30);
       defaultTo.setHours(23, 59, 59, 999);
 
-      const from = req.query.from ? new Date(String(req.query.from)) : defaultFrom;
+      const from = req.query.from
+        ? new Date(String(req.query.from))
+        : defaultFrom;
       const to = req.query.to ? new Date(String(req.query.to)) : defaultTo;
 
       const statusStr = (req.query.status as string | undefined)?.trim();
-      const statuses = statusStr ? statusStr.split(",").map(s => s.trim().toUpperCase()) : undefined;
+      const statuses = statusStr
+        ? statusStr.split(",").map((s) => s.trim().toUpperCase())
+        : undefined;
 
-      const librarianId = req.query.librarianId ? Number(req.query.librarianId) : undefined;
+      const librarianId = req.query.librarianId
+        ? Number(req.query.librarianId)
+        : undefined;
 
       const where: any = {
         AND: [
@@ -70,12 +76,16 @@ r.get(
       });
 
       res.json(
-        slots.map(s => ({
+        slots.map((s) => ({
           id: s.id,
           startAt: s.startAt.toISOString(),
           endAt: s.endAt.toISOString(),
           status: s.status,
-          librarian: { id: s.librarian.id, fullName: s.librarian.fullName, email: s.librarian.email },
+          librarian: {
+            id: s.librarian.id,
+            fullName: s.librarian.fullName,
+            email: s.librarian.email,
+          },
           consultationId: s.consultation?.id ?? null,
         }))
       );
@@ -101,43 +111,79 @@ r.patch(
       const slotId = Number(req.params.slotId);
       const nextStatus = String(req.body?.status || "").toUpperCase();
 
-      if (![ "OPEN", "BLOCKED" ].includes(nextStatus)) {
-        return res.status(400).json({ error: "status inválido (apenas OPEN ou BLOCKED)" });
+      if (!["OPEN", "BLOCKED"].includes(nextStatus)) {
+        return res
+          .status(400)
+          .json({ error: "status inválido (apenas OPEN ou BLOCKED)" });
       }
-      // valida slot + pertença
+
       const slot = await prisma.consultationSlot.findUnique({
         where: { id: slotId },
         select: {
-          id: true, status: true, librarianId: true, libraryId: true,
+          id: true,
+          status: true,
+          startAt: true,
+          endAt: true,
+          librarianId: true,
+          libraryId: true,
           consultation: { select: { id: true } },
-          librarian: { select: { userLibraries: { select: { libraryId: true } } } },
+          librarian: {
+            select: { userLibraries: { select: { libraryId: true } } },
+          },
         },
       });
       if (!slot) return res.status(404).json({ error: "slot não encontrado" });
 
       const belongsToLibrary =
         slot.libraryId === libraryId ||
-        slot.librarian.userLibraries.some(ul => ul.libraryId === libraryId);
+        slot.librarian.userLibraries.some((ul) => ul.libraryId === libraryId);
+      if (!belongsToLibrary)
+        return res.status(403).json({ error: "forbidden" });
+      if (slot.consultation?.id) {
+        return res
+          .status(409)
+          .json({ error: "slot reservado — não pode ser alterado" });
+      }
 
-      if (!belongsToLibrary) return res.status(403).json({ error: "sem acesso a este slot" });
+      // ❗ se tentar abrir, validar bloqueio
+      if (nextStatus === "OPEN") {
+        const effLibId =
+          slot.libraryId ??
+          slot.librarian.userLibraries.find((ul) => ul.libraryId === libraryId)
+            ?.libraryId ??
+          null;
 
-      if (slot.status === "BOOKED" || slot.consultation?.id) {
-        return res.status(409).json({ error: "slot reservado — não pode ser alterado aqui" });
+        if (effLibId) {
+          const hasBlock = await prisma.libraryBlock.findFirst({
+            where: {
+              libraryId: effLibId,
+              startAt: { lt: slot.endAt },
+              endAt: { gt: slot.startAt },
+            },
+            select: { id: true },
+          });
+          if (hasBlock)
+            return res.status(409).json({ error: "global_block_overlap" });
+        }
       }
 
       if (slot.status === nextStatus) {
-        return res.json({ ok: true, unchanged: true, id: slot.id, status: slot.status });
+        return res.json({
+          ok: true,
+          unchanged: true,
+          id: slot.id,
+          status: slot.status,
+        });
       }
-
       const updated = await prisma.consultationSlot.update({
         where: { id: slot.id },
         data: { status: nextStatus as any },
         select: { id: true, status: true },
       });
-
       res.json(updated);
-    } catch (e) { next(e); }
+    } catch (e) {
+      next(e);
+    }
   }
 );
-
 export default r;

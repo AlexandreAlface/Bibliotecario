@@ -60,6 +60,11 @@ import {
   getEventReservationsSummary,
 } from "@/services/admin";
 
+import { LocalizationProvider, DateTimePicker } from "@mui/x-date-pickers";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import dayjs from "dayjs";
+import "dayjs/locale/pt";
+
 const API_BASE =
   (import.meta as any).env?.VITE_API_URL?.replace(/\/$/, "") || "/api";
 
@@ -197,7 +202,7 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
         </Tooltip>
       </Stack>
 
-      <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap">
+      {/* <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap">
         <TextField
           size="small"
           label="ID da família"
@@ -224,7 +229,7 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
             </Button>
           </span>
         </Tooltip>
-      </Stack>
+      </Stack> */}
 
       <Table size="small">
         <TableHead>
@@ -795,22 +800,33 @@ export default function AdminEvents() {
                 onChange={(e) => setEvTitle(e.target.value)}
                 onFocus={ensureStartPreset}
               />
-              <TextField
-                label="Início"
-                type="datetime-local"
-                value={evStart}
-                onChange={(e) => setEvStart(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ step: 300 }}
-              />
-              <TextField
-                label="Fim (opcional)"
-                type="datetime-local"
-                value={evEnd}
-                onChange={(e) => setEvEnd(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ step: 300 }}
-              />
+              <LocalizationProvider
+                dateAdapter={AdapterDayjs}
+                adapterLocale="pt"
+              >
+                <DateTimePicker
+                  label="Início"
+                  value={evStart ? dayjs(evStart) : null}
+                  onChange={(v) =>
+                    setEvStart(v ? v.format("YYYY-MM-DDTHH:mm") : "")
+                  }
+                  slotProps={{
+                    textField: { fullWidth: true, onFocus: ensureStartPreset },
+                  }}
+                  minutesStep={5}
+                />
+
+                <DateTimePicker
+                  label="Fim (opcional)"
+                  value={evEnd ? dayjs(evEnd) : null}
+                  onChange={(v) =>
+                    setEvEnd(v ? v.format("YYYY-MM-DDTHH:mm") : "")
+                  }
+                  minDateTime={evStart ? dayjs(evStart) : undefined}
+                  slotProps={{ textField: { fullWidth: true } }}
+                  minutesStep={5}
+                />
+              </LocalizationProvider>
               <TextField
                 label="Local (opcional)"
                 value={evLoc}

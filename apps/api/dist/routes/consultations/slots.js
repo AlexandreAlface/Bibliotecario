@@ -6,6 +6,7 @@ const client_2 = require("@prisma/client");
 const auth_1 = require("../../middlewares/auth");
 const prisma = new client_1.PrismaClient();
 const r = (0, express_1.Router)();
+const overlaps = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
 // GET /api/consultations/librarians/:librarianId/slots?from=...&to=...
 r.get("/librarians/:librarianId/slots", async (req, res) => {
     try {
@@ -34,34 +35,72 @@ r.get("/librarians/:librarianId/slots", async (req, res) => {
 r.post("/librarians/:librarianId/slots/bulk", (0, auth_1.requireRole)(auth_1.ROLES.LIBRARIAN, auth_1.ROLES.ADMIN), async (req, res) => {
     try {
         const librarianId = Number(req.params.librarianId);
-        // carrega bibliotecas associadas ao bibliotecário
+        // bibliotecas do bibliotecário
         const links = await prisma.userLibrary.findMany({
             where: { userId: librarianId },
             select: { libraryId: true },
         });
-        const defaultLibraryId = links.length === 1 ? links[0].libraryId : null; // só auto-preenche se houver 1
-        const items = (req.body?.slots ?? []).map((s) => ({
-            librarianId,
-            startAt: new Date(s.startAt),
-            endAt: new Date(s.endAt),
-            libraryId: s.libraryId != null ? s.libraryId : defaultLibraryId ?? null, // 👈 auto-preenche aqui
-            status: s.status ?? client_1.SlotStatus.OPEN,
-        }));
-        // (opcional) se houver várias bibliotecas e faltarem libraryId explícitos, podes forçar erro:
-        // if (links.length > 1 && items.some(i => i.libraryId == null)) {
-        //   return res.status(400).json({ error: "multiple_libraries_require_explicit_libraryId" });
-        // }
+        const onlyOneLibrary = links.length === 1 ? links[0].libraryId : null;
+        const bodySlots = Array.isArray(req.body?.slots) ? req.body.slots : [];
+        // resolver items + validar libraryId
+        const resolved = bodySlots.map((s) => {
+            const startAt = new Date(s.startAt);
+            const endAt = new Date(s.endAt);
+            const libId = s.libraryId != null ? Number(s.libraryId) : onlyOneLibrary;
+            if (!Number.isFinite(libId)) {
+                throw new Error("libraryId é obrigatório quando o bibliotecário pertence a várias bibliotecas");
+            }
+            return {
+                librarianId,
+                libraryId: libId,
+                startAt,
+                endAt,
+                status: s.status ?? client_1.SlotStatus.OPEN,
+            };
+        });
+        if (resolved.length === 0) {
+            return res.json({ created: 0, skipped: 0, blockedAuto: 0 });
+        }
+        // intervalo agregador para buscar bloqueios uma vez
+        const minStart = new Date(Math.min(...resolved.map((s) => +s.startAt)));
+        const maxEnd = new Date(Math.max(...resolved.map((s) => +s.endAt)));
+        const libs = Array.from(new Set(resolved.map((s) => s.libraryId)));
+        const blocks = await prisma.libraryBlock.findMany({
+            where: {
+                libraryId: { in: libs },
+                startAt: { lt: maxEnd },
+                endAt: { gt: minStart },
+            },
+            select: { libraryId: true, startAt: true, endAt: true },
+        });
+        const overlaps = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
+        // dividir: criações válidas vs. colidentes
+        let blockedAuto = 0;
+        const toCreate = resolved
+            .map((s) => {
+            const hit = blocks.some((b) => b.libraryId === s.libraryId &&
+                overlaps(s.startAt, s.endAt, b.startAt, b.endAt));
+            if (hit) {
+                // criar já como BLOQUEADO (ou então “skip”, como preferires)
+                return { ...s, status: client_1.SlotStatus.BLOCKED };
+            }
+            return s;
+        })
+            .filter(Boolean);
         const created = await prisma.consultationSlot.createMany({
-            data: items,
+            data: toCreate,
             skipDuplicates: true,
         });
-        res.json({ created: created.count });
+        const skipped = resolved.length - toCreate.length;
+        res.json({
+            created: created.count,
+            skipped,
+            blockedAuto,
+        });
     }
     catch (e) {
         console.error(e);
-        res
-            .status(400)
-            .json({ error: e?.message ?? "failed to bulk create slots" });
+        res.status(400).json({ error: e?.message ?? "failed to bulk create" });
     }
 });
 // PATCH /api/consultations/slots/:id  body: { status: 'OPEN' | 'BLOCKED' }

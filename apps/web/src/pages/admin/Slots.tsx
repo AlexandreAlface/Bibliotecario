@@ -533,14 +533,13 @@ export default function AdminSlots() {
                 const bMs = b.getTime();
                 const hitsGlobal = slotHitsGlobal(aMs, bMs);
 
-                const canBlock = s.status === "OPEN" && !hitsGlobal;
+                const canBlock = s.status === "OPEN";
                 const canUnblock = s.status === "BLOCKED" && !hitsGlobal;
 
-                const disableReason = hitsGlobal
-                  ? "Intervalo coberto por Bloqueio global"
-                  : s.status === "BOOKED"
-                  ? "Slot reservado — não pode ser bloqueado"
-                  : undefined;
+                const disableReason =
+                  s.status === "BOOKED"
+                    ? "Slot reservado — não pode ser bloqueado"
+                    : undefined;
 
                 return (
                   <Stack
