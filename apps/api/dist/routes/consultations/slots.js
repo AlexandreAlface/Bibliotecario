@@ -11,18 +11,54 @@ const overlaps = (aStart, aEnd, bStart, bEnd) => aStart < bEnd && bStart < aEnd;
 r.get("/librarians/:librarianId/slots", async (req, res) => {
     try {
         const librarianId = Number(req.params.librarianId);
-        const from = new Date(String(req.query.from));
-        const to = new Date(String(req.query.to));
-        if (!Number.isFinite(librarianId) || isNaN(+from) || isNaN(+to)) {
+        const fromStr = String(req.query.from ?? "");
+        const toStr = String(req.query.to ?? "");
+        const from = new Date(fromStr);
+        const to = new Date(toStr);
+        if (!Number.isFinite(librarianId) ||
+            Number.isNaN(from.getTime()) ||
+            Number.isNaN(to.getTime())) {
             return res
                 .status(400)
                 .json({ error: "librarianId, from e to são obrigatórios" });
         }
+        // slots que INTERSETAM o intervalo [from, to]
         const slots = await prisma.consultationSlot.findMany({
-            where: { librarianId, startAt: { gte: from }, endAt: { lte: to } },
-            orderBy: { startAt: "asc" },
+            where: {
+                librarianId,
+                startAt: { lt: to },
+                endAt: { gt: from },
+            },
+            select: {
+                id: true,
+                startAt: true,
+                endAt: true,
+                status: true,
+                library: { select: { id: true, name: true } },
+                librarian: { select: { id: true, fullName: true } },
+                consultation: {
+                    select: {
+                        id: true,
+                        family: { select: { id: true, fullName: true } },
+                        child: { select: { id: true, name: true } },
+                    },
+                },
+            },
+            orderBy: [{ startAt: "asc" }, { endAt: "asc" }],
         });
-        res.json(slots);
+        res.json(slots.map((s) => ({
+            id: s.id,
+            startAt: s.startAt,
+            endAt: s.endAt,
+            status: s.status,
+            libraryId: s.library?.id ?? null,
+            libraryName: s.library?.name ?? null,
+            librarianId: s.librarian?.id ?? librarianId,
+            librarianName: s.librarian?.fullName ?? null,
+            // 👇 quem reservou (para mostrar na app)
+            reservedByName: s.consultation?.family?.fullName ?? null,
+            reservedChildName: s.consultation?.child?.name ?? null,
+        })));
     }
     catch (e) {
         console.error(e);
@@ -79,7 +115,9 @@ r.post("/librarians/:librarianId/slots/bulk", (0, auth_1.requireRole)(auth_1.ROL
         // marcar como BLOCKED os que colidem e registar o "dono" do bloqueio
         let blockedAuto = 0;
         const toCreate = resolved.map((s) => {
-            const hit = blocks.find((b) => b.libraryId === s.libraryId && s.startAt < b.endAt && b.startAt < s.endAt);
+            const hit = blocks.find((b) => b.libraryId === s.libraryId &&
+                s.startAt < b.endAt &&
+                b.startAt < s.endAt);
             if (hit) {
                 blockedAuto++;
                 return {

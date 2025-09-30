@@ -71,6 +71,7 @@ function fmtRange(a?: string | null, b?: string | null) {
 }
 
 /* ---------------- tipos ---------------- */
+
 type Slot = {
   id: number;
   startAt: string;
@@ -79,6 +80,9 @@ type Slot = {
   librarianId?: number;
   librarianName?: string | null;
   libraryName?: string | null;
+  // 👇 NOVO
+  reservedByName?: string | null;
+  reservedChildName?: string | null;
 };
 
 /* ---------------- Pill ---------------- */
@@ -698,6 +702,35 @@ export default function AgendaPage() {
                               .join(" • ")}
                           </Text>
                         )}
+
+                        {s.status === "BOOKED" &&
+                        (s.reservedByName || s.reservedChildName) ? (
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <Icon
+                              name="account-check"
+                              size={16}
+                              color={theme.colors.primary}
+                            />
+                            <Text style={{ color: theme.colors.onSurface }}>
+                              Reservado por{" "}
+                              <Text style={{ fontWeight: "700" }}>
+                                {s.reservedByName ?? "—"}
+                              </Text>
+                              {s.reservedChildName ? (
+                                <Text style={{ color: theme.colors.onSurface }}>
+                                  {" "}
+                                  (para {s.reservedChildName})
+                                </Text>
+                              ) : null}
+                            </Text>
+                          </View>
+                        ) : null}
 
                         <View
                           style={{

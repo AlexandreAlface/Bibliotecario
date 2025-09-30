@@ -45,6 +45,7 @@ import AdminMetrics from "@/pages/admin/Metrics";
 import AdminFeeds from "@/pages/admin/Feeds";
 import AdminImportBooks from "@/pages/admin/ImportarLivros";
 import AdminMicroContentsPage from "@/pages/admin/micro-contents"; // já adicionado
+import LibrarianBooksSearch from "@/pages/librarian/BooksSearch";
 
 function AuthLayout() {
   return <Outlet />;
@@ -117,6 +118,7 @@ export const router = createBrowserRouter([
             path: "consultas/pendentes",
             element: <LibrarianConsultasPendentes />,
           },
+           { path: "livros", element: <LibrarianBooksSearch /> },
           { path: "agenda", element: <LibrarianAgenda /> },
           { path: "familias", element: <LibrarianFamilias /> },
           { path: "slots", element: <LibrarianSlots /> },
@@ -137,6 +139,7 @@ export const router = createBrowserRouter([
           { path: "bibliotecarios", element: <AdminLibrarians /> },
           { path: "familias", element: <AdminFamilies /> },
           { path: "slots", element: <AdminSlotsGlobal /> },
+          { path: "livros", element: <LibrarianBooksSearch /> },
           { path: "propostas", element: <AdminBacklog /> },
           { path: "eventos", element: <AdminEvents /> },
           { path: "feeds", element: <AdminFeeds /> },

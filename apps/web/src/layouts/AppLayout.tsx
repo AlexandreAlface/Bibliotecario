@@ -120,6 +120,11 @@ function buildMenu(opts: {
         icon: <DashboardCustomizeRounded />,
       },
       {
+        to: "/librarian/livros",
+        label: "Livros",
+        icon: <LibraryBooksRounded />,
+      },
+      {
         to: "/librarian/consultas/pendentes",
         label: "Pendentes",
         icon: <EventAvailableRounded />,
@@ -151,6 +156,11 @@ function buildMenu(opts: {
     items.push(
       { to: "/admin", label: "Início", icon: <AdminPanelSettingsRounded /> },
       {
+        to: "/librarian/livros",
+        label: "Livros",
+        icon: <LibraryBooksRounded />,
+      },
+      {
         to: "/admin/bibliotecarios",
         label: "Bibliotecários",
         icon: <PeopleAltRounded />,
@@ -158,7 +168,11 @@ function buildMenu(opts: {
       { to: "/admin/familias", label: "Famílias", icon: <PeopleAltRounded /> },
       { to: "/admin/slots", label: "Slots", icon: <ScheduleRounded /> },
       { to: "/admin/propostas", label: "Propostas", icon: <ListAltRounded /> },
-      { to: "/admin/eventos", label: "Eventos", icon: <EventAvailableRounded /> },
+      {
+        to: "/admin/eventos",
+        label: "Eventos",
+        icon: <EventAvailableRounded />,
+      },
       { to: "/admin/feeds", label: "Feeds", icon: <RssFeedRounded /> },
       {
         to: "/admin/micro-contents",
@@ -166,7 +180,11 @@ function buildMenu(opts: {
         icon: <LightbulbRounded />,
       },
       { to: "/admin/metricas", label: "Métricas", icon: <QueryStatsRounded /> },
-      { to: "/admin/livros", label: "Livros (CSV)", icon: <LibraryBooksRounded /> }
+      {
+        to: "/admin/livros",
+        label: "Livros (CSV)",
+        icon: <LibraryBooksRounded />,
+      }
       // { to: "/admin/bibliotecarios/novo", label: "Adicionar bibliotecário", icon: <PersonAddRounded /> },
     );
   }

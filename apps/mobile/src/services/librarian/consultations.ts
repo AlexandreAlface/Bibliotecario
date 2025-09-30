@@ -42,13 +42,16 @@ export type SlotLite = {
   id: number;
   startAt: string;
   endAt: string;
-  status: "OPEN" | "BOOKED" | "BLOCKED";
+  status: "OPEN" | "BOOKED" | "BLOCKED"; // ← inclui BLOCKED
   librarianId: number;
   librarianName?: string;
   librarianAvatarUrl?: string | null;
   libraryId?: number;
   libraryName?: string;
-};
+  // ↓ novos
+  reservedByName?: string | null;
+  reservedChildName?: string | null;
+};;
 
 export type Proposal = {
   id: number;
@@ -86,9 +89,7 @@ export async function listLibrarianSlots(
   librarianId: number,
   params: { from: string; to: string }
 ): Promise<SlotLite[]> {
-  const url = `${API_URL}/consultations/librarians/${librarianId}/slots?${qs(
-    params
-  )}`;
+  const url = `${API_URL}/consultations/librarians/${librarianId}/slots?${qs(params)}`;
   const data = await fetchJson(url);
   return (Array.isArray(data) ? data : []).map((s: any) => ({
     id: Number(s.id),
@@ -100,6 +101,17 @@ export async function listLibrarianSlots(
     librarianAvatarUrl: s.librarianAvatarUrl ?? s.librarian?.avatarUrl ?? null,
     libraryId: s.libraryId ?? s.library?.id ?? undefined,
     libraryName: s.libraryName ?? s.library?.name ?? undefined,
+    // 👇 tenta direto e com fallbacks (caso venham “aninhados”)
+    reservedByName:
+      s.reservedByName ??
+      s.consultation?.family?.fullName ??
+      s.familyName ??
+      undefined,
+    reservedChildName:
+      s.reservedChildName ??
+      s.consultation?.child?.name ??
+      s.childName ??
+      undefined,
   }));
 }
 
