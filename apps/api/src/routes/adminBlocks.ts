@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../prisma";
 import { requireRole, ROLES } from "../middlewares/auth";
+import { SlotStatus } from "@prisma/client";
 
 const r = Router();
 
@@ -14,25 +15,20 @@ r.get(
       if (!Number.isFinite(libraryId) || libraryId <= 0)
         return res.status(400).json({ error: "libraryId inválido" });
 
-      const slots = await prisma.consultationSlot.findMany({
-        where: {
-          status: "BLOCKED",
-          consultation: null,
-          OR: [
-            { libraryId },
-            { librarian: { userLibraries: { some: { libraryId } } } },
-          ],
-        },
+      const blocks = await prisma.libraryBlock.findMany({
+        where: { libraryId },
         orderBy: { startAt: "asc" },
-        select: { id: true, startAt: true, endAt: true },
+        select: { id: true, startAt: true, endAt: true, reason: true },
       });
 
-      res.json(slots.map(s => ({
-        id: s.id,
-        startAt: s.startAt.toISOString(),
-        endAt: s.endAt.toISOString(),
-        reason: null as string | null, // sem coluna no schema
-      })));
+      res.json(
+        blocks.map(b => ({
+          id: b.id,
+          startAt: b.startAt.toISOString(),
+          endAt: b.endAt.toISOString(),
+          reason: b.reason ?? null,
+        }))
+      );
     } catch (e) { next(e); }
   }
 );
@@ -44,41 +40,56 @@ r.post(
   async (req, res, next) => {
     try {
       const libraryId = Number(req.params.libraryId);
-      const { startAt, endAt } = (req.body ?? {}) as { startAt?: string; endAt?: string; reason?: string };
+      const { startAt, endAt, reason } = (req.body ?? {}) as { startAt?: string; endAt?: string; reason?: string };
+
       if (!Number.isFinite(libraryId) || libraryId <= 0)
         return res.status(400).json({ error: "libraryId inválido" });
 
       const start = new Date(startAt || "");
       const end = new Date(endAt || "");
-      if (isNaN(start.getTime()) || isNaN(end.getTime()) || start >= end)
+      if (isNaN(+start) || isNaN(+end) || start >= end)
         return res.status(400).json({ error: "janela inválida" });
 
-      // escolhe 1 bibliotecário da biblioteca para “ancorar” o slot bloqueado
-      const anyLib = await prisma.user.findFirst({
-        where: {
-          userLibraries: { some: { libraryId } },
-          userRoles: { some: { role: { name: { in: ["LIBRARIAN", "BIBLIOTECÁRIO", "BIBLIOTECARIO"] } } } },
-        },
-        select: { id: true },
-      });
-      if (!anyLib) return res.status(409).json({ error: "biblioteca sem bibliotecários" });
+      const created = await prisma.$transaction(async (tx) => {
+        // 1) cria o bloco global
+        const block = await tx.libraryBlock.create({
+          data: { libraryId, startAt: start, endAt: end, reason: reason || null },
+          select: { id: true, startAt: true, endAt: true },
+        });
 
-      const created = await prisma.consultationSlot.create({
-        data: {
-          librarianId: anyLib.id,
-          libraryId,
-          startAt: start,
-          endAt: end,
-          status: "BLOCKED",
-        },
-        select: { id: true, startAt: true, endAt: true },
+        // 2) encontra todos os SLOTS OPEN que colidem e pertencem à biblioteca
+        const toBlock = await tx.consultationSlot.findMany({
+          where: {
+            status: SlotStatus.OPEN,
+            consultation: null, // não mexer em slots com consulta
+            startAt: { lt: end },
+            endAt: { gt: start },
+            OR: [
+              { libraryId }, // slots etiquetados com a biblioteca
+              { librarian: { userLibraries: { some: { libraryId } } } }, // slots "sem libraryId" mas do staff desta biblioteca
+            ],
+          },
+          select: { id: true },
+        });
+
+        if (toBlock.length) {
+          await tx.consultationSlot.updateMany({
+            where: { id: { in: toBlock.map(s => s.id) } },
+            data: {
+              status: SlotStatus.BLOCKED,
+              blockedByLibraryBlockId: block.id,
+            },
+          });
+        }
+
+        return block;
       });
 
       res.status(201).json({
         id: created.id,
         startAt: created.startAt.toISOString(),
         endAt: created.endAt.toISOString(),
-        reason: null,
+        reason: reason ?? null,
       });
     } catch (e) { next(e); }
   }
@@ -97,25 +108,68 @@ r.delete(
       if (!Number.isFinite(id) || id <= 0)
         return res.status(400).json({ error: "id inválido" });
 
-      // valida pertença
-      const slot = await prisma.consultationSlot.findUnique({
-        where: { id },
-        select: {
-          id: true, libraryId: true,
-          librarian: { select: { userLibraries: { select: { libraryId: true } } } },
-        },
+      await prisma.$transaction(async (tx) => {
+        const block = await tx.libraryBlock.findUnique({
+          where: { id },
+          select: { id: true, libraryId: true, startAt: true, endAt: true },
+        });
+        if (!block) return res.status(404).json({ error: "não encontrado" });
+
+        if (block.libraryId !== libraryId)
+          return res.status(403).json({ error: "sem acesso" });
+
+        // slots que foram bloqueados por ESTE bloco e continuam sem consulta
+        const affected = await tx.consultationSlot.findMany({
+          where: {
+            blockedByLibraryBlockId: id,
+            consultation: null,
+            status: SlotStatus.BLOCKED,
+          },
+          select: { id: true, startAt: true, endAt: true, libraryId: true, librarianId: true },
+        });
+
+        // ver se existem outros blocos que ainda colidem
+        let minStart = block.startAt;
+        let maxEnd = block.endAt;
+        if (affected.length) {
+          const mins = Math.min(...affected.map(s => +s.startAt));
+          const maxs = Math.max(...affected.map(s => +s.endAt));
+          minStart = new Date(Math.min(+minStart, mins));
+          maxEnd = new Date(Math.max(+maxEnd, maxs));
+        }
+
+        const otherBlocks = await tx.libraryBlock.findMany({
+          where: {
+            libraryId,
+            id: { not: id },
+            startAt: { lt: maxEnd },
+            endAt: { gt: minStart },
+          },
+          select: { id: true, startAt: true, endAt: true },
+        });
+
+        // reabrir ou reatribuir
+        for (const s of affected) {
+          const stillHit = otherBlocks.find(b => s.startAt < b.endAt && b.startAt < s.endAt);
+          if (stillHit) {
+            await tx.consultationSlot.update({
+              where: { id: s.id },
+              data: { blockedByLibraryBlockId: stillHit.id }, // mantém BLOCKED, troca “dono”
+            });
+          } else {
+            await tx.consultationSlot.update({
+              where: { id: s.id },
+              data: { status: SlotStatus.OPEN, blockedByLibraryBlockId: null },
+            });
+          }
+        }
+
+        // finalmente, apaga o bloco
+        await tx.libraryBlock.delete({ where: { id } });
       });
-      if (!slot) return res.status(404).json({ error: "não encontrado" });
 
-      const belongs =
-        slot.libraryId === libraryId ||
-        slot.librarian.userLibraries.some(ul => ul.libraryId === libraryId);
-      if (!belongs) return res.status(403).json({ error: "sem acesso" });
-
-      await prisma.consultationSlot.delete({ where: { id } });
       res.status(204).end();
     } catch (e) { next(e); }
   }
 );
-
 export default r;

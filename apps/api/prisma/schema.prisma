@@ -358,11 +358,15 @@ model ConsultationSlot {
 
   consultation Consultation? @relation("ConsultationSlotLink")
 
+  blockedByLibraryBlockId Int?
+  blockedByLibraryBlock   LibraryBlock? @relation(fields: [blockedByLibraryBlockId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([librarianId, startAt, endAt])
   @@index([librarianId, startAt, status])
+  @@index([blockedByLibraryBlockId])
 }
 
 model ConsultationProposal {
@@ -541,6 +545,8 @@ model LibraryBlock {
   startAt   DateTime
   endAt     DateTime
   reason    String?
+
+  slots ConsultationSlot[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

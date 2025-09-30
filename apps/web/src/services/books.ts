@@ -82,17 +82,36 @@ export async function getSugestoesPerfil(
     page: String(who?.page ?? 1),
   });
   if (who?.childId) qs.set("childId", String(who.childId));
-  if (who?.familyId) qs.set("familyId", String(who.familyId));
+  if (who?.familyId) qs.set("familyId", String(who.familyId)); // ok se o backend ignorar
 
   try {
-    const { data } = await api.get<PaginatedBooks>(
-      `/recommendations/profile?${qs.toString()}`,
-      { withCredentials: true }
-    );
-    return data;
+    const { data } = await api.get(`/recommendations/profile?${qs.toString()}`, {
+      withCredentials: true,
+    });
+
+    const rawItems = Array.isArray(data?.items) ? data.items : [];
+    const items: BookLite[] = rawItems.map((r: any) => ({
+      id: r.id ?? r.isbn,
+      isbn: r.isbn,
+      title: r.title ?? "Livro",
+      coverUrl: r.coverUrl ?? null,
+      summary: r.summary ?? null,
+      score: typeof r.score === "number" ? r.score : undefined,
+      why: Array.isArray(r.why) ? r.why : [],
+    }));
+
+    return { items, total: Number(data?.total ?? items.length) };
   } catch (e: any) {
     throw parseAxiosError(e);
   }
+}
+
+export async function getSugestoesPerfilList(
+  limit = 6,
+  who?: { childId?: number; familyId?: number }
+): Promise<BookLite[]> {
+  const { items } = await getSugestoesPerfil(limit, { ...who, page: 1 });
+  return items;
 }
 
 /**

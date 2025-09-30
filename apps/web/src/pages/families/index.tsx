@@ -774,9 +774,10 @@ export default function LandingPage() {
     setSugLoading(true);
     try {
       const res = await getSugestoesPerfil(6, { childId: cid });
-      setSugestoes(res as any);
+      const list = Array.isArray(res) ? res : (res as any)?.items ?? [];
+      setSugestoes(list as any);
       setSugUpdatedAt(Date.now());
-      saveSugToCache(cid, res as any);
+      saveSugToCache(cid, list as any);
     } finally {
       setSugLoading(false);
     }
@@ -996,15 +997,17 @@ export default function LandingPage() {
                       ))}
                     </>
                   ) : (
-                    sugestoes.map((b, i) => (
-                      <Box key={(b as any).id ?? b.isbn}>
+                    (Array.isArray(sugestoes) ? sugestoes : []).map((b, i) => (
+                      <Box key={(b as any).isbn ?? (b as any).id ?? i}>
                         <SuggestionCard
-                          book={b}
+                          book={b as any}
                           onReserve={() => {
-                            /* reservar */
+                            /* ... */
                           }}
                         />
-                        {i < sugestoes.length - 1 && (
+                        {i <
+                          (Array.isArray(sugestoes) ? sugestoes.length : 0) -
+                            1 && (
                           <Divider
                             sx={{ my: 1.25, mx: 0, borderColor: "divider" }}
                           />
@@ -1229,14 +1232,20 @@ export default function LandingPage() {
             ) : asChild ? (
               // --- MODO CRIANÇA: lista simples ---
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                {badges.map((b) => {
+                {badges.map((b, i) => {
                   const isTrophy = (b.type || "")
                     .toUpperCase()
                     .includes("TROF");
                   const Icon = isTrophy ? EmojiEventsRounded : VerifiedRounded;
+
+                  // ⚠️ usa um fallback robusto em vez do id nu
+                  const safeKey = `badge-${b.childId ?? "self"}-${
+                    b.name ?? "?"
+                  }-${b.assignedAt ?? i}-${i}`;
+
                   return (
                     <Tooltip
-                      key={`${b.id}-${b.assignedAt || ""}`}
+                      key={safeKey}
                       title={
                         b.assignedAt
                           ? new Date(b.assignedAt).toLocaleString("pt-PT")
@@ -1273,16 +1282,22 @@ export default function LandingPage() {
                       useFlexGap
                       flexWrap="wrap"
                     >
-                      {items.map((b) => {
+                      {items.map((b, i) => {
                         const isTrophy = (b.type || "")
                           .toUpperCase()
                           .includes("TROF");
                         const Icon = isTrophy
                           ? EmojiEventsRounded
                           : VerifiedRounded;
+
+                        // ⚠️ key estável por grupo + índice
+                        const safeKey = `${child}-badge-${b.name ?? "?"}-${
+                          b.assignedAt ?? i
+                        }-${i}`;
+
                         return (
                           <Tooltip
-                            key={`${child}-${b.id}-${b.assignedAt || ""}`}
+                            key={safeKey}
                             title={
                               b.assignedAt
                                 ? new Date(b.assignedAt).toLocaleString("pt-PT")

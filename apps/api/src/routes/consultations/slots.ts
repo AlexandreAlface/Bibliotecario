@@ -51,12 +51,16 @@ r.post(
       });
 
       const onlyOneLibrary = links.length === 1 ? links[0].libraryId : null;
-      const bodySlots: Array<{
+
+      type BodySlot = {
         startAt: string;
         endAt: string;
         status?: SlotStatus;
         libraryId?: number | null;
-      }> = Array.isArray(req.body?.slots) ? req.body.slots : [];
+      };
+      const bodySlots: BodySlot[] = Array.isArray(req.body?.slots)
+        ? req.body.slots
+        : [];
 
       // resolver items + validar libraryId
       const resolved = bodySlots.map((s) => {
@@ -72,7 +76,7 @@ r.post(
         }
         return {
           librarianId,
-          libraryId: libId!,
+          libraryId: libId as number,
           startAt,
           endAt,
           status: s.status ?? SlotStatus.OPEN,
@@ -88,41 +92,41 @@ r.post(
       const maxEnd = new Date(Math.max(...resolved.map((s) => +s.endAt)));
       const libs = Array.from(new Set(resolved.map((s) => s.libraryId)));
 
-      const blocks: BlockRow[] = await prisma.libraryBlock.findMany({
+      // blocos globais que colidem com QUALQUER slot a criar
+      const blocks = await prisma.libraryBlock.findMany({
         where: {
           libraryId: { in: libs },
           startAt: { lt: maxEnd },
           endAt: { gt: minStart },
         },
-        select: { libraryId: true, startAt: true, endAt: true },
+        select: { id: true, libraryId: true, startAt: true, endAt: true },
       });
 
-      const overlaps = (aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) =>
-        aStart < bEnd && bStart < aEnd;
-
-      // dividir: criações válidas vs. colidentes
+      // marcar como BLOCKED os que colidem e registar o "dono" do bloqueio
       let blockedAuto = 0;
-      const toCreate = resolved
-        .map((s) => {
-          const hit = blocks.some(
-            (b: BlockRow) =>
-              b.libraryId === s.libraryId &&
-              overlaps(s.startAt, s.endAt, b.startAt, b.endAt)
-          );
-          if (hit) {
-            // criar já como BLOQUEADO (ou então “skip”, como preferires)
-            return { ...s, status: SlotStatus.BLOCKED };
-          }
-          return s;
-        })
-        .filter(Boolean);
+      const toCreate = resolved.map((s) => {
+        const hit = blocks.find(
+          (b) => b.libraryId === s.libraryId && s.startAt < b.endAt && b.startAt < s.endAt
+        );
+        if (hit) {
+          blockedAuto++;
+          return {
+            ...s,
+            status: SlotStatus.BLOCKED,
+            blockedByLibraryBlockId: hit.id, // 👈 para reabrir automaticamente ao remover o bloco
+          };
+        }
+        return s;
+      });
 
+      // criar (com skipDuplicates para não rebentar em colisões)
       const created = await prisma.consultationSlot.createMany({
         data: toCreate,
         skipDuplicates: true,
       });
 
-      const skipped = resolved.length - toCreate.length;
+      // skipped = tentados - criados (duplicados, etc.)
+      const skipped = toCreate.length - created.count;
 
       res.json({
         created: created.count,
@@ -135,6 +139,7 @@ r.post(
     }
   }
 );
+
 
 // PATCH /api/consultations/slots/:id  body: { status: 'OPEN' | 'BLOCKED' }
 r.patch(
