@@ -24,15 +24,6 @@ function normPage(x: any) {
   return Math.max(1, Number.isFinite(v) ? v : 1);
 }
 
-function avgVec(vecs: number[][]) {
-  if (!vecs?.length) return null;
-  const n = vecs.length;
-  const acc = Array.from(vecs[0], () => 0);
-  for (const v of vecs)
-    for (let i = 0; i < acc.length; i++) acc[i] += Number(v[i] || 0);
-  for (let i = 0; i < acc.length; i++) acc[i] /= n;
-  return acc;
-}
 function asNumArray(v: any): number[] | null {
   if (!v) return null;
   if (Array.isArray(v)) return v.map(Number);
@@ -55,7 +46,6 @@ function yearsOld(dob?: Date | null) {
 }
 
 /* ===== Similaridade e MMR ===== */
-
 function cosineSim(a: number[], b: number[]) {
   let dot = 0,
     na = 0,
@@ -102,7 +92,6 @@ function mmrRerank(
   return chosen;
 }
 
-/** Vetor do perfil (ratings 4–5★, leituras, reservas) + cache */
 async function computeChildVector(childId: number) {
   const now = Date.now();
   const vecs: number[][] = [];
@@ -161,39 +150,6 @@ async function computeChildVector(childId: number) {
   }
 
   let centroid = weightedCentroid(vecs, weights);
-
-  if (!centroid) {
-    const child = await prisma.child.findUnique({
-      where: { id: childId },
-      select: { birthDate: true },
-    });
-    const age = yearsOld(child?.birthDate);
-    const rows = await prisma.$queryRaw<any[]>`
-      SELECT b.embedding::text AS e
-      FROM "Book" b
-      WHERE b.embedding IS NOT NULL
-        AND (${
-          age ?? null
-        }::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${
-      age ?? null
-    }::int)
-        AND (${
-          age ?? null
-        }::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${
-      age ?? null
-    }::int)
-      LIMIT 200;
-    `;
-    const vks = rows.map((r) => asNumArray(r.e)).filter(Boolean) as number[][];
-    if (vks.length) {
-      const d = vks[0].length;
-      centroid = Array.from(
-        { length: d },
-        (_, j) => vks.reduce((s, v) => s + v[j], 0) / vks.length
-      );
-    }
-  }
-
   if (!centroid) return null;
 
   try {
@@ -220,6 +176,7 @@ function withPad(minAge: number | null, maxAge: number | null, pad: number) {
 
 /* ===========================================
    POST /recommendations/quiz
+   — sem OFFSET + MMR até page*perPage, depois slice
 =========================================== */
 router.post("/recommendations/quiz", async (req, res) => {
   let body: z.infer<typeof QuizBodySchema>;
@@ -232,8 +189,6 @@ router.post("/recommendations/quiz", async (req, res) => {
   const answers = body.answers;
   const perPage = clampPerPage(req.query.perPage ?? req.query.limit);
   const page = normPage(req.query.page);
-  const offset = (page - 1) * perPage;
-
   const childId = req.query.childId ? Number(req.query.childId) : undefined;
 
   try {
@@ -327,7 +282,10 @@ router.post("/recommendations/quiz", async (req, res) => {
       `;
     }
 
-    const candidateCount = Math.max(64, Math.min(400, Number(perPage) * 8));
+    const takeK = page * Number(perPage); // quantos precisamos no total até esta página
+    const candidateCount = Math.max(64, Math.min(400, takeK * 8));
+
+    // ⚠️ sem OFFSET — sempre o mesmo pool determinístico
     const rows = await prisma.$queryRaw<any[]>`
       SELECT b."isbn", b."title", b."coverUrl", b."summary",
              1 - (b."embedding" <=> ${v}::vector) AS score,
@@ -361,10 +319,10 @@ router.post("/recommendations/quiz", async (req, res) => {
             AND br."reservedAt" > now() - interval '30 days'
         )
       ORDER BY b."embedding" <=> ${v}::vector
-      LIMIT ${candidateCount} OFFSET ${offset};
+      LIMIT ${candidateCount};
     `;
 
-    let candidates = rows
+    const candidates = rows
       .map((r) => ({
         raw: r,
         emb: asNumArray(r.emb)!,
@@ -372,58 +330,24 @@ router.post("/recommendations/quiz", async (req, res) => {
       }))
       .filter((c) => Array.isArray(c.emb));
 
-    let picked =
-      candidates.length >= Number(perPage)
-        ? mmrRerank(candidates, qvec, Number(perPage), 0.6)
-        : rows
-            .slice(0, Number(perPage))
-            .map((raw) => ({ raw, emb: [], score: Number(raw.score ?? 0) }));
+    // Seleciona até K com MMR e depois faz slice para a página
+    const pickedAll = mmrRerank(candidates, qvec, takeK, 0.6);
+    const start = (page - 1) * Number(perPage);
+    const end = start + Number(perPage);
+    const pageSlice = pickedAll.slice(start, end);
 
-    if (picked.length < Number(perPage)) {
-      const missing = Number(perPage) - picked.length;
-      const excludeIsbns = picked.map((p) => p.raw.isbn);
-      const extra = await prisma.$queryRaw<any[]>`
-        SELECT b."isbn", b."title", b."coverUrl", b."summary",
-               1 - (b."embedding" <=> ${v}::vector) AS score
-        FROM "Book" b
-        WHERE b."embedding" IS NOT NULL
-          AND (${
-            eff.effMin
-          }::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${
-        eff.effMax
-      }::int)
-          AND (${
-            eff.effMax
-          }::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${
-        eff.effMin
-      }::int)
-          AND NOT EXISTS (
-            SELECT 1 FROM "Reading" rblock
-            WHERE rblock."bookIsbn" = b."isbn"
-              AND rblock."finishedAt" IS NULL
-              AND (${
-                childId ?? null
-              }::int IS NOT NULL AND rblock."childId" = ${childId})
-          )
-          AND (${
-            excludeIsbns.length
-          } = 0 OR b."isbn" <> ALL(${excludeIsbns}::text[]))
-        ORDER BY b."embedding" <=> ${v}::vector
-        LIMIT ${missing};
-      `;
-      picked = picked.concat(
-        extra.map((raw) => ({ raw, emb: [], score: Number(raw.score ?? 0) }))
-      );
-    }
-
-    const items = picked.map(({ raw, score }) => ({
-      isbn: raw.isbn,
-      title: raw.title,
-      coverUrl: raw.coverUrl ?? undefined,
-      summary: raw.summary ?? null,
-      score: Number(score.toFixed(3)),
-      why: [profile.replace(/^Perfil do quiz:\s*/, "").trim()].filter(Boolean),
-    }));
+    const items = pageSlice
+      .map(({ raw, score }) => ({
+        isbn: raw.isbn,
+        title: raw.title,
+        coverUrl: raw.coverUrl ?? undefined,
+        summary: raw.summary ?? null,
+        score: Number(score.toFixed(3)),
+        why: [profile.replace(/^Perfil do quiz:\s*/, "").trim()].filter(
+          Boolean
+        ),
+      }))
+      .sort((a, b) => b.score - a.score); // 👈 ordenação por score
 
     res.json({
       items,
@@ -443,12 +367,11 @@ router.post("/recommendations/quiz", async (req, res) => {
 
 /* ===========================================
    GET /recommendations/profile
+   — sem OFFSET + MMR até page*perPage, depois slice
 =========================================== */
 router.get("/recommendations/profile", async (req, res) => {
   const perPage = clampPerPage(req.query.perPage ?? req.query.limit);
   const page = normPage(req.query.page);
-  const offset = (page - 1) * perPage;
-
   const childId = req.query.childId ? Number(req.query.childId) : undefined;
 
   try {
@@ -542,8 +465,9 @@ router.get("/recommendations/profile", async (req, res) => {
       `;
     }
 
-    // Sem vetor → “recentes” com exclusões leves
+    // Sem vetor → paginação simples e determinística
     if (!queryVec) {
+      const offset = (page - 1) * Number(perPage);
       const rows = await prisma.$queryRaw<any[]>`
         SELECT b."isbn", b."title", b."coverUrl", b."summary", 0.0 AS score
         FROM "Book" b
@@ -577,13 +501,15 @@ router.get("/recommendations/profile", async (req, res) => {
         ORDER BY b."isbn" DESC
         LIMIT ${perPage} OFFSET ${offset};
       `;
-      const items = rows.map((r) => ({
-        isbn: r.isbn,
-        title: r.title,
-        coverUrl: r.coverUrl ?? undefined,
-        summary: r.summary ?? null,
-        score: Number(r.score),
-      }));
+      const items = rows
+        .map((r) => ({
+          isbn: r.isbn,
+          title: r.title,
+          coverUrl: r.coverUrl ?? undefined,
+          summary: r.summary ?? null,
+          score: Number(r.score),
+        }))
+        .sort((a, b) => b.score - a.score);
       return res.json({
         items,
         total: totalRows?.[0]?.total ?? items.length,
@@ -591,9 +517,12 @@ router.get("/recommendations/profile", async (req, res) => {
       });
     }
 
-    // Vetorial + MMR (com effMin/effMax)
+    // Vetorial + MMR determinístico
     const v = toSqlVector(queryVec);
-    const candidateCount = Math.max(64, Math.min(400, Number(perPage) * 8));
+    const takeK = page * Number(perPage);
+    const candidateCount = Math.max(64, Math.min(400, takeK * 8));
+
+    // ⚠️ sem OFFSET — pool fixo
     const rows = await prisma.$queryRaw<any[]>`
       SELECT b."isbn", b."title", b."coverUrl", b."summary",
              1 - (b."embedding" <=> ${v}::vector) AS score,
@@ -627,10 +556,10 @@ router.get("/recommendations/profile", async (req, res) => {
             AND br."reservedAt" > now() - interval '30 days'
         )
       ORDER BY b."embedding" <=> ${v}::vector
-      LIMIT ${candidateCount} OFFSET ${offset};
+      LIMIT ${candidateCount};
     `;
 
-    let candidates = rows
+    const candidates = rows
       .map((r) => ({
         raw: r,
         emb: asNumArray(r.emb)!,
@@ -638,58 +567,21 @@ router.get("/recommendations/profile", async (req, res) => {
       }))
       .filter((c) => Array.isArray(c.emb));
 
-    let picked =
-      candidates.length >= Number(perPage)
-        ? mmrRerank(candidates, queryVec, Number(perPage), 0.6)
-        : rows
-            .slice(0, Number(perPage))
-            .map((raw) => ({ raw, emb: [], score: Number(raw.score ?? 0) }));
+    const pickedAll = mmrRerank(candidates, queryVec, takeK, 0.6);
+    const start = (page - 1) * Number(perPage);
+    const end = start + Number(perPage);
+    const pageSlice = pickedAll.slice(start, end);
 
-    if (picked.length < Number(perPage)) {
-      const missing = Number(perPage) - picked.length;
-      const excludeIsbns = picked.map((p) => p.raw.isbn);
-      const extra = await prisma.$queryRaw<any[]>`
-        SELECT b."isbn", b."title", b."coverUrl", b."summary",
-               1 - (b."embedding" <=> ${v}::vector) AS score
-        FROM "Book" b
-        WHERE b."embedding" IS NOT NULL
-          AND (${
-            eff.effMin
-          }::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${
-        eff.effMax
-      }::int)
-          AND (${
-            eff.effMax
-          }::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${
-        eff.effMin
-      }::int)
-          AND NOT EXISTS (
-            SELECT 1 FROM "Reading" rblock
-            WHERE rblock."bookIsbn" = b."isbn"
-              AND rblock."finishedAt" IS NULL
-              AND (${
-                childId ?? null
-              }::int IS NOT NULL AND rblock."childId" = ${childId})
-          )
-          AND (${
-            excludeIsbns.length
-          } = 0 OR b."isbn" <> ALL(${excludeIsbns}::text[]))
-        ORDER BY b."embedding" <=> ${v}::vector
-        LIMIT ${missing};
-      `;
-      picked = picked.concat(
-        extra.map((raw) => ({ raw, emb: [], score: Number(raw.score ?? 0) }))
-      );
-    }
-
-    const items = picked.map(({ raw, score }) => ({
-      isbn: raw.isbn,
-      title: raw.title,
-      coverUrl: raw.coverUrl ?? undefined,
-      summary: raw.summary ?? null,
-      score: Number((score ?? 0).toFixed(3)),
-      why: [],
-    }));
+    const items = pageSlice
+      .map(({ raw, score }) => ({
+        isbn: raw.isbn,
+        title: raw.title,
+        coverUrl: raw.coverUrl ?? undefined,
+        summary: raw.summary ?? null,
+        score: Number((score ?? 0).toFixed(3)),
+        why: [],
+      }))
+      .sort((a, b) => b.score - a.score); // 👈 ordenação por score
 
     res.json({
       items,
