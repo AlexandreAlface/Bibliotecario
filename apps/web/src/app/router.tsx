@@ -144,7 +144,7 @@ export const router = createBrowserRouter([
           { path: "eventos", element: <AdminEvents /> },
           { path: "feeds", element: <AdminFeeds /> },
           { path: "micro-contents", element: <AdminMicroContentsPage /> },
-          { path: "livros", element: <AdminImportBooks /> },
+          { path: "livros/import", element: <AdminImportBooks /> },
           { path: "metricas", element: <AdminMetrics /> },
           { path: "bibliotecarios/novo", element: <AdminLibrarians /> },
         ],

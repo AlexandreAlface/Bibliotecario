@@ -1,22 +1,21 @@
 // apps/api/src/routes/microContent.ts
-import { Router, Request, Response } from "express";
+// Autor: Alexandre Brissos 21131
+// O que faz: CRUD de micro-conteúdos (admin) e listagem pública com interações.
+
+import {
+  Router,
+  type Request,
+  type Response,
+  type NextFunction,
+  type RequestHandler,
+} from "express";
 import z from "zod";
-import { prisma } from "../prisma.js";
+import { prisma } from "../prisma";
 import { MicroContentType } from "@prisma/client";
 
-const r = Router();
+type AnyReq = Request & { user?: { id?: number } | null; authUserId?: number };
 
-function requireUser(
-  req: Request,
-  res: Response
-): asserts req is Request & { user: Express.User } {
-  if (!req.user) {
-    // podes também lançar erro; aqui devolvo 401 de forma explícita
-    res.status(401).json({ error: "unauthenticated" });
-    // Hack para TypeScript perceber que daqui para a frente a função não prossegue
-    throw new Error("unauthenticated");
-  }
-}
+const r = Router();
 
 /* -------------------- Schemas -------------------- */
 const UpsertSchema = z.object({
@@ -33,63 +32,97 @@ const QueryListSchema = z.object({
   q: z.string().optional(),
   type: z.nativeEnum(MicroContentType).optional(),
   tag: z.string().optional(),
-  libraryId: z
-    .string()
-    .regex(/^\d+$/)
-    .transform((s) => Number(s))
-    .optional(),
-  page: z
-    .string()
-    .regex(/^\d+$/)
-    .transform((s) => Number(s))
-    .optional(),
-  limit: z
-    .string()
-    .regex(/^\d+$/)
-    .transform((s) => Number(s))
-    .optional(),
+  libraryId: z.string().regex(/^\d+$/).transform(Number).optional(),
+  page: z.string().regex(/^\d+$/).transform(Number).optional(),
+  limit: z.string().regex(/^\d+$/).transform(Number).optional(),
 });
 
-function normalizeTags(raw: unknown): string[] {
-  const arr = Array.isArray(raw) ? raw : String(raw ?? "").split(/[,\n;]+/g); // também aceita "a,b;c\nd"
-  const cleaned = arr
-    .map((s) => String(s).trim())
-    .filter(Boolean)
-    .map((s) => s.replace(/\s+/g, " ")) // colapsar espaços internos
-    .map((s) => s.slice(0, 64)); // limite “defensivo”
-  return Array.from(new Set(cleaned.map((t) => t))); // se preferires, .toLowerCase()
-}
+/* -------------------- Helpers PUROS -------------------- */
+const getUserId = (req: AnyReq) =>
+  Number(req.user?.id) > 0 ? Number(req.user?.id) : null;
 
-function normalizeIsbns(raw: unknown): string[] {
-  const arr = Array.isArray(raw) ? raw : String(raw ?? "").split(/[,\s;]+/g); // vírgula, espaço, ; e quebras de linha
-  const cleaned = arr
-    .map((s) => String(s).replace(/[-\s]/g, "").toUpperCase())
-    .filter(Boolean)
-    .filter((s) => /^\d{13}$|^\d{9}(\d|X)$/.test(s)); // ISBN-13 ou ISBN-10
-  return Array.from(new Set(cleaned));
-}
+const ensureUser: RequestHandler = (req, res, next) => {
+  const id = getUserId(req as AnyReq);
+  if (!id) return void res.status(401).json({ error: "unauthenticated" });
+  (req as AnyReq).authUserId = id;
+  next();
+};
 
-/* -------------------- Admin: CRUD -------------------- */
+const normalizeTags = (raw: unknown): string[] =>
+  Array.from(
+    new Set(
+      (Array.isArray(raw) ? raw : String(raw ?? "").split(/[,\n;]+/g))
+        .map((s) => String(s).trim())
+        .filter(Boolean)
+        .map((s) => s.replace(/\s+/g, " ").slice(0, 64))
+    )
+  );
 
-// GET /admin/micro-contents
-r.get("/admin/micro-contents", async (req, res) => {
-  requireUser(req, res);
-  const q = QueryListSchema.safeParse(req.query);
-  if (!q.success) return res.status(400).json({ error: "bad_query" });
+const normalizeIsbns = (raw: unknown): string[] =>
+  Array.from(
+    new Set(
+      (Array.isArray(raw) ? raw : String(raw ?? "").split(/[,\s;]+/g))
+        .map((s) => String(s).replace(/[-\s]/g, "").toUpperCase())
+        .filter(Boolean)
+        .filter((s) => /^\d{13}$|^\d{9}(\d|X)$/.test(s))
+    )
+  );
 
-  const { q: query, type, tag, libraryId, page = 1, limit = 20 } = q.data;
-
-  const where: any = {};
-  if (libraryId != null) where.libraryId = libraryId;
-  if (type) where.type = type;
-  if (tag) where.tags = { has: tag };
-  if (query && query.trim()) {
+const buildWhere = (
+  q: z.infer<typeof QueryListSchema>,
+  publishedOnly: boolean
+) => {
+  const where: any = publishedOnly ? { isPublished: true } : {};
+  if (q.libraryId != null) where.libraryId = q.libraryId;
+  if (q.type) where.type = q.type;
+  if (q.tag) where.tags = { has: q.tag };
+  if (q.q && q.q.trim())
     where.OR = [
-      { text: { contains: query, mode: "insensitive" } },
-      { tags: { has: query } },
+      { text: { contains: q.q, mode: "insensitive" } },
+      { tags: { has: q.q } },
     ];
-  }
+  return where;
+};
 
+const mapAdminItem = (mc: any) => ({
+  id: mc.id,
+  text: mc.text,
+  type: mc.type,
+  tags: mc.tags,
+  library: mc.library ? { id: mc.library.id, name: mc.library.name } : null,
+  isPublished: mc.isPublished,
+  publishedAt: mc.publishedAt,
+  books: mc.books.map((b: any) => ({
+    isbn: b.bookIsbn,
+    title: b.book?.title ?? "",
+    coverUrl: b.book?.coverUrl ?? null,
+  })),
+  author: mc.author ? { id: mc.author.id, name: mc.author.fullName } : null,
+  createdAt: mc.createdAt,
+  updatedAt: mc.updatedAt,
+});
+
+const mapPublicItem = (mc: any, userId?: number) => ({
+  id: mc.id,
+  text: mc.text,
+  type: mc.type,
+  tags: mc.tags,
+  library: mc.library ? { id: mc.library.id, name: mc.library.name } : null,
+  publishedAt: mc.publishedAt,
+  books: mc.books.map((b: any) => ({
+    isbn: b.bookIsbn,
+    title: b.book?.title ?? "",
+    coverUrl: b.book?.coverUrl ?? null,
+    summary: b.book?.summary ?? null,
+  })),
+  interactionsCount: mc._count?.interactions ?? 0,
+  seen: Boolean(
+    userId && Array.isArray(mc.interactions) && mc.interactions.length > 0
+  ),
+});
+
+/* -------------------- Services (puros/curtos) -------------------- */
+const listMicroAdmin = async (where: any, page: number, limit: number) => {
   const [total, items] = await Promise.all([
     prisma.microContent.count({ where }),
     prisma.microContent.findMany({
@@ -108,183 +141,84 @@ r.get("/admin/micro-contents", async (req, res) => {
       },
     }),
   ]);
+  return { total, items: items.map(mapAdminItem) };
+};
 
-  res.json({
-    total,
-    page,
-    limit,
-    items: items.map((mc) => ({
-      id: mc.id,
-      text: mc.text,
-      type: mc.type,
-      tags: mc.tags,
-      library: mc.library ? { id: mc.library.id, name: mc.library.name } : null,
-      isPublished: mc.isPublished,
-      publishedAt: mc.publishedAt,
-      books: mc.books.map((b) => ({
-        isbn: b.bookIsbn,
-        title: b.book?.title ?? "",
-        coverUrl: b.book?.coverUrl ?? null,
-      })),
-      author: mc.author ? { id: mc.author.id, name: mc.author.fullName } : null,
-      createdAt: mc.createdAt,
-      updatedAt: mc.updatedAt,
-    })),
+const createMicro = async (
+  payload: z.infer<typeof UpsertSchema>,
+  authorId?: number
+) => {
+  const { text, type, isPublished } = payload;
+  const tags = normalizeTags(payload.tags);
+  const bookIsbns = normalizeIsbns(payload.bookIsbns);
+  const publishedAt = payload.publishedAt
+    ? new Date(payload.publishedAt as any)
+    : undefined;
+  const libraryId = payload.libraryId ?? undefined;
+
+  const mc = await prisma.$transaction(async (tx) => {
+    const created = await tx.microContent.create({
+      data: { text, type, tags, isPublished, publishedAt, libraryId, authorId },
+    });
+    if (bookIsbns.length) {
+      const existing = await tx.book.findMany({
+        where: { isbn: { in: bookIsbns } },
+        select: { isbn: true },
+      });
+      if (existing.length) {
+        await tx.microContentBook.createMany({
+          data: existing.map((b) => ({
+            microContentId: created.id,
+            bookIsbn: b.isbn,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    return created;
   });
-});
+  return { id: mc.id };
+};
 
-// POST /admin/micro-contents
-r.post("/admin/micro-contents", async (req, res) => {
-  requireUser(req, res);
-  const parsed = UpsertSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "bad_body" });
-
-  // normalizar/validar
-  const text = parsed.data.text;
-  const type = parsed.data.type;
-  const tags = normalizeTags(parsed.data.tags);
-  const bookIsbns = normalizeIsbns(parsed.data.bookIsbns);
-  const isPublished = parsed.data.isPublished;
-  const publishedAt = parsed.data.publishedAt
-    ? new Date(parsed.data.publishedAt as any)
+const updateMicro = async (
+  id: number,
+  payload: z.infer<typeof UpsertSchema>
+) => {
+  const { text, type, isPublished } = payload;
+  const tags = normalizeTags(payload.tags);
+  const bookIsbns = normalizeIsbns(payload.bookIsbns);
+  const publishedAt = payload.publishedAt
+    ? new Date(payload.publishedAt as any)
     : undefined;
+  const libraryId = payload.libraryId ?? null;
 
-  // (opcional) se quiseres forçar à biblioteca do admin no servidor:
-  // const defaultLibraryId = (req.user as any)?.userLibraries?.[0]?.libraryId;
-  const libraryId = parsed.data.libraryId ?? undefined;
-
-  try {
-    const created = await prisma.$transaction(async (tx) => {
-      const mc = await tx.microContent.create({
-        data: {
-          text,
-          type,
-          tags,
-          isPublished,
-          publishedAt,
-          libraryId,
-          authorId: (req.user as any)?.id ?? undefined,
-        },
-      });
-
-      if (bookIsbns.length) {
-        const existing = await tx.book.findMany({
-          where: { isbn: { in: bookIsbns } },
-          select: { isbn: true },
-        });
-        if (existing.length) {
-          await tx.microContentBook.createMany({
-            data: existing.map((b) => ({
-              microContentId: mc.id,
-              bookIsbn: b.isbn,
-            })),
-            skipDuplicates: true,
-          });
-        }
-      }
-
-      return mc;
+  await prisma.$transaction(async (tx) => {
+    await tx.microContent.update({
+      where: { id },
+      data: { text, type, tags, isPublished, publishedAt, libraryId },
     });
-
-    res.json({ ok: true, id: created.id });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "create_failed" });
-  }
-});
-
-// PUT /admin/micro-contents/:id
-r.put("/admin/micro-contents/:id", async (req, res) => {
-  requireUser(req, res);
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "bad_id" });
-
-  const parsed = UpsertSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "bad_body" });
-
-  const text = parsed.data.text;
-  const type = parsed.data.type;
-  const tags = normalizeTags(parsed.data.tags);
-  const bookIsbns = normalizeIsbns(parsed.data.bookIsbns);
-  const isPublished = parsed.data.isPublished;
-  const publishedAt = parsed.data.publishedAt
-    ? new Date(parsed.data.publishedAt as any)
-    : undefined;
-  const libraryId = parsed.data.libraryId ?? null;
-
-  try {
-    await prisma.$transaction(async (tx) => {
-      await tx.microContent.update({
-        where: { id },
-        data: {
-          text,
-          type,
-          tags,
-          isPublished,
-          publishedAt,
-          libraryId,
-        },
+    await tx.microContentBook.deleteMany({ where: { microContentId: id } });
+    if (bookIsbns.length) {
+      const existing = await tx.book.findMany({
+        where: { isbn: { in: bookIsbns } },
+        select: { isbn: true },
       });
-
-      // substituir associações (só para livros existentes)
-      await tx.microContentBook.deleteMany({ where: { microContentId: id } });
-
-      if (bookIsbns.length) {
-        const existing = await tx.book.findMany({
-          where: { isbn: { in: bookIsbns } },
-          select: { isbn: true },
+      if (existing.length) {
+        await tx.microContentBook.createMany({
+          data: existing.map((b) => ({ microContentId: id, bookIsbn: b.isbn })),
+          skipDuplicates: true,
         });
-        if (existing.length) {
-          await tx.microContentBook.createMany({
-            data: existing.map((b) => ({
-              microContentId: id,
-              bookIsbn: b.isbn,
-            })),
-            skipDuplicates: true,
-          });
-        }
       }
-    });
+    }
+  });
+};
 
-    res.json({ ok: true });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "update_failed" });
-  }
-});
-
-// DELETE /admin/micro-contents/:id
-r.delete("/admin/micro-contents/:id", async (req, res) => {
-  requireUser(req, res);
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) return res.status(400).json({ error: "bad_id" });
-
-  await prisma.microContent.delete({ where: { id } });
-  res.json({ ok: true });
-});
-
-/* -------------------- Público (família/filhos) -------------------- */
-
-// GET /micro-contents
-r.get("/micro-contents", async (req, res) => {
-  const q = QueryListSchema.safeParse(req.query);
-  if (!q.success) return res.status(400).json({ error: "bad_query" });
-
-  const { q: query, type, tag, libraryId, page = 1, limit = 12 } = q.data;
-
-  const where: any = { isPublished: true };
-  if (libraryId != null) where.libraryId = libraryId;
-  if (type) where.type = type;
-  if (tag) where.tags = { has: tag };
-  if (query && query.trim()) {
-    where.OR = [
-      { text: { contains: query, mode: "insensitive" } },
-      { tags: { has: query } },
-    ];
-  }
-
-  const userId = (req.user as any)?.id as number | undefined;
-
+const listMicroPublic = async (
+  where: any,
+  page: number,
+  limit: number,
+  userId?: number
+) => {
   const include: any = {
     books: {
       include: {
@@ -294,15 +228,10 @@ r.get("/micro-contents", async (req, res) => {
       },
     },
     library: { select: { id: true, name: true } },
-    _count: { select: { interactions: true } }, // 👈 total de interações
+    _count: { select: { interactions: true } },
   };
-  if (userId) {
-    // 👇 devolve apenas interações do utilizador corrente (para sabermos se já viu)
-    include.interactions = {
-      where: { userId },
-      select: { id: true },
-    };
-  }
+  if (userId)
+    include.interactions = { where: { userId }, select: { id: true } };
 
   const [total, items] = await Promise.all([
     prisma.microContent.count({ where }),
@@ -314,48 +243,106 @@ r.get("/micro-contents", async (req, res) => {
       include,
     }),
   ]);
+  return { total, items: items.map((mc: any) => mapPublicItem(mc, userId)) };
+};
 
-  res.json({
-    total,
-    page,
-    limit,
-    items: items.map((mc: any) => ({
-      id: mc.id,
-      text: mc.text,
-      type: mc.type,
-      tags: mc.tags,
-      library: mc.library ? { id: mc.library.id, name: mc.library.name } : null,
-      publishedAt: mc.publishedAt,
-      books: mc.books.map((b: any) => ({
-        isbn: b.bookIsbn,
-        title: b.book?.title ?? "",
-        coverUrl: b.book?.coverUrl ?? null,
-        summary: b.book?.summary ?? null,
-      })),
-      // 👇 NOVO
-      interactionsCount: mc._count?.interactions ?? 0,
-      seen: userId ? (Array.isArray(mc.interactions) && mc.interactions.length > 0) : false,
-    })),
-  });
+/* -------------------- Admin: CRUD (handlers < 30 linhas) -------------------- */
+
+// GET /admin/micro-contents
+r.get(
+  "/admin/micro-contents",
+  ensureUser,
+  async (req: Request, res: Response) => {
+    const parsed = QueryListSchema.safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ error: "bad_query" });
+    const { page = 1, limit = 20 } = parsed.data;
+    const where = buildWhere(parsed.data, false);
+    const out = await listMicroAdmin(where, page, limit);
+    res.json({ total: out.total, page, limit, items: out.items });
+  }
+);
+
+// POST /admin/micro-contents
+r.post(
+  "/admin/micro-contents",
+  ensureUser,
+  async (req: Request, res: Response) => {
+    const body = UpsertSchema.safeParse(req.body);
+    if (!body.success) return res.status(400).json({ error: "bad_body" });
+    try {
+      const id = (await createMicro(body.data, (req as AnyReq).authUserId))?.id;
+      res.json({ ok: true, id });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "create_failed" });
+    }
+  }
+);
+
+// PUT /admin/micro-contents/:id
+r.put(
+  "/admin/micro-contents/:id",
+  ensureUser,
+  async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "bad_id" });
+    const body = UpsertSchema.safeParse(req.body);
+    if (!body.success) return res.status(400).json({ error: "bad_body" });
+    try {
+      await updateMicro(id, body.data);
+      res.json({ ok: true });
+    } catch (e) {
+      console.error(e);
+      res.status(500).json({ error: "update_failed" });
+    }
+  }
+);
+
+// DELETE /admin/micro-contents/:id
+r.delete(
+  "/admin/micro-contents/:id",
+  ensureUser,
+  async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "bad_id" });
+    await prisma.microContent.delete({ where: { id } });
+    res.json({ ok: true });
+  }
+);
+
+/* -------------------- Público -------------------- */
+
+// GET /micro-contents
+r.get("/micro-contents", async (req: Request, res: Response) => {
+  const parsed = QueryListSchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: "bad_query" });
+  const { page = 1, limit = 12 } = parsed.data;
+  const where = buildWhere(parsed.data, true);
+  const userId = getUserId(req as AnyReq) ?? undefined;
+  const out = await listMicroPublic(where, page, limit, userId);
+  res.json({ total: out.total, page, limit, items: out.items });
 });
 
 // POST /micro-interactions  { microContentId: number }
-r.post("/micro-interactions", async (req, res) => {
-  requireUser(req, res);
-  const microContentId = Number(req.body?.microContentId);
-  const userId = (req.user as any).id as number;
-  if (!Number.isFinite(microContentId))
-    return res.status(400).json({ error: "bad_body" });
-
-  await prisma.microInteraction.upsert({
-    where: {
-      userId_microContentId: { userId, microContentId },
-    },
-    update: {}, // nada a atualizar; só garantir existência
-    create: { userId, microContentId },
-  });
-
-  res.json({ ok: true });
-});
+r.post(
+  "/micro-interactions",
+  ensureUser,
+  async (req: Request, res: Response) => {
+    const microContentId = Number((req.body || {}).microContentId);
+    if (!Number.isFinite(microContentId))
+      return res.status(400).json({ error: "bad_body" });
+    await prisma.microInteraction.upsert({
+      where: {
+        userId_microContentId: {
+          userId: (req as AnyReq).authUserId!,
+          microContentId,
+        },
+      },
+      update: {},
+      create: { userId: (req as AnyReq).authUserId!, microContentId },
+    });
+    res.json({ ok: true });
+  }
+);
 
 export default r;

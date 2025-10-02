@@ -1,45 +1,80 @@
-import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
+// apps/api/src/routes/libraries.ts
+// Autor: Alexandre Brissos 21131
+// O que faz: devolve as bibliotecas do utilizador autenticado.
 
-const prisma = new PrismaClient();
+import {
+  Router,
+  type Request,
+  type Response,
+  type NextFunction,
+  type RequestHandler,
+} from "express";
+import { prisma } from "../prisma";
+
+type AnyReq = Request & {
+  user?: { sub?: number; id?: number } | null;
+  session?: { userId?: number };
+  authUserId?: number;
+};
+
+/* ---------- Helpers PUROS ---------- */
+const toUserId = (r: Pick<AnyReq, "user" | "session">): number | null => {
+  const id = Number(r.user?.sub ?? r.user?.id ?? r.session?.userId);
+  return Number.isFinite(id) && id > 0 ? id : null;
+};
+const libWhere = (userId: number) => ({ userLibraries: { some: { userId } } });
+const libSelect = { id: true, name: true } as const;
+const asList = (rows: { id: number; name: string }[]) => ({ items: rows });
+
+/* ---------- Middleware fino ---------- */
+const requireAuth: RequestHandler = (req, res, next) => {
+  const uid = toUserId(req as AnyReq);
+  if (!uid) {
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
+  (req as AnyReq).authUserId = uid;
+  next();
+};
+
 const router = Router();
 
-function requireAuth(req: any, res: any, next: any) {
-  const userId = Number(req?.user?.sub ?? req?.user?.id ?? req?.session?.userId);
-  if (!userId) return res.status(401).json({ error: "unauthorized" });
-  (req as any).authUserId = userId;
-  next();
-}
+/* ---------- Rotas (<30 linhas) ---------- */
 
-/** Bibliotecas do utilizador autenticado */
-router.get("/libraries/mine", requireAuth, async (req: any, res) => {
+// GET /libraries/mine
+router.get("/libraries/mine", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const userId = Number(req.authUserId);
-    const libs = await prisma.library.findMany({
-      where: { userLibraries: { some: { userId } } },
-      select: { id: true, name: true },
+    const userId = (req as AnyReq).authUserId!;
+    const rows = await prisma.library.findMany({
+      where: libWhere(userId),
+      select: libSelect,
       orderBy: { name: "asc" },
     });
-    res.json({ items: libs });
+    res.json(asList(rows));
   } catch (e) {
     console.error("GET /libraries/mine", e);
-    res.status(500).json({ error: "failed_to_list_libraries" });
+    next(e);
   }
 });
 
-// opcional: alias com ?scope=mine
-router.get("/libraries", requireAuth, async (req, res) => {
-  if (String(req.query.scope || "").toLowerCase() === "mine") {
-    (req as any).authUserId = Number((req as any)?.user?.sub ?? 0);
-    const userId = Number((req as any).authUserId);
-    const libs = await prisma.library.findMany({
-      where: { userLibraries: { some: { userId } } },
-      select: { id: true, name: true },
+// GET /libraries?scope=mine (alias)
+router.get("/libraries", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (String(req.query.scope || "").toLowerCase() !== "mine") {
+      res.status(400).json({ error: "unsupported_scope" });
+      return;
+    }
+    const userId = (req as AnyReq).authUserId!;
+    const rows = await prisma.library.findMany({
+      where: libWhere(userId),
+      select: libSelect,
       orderBy: { name: "asc" },
     });
-    return res.json({ items: libs });
+    res.json(asList(rows));
+  } catch (e) {
+    console.error("GET /libraries", e);
+    next(e);
   }
-  return res.status(400).json({ error: "unsupported_scope" });
 });
 
 export default router;

@@ -181,7 +181,7 @@ function buildMenu(opts: {
       },
       { to: "/admin/metricas", label: "Métricas", icon: <QueryStatsRounded /> },
       {
-        to: "/admin/livros",
+        to: "/admin/livros/import",
         label: "Livros (CSV)",
         icon: <LibraryBooksRounded />,
       }

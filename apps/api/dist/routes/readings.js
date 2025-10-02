@@ -1,250 +1,219 @@
 "use strict";
+// apps/api/src/routes/readings.ts
+// Autor: Alexandre Brissos 21131
+// Rotas de leituras: listar, começar e terminar.
+// Estrutura: helpers PUROS → services (DB) → handlers (RequestHandler, <30 linhas).
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-// apps/api/src/routes/readings.js
 const express_1 = require("express");
 const client_1 = require("@prisma/client");
 const zod_1 = __importDefault(require("zod"));
-const _helpers_js_1 = require("./_helpers.js");
-const prisma = new client_1.PrismaClient();
-const router = (0, express_1.Router)();
-/**
- * GET /api/readings
- * Query:
- *  - limit?: number
- *  - childId?: number
- *  - familyId?: number
- */
-router.get("/", async (req, res, next) => {
+const prisma_1 = require("../prisma");
+const _helpers_1 = require("./_helpers");
+const StartFinishBody = zod_1.default.object({ isbn: zod_1.default.string().min(5) });
+// ------------------------- Helpers PUROS -------------------------
+// num(): converte input em number finito ou undefined (puro).
+function num(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+}
+// clampLimit(): limita o número de resultados (puro).
+function clampLimit(v, def = 10, min = 1, max = 100) {
+    const n = Number(v ?? def);
+    return Math.min(Math.max(Number.isFinite(n) ? n : def, min), max);
+}
+// mapRow(): mapeia linha DB -> DTO de resposta (puro).
+function mapRow(r) {
+    return {
+        id: Number(r.id),
+        isbn: r.isbn,
+        title: r.title,
+        coverUrl: r.coverUrl ?? null,
+        date: r.finishedAt ?? r.startedAt ?? null,
+        startedAt: r.startedAt ?? null,
+        finishedAt: r.finishedAt ?? null,
+        childId: r.childId ?? undefined,
+        childName: r.childName ?? null,
+        stars: r.ratingStars ?? null,
+        comment: r.ratingComment ?? null,
+    };
+}
+// ------------------------- Services (DB) -------------------------
+// listReadings(): lista leituras de uma criança ou de toda a família.
+async function listReadings(pr, { limit, childId, familyId }) {
+    const whereChild = childId != null
+        ? client_1.Prisma.sql `r."childId" = ${childId}`
+        : client_1.Prisma.sql `r."childId" IN (
+           SELECT cf."childId" FROM "ChildFamily" cf WHERE cf."familyId" = ${familyId}
+         )`;
+    const rows = await pr.$queryRaw `
+    SELECT
+      r."id", r."startedAt", r."finishedAt",
+      r."bookIsbn" AS "isbn", b."title", b."coverUrl",
+      c."id" AS "childId", c."name" AS "childName",
+      rt."stars" AS "ratingStars", rt."comment" AS "ratingComment"
+    FROM "Reading" r
+    JOIN "Book"  b ON b."isbn" = r."bookIsbn"
+    JOIN "Child" c ON c."id"   = r."childId"
+    LEFT JOIN LATERAL (
+      SELECT ra."stars", ra."comment", ra."ratedAt"
+      FROM "Rating" ra
+      WHERE ra."childId" = r."childId" AND ra."bookIsbn" = r."bookIsbn"
+      ORDER BY ra."ratedAt" DESC
+      LIMIT 1
+    ) rt ON TRUE
+    WHERE ${whereChild}
+    ORDER BY COALESCE(r."finishedAt", r."startedAt") DESC, r."id" DESC
+    LIMIT ${limit};
+  `;
+    return rows.map(mapRow);
+}
+// ensureBookExists(): valida existência do livro antes de iniciar leitura.
+async function ensureBookExists(pr, isbn) {
+    const b = await pr.book.findUnique({ where: { isbn }, select: { isbn: true } });
+    return Boolean(b);
+}
+// startReading(): aplica regras de início de leitura (upsert reserva, (re)abrir).
+async function startReading(pr, childId, isbn) {
+    return pr.$transaction(async (tx) => {
+        const resv = await tx.bookReservation.upsert({
+            where: { childId_bookIsbn: { childId, bookIsbn: isbn } },
+            create: { childId, bookIsbn: isbn },
+            update: { reservedAt: new Date() },
+            select: { id: true },
+        });
+        const reading = await tx.reading.findUnique({
+            where: { childId_bookIsbn: { childId, bookIsbn: isbn } },
+            select: { id: true, startedAt: true, finishedAt: true },
+        });
+        if (reading && reading.startedAt && !reading.finishedAt) {
+            return { kind: "error", status: 409, payload: { error: "already_reading", readingId: reading.id } };
+        }
+        const data = {
+            startedAt: new Date(),
+            finishedAt: null,
+            reservationId: resv.id,
+        };
+        if (reading) {
+            const updated = await tx.reading.update({
+                where: { id: reading.id },
+                data,
+                select: { id: true, childId: true, bookIsbn: true, startedAt: true, finishedAt: true, reservationId: true },
+            });
+            return { kind: "ok", status: 200, payload: { ok: true, reading: updated } };
+        }
+        const created = await tx.reading.create({
+            data: { childId, bookIsbn: isbn, ...data },
+            select: { id: true, childId: true, bookIsbn: true, startedAt: true, finishedAt: true, reservationId: true },
+        });
+        return { kind: "ok", status: 200, payload: { ok: true, reading: created } };
+    });
+}
+// finishReading(): termina a leitura aberta e consome reserva.
+async function finishReading(pr, childId, isbn) {
+    return pr.$transaction(async (tx) => {
+        const open = await tx.reading.findFirst({
+            where: { childId, bookIsbn: isbn, finishedAt: null },
+            orderBy: { id: "desc" },
+            select: { id: true },
+        });
+        if (!open)
+            return { kind: "error", status: 404, payload: { error: "no_open_reading" } };
+        const updated = await tx.reading.update({
+            where: { id: open.id },
+            data: { finishedAt: new Date() },
+            select: { id: true, startedAt: true, finishedAt: true },
+        });
+        await tx.bookReservation.deleteMany({ where: { childId, bookIsbn: isbn } });
+        return { kind: "ok", status: 200, payload: { ok: true, reading: updated } };
+    });
+}
+// ------------------------- Handlers (< 30 linhas) -------------------------
+const getReadingsHandler = async (req, res, next) => {
     try {
-        const limit = Number(req.query.limit ?? 10);
-        const childId = req.query.childId ? Number(req.query.childId) : undefined;
-        const familyId = req.query.familyId
-            ? Number(req.query.familyId)
-            : undefined;
-        if (!childId && !familyId)
-            return res.json([]);
-        const whereChild = childId != null
-            ? client_1.Prisma.sql `r."childId" = ${childId}`
-            : client_1.Prisma.sql `r."childId" IN (
-            SELECT cf."childId"
-            FROM "ChildFamily" cf
-            WHERE cf."familyId" = ${familyId}
-          )`;
-        const rows = await prisma.$queryRaw `
-      SELECT
-        r."id",
-        r."startedAt",
-        r."finishedAt",
-        r."bookIsbn" AS "isbn",
-        b."title",
-        b."coverUrl",
-        c."id"   AS "childId",
-        c."name" AS "childName",
-        rt."stars"   AS "ratingStars",
-        rt."comment" AS "ratingComment"
-      FROM "Reading" r
-      JOIN "Book"  b ON b."isbn" = r."bookIsbn"
-      JOIN "Child" c ON c."id"   = r."childId"
-      LEFT JOIN LATERAL (
-        SELECT ra."stars", ra."comment", ra."ratedAt"
-        FROM "Rating" ra
-        WHERE ra."childId" = r."childId" AND ra."bookIsbn" = r."bookIsbn"
-        ORDER BY ra."ratedAt" DESC
-        LIMIT 1
-      ) rt ON TRUE
-      WHERE ${whereChild}
-      ORDER BY COALESCE(r."finishedAt", r."startedAt") DESC, r."id" DESC
-      LIMIT ${limit};
-    `;
-        const out = rows.map((r) => ({
-            id: Number(r.id),
-            isbn: r.isbn,
-            title: r.title,
-            coverUrl: r.coverUrl ?? null,
-            date: r.finishedAt ?? r.startedAt ?? null,
-            startedAt: r.startedAt ?? null,
-            finishedAt: r.finishedAt ?? null,
-            childId: r.childId ? Number(r.childId) : undefined,
-            childName: r.childName ?? null,
-            stars: r.ratingStars ?? null,
-            comment: r.ratingComment ?? null,
-        }));
-        res.json(out);
+        const limit = clampLimit(req.query.limit, 10, 1, 100);
+        const childId = num(req.query.childId);
+        const familyId = num(req.query.familyId);
+        if (!childId && !familyId) {
+            res.json([]);
+            return;
+        }
+        const items = await listReadings(prisma_1.prisma, { limit, childId, familyId });
+        res.json(items);
     }
     catch (err) {
         next(err);
     }
-});
-/**
- * POST /api/readings/start?childId=...&familyId=...
- * body: { isbn: string }
- *
- * Regras:
- *  - Se há uma leitura aberta (finishedAt = null): 409 already_reading
- *  - Se existe uma leitura antiga (terminada): "reset" (startedAt = now, finishedAt = null) e liga à reserva atual
- *  - Se não existe leitura: cria nova
- *  - A reserva é upsert única por (child, book) para ter um id estável a ligar
- */
-router.post("/start", async (req, res) => {
-    const body = zod_1.default.object({ isbn: zod_1.default.string().min(5) }).safeParse(req.body);
-    if (!body.success)
-        return res
-            .status(400)
-            .json({ error: "bad_body", details: body.error.issues });
-    const childIdQ = req.query.childId ? Number(req.query.childId) : undefined;
-    const familyId = req.query.familyId ? Number(req.query.familyId) : undefined;
+};
+const startReadingHandler = async (req, res) => {
+    const parsed = StartFinishBody.safeParse(req.body);
+    if (!parsed.success) {
+        res.status(400).json({ error: "bad_body", details: parsed.error.issues });
+        return;
+    }
+    const childIdQ = num(req.query.childId);
+    const familyId = num(req.query.familyId);
     try {
-        const cid = await (0, _helpers_js_1.resolveChildId)({ prisma, childId: childIdQ, familyId });
-        if (!cid)
-            return res.status(400).json({ error: "missing_child" });
-        const isbn = body.data.isbn;
-        const book = await prisma.book.findUnique({
-            where: { isbn },
-            select: { isbn: true },
-        });
-        if (!book)
-            return res.status(404).json({ error: "book_not_found" });
-        const result = await prisma.$transaction(async (tx) => {
-            // 1) Reserva única (cria se não existir, ou "refresh" na data)
-            const resv = await tx.bookReservation.upsert({
-                where: { childId_bookIsbn: { childId: cid, bookIsbn: isbn } },
-                create: { childId: cid, bookIsbn: isbn },
-                update: { reservedAt: new Date() },
-                select: { id: true },
-            });
-            // 2) Ler (se existir) a leitura ÚNICA por (child,book)
-            const reading = await tx.reading.findUnique({
-                where: { childId_bookIsbn: { childId: cid, bookIsbn: isbn } },
-                select: { id: true, startedAt: true, finishedAt: true },
-            });
-            if (reading) {
-                const isActive = reading.startedAt != null && reading.finishedAt == null;
-                const isOnlyReserved = reading.startedAt == null && reading.finishedAt == null;
-                const wasFinished = reading.finishedAt != null;
-                if (isActive) {
-                    // já está a ler → bloquear
-                    return {
-                        type: "error",
-                        status: 409,
-                        payload: {
-                            error: "already_reading",
-                            readingId: reading.id,
-                            message: "Já existe uma leitura em curso para este livro.",
-                        },
-                    };
-                }
-                // RESERVADA ou TERMINADA → (re)abrir agora
-                const updated = await tx.reading.update({
-                    where: { id: reading.id },
-                    data: {
-                        startedAt: new Date(), // ← começa agora
-                        finishedAt: null, // ← aberto
-                        reservationId: resv.id,
-                    },
-                    select: {
-                        id: true,
-                        childId: true,
-                        bookIsbn: true,
-                        startedAt: true,
-                        finishedAt: true,
-                        reservationId: true,
-                    },
-                });
-                return {
-                    type: "ok",
-                    status: 200,
-                    payload: { ok: true, reading: updated },
-                };
-            }
-            // 3) Não existia leitura → criar já como “a ler”
-            const created = await tx.reading.create({
-                data: {
-                    childId: cid,
-                    bookIsbn: isbn,
-                    reservationId: resv.id,
-                    startedAt: new Date(), // ← começa já
-                    finishedAt: null,
-                },
-                select: {
-                    id: true,
-                    childId: true,
-                    bookIsbn: true,
-                    startedAt: true,
-                    finishedAt: true,
-                    reservationId: true,
-                },
-            });
-            return {
-                type: "ok",
-                status: 200,
-                payload: { ok: true, reading: created },
-            };
-        });
-        if (result.type === "error")
-            return res.status(result.status).json(result.payload);
-        return res.status(result.status).json(result.payload);
+        const cid = await (0, _helpers_1.resolveChildId)({ prisma: prisma_1.prisma, childId: childIdQ, familyId });
+        if (!cid) {
+            res.status(400).json({ error: "missing_child" });
+            return;
+        }
+        const isbn = parsed.data.isbn;
+        if (!(await ensureBookExists(prisma_1.prisma, isbn))) {
+            res.status(404).json({ error: "book_not_found" });
+            return;
+        }
+        const result = await startReading(prisma_1.prisma, cid, isbn);
+        res.status(result.status).json(result.payload);
     }
     catch (e) {
         console.error(e);
-        return res.status(500).json({ error: "internal_error" });
+        res.status(500).json({ error: "internal_error" });
     }
-});
-/**
- * POST /api/readings/finish?childId=...&familyId=...
- * body: { isbn: string }
- */
-router.post("/finish", async (req, res) => {
-    const body = zod_1.default.object({ isbn: zod_1.default.string().min(5) }).safeParse(req.body);
-    if (!body.success)
-        return res
-            .status(400)
-            .json({ error: "bad_body", details: body.error.issues });
-    const childIdQ = req.query.childId ? Number(req.query.childId) : undefined;
-    const familyId = req.query.familyId ? Number(req.query.familyId) : undefined;
+};
+const finishReadingHandler = async (req, res) => {
+    const parsed = StartFinishBody.safeParse(req.body);
+    if (!parsed.success) {
+        res.status(400).json({ error: "bad_body", details: parsed.error.issues });
+        return;
+    }
+    const childIdQ = num(req.query.childId);
+    const familyId = num(req.query.familyId);
     try {
-        const cid = await (0, _helpers_js_1.resolveChildId)({ prisma, childId: childIdQ, familyId });
-        if (!cid)
-            return res.status(400).json({ error: "missing_child" });
-        const isbn = body.data.isbn;
-        const result = await prisma.$transaction(async (tx) => {
-            // leitura aberta
-            const open = await tx.reading.findFirst({
-                where: { childId: cid, bookIsbn: isbn, finishedAt: null },
-                orderBy: { id: "desc" },
-                select: { id: true },
-            });
-            if (!open)
-                return {
-                    type: "error",
-                    status: 404,
-                    payload: { error: "no_open_reading" },
-                };
-            // terminar leitura
-            const updated = await tx.reading.update({
-                where: { id: open.id },
-                data: { finishedAt: new Date() },
-                select: { id: true, startedAt: true, finishedAt: true },
-            });
-            // ✅ consumir a reserva correspondente (se existir)
-            await tx.bookReservation.deleteMany({
-                where: { childId: cid, bookIsbn: isbn },
-            });
-            return {
-                type: "ok",
-                status: 200,
-                payload: { ok: true, reading: updated },
-            };
-        });
-        if (result.type === "error")
-            return res.status(result.status).json(result.payload);
-        return res.status(result.status).json(result.payload);
+        const cid = await (0, _helpers_1.resolveChildId)({ prisma: prisma_1.prisma, childId: childIdQ, familyId });
+        if (!cid) {
+            res.status(400).json({ error: "missing_child" });
+            return;
+        }
+        const result = await finishReading(prisma_1.prisma, cid, parsed.data.isbn);
+        res.status(result.status).json(result.payload);
     }
     catch (e) {
         console.error(e);
-        return res.status(500).json({ error: "internal_error" });
+        res.status(500).json({ error: "internal_error" });
     }
-});
+};
+// ------------------------- Router -------------------------
+const router = (0, express_1.Router)();
+/**
+ * GET /api/readings?limit=&childId=&familyId=
+ * Lista leituras (criança ou agregado familiar).
+ */
+router.get("/", getReadingsHandler);
+/**
+ * POST /api/readings/start?childId=&familyId=
+ * Inicia (ou reabre) uma leitura. Regras:
+ * - Se já existe leitura aberta → 409 already_reading
+ * - Se existia leitura fechada/reservada → reabre agora
+ * - Senão, cria leitura nova
+ */
+router.post("/start", startReadingHandler);
+/**
+ * POST /api/readings/finish?childId=&familyId=
+ * Termina a leitura aberta e consome a reserva.
+ */
+router.post("/finish", finishReadingHandler);
 exports.default = router;

@@ -1,27 +1,139 @@
 "use strict";
+// apps/api/src/routes/books.ts
+// Autor: Alexandre Brissos 21131
+// O que faz: rota /api/books (listagem básica, “current”, “suggestions”,
+// pesquisa paginada com filtros e detalhe por ISBN). Usa helpers puros
+// e mantém cada método abaixo de ~30 linhas.
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const prisma_js_1 = require("../prisma.js");
-const router = (0, express_1.Router)();
-/**
- * Helpers
- */
-function num(v) {
+const prisma_1 = require("../prisma");
+const r = (0, express_1.Router)();
+/* -------------------- Helpers puros -------------------- */
+const num = (v) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : undefined;
-}
-function str(v) {
+};
+const str = (v) => {
     const s = typeof v === "string" ? v.trim() : "";
     return s ? s : undefined;
+};
+function parseSearchParams(qs) {
+    const page = Math.max(1, num(qs.page) ?? 1);
+    const perPage = Math.max(1, Math.min(50, num(qs.perPage) ?? 12));
+    return {
+        q: str(qs.q),
+        author: str(qs.author),
+        category: str(qs.category),
+        yearFrom: num(qs.yearFrom),
+        yearTo: num(qs.yearTo),
+        ageMin: num(qs.ageMin),
+        ageMax: num(qs.ageMax),
+        libraryId: num(qs.libraryId),
+        page,
+        perPage,
+        skip: (page - 1) * perPage,
+    };
 }
-/**
- * Listagem básica (máx. 50) — opcional
- * GET /api/books
- */
-router.get("/", async (req, res, next) => {
+function buildWhereBase(p) {
+    return {
+        AND: [
+            p.q
+                ? {
+                    OR: [
+                        { title: { contains: p.q, mode: "insensitive" } },
+                        { summary: { contains: p.q, mode: "insensitive" } },
+                        { author: { contains: p.q, mode: "insensitive" } },
+                        { category: { contains: p.q, mode: "insensitive" } },
+                        { genres: { has: p.q } },
+                    ],
+                }
+                : {},
+            p.author ? { author: { contains: p.author, mode: "insensitive" } } : {},
+            p.category
+                ? {
+                    OR: [
+                        { category: { contains: p.category, mode: "insensitive" } },
+                        { genres: { has: p.category } },
+                    ],
+                }
+                : {},
+            p.yearFrom ? { publicationYear: { gte: p.yearFrom } } : {},
+            p.yearTo ? { publicationYear: { lte: p.yearTo } } : {},
+            p.ageMin
+                ? {
+                    OR: [
+                        { ageMin: { gte: p.ageMin } },
+                        { ageRange: { contains: String(p.ageMin), mode: "insensitive" } },
+                    ],
+                }
+                : {},
+            p.ageMax
+                ? {
+                    OR: [
+                        { ageMax: { lte: p.ageMax } },
+                        { ageRange: { contains: String(p.ageMax), mode: "insensitive" } },
+                    ],
+                }
+                : {},
+        ],
+    };
+}
+function withLibraryFilter(base, libraryId) {
+    if (!libraryId)
+        return base;
+    return { AND: [base, { libraries: { some: { libraryId } } }] };
+}
+async function searchWithFallback(base, libraryId, skip, take) {
+    let where = withLibraryFilter(base, libraryId);
+    let total = await prisma_1.prisma.book.count({ where });
+    if (libraryId && total === 0) {
+        where = base;
+        total = await prisma_1.prisma.book.count({ where });
+    }
+    const items = await prisma_1.prisma.book.findMany({
+        where,
+        select: { isbn: true, title: true, coverUrl: true, summary: true },
+        orderBy: { title: "asc" },
+        skip,
+        take,
+    });
+    return { items, total };
+}
+function mapBookDetail(b) {
+    const authors = typeof b.author === "string" && b.author.trim()
+        ? [b.author.trim()]
+        : Array.isArray(b.author)
+            ? b.author.filter(Boolean).map(String)
+            : [];
+    const categories = [];
+    if (Array.isArray(b.genres))
+        categories.push(...b.genres.filter(Boolean));
+    if (typeof b.category === "string" && b.category.trim())
+        categories.push(b.category.trim());
+    return {
+        isbn: b.isbn,
+        title: b.title,
+        coverUrl: b.coverUrl,
+        summary: b.summary,
+        publicationYear: b.publicationYear ?? null,
+        ageRange: b.ageRange ?? null,
+        authors,
+        categories,
+        holdings: (b.libraries || []).map((lb) => ({
+            libraryId: lb.libraryId,
+            libraryName: lb.library?.name ?? String(lb.libraryId),
+            quantity: lb.quantity ?? null,
+            shelfCode: lb.shelfCode ?? null,
+            accessionNo: lb.accessionNo ?? null,
+        })),
+    };
+}
+/* -------------------- Handlers (≤ ~30 linhas) -------------------- */
+// GET /api/books  — listagem simples
+const listBasic = async (req, res, next) => {
     try {
         const take = Math.min(50, Number(req.query.limit) || 50);
-        const books = await prisma_js_1.prisma.book.findMany({
+        const books = await prisma_1.prisma.book.findMany({
             take,
             orderBy: { title: "asc" },
             select: {
@@ -38,156 +150,55 @@ router.get("/", async (req, res, next) => {
         });
         res.json(books);
     }
-    catch (err) {
-        next(err);
+    catch (e) {
+        next(e);
     }
-});
-/**
- * Exemplos que não devem ser apanhados por :isbn
- * (coloca SEMPRE antes de :isbn)
- */
-router.get("/current", async (_req, res, next) => {
+};
+// GET /api/books/current  — 2 mais recentes (exemplo)
+const listCurrent = async (_req, res, next) => {
     try {
-        const books = await prisma_js_1.prisma.book.findMany({
+        const rows = await prisma_1.prisma.book.findMany({
             take: 2,
             orderBy: { publicationYear: "desc" },
             select: { isbn: true, title: true },
         });
-        res.json(books.map((b) => ({ id: b.isbn, title: b.title })));
+        res.json(rows.map((b) => ({ id: b.isbn, title: b.title })));
     }
-    catch (err) {
-        next(err);
+    catch (e) {
+        next(e);
     }
-});
-router.get("/suggestions", async (_req, res, next) => {
+};
+// GET /api/books/suggestions  — 2 aleatórios
+const listSuggestions = async (_req, res, next) => {
     try {
-        const rows = await prisma_js_1.prisma.$queryRaw `
-      SELECT "isbn","title"
-      FROM "Book"
-      ORDER BY random()
-      LIMIT 2
+        const rows = await prisma_1.prisma.$queryRaw `
+      SELECT "isbn","title" FROM "Book" ORDER BY random() LIMIT 2
     `;
         res.json(rows.map((b) => ({ id: b.isbn, title: b.title })));
     }
-    catch (err) {
-        next(err);
+    catch (e) {
+        next(e);
     }
-});
-/**
- * GET /api/books/search
- * Busca paginada com filtros. Se vier libraryId, tenta primeiro nessa biblioteca
- * e, se não houver resultados, faz fallback para global (sem biblioteca).
- */
-router.get("/search", async (req, res, next) => {
+};
+// GET /api/books/search  — pesquisa paginada + fallback por biblioteca
+const searchBooks = async (req, res, next) => {
     try {
-        const q = str(req.query.q);
-        const author = str(req.query.author);
-        const category = str(req.query.category);
-        const yearFrom = num(req.query.yearFrom);
-        const yearTo = num(req.query.yearTo);
-        const ageMin = num(req.query.ageMin);
-        const ageMax = num(req.query.ageMax);
-        const libraryId = num(req.query.libraryId);
-        const page = Math.max(1, num(req.query.page) ?? 1);
-        const perPage = Math.max(1, Math.min(50, num(req.query.perPage) ?? 12));
-        const skip = (page - 1) * perPage;
-        // where base (sem biblioteca)
-        const whereBase = {
-            AND: [
-                q
-                    ? {
-                        OR: [
-                            { title: { contains: q, mode: "insensitive" } },
-                            { summary: { contains: q, mode: "insensitive" } },
-                            { author: { contains: q, mode: "insensitive" } },
-                            { category: { contains: q, mode: "insensitive" } },
-                            // géneros (string[])
-                            { genres: { has: q } },
-                        ],
-                    }
-                    : {},
-                author ? { author: { contains: author, mode: "insensitive" } } : {},
-                category
-                    ? {
-                        OR: [
-                            { category: { contains: category, mode: "insensitive" } },
-                            { genres: { has: category } },
-                        ],
-                    }
-                    : {},
-                yearFrom ? { publicationYear: { gte: yearFrom } } : {},
-                yearTo ? { publicationYear: { lte: yearTo } } : {},
-                // tenta usar ageMin/ageMax se existirem; caso contrário, casa por texto em ageRange
-                ageMin
-                    ? {
-                        OR: [
-                            { ageMin: { gte: ageMin } },
-                            { ageRange: { contains: String(ageMin), mode: "insensitive" } },
-                        ],
-                    }
-                    : {},
-                ageMax
-                    ? {
-                        OR: [
-                            { ageMax: { lte: ageMax } },
-                            { ageRange: { contains: String(ageMax), mode: "insensitive" } },
-                        ],
-                    }
-                    : {},
-            ],
-        };
-        // se vier libraryId, adiciona filtro por holdings nessa biblioteca
-        const whereWithLibrary = libraryId
-            ? {
-                AND: [
-                    whereBase,
-                    { libraries: { some: { libraryId: Number(libraryId) } } },
-                ],
-            }
-            : undefined;
-        // 1) tenta com biblioteca (se foi pedida)
-        let where = whereWithLibrary ?? whereBase;
-        let total = await prisma_js_1.prisma.book.count({ where });
-        // fallback automático: se com biblioteca não houver nada, volta a global
-        if (libraryId && total === 0) {
-            where = whereBase;
-            total = await prisma_js_1.prisma.book.count({ where });
-            console.log(`[books/search] fallback sem biblioteca (libraryId=${libraryId})`);
-        }
-        const rows = await prisma_js_1.prisma.book.findMany({
-            where,
-            select: {
-                isbn: true,
-                title: true,
-                coverUrl: true,
-                summary: true,
-            },
-            orderBy: { title: "asc" },
-            skip,
-            take: perPage,
-        });
-        res.json({
-            items: rows,
-            total,
-            page,
-            perPage,
-        });
+        const p = parseSearchParams(req.query);
+        const base = buildWhereBase(p);
+        const { items, total } = await searchWithFallback(base, p.libraryId, p.skip, p.perPage);
+        res.json({ items, total, page: p.page, perPage: p.perPage });
     }
-    catch (err) {
-        next(err);
+    catch (e) {
+        next(e);
     }
-});
-/**
- * GET /api/books/:isbn
- * Detalhe completo + holdings por biblioteca
- */
-router.get("/:isbn", async (req, res, next) => {
+};
+// GET /api/books/:isbn  — detalhe + holdings
+const getByIsbn = async (req, res, next) => {
     try {
-        const raw = String(req.params.isbn || "");
-        const isbn = raw.replace(/-/g, "").toUpperCase();
+        const isbn = String(req.params.isbn || "").replace(/-/g, "").toUpperCase();
         if (!isbn)
             return res.status(400).json({ error: "bad_isbn" });
-        const book = await prisma_js_1.prisma.book.findUnique({
+        const b = await prisma_1.prisma.book.findUnique({
             where: { isbn },
             select: {
                 isbn: true,
@@ -211,38 +222,18 @@ router.get("/:isbn", async (req, res, next) => {
                 },
             },
         });
-        if (!book)
+        if (!b)
             return res.status(404).json({ error: "not_found" });
-        const authors = typeof book.author === "string" && book.author.trim()
-            ? [book.author.trim()]
-            : Array.isArray(book.author)
-                ? book.author.filter(Boolean).map(String)
-                : [];
-        const categories = [];
-        if (Array.isArray(book.genres))
-            categories.push(...book.genres.filter(Boolean).map(String));
-        if (typeof book.category === "string" && book.category.trim())
-            categories.push(book.category.trim());
-        res.json({
-            isbn: book.isbn,
-            title: book.title,
-            coverUrl: book.coverUrl,
-            summary: book.summary,
-            publicationYear: book.publicationYear ?? null,
-            ageRange: book.ageRange ?? null,
-            authors,
-            categories,
-            holdings: (book.libraries || []).map((lb) => ({
-                libraryId: lb.libraryId,
-                libraryName: lb.library?.name ?? String(lb.libraryId),
-                quantity: lb.quantity ?? null,
-                shelfCode: lb.shelfCode ?? null,
-                accessionNo: lb.accessionNo ?? null,
-            })),
-        });
+        res.json(mapBookDetail(b));
     }
-    catch (err) {
-        next(err);
+    catch (e) {
+        next(e);
     }
-});
-exports.default = router;
+};
+/* -------------------- Wire-up -------------------- */
+r.get("/", listBasic);
+r.get("/current", listCurrent);
+r.get("/suggestions", listSuggestions);
+r.get("/search", searchBooks);
+r.get("/:isbn", getByIsbn);
+exports.default = r;
