@@ -1,4 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+/**
+ * =============================================================================
+ *  Painel Inicial do Bibliotecário (Home)
+ * -----------------------------------------------------------------------------
+ *  Ficheiro: src/pages/librarian/Home.tsx
+ *  Autor:    Alexandre Brissos  (nº 21131)
+ *
+ *  Reforço solicitado:
+ *   - Comentários em TODO o código.
+ *   - Helpers/métodos "puros" (sem efeitos colaterais) isolados.
+ *   - Funções com menos de ~30 linhas sempre que possível.
+ *   - Manter o design system (MUI + @bibliotecario/ui-web).
+ * =============================================================================
+ */
+
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Box,
   Chip,
@@ -35,7 +50,11 @@ import {
   type ConsultationFull,
 } from "../../services/consultations";
 
-/* ---------- helpers ---------- */
+/* =============================================================================
+ *  Helpers "PUROS" — utilitários sem efeitos colaterais (testáveis)
+ * ============================================================================= */
+
+/** Mapa de estado → rótulo/cor dos Chips (puro). */
 const STATUS_CFG: Record<
   string,
   { label: string; color: "success" | "warning" | "error" | "default" }
@@ -47,26 +66,35 @@ const STATUS_CFG: Record<
   COMPLETED: { label: "Concluída", color: "success" },
 };
 
-function startOfDay(d = new Date()) {
+/** Início do dia (00:00) para comparações por data (puro). */
+function startOfDay(d: Date = new Date()) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
-function endOfDay(d = new Date()) {
+
+/** Fim do dia (23:59) para ranges “até” (puro). */
+function endOfDay(d: Date = new Date()) {
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
   return x;
 }
+
+/** Soma dias a uma data sem mutar a original (puro). */
 function addDays(d: Date, n: number) {
   const x = new Date(d);
   x.setDate(x.getDate() + n);
   return x;
 }
+
+/** Formata para YYYY-MM-DD (estável em inputs "date") (puro). */
 function fmtYMD(d?: string | Date | null) {
   if (!d) return "";
   const x = typeof d === "string" ? new Date(d) : d;
   return x.toISOString().slice(0, 10);
 }
+
+/** Quebra um ISO em partes amigáveis (puro). */
 function parts(iso?: string) {
   if (!iso) return { day: "—", mon: "—", hhmm: "" };
   const d = new Date(iso);
@@ -77,7 +105,11 @@ function parts(iso?: string) {
   };
 }
 
-/* ---------- Header card ---------- */
+/* =============================================================================
+ *  Átomos/peças de UI — componentes pequenos e reutilizáveis
+ * ============================================================================= */
+
+/** Cabeçalho de cartão com ícone e ação (puro: render-only). */
 function CardHeader({
   title,
   icon,
@@ -105,7 +137,7 @@ function CardHeader({
   );
 }
 
-/* ---------- KPI tile ---------- */
+/** Cartão KPI com gradiente (puro: calcula/mostra). */
 function StatTile({
   label,
   value,
@@ -152,7 +184,7 @@ function StatTile({
   );
 }
 
-/* ---------- Skeletons ---------- */
+/** Placeholders (skeletons) para estados de carregamento. */
 function KPISkeleton() {
   return <Skeleton variant="rounded" height={120} />;
 }
@@ -168,7 +200,11 @@ function ListSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
-/* ---------- linhas ---------- */
+/* =============================================================================
+ *  Linhas/list items — renderização de cada entidade
+ * ============================================================================= */
+
+/** Linha de consulta “futura” (puro: recebe e mostra). */
 function ConsultaRow({ c }: { c: ConsultaLite }) {
   const iso = c.scheduledAt || c.date || undefined;
   const { day, mon, hhmm } = parts(iso);
@@ -187,6 +223,7 @@ function ConsultaRow({ c }: { c: ConsultaLite }) {
       }}
     >
       <Stack direction="row" alignItems="center" spacing={1.5}>
+        {/* “pílula” com a data/hora */}
         <Box
           sx={{
             width: 64,
@@ -215,6 +252,7 @@ function ConsultaRow({ c }: { c: ConsultaLite }) {
           </Box>
         </Box>
 
+        {/* Conteúdo principal */}
         <Box flex={1} minWidth={0}>
           <Typography fontWeight={900} noWrap title={c.title}>
             {c.title}
@@ -270,6 +308,7 @@ function ConsultaRow({ c }: { c: ConsultaLite }) {
           </Stack>
         </Box>
 
+        {/* Link para gestão na agenda */}
         <Button
           size="small"
           variant="outlined"
@@ -283,6 +322,7 @@ function ConsultaRow({ c }: { c: ConsultaLite }) {
   );
 }
 
+/** Linha de consulta pendente (puro). */
 function PendingRow({ c }: { c: ConsultationFull }) {
   const when = c.startAt || c.requestedAt || null;
   const dt = when ? new Date(when) : null;
@@ -343,6 +383,7 @@ function PendingRow({ c }: { c: ConsultationFull }) {
   );
 }
 
+/** Linha de slot aberto (puro). */
 function SlotRow({
   s,
   librariesMap,
@@ -396,7 +437,10 @@ function SlotRow({
   );
 }
 
-/* =================== Página =================== */
+/* =============================================================================
+ *  Página — Home do Bibliotecário
+ * ============================================================================= */
+
 const VISIBLE_UPCOMING = 8;
 const VISIBLE_PENDING = 8;
 const VISIBLE_SLOTS = 8;
@@ -406,22 +450,25 @@ export default function LibrarianHome() {
   const { user } = useUserSession();
   const librarianId = Number(user?.id) || 0;
 
-  // datasets
+  // ----- Estado: datasets -----
   const [upcoming, setUpcoming] = useState<ConsultaLite[]>([]);
   const [pending, setPending] = useState<ConsultationFull[]>([]);
   const [openSlots, setOpenSlots] = useState<SlotLite[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // KPI counts
+  // ----- KPI helpers (derivados) -----
   const today = startOfDay(new Date());
   const weekEnd = endOfDay(addDays(today, 7));
 
+  /** Número de consultas com data = hoje (puro dentro do useMemo). */
   const kpiToday = useMemo(
     () =>
       upcoming.filter((c) => fmtYMD(c.scheduledAt || c.date) === fmtYMD(today))
         .length,
-    [upcoming]
+    [upcoming, today]
   );
+
+  /** Número de consultas nos próximos 7 dias (puro dentro do useMemo). */
   const kpiWeek = useMemo(
     () =>
       upcoming.filter((c) => {
@@ -430,45 +477,43 @@ export default function LibrarianHome() {
         const t = new Date(iso).getTime();
         return t >= today.getTime() && t <= weekEnd.getTime();
       }).length,
-    [upcoming] // eslint-disable-line
+    [upcoming, today, weekEnd]
   );
 
-  // mapper: libraryId -> name (derivado das consultas carregadas)
+  /** Mapa libraryId → nome (derivado) para enriquecer slots. */
   const librariesMap = useMemo(() => {
     const m = new Map<number, string>();
-
     const collect = (arr: Array<ConsultaLite | ConsultationFull>) => {
       for (const c of arr || []) {
         const lid = Number(
           ((c as any)?.library?.id ?? (c as any)?.libraryId ?? NaN) as number
         );
         const lname = (c as any)?.library?.name as string | undefined;
-
         if (Number.isFinite(lid) && lname) m.set(lid, lname);
       }
     };
-
     collect(upcoming as any);
     collect(pending as any);
-
     return m;
   }, [upcoming, pending]);
 
+  // Gradientes para os KPIs (coeso com o tema).
   const gPrimary = `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`;
   const gWarning = `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.warning.light} 100%)`;
   const gSuccess = `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.light} 100%)`;
 
-  async function loadAll() {
+  /** Carrega todos os datasets relevantes (<= 30 linhas). */
+  const loadAll = useCallback(async () => {
     if (!librarianId) return;
-
     try {
       setLoading(true);
 
       const now = new Date();
       const twoWeeks = addDays(now, 14);
 
+      // Pedidos em paralelo; tratamos individualmente o resultado
       const [co, pend, slots] = await Promise.allSettled([
-        getNextConsultas(24, { librarianId }), // traz mais, mostramos parte
+        getNextConsultas(24, { librarianId }), // traz mais (só mostramos parte)
         getConsultationsHistory({
           librarianId,
           status: ["PENDING"],
@@ -484,26 +529,22 @@ export default function LibrarianHome() {
         }),
       ]);
 
-      if (co.status === "fulfilled") setUpcoming(co.value || []);
-      else setUpcoming([]);
-
-      if (pend.status === "fulfilled") setPending((pend.value as any) || []);
-      else setPending([]);
-
-      if (slots.status === "fulfilled") setOpenSlots(slots.value || []);
-      else setOpenSlots([]);
+      setUpcoming(co.status === "fulfilled" ? co.value || [] : []);
+      setPending(pend.status === "fulfilled" ? (pend.value as any) || [] : []);
+      setOpenSlots(slots.status === "fulfilled" ? slots.value || [] : []);
     } finally {
       setLoading(false);
     }
-  }
+  }, [librarianId]);
 
+  // Primeira carga + quando o bibliotecário muda
   useEffect(() => {
     void loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [librarianId]);
+  }, [loadAll]);
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      {/* Header da página com ação de refresh */}
       <Stack
         direction="row"
         alignItems="center"
@@ -522,7 +563,7 @@ export default function LibrarianHome() {
         </Tooltip>
       </Stack>
 
-      {/* KPIs */}
+      {/* ================= KPIs ================= */}
       <Grid container spacing={2}>
         <Grid item xs={12} md={4}>
           {loading ? (
@@ -565,9 +606,9 @@ export default function LibrarianHome() {
         </Grid>
       </Grid>
 
-      {/* conteúdo */}
+      {/* ================= Listas ================= */}
       <Grid container spacing={2} sx={{ mt: 1 }}>
-        {/* Próximos compromissos */}
+        {/* Próximas consultas */}
         <Grid item xs={12} md={6} sx={{ display: "flex" }}>
           <WhiteCard
             sx={{
@@ -781,3 +822,8 @@ export default function LibrarianHome() {
     </Container>
   );
 }
+
+/* =============================================================================
+ *  Fim — Alexandre Brissos • nº 21131
+ * =============================================================================
+ */

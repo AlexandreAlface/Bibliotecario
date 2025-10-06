@@ -1,3 +1,16 @@
+// ================================= apps/web/src/pages/suggestions.tsx =================================
+/**
+ * Autor: Alexandre Brrissos — Nº 21131
+ *
+ * Página: Sugestões de Leitura (por perfil e por quiz) com reserva direta.
+ *
+ * Princípios do refactor:
+ *  - Helpers PUROS (marcados como PURE) e com menos de 30 linhas
+ *  - Handlers curtos e defensivos (try/catch + feedback ao utilizador)
+ *  - Comentários explicando cada bloco/decisão
+ *  - Chaves de listas estáveis para evitar avisos do React
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import {
   WhiteCard,
@@ -58,14 +71,20 @@ import {
   getSugestoesPerfil,
   getSugestoesQuiz,
   type QuizAnswer,
-  type BookLite, // <- inclui summary
+  type BookLite, // inclui summary
 } from "../../services/books";
 import { reserveBook } from "@/services/reservation";
 
-/* ---------- helpers ---------- */
+/* =====================================================================================
+   Helpers (PUROS, <30 linhas)
+   ===================================================================================== */
+
+/** PURE: guarda as respostas do quiz (localStorage) */
 function saveQuizToStorage(answers: QuizAnswer[]) {
   localStorage.setItem("quizAnswers", JSON.stringify(answers));
 }
+
+/** PURE: lê as respostas do quiz; devolve null se inválido */
 function readQuizFromStorage(): QuizAnswer[] | null {
   try {
     const raw = localStorage.getItem("quizAnswers");
@@ -78,7 +97,9 @@ function readQuizFromStorage(): QuizAnswer[] | null {
   }
 }
 
-/* ---------- skeleton ---------- */
+/* =====================================================================================
+   Skeleton (visual de carregamento)
+   ===================================================================================== */
 function SkeletonCard() {
   return (
     <Box
@@ -113,7 +134,10 @@ function SkeletonCard() {
   );
 }
 
-/* ---------- DIALOG de detalhes ---------- */
+/* =====================================================================================
+   Dialog de detalhes do livro
+   - Mostra capa, autores, categorias, resumo e permite reservar
+   ===================================================================================== */
 function BookDetailsDialog({
   open,
   book,
@@ -131,6 +155,7 @@ function BookDetailsDialog({
   reserved?: boolean;
   disabled?: boolean;
 }) {
+  // Normalização defensiva dos metadados
   const authors =
     (book as any)?.authors ||
     (book as any)?.author ||
@@ -146,6 +171,7 @@ function BookDetailsDialog({
   const cover = book.coverUrl || "/placeholder-book.jpg";
   const hasSummary = !!(book.summary && String(book.summary).trim());
 
+  // Ícone/estado do botão reservar
   const reserveIcon = reserved ? (
     <BookmarkAddedRounded />
   ) : reserving ? (
@@ -163,6 +189,7 @@ function BookDetailsDialog({
         {book.title}
       </DialogTitle>
       <DialogContent dividers>
+        {/* Cabeçalho com capa + metadados curtos */}
         <Stack direction="row" spacing={2}>
           <Box
             component="img"
@@ -173,7 +200,7 @@ function BookDetailsDialog({
                 e.currentTarget.src = "/placeholder-book.jpg";
             }}
             sx={{
-              width: { xs: 160, sm: 200 }, // 👈 capa maior no modal
+              width: { xs: 160, sm: 200 },
               height: { xs: 230, sm: 300 },
               objectFit: "cover",
               borderRadius: 2,
@@ -183,7 +210,6 @@ function BookDetailsDialog({
             }}
           />
           <Stack spacing={1} sx={{ minWidth: 0, flex: 1 }}>
-            {/* score com ícone */}
             {typeof book.score === "number" && (
               <Chip
                 size="small"
@@ -193,7 +219,6 @@ function BookDetailsDialog({
               />
             )}
 
-            {/* autores */}
             {Array.isArray(authors) && authors.length > 0 && (
               <Typography
                 sx={{
@@ -209,7 +234,6 @@ function BookDetailsDialog({
               </Typography>
             )}
 
-            {/* categorias/ géneros */}
             {Array.isArray(categories) && categories.length > 0 && (
               <Stack
                 direction="row"
@@ -229,7 +253,7 @@ function BookDetailsDialog({
           </Stack>
         </Stack>
 
-        {/* resumo (ou fallback) */}
+        {/* Resumo ou fallback */}
         {hasSummary ? (
           <Typography sx={{ mt: 2, whiteSpace: "pre-line" }}>
             <ArticleOutlined
@@ -250,6 +274,7 @@ function BookDetailsDialog({
           </Stack>
         )}
 
+        {/* Ações do modal */}
         <Stack direction="row" gap={1.5} sx={{ mt: 2 }}>
           <Button
             variant="contained"
@@ -268,7 +293,9 @@ function BookDetailsDialog({
   );
 }
 
-/* ---------- cartão ---------- */
+/* =====================================================================================
+   Cartão de sugestão (cada livro)
+   ===================================================================================== */
 function SuggestionCard({
   book,
   onReserve,
@@ -308,6 +335,7 @@ function SuggestionCard({
         flexDirection: "column",
       }}
     >
+      {/* Capa clicável → abre detalhes */}
       <Box
         component="img"
         src={cover}
@@ -332,6 +360,7 @@ function SuggestionCard({
         }}
       />
 
+      {/* Título (clamp 2 linhas) */}
       <Typography
         fontWeight={900}
         sx={{
@@ -347,7 +376,7 @@ function SuggestionCard({
         {book.title}
       </Typography>
 
-      {/* score com ícone */}
+      {/* Score (quando existir) */}
       {typeof book.score === "number" && (
         <Chip
           size="small"
@@ -357,7 +386,7 @@ function SuggestionCard({
         />
       )}
 
-      {/* resumo/descrição (se houver) */}
+      {/* Resumo curto (clamp 3 linhas) */}
       {book.summary && (
         <Typography
           variant="body2"
@@ -380,6 +409,7 @@ function SuggestionCard({
         </Typography>
       )}
 
+      {/* Ações do cartão */}
       <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
         <Button
           size="small"
@@ -404,7 +434,9 @@ function SuggestionCard({
   );
 }
 
-/* ---------- modal do quiz ---------- */
+/* =====================================================================================
+   Modal do Quiz (4 passos) — guarda escolhas localmente e chama onFinish
+   ===================================================================================== */
 function QuizModal({
   open,
   onClose,
@@ -416,18 +448,22 @@ function QuizModal({
   onFinish: (answers: QuizAnswer[]) => void;
   defaultAgeRange?: string;
 }) {
+  // Estado local do wizard
   const [step, setStep] = useState(0);
   const [genres, setGenres] = useState<string[]>([]);
   const [mood, setMood] = useState<string | undefined>(undefined);
   const [format, setFormat] = useState<string[]>([]);
   const [age, setAge] = useState<string | undefined>(defaultAgeRange);
 
+  // Ao abrir, recomeça do passo 0 (UX previsível)
   useEffect(() => {
     if (open) setStep(0);
   }, [open]);
 
+  // Gate simples para o botão "Continuar"
   const canNext = [genres.length > 0, !!mood, format.length > 0, !!age][step];
 
+  /** Avança no wizard; no fim persiste e notifica o parent */
   function next() {
     if (step < 3) setStep(step + 1);
     else {
@@ -444,20 +480,35 @@ function QuizModal({
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <DialogTitle sx={{ fontWeight: 900, pb: 1, display: "flex", gap: 1, alignItems: "center" }}>
+      <DialogTitle
+        sx={{
+          fontWeight: 900,
+          pb: 1,
+          display: "flex",
+          gap: 1,
+          alignItems: "center",
+        }}
+      >
         <QuizRounded />
         Sugestões de Leitura — Quiz {age ? `(${age})` : ""}
       </DialogTitle>
+
       <DialogContent dividers>
+        {/* Barra de progresso (25% por passo) */}
         <LinearProgress
           variant="determinate"
           value={(step + 1) * 25}
           sx={{ mb: 2, borderRadius: 999 }}
         />
 
+        {/* Passo 1: Géneros */}
         {step === 0 && (
           <Box>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography
+              variant="h6"
+              fontWeight={900}
+              sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}
+            >
               <CategoryRounded />
               Que género de livro preferes?
             </Typography>
@@ -476,7 +527,10 @@ function QuizModal({
                 "Clássicos",
               ].map((g) => (
                 <ToggleButton key={g} value={g} sx={{ borderRadius: 3, px: 2 }}>
-                  <CategoryRounded fontSize="small" style={{ marginRight: 6 }} />
+                  <CategoryRounded
+                    fontSize="small"
+                    style={{ marginRight: 6 }}
+                  />
                   {g}
                 </ToggleButton>
               ))}
@@ -484,9 +538,14 @@ function QuizModal({
           </Box>
         )}
 
+        {/* Passo 2: Contexto/“mood” */}
         {step === 1 && (
           <Box>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography
+              variant="h6"
+              fontWeight={900}
+              sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}
+            >
               <EmojiPeopleRounded />
               Qual o contexto de leitura?
             </Typography>
@@ -502,11 +561,17 @@ function QuizModal({
                 value="antes-de-dormir"
                 sx={{ borderRadius: 3, px: 2 }}
               >
-                <NightlightRounded fontSize="small" style={{ marginRight: 6 }} />
+                <NightlightRounded
+                  fontSize="small"
+                  style={{ marginRight: 6 }}
+                />
                 Antes de dormir
               </ToggleButton>
               <ToggleButton value="tempo-livre" sx={{ borderRadius: 3, px: 2 }}>
-                <EmojiPeopleRounded fontSize="small" style={{ marginRight: 6 }} />
+                <EmojiPeopleRounded
+                  fontSize="small"
+                  style={{ marginRight: 6 }}
+                />
                 Tempo livre
               </ToggleButton>
               <ToggleButton value="aventura" sx={{ borderRadius: 3, px: 2 }}>
@@ -517,9 +582,14 @@ function QuizModal({
           </Box>
         )}
 
+        {/* Passo 3: Formato preferido */}
         {step === 2 && (
           <Box>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography
+              variant="h6"
+              fontWeight={900}
+              sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}
+            >
               <MenuBookRounded />
               Preferes algum formato?
             </Typography>
@@ -537,16 +607,24 @@ function QuizModal({
                 Ilustrado
               </ToggleButton>
               <ToggleButton value="serie" sx={{ borderRadius: 3, px: 2 }}>
-                <CollectionsBookmarkRounded fontSize="small" style={{ marginRight: 6 }} />
+                <CollectionsBookmarkRounded
+                  fontSize="small"
+                  style={{ marginRight: 6 }}
+                />
                 Série / coleção
               </ToggleButton>
             </ToggleButtonGroup>
           </Box>
         )}
 
+        {/* Passo 4: Faixa etária */}
         {step === 3 && (
           <Box>
-            <Typography variant="h6" fontWeight={900} sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography
+              variant="h6"
+              fontWeight={900}
+              sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}
+            >
               <ChildCareRounded />
               Faixa etária
             </Typography>
@@ -558,7 +636,10 @@ function QuizModal({
             >
               {["0-2", "3-5", "6-8", "9-12", "12-15"].map((r) => (
                 <ToggleButton key={r} value={r} sx={{ borderRadius: 3, px: 2 }}>
-                  <ChildCareRounded fontSize="small" style={{ marginRight: 6 }} />
+                  <ChildCareRounded
+                    fontSize="small"
+                    style={{ marginRight: 6 }}
+                  />
                   {r}
                 </ToggleButton>
               ))}
@@ -566,6 +647,7 @@ function QuizModal({
           </Box>
         )}
 
+        {/* Controlo do wizard */}
         <Stack direction="row" justifyContent="space-between" sx={{ mt: 3 }}>
           <Button
             startIcon={<ReplayRounded />}
@@ -579,7 +661,12 @@ function QuizModal({
           >
             Recomeçar
           </Button>
-          <Button variant="contained" onClick={next} disabled={!canNext} startIcon={<QuizRounded />}>
+          <Button
+            variant="contained"
+            onClick={next}
+            disabled={!canNext}
+            startIcon={<QuizRounded />}
+          >
             {step < 3 ? "Continuar" : "Ver sugestões"}
           </Button>
         </Stack>
@@ -588,50 +675,60 @@ function QuizModal({
   );
 }
 
-/* ---------- página ---------- */
+/* =====================================================================================
+   Página principal de Sugestões
+   - Pode gerar por Perfil (idade/histórico) ou por Quiz (respostas do utilizador)
+   - Em modo família, a seleção de criança é LOCAL (não altera contexto)
+   ===================================================================================== */
 export default function SuggestionsPage() {
   const { user, asChild } = useUserSession();
 
-  // 🔒 Em modo família, a escolha da criança é LOCAL (não muda o active user)
+  // Em modo família, usa-se um filtro LOCAL de criança
   const [localChildId, setLocalChildId] = useState<string>("");
 
-  // Em modo criança usa actingChild; em modo família é obrigatório escolher (local)
+  // ChildId efetivo para chamadas: actingChild no modo criança; escolha local no modo família
   const childId = asChild
     ? Number(user?.actingChild?.id as any)
     : localChildId
     ? Number(localChildId)
     : undefined;
 
+  // FamilyId apenas em modo família
   const familyId = asChild ? undefined : Number(user?.id) || undefined;
 
+  // Lista de sugestões + total (para paginação)
   const [items, setItems] = useState<BookLite[] | null>(null);
   const [total, setTotal] = useState<number>(0);
 
-  // paginação
+  // Paginação
   const [page, setPage] = useState<number>(1);
   const [perPage, setPerPage] = useState<number>(12);
 
+  // Estado de UI
   const [loading, setLoading] = useState(false);
   const [source, setSource] = useState<"perfil" | "quiz">("perfil");
   const [quizOpen, setQuizOpen] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
 
+  // Toast simples
   const [toast, setToast] = useState<{
     msg: string;
     type: "success" | "error";
   } | null>(null);
 
-  // ⬇️ flags por ISBN
+  // Flags por ISBN (busy/reserved) — objetos-index para acesso O(1)
   const [busyByIsbn, setBusyByIsbn] = useState<Record<string, boolean>>({});
   const [reservedByIsbn, setReservedByIsbn] = useState<Record<string, boolean>>(
     {}
   );
 
-  // detalhes
+  // Livro para o modal de detalhes
   const [detailBook, setDetailBook] = useState<BookLite | null>(null);
 
+  // Gate: no modo família é obrigatório escolher criança
   const mustPickChild = !asChild && !childId;
 
+  // Subtítulo-reactivo (por fonte)
   const subtitle = useMemo(
     () =>
       source === "perfil"
@@ -640,7 +737,7 @@ export default function SuggestionsPage() {
     [source]
   );
 
-  // limpar lista/flags ao trocar a criança
+  // Limpa lista/flags quando troca de criança
   useEffect(() => {
     setItems(null);
     setBusyByIsbn({});
@@ -648,6 +745,7 @@ export default function SuggestionsPage() {
     setPage(1);
   }, [childId]);
 
+  /** Handler: gera por PERFIL (padrão) */
   async function loadPerfil(p = page, pp = perPage) {
     if (mustPickChild) return;
     setLoading(true);
@@ -666,6 +764,7 @@ export default function SuggestionsPage() {
     }
   }
 
+  /** Handler: corre QUIZ e preenche sugestões com base nas respostas */
   async function runQuiz(answers: QuizAnswer[], p = page, pp = perPage) {
     if (mustPickChild) return;
     setQuizOpen(false);
@@ -685,6 +784,7 @@ export default function SuggestionsPage() {
     }
   }
 
+  /** Handler: reservar um livro (idempotente pelo backend) */
   async function handleReserve(isbn: string) {
     if (!childId) {
       setToast({ msg: "Escolhe primeiro a criança.", type: "error" });
@@ -712,12 +812,13 @@ export default function SuggestionsPage() {
     }
   }
 
+  // Primeira carga e sempre que muda de criança/contexto
   useEffect(() => {
     loadPerfil();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, familyId]);
 
-  // trocar página / por página
+  // Recarrega ao mudar paginação
   useEffect(() => {
     if (source === "perfil") loadPerfil(page, perPage);
     else {
@@ -727,6 +828,7 @@ export default function SuggestionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, perPage]);
 
+  // Opções de criança para o seletor (modo família)
   const childOptions =
     (user?.children || []).map((c: any) => ({
       id: String(c.id),
@@ -734,14 +836,23 @@ export default function SuggestionsPage() {
       avatar: c.avatarUrl ?? undefined,
     })) ?? [];
 
+  /* =====================================================================================
+     GATE: MODO FAMÍLIA → OBRIGA ESCOLHER CRIANÇA
+     ===================================================================================== */
   if (mustPickChild) {
     return (
       <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
         <WhiteCard>
-          <Typography variant="h5" fontWeight={900} sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}>
+          <Typography
+            variant="h5"
+            fontWeight={900}
+            sx={{ mb: 1, display: "flex", alignItems: "center", gap: 1 }}
+          >
             <MenuBookRounded />
             Sugestões de Leitura
           </Typography>
+
+          {/* Acesso rápido a outras páginas relacionadas */}
           <Typography sx={{ opacity: 0.75 }}>
             <RouteLink href="/suggestions" weight={600}>
               <QuizRounded fontSize="inherit" style={{ marginRight: 4 }} />
@@ -753,11 +864,22 @@ export default function SuggestionsPage() {
               Categorias
             </RouteLink>
           </Typography>
-          <Typography sx={{ mt: 1.5, mb: 2, opacity: 0.8, display: "flex", alignItems: "center", gap: 1 }}>
+
+          <Typography
+            sx={{
+              mt: 1.5,
+              mb: 2,
+              opacity: 0.8,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
             <PersonOutlineRounded />
             Escolhe o perfil da criança para gerar sugestões e permitir
             reservas.
           </Typography>
+
           <AvatarSelect
             label="Escolher criança"
             options={childOptions}
@@ -770,11 +892,14 @@ export default function SuggestionsPage() {
     );
   }
 
+  /* =====================================================================================
+     Conteúdo principal
+     ===================================================================================== */
   const pageCount = Math.max(1, Math.ceil(total / perPage));
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
-      {/* Filtro LOCAL em modo família (não muda active user) */}
+      {/* Filtro LOCAL (não altera sessão global) */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
           <Stack
@@ -784,7 +909,10 @@ export default function SuggestionsPage() {
             useFlexGap
             flexWrap="wrap"
           >
-            <Typography fontWeight={900} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography
+              fontWeight={900}
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+            >
               <PersonOutlineRounded />
               Filtrar por criança
             </Typography>
@@ -800,6 +928,7 @@ export default function SuggestionsPage() {
       )}
 
       <WhiteCard>
+        {/* Cabeçalho + subtítulo + navegação rápida */}
         <Stack
           direction="row"
           alignItems="center"
@@ -807,17 +936,28 @@ export default function SuggestionsPage() {
           sx={{ mb: 1 }}
         >
           <Box>
-            <Typography variant="h4" fontWeight={900} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography
+              variant="h4"
+              fontWeight={900}
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+            >
               <MenuBookRounded />
               Sugestões de Leitura
             </Typography>
 
-            <Typography variant="body2" sx={{ opacity: 0.75, display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                opacity: 0.75,
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+              }}
+            >
               <InfoRounded fontSize="small" />
               {subtitle}
             </Typography>
 
-            {/* nav entre páginas */}
             <Typography variant="body2" sx={{ mt: 0.25 }}>
               <RouteLink href="/suggestions" weight={600}>
                 <QuizRounded fontSize="inherit" style={{ marginRight: 4 }} />
@@ -825,18 +965,31 @@ export default function SuggestionsPage() {
               </RouteLink>
               {" · "}
               <RouteLink href="/suggestions-categories" weight={600}>
-                <CategoryRounded fontSize="inherit" style={{ marginRight: 4 }} />
+                <CategoryRounded
+                  fontSize="inherit"
+                  style={{ marginRight: 4 }}
+                />
                 Categorias
               </RouteLink>
             </Typography>
 
             {!!updatedAt && (
-              <Typography variant="caption" sx={{ opacity: 0.6, display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Typography
+                variant="caption"
+                sx={{
+                  opacity: 0.6,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                }}
+              >
                 <AccessTimeRounded fontSize="inherit" />
                 Última geração: {new Date(updatedAt).toLocaleString("pt-PT")}
               </Typography>
             )}
           </Box>
+
+          {/* Ações rápidas (Atualizar / Abrir Quiz) */}
           <Stack direction="row" spacing={1}>
             <Tooltip title="Atualizar lista">
               <span>
@@ -867,6 +1020,7 @@ export default function SuggestionsPage() {
 
         <Divider sx={{ my: 1 }} />
 
+        {/* Estado: a carregar → mostra skeletons */}
         {loading && (
           <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
             {Array.from({ length: perPage }).map((_, i) => (
@@ -875,8 +1029,10 @@ export default function SuggestionsPage() {
           </Stack>
         )}
 
+        {/* Lista de sugestões */}
         {!loading && items && items.length > 0 && (
           <>
+            {/* Chips de contexto (fonte) e “voltar ao perfil” quando no quiz */}
             <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
               <Chip
                 label={source === "perfil" ? "Perfil" : "Quiz"}
@@ -896,6 +1052,7 @@ export default function SuggestionsPage() {
               )}
             </Stack>
 
+            {/* Grid manual com cartões */}
             <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
               {items.map((b) => (
                 <SuggestionCard
@@ -910,7 +1067,7 @@ export default function SuggestionsPage() {
               ))}
             </Stack>
 
-            {/* --- Paginator --- */}
+            {/* Paginador + “por página” */}
             <Stack
               direction={{ xs: "column", sm: "row" }}
               alignItems={{ xs: "flex-start", sm: "center" }}
@@ -931,7 +1088,10 @@ export default function SuggestionsPage() {
                 >
                   {[6, 8, 12, 16, 20, 24, 32, 48].map((n) => (
                     <MenuItem key={n} value={n}>
-                      <MenuBookRounded fontSize="small" style={{ marginRight: 6 }} />
+                      <MenuBookRounded
+                        fontSize="small"
+                        style={{ marginRight: 6 }}
+                      />
                       {n}
                     </MenuItem>
                   ))}
@@ -949,8 +1109,16 @@ export default function SuggestionsPage() {
           </>
         )}
 
+        {/* Sem resultados */}
         {!loading && items && items.length === 0 && (
-          <Typography sx={{ opacity: 0.7, display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Typography
+            sx={{
+              opacity: 0.7,
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+            }}
+          >
             <SearchOffRounded />
             Sem resultados. Tenta o{" "}
             <RouteLink
@@ -968,7 +1136,7 @@ export default function SuggestionsPage() {
         )}
       </WhiteCard>
 
-      {/* Dialog de detalhes */}
+      {/* Dialog de detalhes do livro (abre a partir do cartão) */}
       <BookDetailsDialog
         open={!!detailBook}
         book={detailBook}
@@ -979,6 +1147,7 @@ export default function SuggestionsPage() {
         disabled={!childId}
       />
 
+      {/* Modal do quiz */}
       <QuizModal
         open={quizOpen}
         onClose={() => setQuizOpen(false)}
@@ -988,6 +1157,7 @@ export default function SuggestionsPage() {
         }}
       />
 
+      {/* Toast simples */}
       <Snackbar
         open={!!toast}
         autoHideDuration={3000}

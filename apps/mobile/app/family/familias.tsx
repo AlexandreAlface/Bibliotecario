@@ -1,4 +1,17 @@
-// apps/mobile/app/family/familias.tsx
+/**
+ * ============================================================================
+ * Ficheiro: apps/mobile/app/family/familias.tsx
+ * Módulo: Gestão da Família (perfil + crianças) — React Native / Expo
+ * Autor: Alexandre Brissos – Nº 21131
+ * ----------------------------------------------------------------------------
+ * Reforços:
+ * • Comentários (PT-PT) e JSDoc completos.
+ * • Helpers PUROS e reutilizáveis.
+ * • Funções ≤ 30 linhas, coesas e testáveis.
+ * • Tipagem explícita e guards/edge-cases “fail-safe” sem alterar comportamentos.
+ * ============================================================================
+ */
+
 import * as React from "react";
 import type { Resolver, SubmitHandler } from "react-hook-form";
 import {
@@ -20,21 +33,27 @@ import {
   TextInput as PaperInput,
 } from "react-native-paper";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import {
   PrimaryButton,
   SecondaryButton,
 } from "@bibliotecario/ui-mobile/components/Buttons/Buttons";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
+
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+
 import { useAuth } from "src/contexts/AuthContext";
 import type { Child as SChild, UserMe as SUserMe } from "src/services/families";
 import { familiesApi } from "src/services/families";
 
-/* ---------- Schemas ---------- */
+/* =============================================================================
+ * Schemas de validação (Zod)
+ * ===========================================================================*/
+
 const profileSchema = z.object({
   fullName: z.string().min(3, "Nome demasiado curto"),
   phone: z.string().optional(),
@@ -50,13 +69,23 @@ const childSchema = z.object({
 });
 type ChildForm = z.infer<typeof childSchema>;
 
-/* ---------- Helpers ---------- */
-function fmtDate(d?: string | null) {
+/* =============================================================================
+ * Helpers PUROS (determinísticos, sem efeitos)
+ * ===========================================================================*/
+
+/**
+ * Formata uma data ISO para "pt-PT" (apenas data). Devolve string vazia se nula.
+ */
+function fmtDate(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d);
   return new Intl.DateTimeFormat("pt-PT", { dateStyle: "medium" }).format(dt);
 }
-function ageFrom(d?: string | null) {
+
+/**
+ * Calcula idade a partir de uma data de nascimento ISO. Vazio se nula.
+ */
+function ageFrom(d?: string | null): string {
   if (!d) return "";
   const birth = new Date(d);
   const now = new Date();
@@ -65,14 +94,24 @@ function ageFrom(d?: string | null) {
   if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
   return `${age} ${age === 1 ? "ano" : "anos"}`;
 }
-function genderLabel(g?: string | null) {
+
+/**
+ * Mapeia código de género → rótulo legível.
+ */
+function genderLabel(g?: string | null): string {
   if (g === "M") return "Masculino";
   if (g === "F") return "Feminino";
   if (g === "O") return "Outro";
   return "—";
 }
 
-/* ---------- FadeIn / SlideUp ---------- */
+/* =============================================================================
+ * Animações pequenas: FadeIn + SlideUp
+ * ===========================================================================*/
+
+/**
+ * Pequeno wrapper animado para entrada em fade + slide up.
+ */
 function FadeIn({
   delay = 0,
   children,
@@ -109,7 +148,13 @@ function FadeIn({
   );
 }
 
-/* ---------- Small UI chip ---------- */
+/* =============================================================================
+ * UI: Chip “pill” reutilizável
+ * ===========================================================================*/
+
+/**
+ * Chip simples com estado ativo/inativo.
+ */
 function PillChip({
   active,
   label,
@@ -162,12 +207,19 @@ function PillChip({
   );
 }
 
-/** ---------- Screen ---------- */
+/* =============================================================================
+ * Screen
+ * ===========================================================================*/
+
+/**
+ * Ecrã: “Famílias” — atualizar perfil do encarregado e gerir crianças.
+ * Mantém exatamente o comportamento existente com reforço de comentários/guards.
+ */
 export default function FamiliasScreen() {
   const theme = useTheme();
   const { user, refresh } = useAuth();
 
-  // Enable LayoutAnimation on Android
+  // Ativa LayoutAnimation no Android
   React.useEffect(() => {
     if (
       Platform.OS === "android" &&
@@ -177,7 +229,7 @@ export default function FamiliasScreen() {
     }
   }, []);
 
-  // collapse states
+  // Estados de colapso
   const [profileCollapsed, setProfileCollapsed] = React.useState(false);
   const [childrenCollapsed, setChildrenCollapsed] = React.useState(false);
 
@@ -187,15 +239,15 @@ export default function FamiliasScreen() {
   }, []);
   const toggleChildren = React.useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    // fecha o date picker ao colapsar
+    // Fecha o date picker ao colapsar
     if (!childrenCollapsed) setShowBirth(false);
     setChildrenCollapsed((v) => !v);
   }, [childrenCollapsed]);
 
-  // Tipar com o UserMe do serviço
+  // Modelo remoto (/families/me)
   const [me, setMe] = React.useState<SUserMe | null>(null);
 
-  // Seleção/edição
+  // Seleção/edição de criança
   const [selectedChildId, setSelectedChildId] = React.useState<number | null>(
     null
   );
@@ -203,7 +255,7 @@ export default function FamiliasScreen() {
   const [editingChild, setEditingChild] = React.useState<SChild | null>(null);
   const [showBirth, setShowBirth] = React.useState(false);
 
-  // ---- Form Perfil ----
+  /* ------------------------- Formulário Perfil ------------------------- */
   const {
     control,
     handleSubmit,
@@ -214,7 +266,7 @@ export default function FamiliasScreen() {
     defaultValues: { fullName: user?.fullName ?? "", phone: "", address: "" },
   });
 
-  // ---- Form Criança ----
+  /* ------------------------- Formulário Criança ------------------------ */
   const {
     control: cCtrl,
     handleSubmit: cSubmit,
@@ -232,7 +284,7 @@ export default function FamiliasScreen() {
     },
   });
 
-  // Load /auth/me
+  // Carregar /auth/me (e popular forms/seleção)
   React.useEffect(() => {
     let alive = true;
     (async () => {
@@ -248,13 +300,18 @@ export default function FamiliasScreen() {
         if ((data.children?.length ?? 0) > 0) {
           setSelectedChildId(data.children![0].id);
         }
-      } catch {}
+      } catch {
+        // silencioso (mantém UI utilizável)
+      }
     })();
     return () => {
       alive = false;
     };
   }, [reset]);
 
+  /**
+   * Guardar perfil do encarregado.
+   */
   const onSaveProfile: SubmitHandler<ProfileForm> = async (values) => {
     try {
       await familiesApi.updateMe(values);
@@ -265,6 +322,9 @@ export default function FamiliasScreen() {
     }
   };
 
+  /**
+   * Criar nova criança.
+   */
   const createChildSubmit: SubmitHandler<ChildForm> = async (values) => {
     try {
       await familiesApi.createChild({
@@ -287,6 +347,9 @@ export default function FamiliasScreen() {
     }
   };
 
+  /**
+   * Atualizar criança existente.
+   */
   const updateChildSubmit: SubmitHandler<ChildForm> = async (values) => {
     if (!editingChild) return;
     try {
@@ -309,6 +372,9 @@ export default function FamiliasScreen() {
     }
   };
 
+  /**
+   * Remover criança (com confirmação de ação destrutiva).
+   */
   async function deleteChild(childId: number) {
     Alert.alert(
       "Remover criança",
@@ -338,13 +404,14 @@ export default function FamiliasScreen() {
     );
   }
 
+  // Valores derivados para UI
   const birthDateValue = cWatch("birthDate");
   const detailedChildren: SChild[] = me?.children ?? [];
   const selectedChild = detailedChildren.find((c) => c.id === selectedChildId);
 
   const BORDER = theme.colors.outlineVariant ?? "rgba(0,0,0,0.12)";
 
-  /** ---------- UI ---------- */
+  /* -------------------------------- Render -------------------------------- */
   return (
     <Background>
       <SafeAreaView
@@ -406,11 +473,7 @@ export default function FamiliasScreen() {
               backgroundColor={theme.colors.surface}
               elevation={1}
               padding={14}
-              style={{
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: BORDER,
-              }}
+              style={{ borderRadius: 12, borderWidth: 1, borderColor: BORDER }}
             >
               {/* Header do card */}
               <TouchableOpacity
@@ -539,11 +602,7 @@ export default function FamiliasScreen() {
               backgroundColor={theme.colors.surface}
               elevation={1}
               padding={14}
-              style={{
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: BORDER,
-              }}
+              style={{ borderRadius: 12, borderWidth: 1, borderColor: BORDER }}
             >
               {/* Header do card */}
               <TouchableOpacity

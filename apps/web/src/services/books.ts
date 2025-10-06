@@ -1,5 +1,11 @@
-// apps/web/src/services/books.ts
-import { api } from "./https";
+/**
+ * Alexandre Brrissos 21131
+ * Descrição: Serviço de livros (search, detalhe e recomendações por perfil/quiz).
+ *            Usa o cliente HTTP central (axios) com cookies e erros normalizados.
+ */
+import { http, asApiError, isApiError } from "./https";
+
+/* ---------- Tipos ---------- */
 
 export type BookLite = {
   isbn: string;
@@ -48,35 +54,11 @@ export type BooksSearchResponse = {
 };
 
 export type QuizAnswer = { id: string; value: any };
-
 export type PaginatedBooks = { items: BookLite[]; total: number };
 
-class ApiError extends Error {
-  status: number;
-  code?: string;
-  details?: any;
-  constructor(status: number, message: string, code?: string, details?: any) {
-    super(message);
-    this.status = status;
-    this.code = code;
-    this.details = details;
-  }
-}
+/* ---------- API ---------- */
 
-function parseAxiosError(e: any): ApiError {
-  const status = e?.response?.status ?? 0;
-  const data = e?.response?.data ?? {};
-  const code = data?.error ?? e?.code ?? "unknown_error";
-  const msg =
-    data?.message ??
-    data?.details ??
-    e?.message ??
-    "Falha a comunicar com o servidor";
-  // útil em dev
-  console.error("[API ERROR]", { status, code, data });
-  return new ApiError(status, msg, code, data);
-}
-
+/** Pesquisa livros (texto/autor/categoria/ano/idade/biblioteca/paginação). */
 export async function searchBooks(params: {
   q?: string;
   author?: string;
@@ -90,94 +72,108 @@ export async function searchBooks(params: {
   page?: number;
   perPage?: number;
 }): Promise<BooksSearchResponse> {
-  const { data } = await api.get("/books/search", { params });
-  return data as BooksSearchResponse;
+  return http<BooksSearchResponse>({
+    url: "/books/search",
+    method: "GET",
+    params,
+  });
 }
 
-export async function getBookDetailLibrarian(isbn: string): Promise<BookDetailLibrarian> {
-  const { data } = await api.get(`/books/${encodeURIComponent(isbn)}`);
-  return data as BookDetailLibrarian;
+/** Detalhe para bibliotecário (inclui holdings por biblioteca). */
+export async function getBookDetailLibrarian(
+  isbn: string
+): Promise<BookDetailLibrarian> {
+  return http<BookDetailLibrarian>({
+    url: `/books/${encodeURIComponent(isbn)}`,
+    method: "GET",
+  });
 }
 
+/**
+ * Lê um livro por ISBN com fallback para `/books?isbn=...`.
+ * Se ambos falharem, devolve estrutura mínima para não partir a UI.
+ */
 export async function getBookByIsbn(isbn: string): Promise<BookDetails> {
   try {
-    const { data } = await api.get(`/books/${encodeURIComponent(isbn)}`);
-    return data as BookDetails;
+    return await http<BookDetails>({
+      url: `/books/${encodeURIComponent(isbn)}`,
+      method: "GET",
+    });
   } catch (e1) {
-    // fallback simples (se tiveres busca por querystring)
     try {
-      const { data } = await api.get(`/books`, { params: { isbn } });
-      return (Array.isArray(data) ? data[0] : data) as BookDetails;
+      const res = await http<BookDetails | BookDetails[]>({
+        url: "/books",
+        method: "GET",
+        params: { isbn },
+      });
+      return (
+        (Array.isArray(res) ? res[0] : res) ?? {
+          isbn,
+          title: "Livro",
+          summary: null,
+        }
+      );
     } catch (e2) {
-      // devolve estrutura mínima para o modal não falhar
       return { isbn, title: "Livro", summary: null };
     }
   }
 }
 
-/**
- * Recomendações baseadas no perfil (vetor/idade/leitura).
- * GET /recommendations/profile
- */
+/* ---------- Recomendações ---------- */
+
+/** Recomendações baseadas no perfil (vetor/idade/leitura). */
 export async function getSugestoesPerfil(
   perPage = 12,
   who?: { childId?: number; familyId?: number; page?: number }
 ): Promise<PaginatedBooks> {
-  const qs = new URLSearchParams({
-    perPage: String(perPage),
-    page: String(who?.page ?? 1),
-  });
-  if (who?.childId) qs.set("childId", String(who.childId));
-  if (who?.familyId) qs.set("familyId", String(who.familyId)); // ok se o backend ignorar
-
   try {
-    const { data } = await api.get(`/recommendations/profile?${qs.toString()}`, {
-      withCredentials: true,
+    const data = await http<{ items: any[]; total?: number }>({
+      url: "/recommendations/profile",
+      method: "GET",
+      params: {
+        perPage,
+        page: who?.page ?? 1,
+        childId: who?.childId,
+        familyId: who?.familyId,
+      },
     });
 
-    const rawItems = Array.isArray(data?.items) ? data.items : [];
-    const items: BookLite[] = rawItems.map((r: any) => ({
-      id: r.id ?? r.isbn,
-      isbn: r.isbn,
-      title: r.title ?? "Livro",
-      coverUrl: r.coverUrl ?? null,
-      summary: r.summary ?? null,
-      score: typeof r.score === "number" ? r.score : undefined,
-      why: Array.isArray(r.why) ? r.why : [],
+    const items: BookLite[] = (
+      Array.isArray(data?.items) ? data.items : []
+    ).map((r: any) => ({
+      isbn: r?.isbn,
+      title: r?.title ?? "Livro",
+      coverUrl: r?.coverUrl ?? null,
+      summary: r?.summary ?? null,
+      score: typeof r?.score === "number" ? r.score : undefined,
+      why: Array.isArray(r?.why) ? r.why : [],
     }));
 
     return { items, total: Number(data?.total ?? items.length) };
   } catch (e: any) {
-    throw parseAxiosError(e);
+    throw isApiError(e) ? e : asApiError(e);
   }
 }
 
-
-
-/**
- * Recomendações baseadas no quiz.
- * POST /recommendations/quiz
- */
+/** Recomendações baseadas no quiz (POST com respostas). */
 export async function getSugestoesQuiz(
   answers: QuizAnswer[],
   perPage = 12,
   who?: { childId?: number; familyId?: number; page?: number }
 ): Promise<PaginatedBooks> {
-  const qs = new URLSearchParams({
-    perPage: String(perPage),
-    page: String(who?.page ?? 1),
-  });
-  if (who?.childId) qs.set("childId", String(who.childId));
-  if (who?.familyId) qs.set("familyId", String(who.familyId));
-
   try {
-    const { data } = await api.post<PaginatedBooks>(
-      `/recommendations/quiz?${qs.toString()}`,
-      { answers },
-      { withCredentials: true }
-    );
-    return data;
+    return await http<PaginatedBooks>({
+      url: "/recommendations/quiz",
+      method: "POST",
+      params: {
+        perPage,
+        page: who?.page ?? 1,
+        childId: who?.childId,
+        familyId: who?.familyId,
+      },
+      data: { answers },
+    });
   } catch (e: any) {
-    throw parseAxiosError(e);
+    throw isApiError(e) ? e : asApiError(e);
   }
 }

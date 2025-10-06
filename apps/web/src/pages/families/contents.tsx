@@ -1,5 +1,17 @@
-// apps/web/src/pages/FamilyContentsPage.tsx
-import { useEffect, useState, Fragment } from "react";
+// ====================== apps/web/src/pages/FamilyContentsPage.tsx ======================
+/**
+ * Autor: Alexandre Brrissos — Nº 21131
+ *
+ * Página: Conteúdos & Biblioterapia (famílias)
+ *
+ * Objetivos do refactor:
+ *  - Helpers PUROS (assinalados com "PURE") e com menos de 30 linhas
+ *  - Handlers/efeitos curtos e defensivos (try/catch, checks)
+ *  - Comentários claros por secção e componente
+ *  - Pequenas melhorias de acessibilidade (aria-labels) e UX
+ */
+
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Box,
   Chip,
@@ -13,7 +25,6 @@ import {
   Card,
   CardContent,
   CardMedia,
-  IconButton,
   Tooltip,
   LinearProgress,
   InputAdornment,
@@ -21,13 +32,16 @@ import {
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import { WhiteCard, PrimaryButton } from "@bibliotecario/ui-web";
+
 import {
   listMicroContentsPublic,
   markMicroContentSeen,
 } from "@/services/microcontent";
 import type { MicroContentItem } from "@/services/microcontent";
 
-/* ---------- Ícones ---------- */
+/* =====================================================================================
+   Ícones
+   ===================================================================================== */
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import TagRounded from "@mui/icons-material/TagRounded";
@@ -36,12 +50,15 @@ import PsychologyRounded from "@mui/icons-material/PsychologyRounded";
 import TipsAndUpdatesRounded from "@mui/icons-material/TipsAndUpdatesRounded";
 import FactCheckRounded from "@mui/icons-material/FactCheckRounded";
 import MoreHorizRounded from "@mui/icons-material/MoreHorizRounded";
-import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import DoneAllRounded from "@mui/icons-material/DoneAllRounded";
 import LibraryBooksRounded from "@mui/icons-material/LibraryBooksRounded";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import FilterAltOffRounded from "@mui/icons-material/FilterAltOffRounded";
+
+/* =====================================================================================
+   Tipos e constantes
+   ===================================================================================== */
 
 const TYPES: MicroContentItem["type"][] = [
   "BIBLIOTERAPIA",
@@ -52,7 +69,11 @@ const TYPES: MicroContentItem["type"][] = [
 
 type LibraryLite = { id: number; name: string };
 
-/* Helpers para meta de tipos (ícone + cor do chip) */
+/* =====================================================================================
+   Helpers (PUROS / <30 linhas)
+   ===================================================================================== */
+
+/** PURE: ícone consoante o tipo de microconteúdo */
 function typeIcon(t?: string) {
   switch (t) {
     case "BIBLIOTERAPIA":
@@ -65,6 +86,8 @@ function typeIcon(t?: string) {
       return <MoreHorizRounded fontSize="small" />;
   }
 }
+
+/** PURE: cor do chip consoante o tipo de microconteúdo */
 function typeChipColor(
   t?: string
 ): "default" | "primary" | "success" | "warning" {
@@ -80,75 +103,97 @@ function typeChipColor(
   }
 }
 
+/** PURE: determina se um microconteúdo já foi visto */
+function isSeen(mc: MicroContentItem): boolean {
+  return (
+    (mc as any).seen === true || Number((mc as any).interactionsCount || 0) > 0
+  );
+}
+
+/** PURE: compõe e deduplica tags a partir de resposta e itens */
+function buildTagOptions(res: any): string[] {
+  const baseTags = Array.isArray(res?.tags) ? (res.tags as unknown[]) : [];
+  const itemTags = ((res?.items || []) as unknown[]).flatMap((mc: any) =>
+    Array.isArray(mc?.tags) ? mc.tags : []
+  );
+  const all = [...baseTags, ...itemTags].filter(
+    (t): t is string => typeof t === "string"
+  );
+  return Array.from(new Set(all)).sort((a, b) => a.localeCompare(b));
+}
+
+/** PURE: extrai bibliotecas únicas a partir dos itens */
+function extractLibraries(items: MicroContentItem[]): LibraryLite[] {
+  const map = new Map<number, LibraryLite>();
+  for (const mc of items) {
+    const lib = (mc as any)?.library;
+    if (lib?.id) {
+      const id = Number(lib.id);
+      if (!map.has(id)) {
+        map.set(id, { id, name: String(lib.name || `Biblioteca #${id}`) });
+      }
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/* =====================================================================================
+   Página principal
+   ===================================================================================== */
+
 export default function FamilyContentsPage() {
+  // ---------------- Estado base ----------------
   const [items, setItems] = useState<MicroContentItem[]>([]);
   const [total, setTotal] = useState(0);
+
+  // paginação
   const [page, setPage] = useState(1);
   const [limit] = useState(12);
 
+  // filtros
   const [q, setQ] = useState("");
   const [type, setType] = useState<string>("");
   const [tag, setTag] = useState<string>("");
   const [libraryId, setLibraryId] = useState<string>("");
 
+  // meta (tags/bibliotecas)
   const [tagOptions, setTagOptions] = useState<string[]>([]);
   const [libraries, setLibraries] = useState<LibraryLite[]>([]);
+
+  // feedback
   const [loading, setLoading] = useState(false);
 
-  async function load(p = page) {
-    setLoading(true);
-    try {
-      const res: any = await listMicroContentsPublic({
-        q: q || undefined,
-        type: type || undefined,
-        tag: tag || undefined,
-        libraryId: libraryId ? Number(libraryId) : undefined,
-        page: p,
-        limit,
-      });
+  // ---------------- Loader (curto) ----------------
+  /**
+   * Carrega conteúdos com filtros e página atual.
+   * Divide responsabilidades: tags e bibliotecas são calculadas por helpers PUROS.
+   */
+  const load = useCallback(
+    async (p = page) => {
+      setLoading(true);
+      try {
+        const res: any = await listMicroContentsPublic({
+          q: q || undefined,
+          type: type || undefined,
+          tag: tag || undefined,
+          libraryId: libraryId ? Number(libraryId) : undefined,
+          page: p,
+          limit,
+        });
 
-      setItems(res.items as MicroContentItem[]);
-      setTotal(Number(res.total || 0));
+        const nextItems = (res.items || []) as MicroContentItem[];
+        setItems(nextItems);
+        setTotal(Number(res.total || 0));
+        setTagOptions(buildTagOptions(res));
+        setLibraries(extractLibraries(nextItems));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [q, type, tag, libraryId, page, limit]
+  );
 
-      // ---- tags disponíveis (consolidadas) ----
-      const rawTags: string[] = [
-        ...((Array.isArray(res.tags) ? res.tags : []) as unknown[]),
-        ...(((res.items || []) as unknown[]).flatMap((mc: any) =>
-          Array.isArray(mc?.tags) ? mc.tags : []
-        ) as unknown[]),
-      ].filter((t): t is string => typeof t === "string");
-
-      const dedupTags: string[] = Array.from(new Set(rawTags)).sort((a, b) =>
-        a.localeCompare(b)
-      );
-      setTagOptions(dedupTags);
-
-      // ---- bibliotecas (a partir dos conteúdos) ----
-      const libs: LibraryLite[] = Array.from(
-        new Map(
-          ((res.items || []) as any[])
-            .map((mc) =>
-              mc?.library?.id
-                ? [
-                    mc.library.id,
-                    {
-                      id: Number(mc.library.id),
-                      name: String(
-                        mc.library.name || `Biblioteca #${mc.library.id}`
-                      ),
-                    },
-                  ]
-                : null
-            )
-            .filter(Boolean) as [number, LibraryLite][]
-        ).values()
-      ).sort((a, b) => a.name.localeCompare(b.name));
-      setLibraries(libs);
-    } finally {
-      setLoading(false);
-    }
-  }
-
+  // ---------------- Efeitos ----------------
   // pesquisa automática quando muda página/tipo/biblioteca
   useEffect(() => {
     load(page);
@@ -165,8 +210,15 @@ export default function FamilyContentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, tag]);
 
-  const pages = Math.max(1, Math.ceil(total / limit));
+  // total de páginas
+  const pages = useMemo(
+    () => Math.max(1, Math.ceil(total / limit)),
+    [total, limit]
+  );
 
+  /* ===================================================================================
+     UI
+     =================================================================================== */
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       <WhiteCard>
@@ -186,6 +238,7 @@ export default function FamilyContentsPage() {
                 <PsychologyRounded />
                 Conteúdos & Biblioterapia
               </Typography>
+
               <Typography
                 variant="body2"
                 sx={{
@@ -198,6 +251,7 @@ export default function FamilyContentsPage() {
                 <InfoOutlined fontSize="small" />
                 Dicas, biblioterapia e conteúdos associados a livros.
               </Typography>
+
               {!!total && (
                 <Typography
                   variant="caption"
@@ -208,6 +262,7 @@ export default function FamilyContentsPage() {
                 </Typography>
               )}
             </Box>
+
             <Tooltip title="Atualizar lista">
               <span>
                 <PrimaryButton
@@ -226,12 +281,14 @@ export default function FamilyContentsPage() {
           {/* Filtros */}
           <Stack spacing={1.5}>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+              {/* Pesquisa textual */}
               <TextField
                 size="small"
                 placeholder="Pesquisar…"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 sx={{ minWidth: 260 }}
+                aria-label="Pesquisar conteúdos"
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -254,26 +311,31 @@ export default function FamilyContentsPage() {
                 sx={{ width: 220 }}
               >
                 <MenuItem value="">
-                  <Fragment>
-                    <MoreHorizRounded
-                      fontSize="small"
-                      style={{ marginRight: 8 }}
-                    />
+                  <Box
+                    component="span"
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 1,
+                    }}
+                  >
+                    <MoreHorizRounded fontSize="small" />
                     Todos
-                  </Fragment>
+                  </Box>
                 </MenuItem>
                 {TYPES.map((t) => (
                   <MenuItem key={t} value={t}>
-                    <span
-                      style={{
+                    <Box
+                      component="span"
+                      sx={{
                         display: "inline-flex",
                         alignItems: "center",
-                        gap: 8,
+                        gap: 1,
                       }}
                     >
                       {typeIcon(t)}
                       {t}
-                    </span>
+                    </Box>
                   </MenuItem>
                 ))}
               </TextField>
@@ -291,23 +353,31 @@ export default function FamilyContentsPage() {
                 sx={{ width: 240 }}
               >
                 <MenuItem value="">
-                  <Fragment>
-                    <TagRounded fontSize="small" style={{ marginRight: 8 }} />
+                  <Box
+                    component="span"
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 1,
+                    }}
+                  >
+                    <TagRounded fontSize="small" />
                     Todas
-                  </Fragment>
+                  </Box>
                 </MenuItem>
                 {tagOptions.map((t) => (
                   <MenuItem key={t} value={t}>
-                    <span
-                      style={{
+                    <Box
+                      component="span"
+                      sx={{
                         display: "inline-flex",
                         alignItems: "center",
-                        gap: 8,
+                        gap: 1,
                       }}
                     >
                       <TagRounded fontSize="small" />
                       {t}
-                    </span>
+                    </Box>
                   </MenuItem>
                 ))}
               </TextField>
@@ -325,26 +395,31 @@ export default function FamilyContentsPage() {
                 sx={{ width: 260 }}
               >
                 <MenuItem value="">
-                  <Fragment>
-                    <LocalLibraryRounded
-                      fontSize="small"
-                      style={{ marginRight: 8 }}
-                    />
+                  <Box
+                    component="span"
+                    sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 1,
+                    }}
+                  >
+                    <LocalLibraryRounded fontSize="small" />
                     Todas
-                  </Fragment>
+                  </Box>
                 </MenuItem>
                 {libraries.map((lib) => (
                   <MenuItem key={lib.id} value={String(lib.id)}>
-                    <span
-                      style={{
+                    <Box
+                      component="span"
+                      sx={{
                         display: "inline-flex",
                         alignItems: "center",
-                        gap: 8,
+                        gap: 1,
                       }}
                     >
                       <LocalLibraryRounded fontSize="small" />
                       {lib.name}
-                    </span>
+                    </Box>
                   </MenuItem>
                 ))}
               </TextField>
@@ -367,7 +442,7 @@ export default function FamilyContentsPage() {
               </Button>
             </Stack>
 
-            {/* “Tag cloud” rápida (1 tag ativa de cada vez) */}
+            {/* Tag cloud rápida (apenas uma ativa) */}
             {tagOptions.length > 0 && (
               <>
                 <Divider sx={{ my: 0.5 }} />
@@ -410,12 +485,10 @@ export default function FamilyContentsPage() {
             </Box>
           )}
 
-          {/* Lista */}
+          {/* Lista de conteúdos */}
           <Grid container spacing={2}>
             {items.map((mc) => {
-              const seen =
-                (mc as any).seen === true ||
-                Number((mc as any).interactionsCount || 0) > 0;
+              const seen = isSeen(mc);
 
               return (
                 <Grid item key={mc.id} xs={12} md={6}>
@@ -438,7 +511,7 @@ export default function FamilyContentsPage() {
                         />
                         {mc.tags.map((t) => (
                           <Chip
-                            key={t}
+                            key={`${mc.id}-${t}`}
                             size="small"
                             icon={<TagRounded fontSize="small" />}
                             label={t}
@@ -469,7 +542,7 @@ export default function FamilyContentsPage() {
                         ) : null}
                       </Stack>
 
-                      {/* Texto */}
+                      {/* Texto principal */}
                       <Typography sx={{ whiteSpace: "pre-wrap" }}>
                         {mc.text}
                       </Typography>
@@ -540,7 +613,7 @@ export default function FamilyContentsPage() {
                         </Stack>
                       )}
 
-                      {/* Ações */}
+                      {/* Ação: marcar como visto */}
                       <Stack direction="row" spacing={1}>
                         <Tooltip
                           title={
@@ -559,16 +632,25 @@ export default function FamilyContentsPage() {
                               }
                               onClick={async () => {
                                 if (seen) return;
-                                await markMicroContentSeen(mc.id);
-                                setItems((arr) =>
-                                  arr.map((x) =>
-                                    x.id === mc.id
-                                      ? ({ ...x, seen: true } as any)
-                                      : x
-                                  )
-                                );
+                                try {
+                                  await markMicroContentSeen(mc.id);
+                                  setItems((arr) =>
+                                    arr.map((x) =>
+                                      x.id === mc.id
+                                        ? ({ ...x, seen: true } as any)
+                                        : x
+                                    )
+                                  );
+                                } catch {
+                                  // silencioso: falha de rede não deve quebrar a UI
+                                }
                               }}
                               disabled={seen}
+                              aria-label={
+                                seen
+                                  ? "Conteúdo visto"
+                                  : "Marcar conteúdo como visto"
+                              }
                             >
                               {seen ? "Visto" : "Marcar como visto"}
                             </Button>
@@ -590,6 +672,7 @@ export default function FamilyContentsPage() {
               onChange={(_, p) => setPage(p)}
               shape="rounded"
               color="primary"
+              aria-label="Paginação de conteúdos"
             />
           </Stack>
         </Stack>

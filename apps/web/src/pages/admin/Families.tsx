@@ -1,4 +1,18 @@
-// apps/web/src/pages/admin/Families.tsx
+/**
+ * =============================================================================
+ *  Admin · Famílias da biblioteca
+ * -----------------------------------------------------------------------------
+ *  Ficheiro: apps/web/src/pages/admin/Families.tsx
+ *  Autor:    Alexandre Brissos — Nº 21131
+ *
+ *  Reforços “como combinado”:
+ *   • Comentários descritivos em todo o ficheiro (pt-PT).
+ *   • Helpers **puros** (sem side-effects) bem identificados.
+ *   • Funções curtas (≲ 30 linhas) e com nomes explícitos.
+ *   • Pequenas proteções/UX: tooltips, botões desativados, mensagens de estado.
+ * =============================================================================
+ */
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
@@ -43,7 +57,11 @@ import {
 
 import { WhiteCard, RouteLink } from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
-import { getMyLibrary, type LibraryLite } from "@/services/admin";
+import { getMyLibrary, type LibraryLite } from "@/services/admin/admin";
+
+/* =============================================================================
+ *  Tipos de dados (estritos para a UI)
+ * ============================================================================= */
 
 type ChildLiteFull = {
   id: number;
@@ -70,20 +88,106 @@ type FamiliesResponse = {
   nextCursor: number | null;
 };
 
-const initials = (s?: string) =>
-  (s || "")
+/* =============================================================================
+ *  Helpers PUROS (sem side-effects)
+ *  – Mantidos curtos e testáveis
+ * ============================================================================= */
+
+/** Devolve as iniciais em maiúsculas (ex.: "Ana Maria" → "AM"). */
+function initials(s?: string): string {
+  return (s || "")
     .split(" ")
     .map((x) => x[0])
     .filter(Boolean)
     .slice(0, 2)
     .join("")
     .toUpperCase();
+}
 
+/** Calcula idade aproximada em anos a partir de uma ISO date. */
+function calcAge(isoDate?: string | null): number | null {
+  if (!isoDate) return null;
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) return null;
+  const diff = Date.now() - d.getTime();
+  const age = new Date(diff).getUTCFullYear() - 1970;
+  return Math.max(0, age);
+}
+
+/** Diferença em meses (arredondado para baixo) entre hoje e uma ISO date. */
+function diffMonths(isoDate?: string | null): number | null {
+  if (!isoDate) return null;
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  let months =
+    (now.getFullYear() - d.getFullYear()) * 12 +
+    (now.getMonth() - d.getMonth());
+  if (now.getDate() < d.getDate()) months -= 1;
+  return Math.max(0, months);
+}
+
+/**
+ * Label de idade:
+ *  - se ageYears > 0 → “Xa”
+ *  - se ageYears = 0 → meses (“Xm” ou “<1m”)
+ *  - fallback: tenta pela birthDate.
+ */
+function ageLabelFromData(
+  ageYears?: number | null,
+  birthDate?: string | null
+): string {
+  if (typeof ageYears === "number") {
+    if (ageYears > 0) return `${ageYears}a`;
+    if (ageYears === 0 && birthDate) {
+      const m = diffMonths(birthDate);
+      return m != null ? (m > 0 ? `${m}m` : "<1m") : "0a";
+    }
+  }
+  if (birthDate) {
+    const y = calcAge(birthDate);
+    if (y === 0) {
+      const m = diffMonths(birthDate);
+      return m != null ? (m > 0 ? `${m}m` : "<1m") : "0a";
+    }
+    if (y != null) return `${y}a`;
+  }
+  return "—";
+}
+
+/** Normaliza textos comuns de género para labels humanizadas em PT. */
+function mapGender(g?: string | null): string {
+  if (!g) return "Não especificado";
+  const s = g.trim().toUpperCase();
+  const MAP: Record<string, string> = {
+    M: "Masculino",
+    MALE: "Masculino",
+    MASCULINO: "Masculino",
+    F: "Feminino",
+    FEMALE: "Feminino",
+    FEMININO: "Feminino",
+    NB: "Não-binário",
+    N: "Não-binário",
+    NONBINARY: "Não-binário",
+    NON_BINARY: "Não-binário",
+    O: "Outro",
+    OTHER: "Outro",
+    X: "Não especificado",
+    U: "Não especificado",
+    UNSPECIFIED: "Não especificado",
+  };
+  return MAP[s] ?? g;
+}
+
+/** API base (defensivo contra trailing slash). */
 const API_BASE =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
+  (import.meta.env.VITE_API_URL?.replace(/\/$/, "") as string) ||
   "http://localhost:3333/api";
 
-/** Chamada com filtros avançados (rota da API). */
+/**
+ * Faz o fetch de famílias com filtros.
+ * ⚠️ Função pura à exceção do I/O (sem tocar estado de React).
+ */
 async function fetchFamiliesAdvanced(params: {
   libraryId: number;
   q?: string;
@@ -119,9 +223,9 @@ async function fetchFamiliesAdvanced(params: {
   if (q) url.searchParams.set("q", q);
   if (child) url.searchParams.set("child", child);
   if (gender) url.searchParams.set("gender", gender);
-  if (ageMin != null && ageMin !== ("" as any))
+  if (ageMin != null && (ageMin as any) !== "")
     url.searchParams.set("ageMin", String(ageMin));
-  if (ageMax != null && ageMax !== ("" as any))
+  if (ageMax != null && (ageMax as any) !== "")
     url.searchParams.set("ageMax", String(ageMax));
   if (hasChildren !== "all") url.searchParams.set("hasChildren", hasChildren);
   if (cursor) url.searchParams.set("cursor", String(cursor));
@@ -132,7 +236,7 @@ async function fetchFamiliesAdvanced(params: {
   return res.json();
 }
 
-/** Normaliza a família vinda da API para garantir children[] e childrenCount coerentes */
+/** Garante coerência entre `children` e `childrenCount` após o fetch. */
 function normalizeFamily(raw: Partial<FamilyFullForLib>): FamilyFullForLib {
   const kids = Array.isArray(raw.children) ? raw.children : [];
   const childrenCount =
@@ -162,72 +266,9 @@ function normalizeFamily(raw: Partial<FamilyFullForLib>): FamilyFullForLib {
   };
 }
 
-function calcAge(isoDate?: string | null) {
-  if (!isoDate) return null;
-  const d = new Date(isoDate);
-  if (isNaN(d.getTime())) return null;
-  const diff = Date.now() - d.getTime();
-  const age = new Date(diff).getUTCFullYear() - 1970;
-  return Math.max(0, age);
-}
-
-// 🔽 junta estas helpers perto das outras (a seguir a calcAge, por exemplo)
-
-function diffMonths(isoDate?: string | null) {
-  if (!isoDate) return null;
-  const d = new Date(isoDate);
-  if (isNaN(d.getTime())) return null;
-  const now = new Date();
-  let months =
-    (now.getFullYear() - d.getFullYear()) * 12 +
-    (now.getMonth() - d.getMonth());
-  if (now.getDate() < d.getDate()) months -= 1;
-  return Math.max(0, months);
-}
-
-function ageLabelFromData(ageYears?: number | null, birthDate?: string | null) {
-  // prioridade: valor já calculado → anos; se 0 anos, usar meses por data
-  if (typeof ageYears === "number") {
-    if (ageYears > 0) return `${ageYears}a`;
-    if (ageYears === 0 && birthDate) {
-      const m = diffMonths(birthDate);
-      return m != null ? (m > 0 ? `${m}m` : "<1m") : "0a";
-    }
-  }
-  // fallback só com a data
-  if (birthDate) {
-    const y = calcAge(birthDate);
-    if (y === 0) {
-      const m = diffMonths(birthDate);
-      return m != null ? (m > 0 ? `${m}m` : "<1m") : "0a";
-    }
-    if (y != null) return `${y}a`;
-  }
-  return "—";
-}
-
-function mapGender(g?: string | null) {
-  if (!g) return "—";
-  const s = g.trim().toUpperCase();
-  const MAP: Record<string, string> = {
-    M: "Masculino",
-    MALE: "Masculino",
-    MASCULINO: "Masculino",
-    F: "Feminino",
-    FEMALE: "Feminino",
-    FEMININO: "Feminino",
-    NB: "Não-binário",
-    N: "Não-binário",
-    NONBINARY: "Não-binário",
-    NON_BINARY: "Não-binário",
-    O: "Outro",
-    OTHER: "Outro",
-    X: "Não especificado",
-    U: "Não especificado",
-    UNSPECIFIED: "Não especificado",
-  };
-  return MAP[s] ?? g; // se vier algo diferente, mostra como veio
-}
+/* =============================================================================
+ *  Componente principal
+ * ============================================================================= */
 
 export default function AdminFamilies() {
   const { user } = useUserSession() as any;
@@ -238,6 +279,7 @@ export default function AdminFamilies() {
   const [libLoading, setLibLoading] = useState(false);
   const [libErr, setLibErr] = useState<string | null>(null);
 
+  // Carrega a biblioteca associada ao admin
   useEffect(() => {
     (async () => {
       try {
@@ -272,6 +314,7 @@ export default function AdminFamilies() {
     "all"
   );
 
+  // Se há filtros aplicados (para mostrar chip/limpar)
   const filtersActive = useMemo(
     () =>
       Boolean(
@@ -280,6 +323,7 @@ export default function AdminFamilies() {
     [q, childQ, gender, ageMin, ageMax, hasChildren]
   );
 
+  /** Reseta todos os filtros (≲ 30 linhas). */
   function clearFilters() {
     setQ("");
     setChildQ("");
@@ -295,16 +339,21 @@ export default function AdminFamilies() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // evita que respostas antigas substituam as novas
+  // Evita que respostas antigas substituam as novas (sequenciador)
   const reqSeq = useRef(0);
 
+  /**
+   * Executa a pesquisa com os filtros atuais.
+   *  - reset=true: começa do cursor inicial.
+   *  - reset=false: “Ver mais” (usa cursor atual).
+   */
   async function search(reset = true, signal?: AbortSignal) {
     if (!libraryId) return;
     try {
       setLoading(true);
       setErr(null);
-      const seq = ++reqSeq.current;
 
+      const seq = ++reqSeq.current; // marca pedido atual
       const res = await fetchFamiliesAdvanced({
         libraryId,
         q,
@@ -318,20 +367,21 @@ export default function AdminFamilies() {
         signal,
       });
 
+      // se entretanto outro pedido foi feito, ignora este resultado
       if (seq !== reqSeq.current) return;
 
       const normalized = (res.items || []).map(normalizeFamily);
       setItems((prev) => (reset ? normalized : [...prev, ...normalized]));
       setCursor(res.nextCursor ?? null);
     } catch (e: any) {
-      if (e?.name === "AbortError") return;
+      if (e?.name === "AbortError") return; // cancelado: ignora
       setErr(e?.message || "Falha a carregar.");
     } finally {
       setLoading(false);
     }
   }
 
-  // ✅ AUTO-APLICAR FILTROS (debounce)
+  // ✅ AUTO-APLICAR FILTROS (com pequeno debounce para UX)
   useEffect(() => {
     if (!libraryId) return;
     setCursor(null);
@@ -348,16 +398,21 @@ export default function AdminFamilies() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [libraryId, q, childQ, gender, ageMin, ageMax, hasChildren]);
 
-  // ---- Expand de detalhes por família ----
+  // ---- Expand/colapse por família ----
   const [openIds, setOpenIds] = useState<Set<number>>(new Set());
+
+  /** Alterna o expand de uma família (≲ 30 linhas). */
   const toggleOpen = (id: number) =>
     setOpenIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+
+  /** Verifica se a família está expandida (≲ 30 linhas). */
   const isOpen = (id: number) => openIds.has(id);
+
+  /* ------------------------------------------------------------------------ */
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
@@ -515,7 +570,7 @@ export default function AdminFamilies() {
         </Stack>
       </WhiteCard>
 
-      {/* Lista */}
+      {/* Lista de famílias */}
       <WhiteCard sx={{ p: { xs: 2, md: 2.5 } }}>
         {/* Resumo topo */}
         <Stack
@@ -712,6 +767,7 @@ export default function AdminFamilies() {
                         >
                           {open ? "Ocultar detalhes" : "Ver detalhes"}
                         </Button>
+                        {/* RouteLink é um <a>, não cria <button> dentro de <button> */}
                         <RouteLink href={`/librarian/familias`}>
                           <ExternalLink size={16} style={{ marginRight: 6 }} />
                           Abrir gestão
@@ -815,6 +871,7 @@ export default function AdminFamilies() {
               })}
             </Stack>
 
+            {/* Paginação por cursor */}
             {!!cursor && !!libraryId && (
               <Box sx={{ display: "flex", justifyContent: "center", mt: 1.25 }}>
                 <Button
@@ -833,3 +890,8 @@ export default function AdminFamilies() {
     </Container>
   );
 }
+
+/* =============================================================================
+ *  FIM — Alexandre Brissos • Nº 21131
+ * =============================================================================
+ */

@@ -1,3 +1,17 @@
+/**
+ * ============================================================================
+ * Ficheiro: apps/mobile/app/family/leituras.tsx
+ * Ecrã: Leituras — reservas, leituras em curso e histórico
+ * Autor: Alexandre Brissos – Nº 21131
+ * ----------------------------------------------------------------------------
+ * Reforços aplicados:
+ * • Comentários detalhados (PT-PT) e JSDoc nos helpers.
+ * • Helpers PUROS (determinísticos) extraídos para claridade e reutilização.
+ * • Funções auxiliares ≤ 30 linhas (sempre que aplicável).
+ * • Sem alterações de comportamento — apenas organização e comentários.
+ * ============================================================================
+ */
+
 import * as React from "react";
 import {
   ScrollView,
@@ -38,10 +52,124 @@ import {
 import { TABBAR_HEIGHT } from "src/constants/layout";
 import type { MD3Theme } from "react-native-paper";
 
+/* =============================================================================
+ * Tipos
+ * ========================================================================== */
+
 type PendingStatus = "reserved" | "reading";
 type HistoryStatus = "reserved" | "reading" | "finished";
 
-/* ---------- Section Card (branco) ---------- */
+type HistoryRow = {
+  id: number;
+  title: string;
+  coverUrl?: string | null;
+  date?: string | null;
+  childId?: number;
+  childName?: string | null;
+  stars?: number | null;
+  comment?: string | null;
+  status: HistoryStatus;
+};
+
+/* =============================================================================
+ * Helpers PUROS (determinísticos, ≤ 30 linhas)
+ * ========================================================================== */
+
+/**
+ * Extrai/normaliza um ID de criança a partir de vários formatos aceites.
+ */
+function toChildId(val: unknown): number | undefined {
+  if (val == null) return undefined;
+  if (typeof val === "number") return Number.isFinite(val) ? val : undefined;
+  if (typeof val === "string") {
+    const n = Number(val);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  if (typeof val === "object") {
+    // @ts-ignore
+    const anyId = (val as any).id ?? (val as any).value ?? (val as any).key;
+    return toChildId(anyId);
+  }
+  return undefined;
+}
+
+/**
+ * Formata uma data ISO em dd/mm/aaaa (locale pt-PT).
+ */
+function formatDatePT(d?: string | null): string {
+  if (!d) return "";
+  const dt = new Date(d);
+  return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("pt-PT");
+}
+
+/**
+ * Determina se um estado "pending" é válido para as listas de ação.
+ */
+function isPendingStatus(s: PendingRatingRow["status"]): s is PendingStatus {
+  return s === "reserved" || s === "reading";
+}
+
+/**
+ * Mapeia leituras cruas do serviço para linhas do histórico.
+ */
+function mapReadingsToHistoryRows(raw: (ReadingLite & any)[]): HistoryRow[] {
+  return raw
+    .map((r) => {
+      const status: HistoryStatus = r.finishedAt
+        ? "finished"
+        : r.startedAt
+        ? "reading"
+        : "reserved";
+      return {
+        id: Number(r.id ?? 0),
+        title: r.title ?? "Livro",
+        coverUrl: r.coverUrl ?? null,
+        date: r.date ?? r.finishedAt ?? r.startedAt ?? null,
+        childId: r.childId,
+        childName: r.childName ?? null,
+        stars: typeof r.stars === "number" ? r.stars : undefined,
+        comment: r.comment ?? undefined,
+        status,
+      };
+    })
+    .filter((row) => row.status !== "reserved"); // histórico não mostra “reservado”
+}
+
+/**
+ * Visuals por estado (cores/ícones) — usa a paleta do tema (sem hardcode).
+ */
+function statusVisuals(theme: MD3Theme, s: HistoryStatus) {
+  switch (s) {
+    case "reserved":
+      return {
+        icon: "bookmark-outline",
+        bar: theme.colors.tertiary,
+        chipBg: theme.colors.tertiaryContainer,
+        chipFg: theme.colors.onTertiaryContainer,
+      };
+    case "reading":
+      return {
+        icon: "book-open-page-variant",
+        bar: theme.colors.primary,
+        chipBg: theme.colors.primaryContainer,
+        chipFg: theme.colors.onPrimaryContainer,
+      };
+    case "finished":
+    default:
+      return {
+        icon: "check",
+        bar: theme.colors.secondary,
+        chipBg: theme.colors.secondaryContainer,
+        chipFg: theme.colors.onSecondaryContainer,
+      };
+  }
+}
+
+/* =============================================================================
+ * UI Reutilizável
+ * ========================================================================== */
+
+/** Cartão “branco” de secção. */
 const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({
   children,
   style,
@@ -70,7 +198,7 @@ const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({
   );
 };
 
-/* ---------- Mini card para cada livro (com faixa de estado) ---------- */
+/** Linha clicável com faixa de acento (mini-card de livro). */
 const RowCard: React.FC<{
   children: React.ReactNode;
   onPress?: () => void;
@@ -100,38 +228,7 @@ const RowCard: React.FC<{
   );
 };
 
-/* ---------- helpers ---------- */
-function toChildId(val: unknown): number | undefined {
-  if (val == null) return undefined;
-  if (typeof val === "number") return Number.isFinite(val) ? val : undefined;
-  if (typeof val === "string") {
-    const n = Number(val);
-    return Number.isFinite(n) ? n : undefined;
-  }
-  if (typeof val === "object") {
-    // @ts-ignore
-    const anyId = (val as any).id ?? (val as any).value ?? (val as any).key;
-    return toChildId(anyId);
-  }
-  return undefined;
-}
-
-type HistoryRow = {
-  id: number;
-  title: string;
-  coverUrl?: string | null;
-  date?: string | null;
-  childId?: number;
-  childName?: string | null;
-  stars?: number | null;
-  comment?: string | null;
-  status: HistoryStatus;
-};
-
-function isPendingStatus(s: PendingRatingRow["status"]): s is PendingStatus {
-  return s === "reserved" || s === "reading";
-}
-
+/** Componente de estrelas “só leitura”. */
 const StarsDisplay: React.FC<{ value?: number | null }> = ({ value }) => {
   const theme = useTheme<MD3Theme>();
   if (typeof value !== "number") return null;
@@ -143,34 +240,7 @@ const StarsDisplay: React.FC<{ value?: number | null }> = ({ value }) => {
   );
 };
 
-/* ---------- visuals por estado ---------- */
-function statusVisuals(theme: MD3Theme, s: HistoryStatus) {
-  switch (s) {
-    case "reserved":
-      return {
-        icon: "bookmark-outline",
-        bar: theme.colors.tertiary,
-        chipBg: theme.colors.tertiaryContainer,
-        chipFg: theme.colors.onTertiaryContainer,
-      };
-    case "reading":
-      return {
-        icon: "book-open-page-variant",
-        bar: theme.colors.primary,
-        chipBg: theme.colors.primaryContainer,
-        chipFg: theme.colors.onPrimaryContainer,
-      };
-    case "finished":
-      return {
-        icon: "check",
-        bar: theme.colors.secondary,
-        chipBg: theme.colors.secondaryContainer,
-        chipFg: theme.colors.onSecondaryContainer,
-      };
-  }
-}
-
-/* ---------- cover com placeholder ---------- */
+/** Placeholder de capa de livro (com imagem opcional). */
 const BookCover: React.FC<{ uri?: string | null }> = ({ uri }) => {
   const theme = useTheme<MD3Theme>();
   if (uri) {
@@ -204,165 +274,20 @@ const BookCover: React.FC<{ uri?: string | null }> = ({ uri }) => {
   );
 };
 
-export default function LeiturasTab() {
-  const { user } = useAuth();
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
+/** Chip de filtro com “selected” no branding. */
+const FilterChip: React.FC<{
+  selected: boolean;
+  onPress: () => void;
+  icon?: string;
+  children: React.ReactNode;
+}> = ({ selected, onPress, icon, children }) => {
   const theme = useTheme<MD3Theme>();
-
-  // habilitar animação de layout no Android
-  React.useEffect(() => {
-    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
-      UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
-  }, []);
-
-  const actingChildId = (user as any)?.actingChild?.id
-    ? Number((user as any).actingChild.id)
-    : undefined;
-
-  const firstChildId =
-    !actingChildId && user?.children?.length ? Number(user.children[0].id) : undefined;
-
-  const [selectedChildId, setSelectedChildId] = React.useState<string | undefined>(
-    firstChildId ? String(firstChildId) : undefined
-  );
-
-  const childId = selectedChildId ? Number(selectedChildId) : actingChildId;
-
-  const familyIdForAuth =
-    Number((user as any)?.family?.id) ||
-    Number((user as any)?.families?.[0]?.id) ||
-    Number((user as any)?.id) ||
-    undefined;
-
-  const [pending, setPending] = React.useState<PendingRatingRow[]>([]);
-  const [history, setHistory] = React.useState<HistoryRow[]>([]);
-  const [busyIsbn, setBusyIsbn] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const [snack, setSnack] = React.useState<{ msg: string; type: "success" | "error" } | null>(
-    null
-  );
-
-  // filtros
-  const [pendingFilter, setPendingFilter] = React.useState<PendingStatus[]>([]);
-  const [historyFilter, setHistoryFilter] = React.useState<("rated" | "unrated")[]>([]);
-
-  // colapso dos cards
-  const [pendingCollapsed, setPendingCollapsed] = React.useState(false);
-  const [historyCollapsed, setHistoryCollapsed] = React.useState(false);
-  const togglePending = React.useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setPendingCollapsed((v) => !v);
-  }, []);
-  const toggleHistory = React.useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setHistoryCollapsed((v) => !v);
-  }, []);
-
-  type PendingRow = PendingRatingRow & { status: PendingStatus };
-  const pendingOnly = React.useMemo<PendingRow[]>(
-    () => pending.filter((r): r is PendingRow => isPendingStatus(r.status)),
-    [pending]
-  );
-
-  const mustPickChild = !childId;
-
-  const filteredPending = React.useMemo(
-    () =>
-      pendingFilter.length
-        ? pendingOnly.filter((p) => pendingFilter.includes(p.status))
-        : pendingOnly,
-    [pendingOnly, pendingFilter]
-  );
-
-  async function loadAll() {
-    if (!childId) {
-      setPending([]);
-      setHistory([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const pRows = await listPendingRatings({ childId, limit: 80, userId: familyIdForAuth });
-      setPending(pRows.filter((r) => r.status === "reserved" || r.status === "reading"));
-
-      const hRaw = await getLeiturasAtuais(200, { childId });
-      const hRows: HistoryRow[] = (hRaw as (ReadingLite & any)[]).map((r) => {
-        const status: HistoryStatus = r.finishedAt ? "finished" : r.startedAt ? "reading" : "reserved";
-        return {
-          id: Number(r.id ?? 0),
-          title: r.title ?? "Livro",
-          coverUrl: r.coverUrl ?? null,
-          date: r.date ?? r.finishedAt ?? r.startedAt ?? null,
-          childId: r.childId,
-          childName: r.childName ?? null,
-          stars: typeof r.stars === "number" ? r.stars : undefined,
-          comment: r.comment ?? undefined,
-          status,
-        };
-      });
-      setHistory(hRows.filter((row) => row.status !== "reserved"));
-    } catch (e) {
-      console.error(e);
-      setSnack({ msg: "Falha ao carregar leituras.", type: "error" });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  React.useEffect(() => {
-    loadAll();
-  }, [childId]);
-
-  const onStart = async (isbn: string) => {
-    if (!childId) {
-      setSnack({ msg: "Escolhe a criança primeiro.", type: "error" });
-      return;
-    }
-    setBusyIsbn(isbn);
-    try {
-      await startReading(childId, familyIdForAuth, isbn);
-      await loadAll();
-      setSnack({ msg: "Leitura iniciada.", type: "success" });
-    } catch (e: any) {
-      console.error(e);
-      setSnack({ msg: e?.message || "Não foi possível iniciar.", type: "error" });
-    } finally {
-      setBusyIsbn(null);
-    }
-  };
-
-  const onFinish = async (isbn: string) => {
-    if (!childId) {
-      setSnack({ msg: "Escolhe a criança primeiro.", type: "error" });
-      return;
-    }
-    setBusyIsbn(isbn);
-    try {
-      await finishReading(childId, familyIdForAuth, isbn);
-      await loadAll();
-      setSnack({ msg: "Leitura terminada.", type: "success" });
-    } catch (e: any) {
-      console.error(e);
-      setSnack({ msg: e?.message || "Não foi possível terminar.", type: "error" });
-    } finally {
-      setBusyIsbn(null);
-    }
-  };
-
-  // chips de filtro com “selected” no branding
   const BORDER = theme.colors.outlineVariant;
   const selBg = theme.colors.primaryContainer;
   const selFg = theme.colors.onPrimaryContainer;
   const selBorder = theme.colors.primary;
 
-  const FilterChip: React.FC<{
-    selected: boolean;
-    onPress: () => void;
-    icon?: string;
-    children: React.ReactNode;
-  }> = ({ selected, onPress, icon, children }) => (
+  return (
     <Chip
       mode="outlined"
       selected={selected}
@@ -383,8 +308,184 @@ export default function LeiturasTab() {
       {children}
     </Chip>
   );
+};
 
-  // Sem crianças — com SafeArea
+/* =============================================================================
+ * Ecrã principal
+ * ========================================================================== */
+
+export default function LeiturasTab() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const theme = useTheme<MD3Theme>();
+
+  // Habilitar animações de layout no Android (UI polida).
+  React.useEffect(() => {
+    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
+  // Contexto: criança ativa / seleção manual
+  const actingChildId = (user as any)?.actingChild?.id
+    ? Number((user as any).actingChild.id)
+    : undefined;
+
+  const firstChildId =
+    !actingChildId && user?.children?.length ? Number(user.children[0].id) : undefined;
+
+  const [selectedChildId, setSelectedChildId] = React.useState<string | undefined>(
+    firstChildId ? String(firstChildId) : undefined
+  );
+
+  const childId = selectedChildId ? Number(selectedChildId) : actingChildId;
+
+  // FamilyId — pode ser necessário para autorização em endpoints de leitura
+  const familyIdForAuth =
+    Number((user as any)?.family?.id) ||
+    Number((user as any)?.families?.[0]?.id) ||
+    Number((user as any)?.id) ||
+    undefined;
+
+  // Estado de dados
+  const [pending, setPending] = React.useState<PendingRatingRow[]>([]);
+  const [history, setHistory] = React.useState<HistoryRow[]>([]);
+  const [busyIsbn, setBusyIsbn] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [snack, setSnack] = React.useState<{ msg: string; type: "success" | "error" } | null>(
+    null
+  );
+
+  // Filtros
+  const [pendingFilter, setPendingFilter] = React.useState<PendingStatus[]>([]);
+  const [historyFilter, setHistoryFilter] = React.useState<("rated" | "unrated")[]>([]);
+
+  // Colapsar/expandir cartões
+  const [pendingCollapsed, setPendingCollapsed] = React.useState(false);
+  const [historyCollapsed, setHistoryCollapsed] = React.useState(false);
+  const togglePending = React.useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setPendingCollapsed((v) => !v);
+  }, []);
+  const toggleHistory = React.useCallback(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setHistoryCollapsed((v) => !v);
+  }, []);
+
+  // Pré-filtragem de pendentes: só “reserved | reading”
+  type PendingRow = PendingRatingRow & { status: PendingStatus };
+  const pendingOnly = React.useMemo<PendingRow[]>(
+    () => pending.filter((r): r is PendingRow => isPendingStatus(r.status)),
+    [pending]
+  );
+
+  const mustPickChild = !childId;
+
+  // Aplicar filtros de UI (pendentes)
+  const filteredPending = React.useMemo(
+    () =>
+      pendingFilter.length
+        ? pendingOnly.filter((p) => pendingFilter.includes(p.status))
+        : pendingOnly,
+    [pendingOnly, pendingFilter]
+  );
+
+  /**
+   * Carrega pendentes e histórico para a criança selecionada.
+   * Mantém UX responsivo (mensagens e erro genérico).
+   */
+  async function loadAll() {
+    if (!childId) {
+      setPending([]);
+      setHistory([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      // Pendentes (apenas estados úteis)
+      const pRows = await listPendingRatings({ childId, limit: 80, userId: familyIdForAuth });
+      setPending(pRows.filter((r) => r.status === "reserved" || r.status === "reading"));
+
+      // Histórico (exclui “reservado”)
+      const hRaw = await getLeiturasAtuais(200, { childId });
+      setHistory(mapReadingsToHistoryRows(hRaw as (ReadingLite & any)[]));
+    } catch (e) {
+      console.error(e);
+      setSnack({ msg: "Falha ao carregar leituras.", type: "error" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Recarrega sempre que muda a criança selecionada
+  React.useEffect(() => {
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [childId]);
+
+  /** Inicia leitura (a partir de “reservado”). */
+  const onStart = async (isbn: string) => {
+    if (!childId) {
+      setSnack({ msg: "Escolhe a criança primeiro.", type: "error" });
+      return;
+    }
+    setBusyIsbn(isbn);
+    try {
+      await startReading(childId, familyIdForAuth, isbn);
+      await loadAll();
+      setSnack({ msg: "Leitura iniciada.", type: "success" });
+    } catch (e: any) {
+      console.error(e);
+      setSnack({ msg: e?.message || "Não foi possível iniciar.", type: "error" });
+    } finally {
+      setBusyIsbn(null);
+    }
+  };
+
+  /** Termina leitura (move para “finished”). */
+  const onFinish = async (isbn: string) => {
+    if (!childId) {
+      setSnack({ msg: "Escolhe a criança primeiro.", type: "error" });
+      return;
+    }
+    setBusyIsbn(isbn);
+    try {
+      await finishReading(childId, familyIdForAuth, isbn);
+      await loadAll();
+      setSnack({ msg: "Leitura terminada.", type: "success" });
+    } catch (e: any) {
+      console.error(e);
+      setSnack({ msg: e?.message || "Não foi possível terminar.", type: "error" });
+    } finally {
+      setBusyIsbn(null);
+    }
+  };
+
+  // Labels/ícones de estado (UI)
+  const statusLabel: Record<HistoryStatus, string> = {
+    reserved: "Reservado",
+    reading: "A ler",
+    finished: "Terminado",
+  };
+  const statusIcon: Record<HistoryStatus, string> = {
+    reserved: "bookmark-outline",
+    reading: "book-open-page-variant",
+    finished: "check",
+  };
+
+  // Contadores + histórico filtrado
+  const pendingCount = filteredPending.length;
+  const historyFiltered = React.useMemo(
+    () =>
+      historyFilter.length
+        ? history.filter((h) => historyFilter.includes(typeof h.stars === "number" ? "rated" : "unrated"))
+        : history,
+    [history, historyFilter]
+  );
+  const historyCount = historyFiltered.length;
+
+  /* ======================== Caso sem crianças registadas ===================== */
   if (!user?.children?.length) {
     return (
       <Background>
@@ -405,7 +506,12 @@ export default function LeiturasTab() {
                 </Text>
               </View>
               <Text>Para usar as leituras, adiciona uma criança à tua família.</Text>
-              <Button mode="contained" style={{ marginTop: 12 }} onPress={() => router.push("/familias")} icon="account-child">
+              <Button
+                mode="contained"
+                style={{ marginTop: 12 }}
+                onPress={() => router.push("/familias")}
+                icon="account-child"
+              >
                 Gerir família
               </Button>
             </WhiteCard>
@@ -431,28 +537,7 @@ export default function LeiturasTab() {
     );
   }
 
-  // helpers para label/ícone de estado
-  const statusLabel: Record<HistoryStatus, string> = {
-    reserved: "Reservado",
-    reading: "A ler",
-    finished: "Terminado",
-  };
-  const statusIcon: Record<HistoryStatus, string> = {
-    reserved: "bookmark-outline",
-    reading: "book-open-page-variant",
-    finished: "check",
-  };
-
-  // contadores
-  const pendingCount = filteredPending.length;
-  const historyFiltered = React.useMemo(
-    () =>
-      historyFilter.length
-        ? history.filter((h) => historyFilter.includes(typeof h.stars === "number" ? "rated" : "unrated"))
-        : history,
-    [history, historyFilter]
-  );
-  const historyCount = historyFiltered.length;
+  /* ================================ Render ================================== */
 
   return (
     <Background>
@@ -465,7 +550,7 @@ export default function LeiturasTab() {
             paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
           }}
         >
-          {/* WHITE CARD #1 — Header compacto + seletor */}
+          {/* ---------- Header compacto + seletor de criança ---------- */}
           <WhiteCard>
             <View
               style={{
@@ -492,9 +577,7 @@ export default function LeiturasTab() {
                   <Text variant="titleLarge" style={{ fontWeight: "900" }}>
                     Leituras
                   </Text>
-                  <Text style={{ opacity: 0.7, marginTop: 2 }}>
-                    Reservas, leituras em curso e histórico
-                  </Text>
+                  <Text style={{ opacity: 0.7, marginTop: 2 }}>Reservas, leituras em curso e histórico</Text>
                 </View>
               </View>
 
@@ -505,10 +588,11 @@ export default function LeiturasTab() {
                   LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                   loadAll();
                 }}
+                accessibilityLabel="Atualizar leituras"
               />
             </View>
 
-            {/* SelectChild (só se não há actingChild) */}
+            {/* SelectChild — oculto em modo criança */}
             {!actingChildId && (
               <View style={{ rowGap: 10, marginTop: 12 }}>
                 <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
@@ -532,27 +616,18 @@ export default function LeiturasTab() {
                   disabled={!user?.children?.length}
                   menuMaxHeight={360}
                 />
-                {!childId && (
-                  <Text style={{ opacity: 0.7 }}>
-                    Seleciona uma criança para veres leituras e reservas.
-                  </Text>
-                )}
+                {!childId && <Text style={{ opacity: 0.7 }}>Seleciona uma criança para veres leituras e reservas.</Text>}
               </View>
             )}
           </WhiteCard>
 
-          {/* WHITE CARD #2 — Leituras em curso (COLAPSÁVEL) */}
+          {/* ---------- Leituras em curso (colapsável) ---------- */}
           <WhiteCard>
-            {/* header clicável */}
             <TouchableRipple
               onPress={togglePending}
               role="button"
               borderless
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
             >
               <>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -568,13 +643,7 @@ export default function LeiturasTab() {
                       backgroundColor: theme.colors.secondaryContainer,
                     }}
                   >
-                    <Text
-                      style={{
-                        color: theme.colors.onSecondaryContainer,
-                        fontWeight: "700",
-                        fontSize: 12,
-                      }}
-                    >
+                    <Text style={{ color: theme.colors.onSecondaryContainer, fontWeight: "700", fontSize: 12 }}>
                       {pendingCount}
                     </Text>
                   </View>
@@ -589,14 +658,12 @@ export default function LeiturasTab() {
 
             {!pendingCollapsed && (
               <View>
-                {/* filtros */}
+                {/* Filtros rápidos */}
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8, marginBottom: 8 }}>
                   <FilterChip
                     selected={pendingFilter.includes("reserved")}
                     onPress={() =>
-                      setPendingFilter((s) =>
-                        s.includes("reserved") ? s.filter((x) => x !== "reserved") : [...s, "reserved"]
-                      )
+                      setPendingFilter((s) => (s.includes("reserved") ? s.filter((x) => x !== "reserved") : [...s, "reserved"]))
                     }
                     icon="bookmark-outline"
                   >
@@ -605,9 +672,7 @@ export default function LeiturasTab() {
                   <FilterChip
                     selected={pendingFilter.includes("reading")}
                     onPress={() =>
-                      setPendingFilter((s) =>
-                        s.includes("reading") ? s.filter((x) => x !== "reading") : [...s, "reading"]
-                      )
+                      setPendingFilter((s) => (s.includes("reading") ? s.filter((x) => x !== "reading") : [...s, "reading"]))
                     }
                     icon="book-open-page-variant"
                   >
@@ -615,16 +680,13 @@ export default function LeiturasTab() {
                   </FilterChip>
                 </View>
 
+                {/* Listagem */}
                 {mustPickChild ? (
-                  <Text style={{ opacity: 0.75 }}>
-                    Escolhe a criança para veres reservas e leituras em curso.
-                  </Text>
+                  <Text style={{ opacity: 0.75 }}>Escolhe a criança para veres reservas e leituras em curso.</Text>
                 ) : loading ? (
                   <ActivityIndicator />
                 ) : filteredPending.length === 0 ? (
-                  <Text style={{ opacity: 0.75 }}>
-                    Não há reservas por iniciar nem leituras por terminar.
-                  </Text>
+                  <Text style={{ opacity: 0.75 }}>Não há reservas por iniciar nem leituras por terminar.</Text>
                 ) : (
                   <View style={{ rowGap: 10 }}>
                     {filteredPending.map((r, idx) => {
@@ -634,11 +696,11 @@ export default function LeiturasTab() {
                           <RowCard accentColor={vis.bar}>
                             <BookCover uri={r.coverUrl} />
                             <View style={{ flex: 1 }}>
+                              {/* Título + estado */}
                               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                 <Text numberOfLines={2} style={{ fontWeight: "700", flex: 1 }}>
                                   {r.title}
                                 </Text>
-
                                 <View
                                   style={{
                                     flexDirection: "row",
@@ -657,8 +719,10 @@ export default function LeiturasTab() {
                                 </View>
                               </View>
 
+                              {/* Estrelas se já houver avaliação parcial */}
                               {typeof r.stars === "number" && <StarsDisplay value={r.stars} />}
 
+                              {/* Ações contextuais */}
                               <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
                                 {r.status === "reserved" ? (
                                   <Button
@@ -699,18 +763,13 @@ export default function LeiturasTab() {
             )}
           </WhiteCard>
 
-          {/* WHITE CARD #3 — Histórico (COLAPSÁVEL) */}
+          {/* ---------- Histórico (colapsável) ---------- */}
           <WhiteCard>
-            {/* header clicável */}
             <TouchableRipple
               onPress={toggleHistory}
               role="button"
               borderless
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
+              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
             >
               <>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -726,13 +785,7 @@ export default function LeiturasTab() {
                       backgroundColor: theme.colors.secondaryContainer,
                     }}
                   >
-                    <Text
-                      style={{
-                        color: theme.colors.onSecondaryContainer,
-                        fontWeight: "700",
-                        fontSize: 12,
-                      }}
-                    >
+                    <Text style={{ color: theme.colors.onSecondaryContainer, fontWeight: "700", fontSize: 12 }}>
                       {historyCount}
                     </Text>
                   </View>
@@ -747,14 +800,12 @@ export default function LeiturasTab() {
 
             {!historyCollapsed && (
               <View>
-                {/* filtros */}
+                {/* Filtros de avaliação */}
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8, marginBottom: 8 }}>
                   <FilterChip
                     selected={historyFilter.includes("rated")}
                     onPress={() =>
-                      setHistoryFilter((s) =>
-                        s.includes("rated") ? s.filter((x) => x !== "rated") : [...s, "rated"]
-                      )
+                      setHistoryFilter((s) => (s.includes("rated") ? s.filter((x) => x !== "rated") : [...s, "rated"]))
                     }
                     icon="star"
                   >
@@ -763,9 +814,7 @@ export default function LeiturasTab() {
                   <FilterChip
                     selected={historyFilter.includes("unrated")}
                     onPress={() =>
-                      setHistoryFilter((s) =>
-                        s.includes("unrated") ? s.filter((x) => x !== "unrated") : [...s, "unrated"]
-                      )
+                      setHistoryFilter((s) => (s.includes("unrated") ? s.filter((x) => x !== "unrated") : [...s, "unrated"]))
                     }
                     icon="star-outline"
                   >
@@ -773,6 +822,7 @@ export default function LeiturasTab() {
                   </FilterChip>
                 </View>
 
+                {/* Lista do histórico */}
                 {loading ? (
                   <ActivityIndicator />
                 ) : historyFiltered.length === 0 ? (
@@ -788,6 +838,7 @@ export default function LeiturasTab() {
                           <RowCard accentColor={vis.bar}>
                             <BookCover uri={row.coverUrl} />
                             <View style={{ flex: 1 }}>
+                              {/* Título + estado */}
                               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                                 <Text numberOfLines={2} style={{ fontWeight: "700", flex: 1 }}>
                                   {row.title}
@@ -810,8 +861,9 @@ export default function LeiturasTab() {
                                 </View>
                               </View>
 
+                              {/* Data/childName + estrelas + comentário */}
                               <Text style={{ opacity: 0.7, marginTop: 2 }}>
-                                {row.date ? new Date(row.date).toLocaleDateString("pt-PT") : row.childName ?? ""}
+                                {row.date ? formatDatePT(row.date) : row.childName ?? ""}
                               </Text>
 
                               <StarsDisplay value={row.stars} />
@@ -838,7 +890,7 @@ export default function LeiturasTab() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* Snackbar */}
+      {/* Snackbar (feedback de ações) */}
       <Snackbar
         visible={!!snack}
         onDismiss={() => setSnack(null)}

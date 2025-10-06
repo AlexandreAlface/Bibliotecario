@@ -1,4 +1,17 @@
-// apps/web/src/pages/admin/Metrics.tsx
+/**
+ * =============================================================================
+ *  Admin · Métricas & Dashboard
+ * -----------------------------------------------------------------------------
+ *  Ficheiro: apps/web/src/pages/admin/Metrics.tsx
+ *  Autor:    Alexandre Brissos — Nº 21131
+ *
+ *  Reforços “como combinado”:
+ *   • Comentários completos (pt-PT) em todo o ficheiro.
+ *   • Marcação explícita de funções/expressões **puras**.
+ *   • Manter funções curtas (≤ ~30 linhas) com nomes descritivos.
+ * =============================================================================
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Box,
@@ -40,10 +53,16 @@ import { WhiteCard } from "@bibliotecario/ui-web";
 import {
   loadMetricsData,
   type ConsultationFull,
-} from "@/services/adminMetrics";
-import { getMyLibrary, type LibraryLite } from "@/services/admin";
+} from "@/services/admin/adminMetrics";
+import { getMyLibrary, type LibraryLite } from "@/services/admin/admin";
 
-/* ---------- helpers ---------- */
+/* ========================================================================== */
+/*                                  HELPERS                                   */
+/* ========================================================================== */
+/**
+ * Helpers de data/tempo. Mantidos pequenos, determinísticos e sem efeitos
+ * colaterais → ✅ **PUROS**
+ */
 function startOfDay(d = new Date()) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -66,6 +85,7 @@ function fmtYMD(d: Date | string) {
   const x = typeof d === "string" ? new Date(d) : d;
   return x.toISOString().slice(0, 10);
 }
+/** Início da semana ISO (segunda-feira). ✅ **PURO** */
 function startOfISOWeek(date: Date) {
   const d = new Date(date);
   const day = d.getDay() || 7;
@@ -73,6 +93,11 @@ function startOfISOWeek(date: Date) {
   else d.setHours(0, 0, 0, 0);
   return d;
 }
+/**
+ * Chave ISO de semana com rótulo amigável. ✅ **PURO**
+ * - key: YYYY-Wnn
+ * - label: YYYY-Wnn (dd/mm)
+ */
 function isoWeekKey(d: Date) {
   const monday = startOfISOWeek(d);
   const year = monday.getFullYear();
@@ -92,7 +117,7 @@ function isoWeekKey(d: Date) {
 
 const WEEKDAY_PT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-/* ---------- dimensões ---------- */
+/* Layout para cartões e caixas de gráfico (constantes meramente visuais) */
 const CARD_SX = {
   flex: 1,
   p: { xs: 2, md: 2.75 },
@@ -106,7 +131,10 @@ const CHART_BOX_SX = {
   minHeight: { xs: 320, md: 400, lg: 460 },
 } as const;
 
-/* ---------- utils/agregações ---------- */
+/* ========================================================================== */
+/*                           AGREGADORES / TRANSFORMERS                       */
+/* ========================================================================== */
+/** Nome curto "Primeiro Ú." (ou o próprio nome). ✅ **PURO** */
 function shortName(full?: string | null) {
   if (!full) return "—";
   const parts = full.split(" ");
@@ -114,6 +142,10 @@ function shortName(full?: string | null) {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
+/**
+ * Agrupa consultas por semana (ISO) e conta por estado. ✅ **PURO**
+ * Saída ordenada por data (asc).
+ */
 function groupConsultationsByWeek(items: ConsultationFull[]) {
   const map = new Map<string, any>();
   for (const c of items) {
@@ -141,6 +173,7 @@ function groupConsultationsByWeek(items: ConsultationFull[]) {
   );
 }
 
+/** Converte contagens semanais em percentagens por estado. ✅ **PURO** */
 function weeklyStatusPercent(weekly: any[]) {
   return weekly.map((w) => {
     const t = w.total || 1;
@@ -155,6 +188,7 @@ function weeklyStatusPercent(weekly: any[]) {
   });
 }
 
+/** Taxa semanal de confirmação: (CONFIRMED+COMPLETED)/total. ✅ **PURO** */
 function weeklyConversion(weekly: any[]) {
   return weekly.map((w) => {
     const booked = (w.CONFIRMED || 0) + (w.COMPLETED || 0);
@@ -164,6 +198,7 @@ function weeklyConversion(weekly: any[]) {
   });
 }
 
+/** Antecedência média (dias) por semana, com base em startAt vs requestedAt. ✅ **PURO** */
 function leadTimeByWeek(items: ConsultationFull[]) {
   const map = new Map<string, { sum: number; n: number; label: string }>();
   for (const c of items) {
@@ -187,6 +222,7 @@ function leadTimeByWeek(items: ConsultationFull[]) {
     .sort((a, b) => (a.key < b.key ? -1 : 1));
 }
 
+/** Histograma de buckets de antecedência (dias). ✅ **PURO** */
 function leadBuckets(items: ConsultationFull[]) {
   // 0–1, 2–3, 4–7, 8–14, 15+ dias
   const buckets = [
@@ -207,6 +243,7 @@ function leadBuckets(items: ConsultationFull[]) {
   return buckets.map((b) => ({ name: b.key, value: b.value }));
 }
 
+/** Distribuição global por estado (para pie). ✅ **PURO** */
 function statusDistribution(items: ConsultationFull[]) {
   const acc = {
     PENDING: 0,
@@ -222,6 +259,10 @@ function statusDistribution(items: ConsultationFull[]) {
   return Object.entries(acc).map(([name, value]) => ({ name, value }));
 }
 
+/**
+ * Top bibliotecários (Pareto: valor + acumulado %). ✅ **PURO**
+ * - `limit` controla quantos são mostrados.
+ */
 function topLibrarians(items: ConsultationFull[], limit = 12) {
   const map = new Map<string, number>();
   const nameMap = new Map<string, string>();
@@ -252,6 +293,7 @@ function topLibrarians(items: ConsultationFull[], limit = 12) {
     .reverse(); // para layout vertical-left
 }
 
+/** Contagem por dia da semana (Dom..Sáb). ✅ **PURO** */
 function byWeekday(items: ConsultationFull[]) {
   const arr = Array.from({ length: 7 }, (_, i) => ({
     name: WEEKDAY_PT[i],
@@ -266,6 +308,7 @@ function byWeekday(items: ConsultationFull[]) {
   return arr;
 }
 
+/** Série de utilização semanal: booked/(abertos+booked). ✅ **PURO** */
 type SlotsLite = {
   id: number;
   startAt: string;
@@ -287,7 +330,10 @@ function utilizationSeries(weekly: any[], openSlots: SlotsLite[]) {
   });
 }
 
-/* ---------- tiles ---------- */
+/* ========================================================================== */
+/*                                   TILES                                    */
+/* ========================================================================== */
+/** Pequeno tile com gradiente para KPIs (apenas UI). */
 function StatTile({
   label,
   value,
@@ -329,28 +375,36 @@ function StatTile({
   );
 }
 
-/* =================== Página =================== */
+/* ========================================================================== */
+/*                                    PAGE                                    */
+/* ========================================================================== */
+/**
+ * Página: AdminMetrics
+ *  • Carrega biblioteca do admin e dados de métricas da janela escolhida;
+ *  • Calcula séries/visões derivadas no cliente (useMemo);
+ *  • Apresenta KPIs e gráficos (Recharts).
+ */
 export default function AdminMetrics() {
   const theme = useTheme();
 
-  // biblioteca do admin (única)
+  /* -------- Biblioteca do admin (única) -------- */
   const [myLib, setMyLib] = useState<LibraryLite | null>(null);
   const [libLoading, setLibLoading] = useState(false);
   const [libErr, setLibErr] = useState<string | null>(null);
 
-  // janela temporal (12 semanas)
+  /* -------- Janela temporal (por defeito: 12 semanas) -------- */
   const [fromYmd, setFromYmd] = useState(
     fmtYMD(addWeeks(startOfDay(new Date()), -12))
   );
   const [toYmd, setToYmd] = useState(fmtYMD(new Date()));
 
-  // dados
+  /* -------- Dados remotos -------- */
   const [consultas, setConsultas] = useState<ConsultationFull[]>([]);
   const [openSlots, setOpenSlots] = useState<SlotsLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // paleta
+  /* -------- Paleta context-aware (usada nos gráficos) -------- */
   const C = {
     PENDING: theme.palette.warning.light,
     CONFIRMED: theme.palette.success.main,
@@ -361,13 +415,12 @@ export default function AdminMetrics() {
     INFO: theme.palette.info.main,
     SECONDARY: theme.palette.secondary.main,
   };
-
   const gPrimary = `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`;
   const gSecondary = `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.light} 100%)`;
   const gSuccess = `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.light} 100%)`;
   const gInfo = `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.light} 100%)`;
 
-  // carregar biblioteca do admin
+  /* -------- Carregar biblioteca do admin -------- */
   useEffect(() => {
     (async () => {
       try {
@@ -389,7 +442,10 @@ export default function AdminMetrics() {
     })();
   }, []);
 
-  // (re)carregar métricas
+  /**
+   * (Re)carrega métricas/slots para a biblioteca e intervalo selecionados.
+   * Mantido curto; lida com estados de loading/erro.
+   */
   async function reload() {
     if (!myLib?.id) return;
     try {
@@ -411,12 +467,13 @@ export default function AdminMetrics() {
     }
   }
 
+  // Dispara load sempre que muda a janela temporal ou a biblioteca.
   useEffect(() => {
     if (myLib?.id) void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromYmd, toYmd, myLib?.id]);
 
-  // agregações
+  /* -------- Agregações derivadas (✅ **PURO** via useMemo) -------- */
   const weekly = useMemo(
     () => groupConsultationsByWeek(consultas),
     [consultas]
@@ -433,7 +490,7 @@ export default function AdminMetrics() {
   const leadSerie = useMemo(() => leadTimeByWeek(consultas), [consultas]);
   const leadHist = useMemo(() => leadBuckets(consultas), [consultas]);
 
-  // KPIs
+  /* -------- KPIs simples (✅ **PURO**: derivados de estado) -------- */
   const totalConsultas = consultas.length;
   const confirmadas = consultas.filter(
     (c) => c.status === "CONFIRMED" || c.status === "COMPLETED"
@@ -461,6 +518,7 @@ export default function AdminMetrics() {
     [consultas]
   );
 
+  /** Atalhos de intervalo (4, 12, 26 semanas). Mantido curto. */
   const quickSet = (weeks: number) => {
     const to = new Date();
     const from = addWeeks(startOfDay(to), -weeks);
@@ -468,8 +526,10 @@ export default function AdminMetrics() {
     setToYmd(fmtYMD(to));
   };
 
+  /* --------------------------------- RENDER --------------------------------- */
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      {/* Header c/ título e ação de recarregar */}
       <Stack
         direction="row"
         alignItems="center"
@@ -491,7 +551,7 @@ export default function AdminMetrics() {
         </Tooltip>
       </Stack>
 
-      {/* Filtros */}
+      {/* Filtros (datas + presets + biblioteca info) */}
       <WhiteCard sx={{ mb: 2 }}>
         <Stack
           direction={{ xs: "column", md: "row" }}
@@ -499,7 +559,7 @@ export default function AdminMetrics() {
           alignItems={{ xs: "stretch", md: "center" }}
           justifyContent="space-between"
         >
-          {/* Datas */}
+          {/* Datas (De/Até + Hoje) */}
           <Stack direction="row" spacing={1}>
             <TextField
               label="De"
@@ -529,7 +589,7 @@ export default function AdminMetrics() {
             </IconButton>
           </Stack>
 
-          {/* Quick ranges */}
+          {/* Atalhos rápidos */}
           <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
             <Button size="small" onClick={() => quickSet(4)}>
               Últimas 4 semanas
@@ -542,7 +602,7 @@ export default function AdminMetrics() {
             </Button>
           </Stack>
 
-          {/* Biblioteca (info apenas) */}
+          {/* Biblioteca (info/estado) */}
           <Typography variant="body2" sx={{ opacity: 0.8 }}>
             {libLoading ? (
               "A carregar biblioteca…"
@@ -573,7 +633,7 @@ export default function AdminMetrics() {
         </WhiteCard>
       ) : (
         <>
-          {/* KPIs */}
+          {/* KPIs principais */}
           <Grid container spacing={2}>
             <Grid item xs={12} md={3}>
               <StatTile
@@ -609,7 +669,7 @@ export default function AdminMetrics() {
             </Grid>
           </Grid>
 
-          {/* Linha 1 — % por estado e taxa de confirmação */}
+          {/* Linha 1 — Stacked % por estado + taxa de confirmação */}
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} md={8} sx={{ display: "flex" }}>
               <WhiteCard sx={CARD_SX}>
@@ -617,8 +677,7 @@ export default function AdminMetrics() {
                   Distribuição semanal por estado (%)
                 </Typography>
                 <Typography variant="caption" sx={{ opacity: 0.7, mb: 1 }}>
-                  Stacked 100%: acompanha a composição das consultas por estado
-                  ao longo das semanas.
+                  Stacked 100%: composição por estado ao longo das semanas.
                 </Typography>
                 <Box sx={CHART_BOX_SX}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -671,7 +730,7 @@ export default function AdminMetrics() {
                   Taxa de confirmação por semana
                 </Typography>
                 <Typography variant="caption" sx={{ opacity: 0.7, mb: 1 }}>
-                  Confirmadas+Concluídas / Total. Linhas guias a 40% (ok) e 60%
+                  (Confirmadas+Concluídas) / Total · Linhas: 40% (ok), 60%
                   (bom).
                 </Typography>
                 <Box sx={CHART_BOX_SX}>
@@ -707,7 +766,7 @@ export default function AdminMetrics() {
             </Grid>
           </Grid>
 
-          {/* Linha 2 — Antecedência (histograma) e Pareto Librarians */}
+          {/* Linha 2 — Histograma de antecedência + Pareto de bibliotecários */}
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} md={5} sx={{ display: "flex" }}>
               <WhiteCard sx={CARD_SX}>
@@ -715,8 +774,8 @@ export default function AdminMetrics() {
                   Antecedência das marcações (histograma)
                 </Typography>
                 <Typography variant="caption" sx={{ opacity: 0.7, mb: 1 }}>
-                  Dias entre pedido e início. Ajuda a perceber janelas de
-                  planeamento das famílias.
+                  Dias entre pedido e início — perceção das janelas de
+                  planeamento.
                 </Typography>
                 <Box sx={CHART_BOX_SX}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -743,8 +802,7 @@ export default function AdminMetrics() {
                   Pareto de bibliotecários (janela)
                 </Typography>
                 <Typography variant="caption" sx={{ opacity: 0.7, mb: 1 }}>
-                  Contribuição por bibliotecário (barras) e percentagem
-                  acumulada (linha).
+                  Contribuição (barras) + acumulado (%) em linha.
                 </Typography>
                 <Box sx={CHART_BOX_SX}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -787,7 +845,7 @@ export default function AdminMetrics() {
             </Grid>
           </Grid>
 
-          {/* Linha 3 — Utilização semanal e distribuição por dia da semana */}
+          {/* Linha 3 — Utilização semanal + distribuição por dia da semana */}
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} md={7} sx={{ display: "flex" }}>
               <WhiteCard sx={CARD_SX}>
@@ -796,7 +854,6 @@ export default function AdminMetrics() {
                 </Typography>
                 <Typography variant="caption" sx={{ opacity: 0.7, mb: 1 }}>
                   (Confirmadas+Concluídas) / (Abertos+Confirmadas+Concluídas).
-                  Medida de aproveitamento dos slots.
                 </Typography>
                 <Box sx={CHART_BOX_SX}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -836,8 +893,7 @@ export default function AdminMetrics() {
                   Consultas por dia da semana
                 </Typography>
                 <Typography variant="caption" sx={{ opacity: 0.7, mb: 1 }}>
-                  Padrão de procura semanal (útil para abrir slots nos dias
-                  “fortes”).
+                  Padrão semanal — útil para abrir slots nos dias “fortes”.
                 </Typography>
                 <Box sx={CHART_BOX_SX}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -859,7 +915,7 @@ export default function AdminMetrics() {
             </Grid>
           </Grid>
 
-          {/* Extra — visão global do estado (anel) + antecedência média por semana */}
+          {/* Extra — Anel por estado + Antecedência média por semana */}
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} md={4} sx={{ display: "flex" }}>
               <WhiteCard sx={CARD_SX}>
@@ -936,3 +992,9 @@ export default function AdminMetrics() {
     </Container>
   );
 }
+
+/**
+ * =============================================================================
+ *  FIM — Alexandre Brissos • Nº 21131
+ * =============================================================================
+ */

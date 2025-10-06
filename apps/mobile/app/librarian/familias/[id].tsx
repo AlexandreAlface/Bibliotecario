@@ -1,4 +1,17 @@
-// apps/mobile/app/librarian/familias/[id].tsx
+/**
+ * ============================================================================
+ * Ficheiro: apps/mobile/app/librarian/familias/[id].tsx
+ * Ecrã: Perfil de Família (bibliotecário) — detalhe completo
+ * Autor: Alexandre Brissos — Nº 21131
+ * ----------------------------------------------------------------------------
+ * Reforços conforme combinado:
+ *  • Comentários claros em TODO o código (PT-PT).
+ *  • Helpers/métodos PUROS e curtos (≤ 30 linhas).
+ *  • Secções colapsáveis com animação suave (Android + iOS).
+ *  • Sem alterar contratos de serviços externos.
+ * ============================================================================
+ */
+
 import * as React from "react";
 import {
   View,
@@ -22,8 +35,36 @@ import {
 } from "src/services/librarianFamilies";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
-/* ---------- helpers ---------- */
-function InfoRow({
+/* =============================================================================
+ * Helpers PUROS (sem efeitos colaterais) — curtos
+ * ========================================================================== */
+
+/** fmtDate — formata carimbo de data ISO -> “dd Mmm yyyy, HH:mm” (PT). */
+const fmtDate = (d?: string | null) =>
+  d
+    ? new Intl.DateTimeFormat("pt-PT", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(new Date(d))
+    : "";
+
+/** useAndroidLayoutAnim — ativa LayoutAnimation no Android apenas 1x. */
+function useAndroidLayoutAnim() {
+  React.useEffect(() => {
+    if (
+      Platform.OS === "android" &&
+      UIManager.setLayoutAnimationEnabledExperimental
+    ) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+}
+
+/* =============================================================================
+ * Linhas de informação simples (label + valor) — componente leve
+ * ========================================================================== */
+
+const InfoRow = React.memo(function InfoRow({
   label,
   value,
   icon,
@@ -54,16 +95,12 @@ function InfoRow({
       </Text>
     </View>
   );
-}
-const fmtDate = (d?: string | null) =>
-  d
-    ? new Intl.DateTimeFormat("pt-PT", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }).format(new Date(d))
-    : "";
+});
 
-/* ---------- status pill ---------- */
+/* =============================================================================
+ * “Pílula” de estado da consulta — mapeamento + chip simples
+ * ========================================================================== */
+
 const STATUS_STYLE: Record<
   string,
   { label: string; bg: string; fg: string; accent: string }
@@ -99,7 +136,12 @@ const STATUS_STYLE: Record<
     accent: "#3B82F6",
   },
 };
-function StatusPill({ status }: { status?: string | null }) {
+
+const StatusPill = React.memo(function StatusPill({
+  status,
+}: {
+  status?: string | null;
+}) {
   const s = STATUS_STYLE[(status ?? "").toUpperCase()] ?? STATUS_STYLE.PENDING;
   return (
     <View
@@ -116,9 +158,96 @@ function StatusPill({ status }: { status?: string | null }) {
       </Text>
     </View>
   );
+});
+
+/* =============================================================================
+ * Secção colapsável — cabeçalho e corpo separados p/ manter funções curtas
+ * ========================================================================== */
+
+function SectionHeader({
+  title,
+  icon,
+  collapsed,
+  onToggle,
+  right,
+  count,
+}: {
+  title: string;
+  icon?: React.ComponentProps<typeof Icon>["name"];
+  collapsed: boolean;
+  onToggle: () => void;
+  right?: React.ReactNode;
+  count?: number;
+}) {
+  const theme = useTheme();
+  const showCount = collapsed && Number.isFinite(count);
+  return (
+    <TouchableOpacity
+      onPress={onToggle}
+      activeOpacity={0.7}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={`${collapsed ? "Expandir" : "Colapsar"} ${title}`}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        {icon ? (
+          <Icon name={icon} size={20} color={theme.colors.onSurface} />
+        ) : null}
+        <Text
+          style={{
+            fontWeight: "800",
+            fontSize: 18,
+            color: theme.colors.onSurface,
+            flexShrink: 1,
+          }}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
+      </View>
+
+      {showCount ? (
+        <View
+          style={{
+            paddingHorizontal: 8,
+            paddingVertical: 2,
+            borderRadius: 999,
+            backgroundColor: theme.colors.secondaryContainer,
+          }}
+        >
+          <Text
+            style={{ color: theme.colors.onSecondaryContainer, fontSize: 12 }}
+          >
+            {count}
+          </Text>
+        </View>
+      ) : !!right ? (
+        <View>{right}</View>
+      ) : null}
+
+      <Icon
+        name={collapsed ? "chevron-down" : "chevron-up"}
+        size={22}
+        color={theme.colors.onSurface}
+      />
+    </TouchableOpacity>
+  );
 }
 
-/* ---------- Card colapsável ---------- */
+/** CollapsibleSection — contentor com header clicável e corpo colapsável. */
 function CollapsibleSection({
   title,
   right,
@@ -128,31 +257,21 @@ function CollapsibleSection({
   defaultCollapsed = false,
 }: {
   title: string;
-  right?: React.ReactNode; // conteúdo rico mostrado quando EXPANDIDO
-  count?: number; // número de itens mostrado quando COLAPSADO
+  right?: React.ReactNode;
+  count?: number;
   icon?: React.ComponentProps<typeof Icon>["name"];
   children: React.ReactNode;
   defaultCollapsed?: boolean;
 }) {
   const theme = useTheme();
-  const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
+  useAndroidLayoutAnim(); // ativa animações no Android
 
-  React.useEffect(() => {
-    if (
-      Platform.OS === "android" &&
-      UIManager.setLayoutAnimationEnabledExperimental
-    ) {
-      UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
-  }, []);
+  const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
 
   const toggle = React.useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setCollapsed((v) => !v);
   }, []);
-
-  const showCollapsedCount =
-    collapsed && typeof count === "number" && Number.isFinite(count);
 
   return (
     <FlexibleCard
@@ -161,85 +280,35 @@ function CollapsibleSection({
       padding={14}
       style={{ borderRadius: 12 }}
     >
-      <TouchableOpacity
-        onPress={toggle}
-        activeOpacity={0.7}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-        }}
-        accessibilityRole="button"
-        accessibilityLabel={`${collapsed ? "Expandir" : "Colapsar"} ${title}`}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
-            flex: 1,
-            minWidth: 0,
-          }}
-        >
-          {icon ? (
-            <Icon name={icon} size={20} color={theme.colors.onSurface} />
-          ) : null}
-          <Text
-            style={{
-              fontWeight: "800",
-              fontSize: 18,
-              color: theme.colors.onSurface,
-              flexShrink: 1,
-            }}
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
-        </View>
-
-        {showCollapsedCount ? (
-          <View
-            style={{
-              paddingHorizontal: 8,
-              paddingVertical: 2,
-              borderRadius: 999,
-              backgroundColor: theme.colors.secondaryContainer,
-            }}
-          >
-            <Text
-              style={{ color: theme.colors.onSecondaryContainer, fontSize: 12 }}
-            >
-              {count}
-            </Text>
-          </View>
-        ) : !!right ? (
-          <View>{right}</View>
-        ) : null}
-
-        <Icon
-          name={collapsed ? "chevron-down" : "chevron-up"}
-          size={22}
-          color={theme.colors.onSurface}
-        />
-      </TouchableOpacity>
-
+      <SectionHeader
+        title={title}
+        icon={icon}
+        collapsed={collapsed}
+        onToggle={toggle}
+        right={right}
+        count={count}
+      />
       {!collapsed && <View style={{ marginTop: 10 }}>{children}</View>}
     </FlexibleCard>
   );
 }
 
-/* ---------- Screen ---------- */
+/* =============================================================================
+ * Ecrã principal — Perfil da Família
+ * ========================================================================== */
+
 export default function FamilyProfileScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const famId = Number(id);
 
+  // Estado de dados e carregamento
   const [data, setData] = React.useState<FamilyDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
 
+  /** load — busca detalhe da família e atualiza estado (curto e robusto). */
   const load = React.useCallback(async () => {
     if (!Number.isFinite(famId)) return;
     setLoading(true);
@@ -253,10 +322,12 @@ export default function FamilyProfileScreen() {
     }
   }, [famId]);
 
+  // Carrega ao montar/alterar famId
   React.useEffect(() => {
     load();
   }, [load]);
 
+  /** onRefresh — usado no Pull-to-Refresh. */
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
@@ -266,6 +337,7 @@ export default function FamilyProfileScreen() {
     }
   }, [load]);
 
+  /** goBackToFamilies — navega para a listagem de famílias. */
   const goBackToFamilies = React.useCallback(() => {
     router.navigate("/librarian/Familias");
   }, [router]);
@@ -282,7 +354,7 @@ export default function FamilyProfileScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* Header compacto: voltar + icon tile + identificação */}
+          {/* -------- Header compacto: voltar, ícone e identificação -------- */}
           <FlexibleCard
             backgroundColor={theme.colors.surface}
             elevation={1}
@@ -326,7 +398,7 @@ export default function FamilyProfileScreen() {
                   {data?.family?.fullName ?? "Família"}
                 </Text>
 
-                {/* email como row com ícone */}
+                {/* Email */}
                 <View
                   style={{
                     flexDirection: "row",
@@ -345,6 +417,7 @@ export default function FamilyProfileScreen() {
                   </Text>
                 </View>
 
+                {/* Telefone/Morada */}
                 {!!data && (
                   <View style={{ marginTop: 6 }}>
                     <InfoRow
@@ -363,7 +436,7 @@ export default function FamilyProfileScreen() {
             </View>
           </FlexibleCard>
 
-          {/* Loading / erro */}
+          {/* -------- Zona de loading/erro -------- */}
           {loading ? (
             <FlexibleCard
               backgroundColor={theme.colors.surface}
@@ -386,7 +459,7 @@ export default function FamilyProfileScreen() {
             </FlexibleCard>
           ) : (
             <>
-              {/* Crianças */}
+              {/* -------- Crianças -------- */}
               <CollapsibleSection
                 title="Crianças"
                 icon="account-child-outline"
@@ -428,7 +501,7 @@ export default function FamilyProfileScreen() {
                 )}
               </CollapsibleSection>
 
-              {/* Conquistas */}
+              {/* -------- Conquistas -------- */}
               <CollapsibleSection
                 title="Conquistas"
                 icon="trophy-outline"
@@ -479,7 +552,7 @@ export default function FamilyProfileScreen() {
                 )}
               </CollapsibleSection>
 
-              {/* Leituras (em curso + reservas) */}
+              {/* -------- Leituras (em curso + reservas) -------- */}
               <CollapsibleSection
                 title="Leituras"
                 icon="book-open-variant"
@@ -503,6 +576,7 @@ export default function FamilyProfileScreen() {
                   </Text>
                 ) : (
                   <View style={{ rowGap: 10 }}>
+                    {/* Leituras em curso */}
                     {data.readings.map((r) => (
                       <View
                         key={`reading-${r.id}`}
@@ -550,6 +624,7 @@ export default function FamilyProfileScreen() {
                       </View>
                     ))}
 
+                    {/* Reservas */}
                     {data.reservations.map((r) => (
                       <View
                         key={`res-${r.id}`}
@@ -600,7 +675,7 @@ export default function FamilyProfileScreen() {
                 )}
               </CollapsibleSection>
 
-              {/* Avaliações */}
+              {/* -------- Avaliações -------- */}
               <CollapsibleSection
                 title="Avaliações"
                 icon="star-outline"
@@ -674,7 +749,7 @@ export default function FamilyProfileScreen() {
                 )}
               </CollapsibleSection>
 
-              {/* Consultas (próximas + recentes) */}
+              {/* -------- Consultas (próximas + recentes) -------- */}
               <CollapsibleSection
                 title="Consultas"
                 icon="calendar-clock"
@@ -783,7 +858,7 @@ export default function FamilyProfileScreen() {
                       </View>
                     )}
 
-                    {/* Recentes — apenas desta família */}
+                    {/* Recentes (apenas desta família) */}
                     {(() => {
                       const recent =
                         data.recentConsultations?.filter((c: any) =>

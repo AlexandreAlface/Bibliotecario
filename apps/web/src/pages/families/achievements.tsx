@@ -1,5 +1,17 @@
-// apps/web/src/pages/achievements.tsx
-import { useEffect, useMemo, useState } from "react";
+// ============================ apps/web/src/pages/achievements.tsx ============================
+/**
+ * Autor: Alexandre Brrissos — Nº 21131
+ *
+ * Página: Conquistas (badges e troféus) da criança selecionada.
+ *
+ * Objetivos deste refactor:
+ *  - Helpers utilitários → **PUROS** e com menos de 30 linhas
+ *  - Handlers/hooks pequenos e focados
+ *  - Componentes de UI simples e auto-explicativos
+ *  - Comentários claros por secção
+ */
+
+import { useEffect, useMemo, useState, memo } from "react";
 import { WhiteCard, AvatarSelect } from "@bibliotecario/ui-web";
 import {
   Box,
@@ -31,8 +43,69 @@ import {
   type BadgeAssignment,
 } from "../../services/badges";
 
-/* --- UI helpers --- */
-function SectionHeader({
+/* =====================================================================================
+   UTILITÁRIAS (PURO / <30 linhas)
+   ===================================================================================== */
+
+/** PURE: normaliza o tipo (uppercase, sem acentos) */
+function normType(t?: unknown) {
+  return String(t ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
+/** PURE: identifica se o tipo é “troféu” */
+function isTrophyType(t?: unknown) {
+  return normType(t).includes("TROF");
+}
+
+/** PURE: constrói um Map badgeId -> assignedAt para pesquisa O(1) */
+function buildEarnedMap(assignments: BadgeAssignment[]) {
+  const m = new Map<number, string>();
+  for (const a of assignments) m.set(a.badgeId, a.assignedAt);
+  return m;
+}
+
+/** PURE: catálogo fallback (quando a API /badges não existe) */
+function catalogFromAssignments(asg: BadgeAssignment[]): Badge[] {
+  const seen = new Set<number>();
+  const out: Badge[] = [];
+  for (const a of asg) {
+    if (seen.has(a.badgeId)) continue;
+    seen.add(a.badgeId);
+    out.push(
+      a.badge ?? {
+        id: a.badgeId,
+        name: `Badge #${a.badgeId}`,
+        type: "STAMP",
+        criteria: null,
+      }
+    );
+  }
+  return out;
+}
+
+/** PURE: percentagem “x de total” (0..100) */
+function progressPct(x: number, total: number) {
+  return total > 0 ? (x / total) * 100 : 0;
+}
+
+/** PURE: opções para AvatarSelect (id/nome/avatar) */
+function toChildOptions(user?: any) {
+  return ((user?.children as any[]) || []).map((c) => ({
+    id: String(c.id),
+    nome: c.name ?? "Criança",
+    avatar: (c as any).avatarUrl ?? undefined,
+  }));
+}
+
+/* =====================================================================================
+   PEÇAS DE UI PEQUENAS
+   ===================================================================================== */
+
+/** Cabeçalho de secção (reutilizável) */
+const SectionHeader = memo(function SectionHeader({
   title,
   icon,
   action,
@@ -59,9 +132,10 @@ function SectionHeader({
       {action}
     </Stack>
   );
-}
+});
 
-function BadgeCard({
+/** Cartão de badge (earned vs locked) */
+const BadgeCard = memo(function BadgeCard({
   badge,
   earnedAt,
   onClick,
@@ -71,11 +145,8 @@ function BadgeCard({
   onClick?: () => void;
 }) {
   const isEarned = Boolean(earnedAt);
-  const isTrophy = String(badge.type).toUpperCase().includes("TROF");
+  const isTrophy = isTrophyType(badge.type);
   const Icon = isTrophy ? EmojiEventsRounded : VerifiedRounded;
-
-  const bg = isEarned ? "success.light" : "background.paper";
-  const border = isEarned ? "success.main" : "divider";
 
   return (
     <Box
@@ -86,8 +157,8 @@ function BadgeCard({
         p: 1.25,
         borderRadius: 2,
         border: "1px solid",
-        borderColor: border,
-        bgcolor: bg,
+        borderColor: isEarned ? "success.main" : "divider",
+        bgcolor: isEarned ? "success.light" : "background.paper",
         cursor: onClick ? "pointer" : "default",
         "&:hover": { bgcolor: isEarned ? "success.main" : "action.hover" },
         transition: "background-color .15s ease",
@@ -143,55 +214,52 @@ function BadgeCard({
       </Stack>
     </Box>
   );
-}
+});
 
-/* =================== Página =================== */
+/* =====================================================================================
+   PÁGINA PRINCIPAL
+   ===================================================================================== */
+
 export default function AchievementsPage() {
-  // ⚠️ Só lemos user/asChild; a seleção aqui é LOCAL
+  // ⚠️ Modo criança vs. família: a seleção aqui é **LOCAL** (não mexe no contexto global)
   const { user, asChild } = useUserSession();
 
-  // seleção local para modo família (não mexe no contexto global)
+  // Seletor LOCAL de criança (apenas no modo família)
   const [localChildId, setLocalChildId] = useState<string | undefined>(
     undefined
   );
-
-  // quando muda entre modo criança/família limpamos o filtro local
   useEffect(() => {
-    if (asChild) setLocalChildId(undefined);
+    if (asChild) setLocalChildId(undefined); // ao entrar em modo criança, limpamos
   }, [asChild]);
 
-  // ID ativo: actingChild em modo criança; localChildId em modo família
+  // ID ativo: actingChild (modo criança) OU localChildId (modo família)
   const activeChildId = useMemo(() => {
     if (asChild) return Number((user as any)?.actingChild?.id);
     return localChildId ? Number(localChildId) : NaN;
   }, [asChild, user?.actingChild?.id, localChildId]);
 
+  // Estado principal
   const [badges, setBadges] = useState<Badge[]>([]);
   const [assignments, setAssignments] = useState<BadgeAssignment[]>([]);
   const [loading, setLoading] = useState(false);
   const [focusedId, setFocusedId] = useState<number | null>(null);
 
-  // opções para o seletor (apenas em modo família)
-  const childOptions =
-    (user?.children || []).map((c) => ({
-      id: String(c.id),
-      nome: c.name ?? "Criança", // garantir string
-      avatar: (c as any).avatarUrl ?? undefined,
-    })) ?? [];
+  // Opções do seletor
+  const childOptions = useMemo(() => toChildOptions(user), [user]);
 
-  /* carregar catálogo de badges 1x */
+  /* ---------- EFEITOS: catálogo de badges (1x) ---------- */
   useEffect(() => {
     (async () => {
       try {
         const list = await listBadges();
-        setBadges(list);
+        setBadges(Array.isArray(list) ? list : []);
       } catch {
-        setBadges([]); // se /badges não existir, mostramos só conquistas
+        setBadges([]); // tolerante: se /badges não existir
       }
     })();
   }, []);
 
-  /* carregar assignments quando muda a criança ativa */
+  /* ---------- EFEITOS: assignments por criança ativa ---------- */
   useEffect(() => {
     (async () => {
       if (!Number.isFinite(activeChildId)) {
@@ -200,65 +268,47 @@ export default function AchievementsPage() {
       }
       try {
         setLoading(true);
-        const list = await listBadgeAssignments(activeChildId);
-        setAssignments(list);
+        const list = await listBadgeAssignments(Number(activeChildId));
+        setAssignments(Array.isArray(list) ? list : []);
       } finally {
         setLoading(false);
       }
     })();
   }, [activeChildId]);
 
-  const earnedById = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const a of assignments) m.set(a.badgeId, a.assignedAt);
-    return m;
-  }, [assignments]);
+  /* ---------- DERIVADOS: earned map / catálogo / grupos / progresso ---------- */
+  const earnedById = useMemo(() => buildEarnedMap(assignments), [assignments]);
 
-  // catálogo (fallback quando não há /badges)
+  // Se a API /badges não existir, bombear catálogo a partir de assignments
   const catalog: Badge[] = useMemo(() => {
-    if (badges.length) return badges;
-    const seen = new Set<number>();
-    const s: Badge[] = [];
-    for (const a of assignments) {
-      if (seen.has(a.badgeId)) continue;
-      seen.add(a.badgeId);
-      s.push(
-        a.badge ?? {
-          id: a.badgeId,
-          name: `Badge #${a.badgeId}`,
-          type: "STAMP",
-          criteria: null,
-        }
-      );
-    }
-    return s;
+    return badges.length ? badges : catalogFromAssignments(assignments);
   }, [badges, assignments]);
 
   const groups = useMemo(() => {
-    const normType = (t: any) =>
-      String(t ?? "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toUpperCase();
     const stamps = catalog.filter((b) => normType(b.type) === "STAMP");
-    const trophies = catalog.filter((b) => normType(b.type).includes("TROF"));
+    const trophies = catalog.filter((b) => isTrophyType(b.type));
     return { stamps, trophies };
   }, [catalog]);
 
-  const countEarned = (arr: Badge[]) =>
-    arr.filter((b) => earnedById.has(b.id)).length;
+  const stampsEarned = useMemo(
+    () => groups.stamps.filter((b) => earnedById.has(b.id)).length,
+    [groups.stamps, earnedById]
+  );
+  const trophiesEarned = useMemo(
+    () => groups.trophies.filter((b) => earnedById.has(b.id)).length,
+    [groups.trophies, earnedById]
+  );
 
-  // progresso para resumo
-  const stampsEarned = countEarned(groups.stamps);
-  const trophiesEarned = countEarned(groups.trophies);
-  const stampsPct =
-    groups.stamps.length > 0 ? (stampsEarned / groups.stamps.length) * 100 : 0;
-  const trophiesPct =
-    groups.trophies.length > 0
-      ? (trophiesEarned / groups.trophies.length) * 100
-      : 0;
+  const stampsPct = useMemo(
+    () => progressPct(stampsEarned, groups.stamps.length),
+    [stampsEarned, groups.stamps.length]
+  );
+  const trophiesPct = useMemo(
+    () => progressPct(trophiesEarned, groups.trophies.length),
+    [trophiesEarned, groups.trophies.length]
+  );
 
-  // detalhe selecionado
+  // Detalhe selecionado
   const focusedBadge = useMemo(
     () =>
       focusedId != null
@@ -270,8 +320,12 @@ export default function AchievementsPage() {
     ? earnedById.get(focusedBadge.id)
     : undefined;
 
+  /* ===================================================================================
+     UI
+     =================================================================================== */
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      {/* Título */}
       <Typography
         variant="h3"
         fontWeight={900}
@@ -301,7 +355,7 @@ export default function AchievementsPage() {
         </WhiteCard>
       )}
 
-      {/* Em modo criança, mostra apenas info do perfil ativo */}
+      {/* Modo criança: mostra a criança ativa (contexto) */}
       {asChild && (
         <WhiteCard sx={{ mb: 2 }}>
           <SectionHeader title="A atuar como" icon={<PersonRounded />} />
@@ -315,7 +369,7 @@ export default function AchievementsPage() {
         </WhiteCard>
       )}
 
-      {/* Resumo */}
+      {/* Resumo + progresso */}
       <WhiteCard sx={{ mb: 2 }}>
         <SectionHeader title="Resumo" icon={<InsightsRounded />} />
         <Stack spacing={1.25}>
@@ -340,11 +394,16 @@ export default function AchievementsPage() {
             )}
           </Stack>
 
-          {/* barras de progresso */}
+          {/* Barras de progresso */}
           <Stack spacing={1}>
             <Typography
               variant="caption"
-              sx={{ display: "flex", alignItems: "center", gap: 0.5, opacity: 0.8 }}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+                opacity: 0.8,
+              }}
             >
               <VerifiedRounded fontSize="small" /> Progresso de selos
             </Typography>
@@ -355,7 +414,12 @@ export default function AchievementsPage() {
             />
             <Typography
               variant="caption"
-              sx={{ display: "flex", alignItems: "center", gap: 0.5, opacity: 0.8 }}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+                opacity: 0.8,
+              }}
             >
               <EmojiEventsRounded fontSize="small" /> Progresso de troféus
             </Typography>
@@ -369,6 +433,7 @@ export default function AchievementsPage() {
         </Stack>
       </WhiteCard>
 
+      {/* Grelhas */}
       <Stack spacing={2}>
         {/* Selos */}
         <WhiteCard>
@@ -423,7 +488,7 @@ export default function AchievementsPage() {
         </WhiteCard>
       </Stack>
 
-      {/* Detalhe da conquista */}
+      {/* Detalhe da conquista (quando selecionada) */}
       {focusedId != null && (
         <WhiteCard sx={{ mt: 2 }}>
           <SectionHeader title="Detalhe da conquista" icon={<InfoOutlined />} />
@@ -437,7 +502,7 @@ export default function AchievementsPage() {
               <Stack direction="row" spacing={1} alignItems="center">
                 <Chip
                   icon={
-                    String(focusedBadge.type).toUpperCase().includes("TROF") ? (
+                    isTrophyType(focusedBadge.type) ? (
                       <EmojiEventsRounded />
                     ) : (
                       <VerifiedRounded />
@@ -458,6 +523,7 @@ export default function AchievementsPage() {
                   <Chip icon={<LockOutlined />} label="Por conquistar" />
                 )}
               </Stack>
+
               {!!focusedBadge.criteria && (
                 <>
                   <Divider sx={{ my: 1 }} />

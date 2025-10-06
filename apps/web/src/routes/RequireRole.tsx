@@ -1,41 +1,52 @@
+/**
+ * Alexandre Brrissos 21131
+ * Descrição: Guard de rota que exige certas roles. Redireciona para login se
+ *            não houver sessão e para "/" se o utilizador não tiver permissão.
+ */
+
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useUserSession } from "@/contexts/UserSession";
 
 type Props = { roles?: string[]; children?: React.ReactNode };
 
-// normaliza string para facilitar comparação (uppercase, sem acentos e sem "ROLE_")
+/** Normaliza role: uppercase, remove "ROLE_" e acentos. */
 function normRole(r: string) {
-  const up = String(r || "").toUpperCase().replace(/^ROLE_/, "");
-  // remover acentos básicos para casar FAMILIA vs FAMÍLIA
-  return up
+  return String(r || "")
+    .toUpperCase()
+    .replace(/^ROLE_/, "")
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, ""); // strip diacritics
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
+/**
+ * Exige autenticação e (opcionalmente) uma ou mais roles.
+ * Admin/Librarian/Family são verificados pelos flags do contexto.
+ */
 export function RequireRole({ roles, children }: Props) {
   const { user, loading, isAdmin, isLibrarian, isFamily } = useUserSession();
   const location = useLocation();
 
-  // 1) Enquanto carrega, não redireciones
   if (loading) return null;
-
-  // 2) Sem user depois de carregar -> login
-  if (!user) {
+  if (!user)
     return <Navigate to="/auth/login" replace state={{ from: location }} />;
-  }
 
-  // 3) Com roles exigidas, usa os flags do contexto (robustos a sinónimos)
-  if (roles && roles.length) {
+  if (roles?.length) {
     const wanted = new Set(roles.map(normRole));
-    const needAdmin = wanted.has("ADMIN") || wanted.has("ADMINISTRATOR") || wanted.has("ADMINISTRADOR");
-    const needLib  = wanted.has("LIBRARIAN") || wanted.has("BIBLIOTECARIO") || wanted.has("BIBLIOTECARIO") || wanted.has("BIBLIOTECÁRIO");
-    const needFam  = wanted.has("FAMILY") || wanted.has("FAMILIA") || wanted.has("FAMILIA"); // (já sem acentos)
+    const needAdmin =
+      wanted.has("ADMIN") ||
+      wanted.has("ADMINISTRATOR") ||
+      wanted.has("ADMINISTRADOR");
+    const needLib =
+      wanted.has("LIBRARIAN") ||
+      wanted.has("BIBLIOTECARIO") ||
+      wanted.has("BIBLIOTECÁRIO");
+    const needFam =
+      wanted.has("FAMILY") || wanted.has("FAMILIA") || wanted.has("FAMÍLIA");
 
     const allowed =
       (needAdmin && isAdmin) ||
       (needLib && isLibrarian) ||
       (needFam && isFamily);
-
     if (!allowed) return <Navigate to="/" replace />;
   }
 

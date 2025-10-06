@@ -1,3 +1,12 @@
+/**
+ * Alexandre Brrissos 21131
+ * Descrição: Serviço do bibliotecário para gerir famílias (listagem e detalhe).
+ *            Usa o cliente HTTP central (axios) com cookies e erros normalizados.
+ */
+import { http } from "./https";
+
+/* ---------- Tipos ---------- */
+
 export type FamilyLite = {
   id: number;
   fullName: string;
@@ -7,7 +16,14 @@ export type FamilyLite = {
 };
 
 export type ChildLite = { id: number; name: string; birthDate: string };
-export type BookLite = { isbn: string; title: string; author?: string | null; coverUrl?: string | null };
+
+export type BookLite = {
+  isbn: string;
+  title: string;
+  author?: string | null;
+  coverUrl?: string | null;
+};
+
 export type BadgeLite = { id: number; name: string; type: string };
 
 export type ConsultationLite = {
@@ -22,11 +38,27 @@ export type ConsultationLite = {
 };
 
 export type FamilyDetail = {
-  family: { id: number; fullName: string; email: string; phone?: string | null; address?: string | null };
+  family: {
+    id: number;
+    fullName: string;
+    email: string;
+    phone?: string | null;
+    address?: string | null;
+  };
   children: ChildLite[];
   badges: { assignedAt: string; childId: number; badge: BadgeLite }[];
-  readings: { id: number; childId: number; startedAt?: string | null; book: BookLite }[];
-  reservations: { id: number; childId: number; reservedAt: string; book: BookLite }[];
+  readings: {
+    id: number;
+    childId: number;
+    startedAt?: string | null;
+    book: BookLite;
+  }[];
+  reservations: {
+    id: number;
+    childId: number;
+    reservedAt: string;
+    book: BookLite;
+  }[];
   ratings: {
     id: number;
     stars: number;
@@ -39,32 +71,39 @@ export type FamilyDetail = {
   recentConsultations: ConsultationLite[];
 };
 
-async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const res = await fetch(input, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
-  });
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      const j = await res.json();
-      msg = j?.error || msg;
-    } catch {}
-    throw new Error(msg);
-  }
-  return res.json() as Promise<T>;
+/* ---------- Helpers ---------- */
+
+/** Constrói params ignorando undefined/"" (mantém null/0/false). */
+function paramsOf(input: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input))
+    if (v !== undefined && v !== "") out[k] = v;
+  return out;
 }
 
+/* ---------- API ---------- */
+
+/**
+ * Lista famílias com pesquisa, paginação por cursor e limite.
+ * @param search Texto de pesquisa (nome/email/telefone).
+ * @param limit  Número máximo de itens (default 25).
+ * @param cursor Cursor para próxima página (opcional).
+ */
 export async function listFamilies(search = "", limit = 25, cursor?: number) {
-  const qs = new URLSearchParams();
-  if (search) qs.set("search", search);
-  if (limit) qs.set("limit", String(limit));
-  if (cursor) qs.set("cursor", String(cursor));
-  return fetchJson<{ items: FamilyLite[]; nextCursor: number | null }>(
-    `/api/librarian/families?${qs.toString()}`
-  );
+  return http<{ items: FamilyLite[]; nextCursor: number | null }>({
+    url: "/librarian/families",
+    method: "GET",
+    params: paramsOf({ search, limit, cursor }),
+  });
 }
 
+/**
+ * Obtém o detalhe completo de uma família.
+ * @param id ID da família.
+ */
 export async function getFamilyDetail(id: number) {
-  return fetchJson<FamilyDetail>(`/api/librarian/families/${id}`);
+  return http<FamilyDetail>({
+    url: `/librarian/families/${id}`,
+    method: "GET",
+  });
 }

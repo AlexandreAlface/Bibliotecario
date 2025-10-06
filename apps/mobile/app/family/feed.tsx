@@ -1,3 +1,16 @@
+/**
+ * ============================================================================
+ * Ficheiro: (mantém o caminho do teu projeto)
+ * Módulo: Feed de Micro-Conteúdos (conteúdos & biblioterapia)
+ * Autor: Alexandre Brissos – Nº 21131
+ * ----------------------------------------------------------------------------
+ * Reforços pedidos:
+ * • Comentários PT-PT em todo o código.
+ * • Helpers/métodos PUROS (determinísticos) e funções pequenas (≤ 30 linhas).
+ * • Sem alterar o comportamento existente.
+ * ============================================================================
+ */
+
 import { Background } from "@bibliotecario/ui-mobile";
 import * as React from "react";
 import {
@@ -39,9 +52,17 @@ import {
 } from "src/services/microcontent";
 import type { MD3Theme } from "react-native-paper";
 
+/** Tipos suportados no filtro rápido */
 const TYPES: MicroContentType[] = ["BIBLIOTERAPIA", "DICA", "FACTO", "OUTRO"];
 
-/* ---------- Anim: fade/slide-in ---------- */
+/* =============================================================================
+ * Animações
+ * ===========================================================================*/
+
+/**
+ * Pequena animação de entrada (fade + slide up).
+ * ⚙️ PURO (sem efeitos colaterais fora do React).
+ */
 function FadeIn({
   delay = 0,
   children,
@@ -50,6 +71,7 @@ function FadeIn({
   children: React.ReactNode;
 }) {
   const anim = React.useRef(new Animated.Value(0)).current;
+
   React.useEffect(() => {
     Animated.timing(anim, {
       toValue: 1,
@@ -79,7 +101,14 @@ function FadeIn({
   );
 }
 
-/* ---------- Helpers de conteúdo ---------- */
+/* =============================================================================
+ * Helpers PUROS (determinísticos, ≤ 30 linhas)
+ * ===========================================================================*/
+
+/**
+ * Divide o conteúdo em título (1ª linha ou 1ª frase) e corpo restante.
+ * ⚙️ PURO
+ */
 function splitContent(raw: string): { title: string; body: string } {
   const text = (raw || "").trim();
   if (!text) return { title: "", body: "" };
@@ -96,6 +125,10 @@ function splitContent(raw: string): { title: string; body: string } {
   return { title, body };
 }
 
+/**
+ * Gera iconografia/cores por tipo, com fallback.
+ * ⚙️ PURO
+ */
 function typeVisuals(theme: MD3Theme, t?: MicroContentType) {
   switch (t) {
     case "BIBLIOTERAPIA":
@@ -129,29 +162,45 @@ function typeVisuals(theme: MD3Theme, t?: MicroContentType) {
   }
 }
 
+/**
+ * Calcula o nº de páginas (mínimo 1).
+ * ⚙️ PURO
+ */
+function pagesCount(total: number, limit: number): number {
+  return Math.max(1, Math.ceil((total || 0) / Math.max(1, limit || 1)));
+}
+
+/* =============================================================================
+ * Screen
+ * ===========================================================================*/
+
 export default function FeedScreen() {
   const theme = useTheme<MD3Theme>();
   const insets = useSafeAreaInsets();
 
+  // Lista/paginação
   const [items, setItems] = React.useState<MicroContentItem[]>([]);
   const [total, setTotal] = React.useState(0);
   const [page, setPage] = React.useState(1);
   const [limit] = React.useState(12);
 
+  // Filtros
   const [q, setQ] = React.useState("");
   const [type, setType] = React.useState<string>("");
   const [tag, setTag] = React.useState<string>("");
   const [libraryId, setLibraryId] = React.useState<number | undefined>();
 
+  // Facetas (recebidas da API)
   const [allTags, setAllTags] = React.useState<string[]>([]);
   const [allLibraries, setAllLibraries] = React.useState<
     { id: number; name: string }[]
   >([]);
 
+  // Estado UI
   const [loading, setLoading] = React.useState(false);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
 
-  // estado de colapso/expansão por item
+  // Expand/collapse por item (guarda IDs abertos)
   const [expanded, setExpanded] = React.useState<Set<number>>(new Set());
   const toggleExpanded = (id: number) =>
     setExpanded((prev) => {
@@ -160,13 +209,18 @@ export default function FeedScreen() {
       return next;
     });
 
-  const pages = Math.max(1, Math.ceil(total / limit));
+  // Visual e tokens do tema
+  const pages = pagesCount(total, limit);
   const BORDER = theme.colors.outlineVariant ?? "rgba(0,0,0,0.12)";
   const SURFACE = theme.colors.surface;
-  const SEL_BG = theme.colors.primaryContainer; // selecionado → cor do tema
+  const SEL_BG = theme.colors.primaryContainer;
   const SEL_FG = theme.colors.onPrimaryContainer;
   const SEL_BORDER = theme.colors.primary;
 
+  /**
+   * Carrega uma página de resultados com os filtros atuais.
+   * Mantém comportamento e atualiza facetas quando presentes.
+   */
   async function load(p = page) {
     setLoading(true);
     try {
@@ -187,11 +241,13 @@ export default function FeedScreen() {
     }
   }
 
+  // Carregamentos reativos aos filtros “discretos”
   React.useEffect(() => {
     load(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, type, tag, libraryId]);
 
+  // Debounce da pesquisa textual
   React.useEffect(() => {
     const t = setTimeout(() => {
       setPage(1);
@@ -201,6 +257,9 @@ export default function FeedScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
 
+  /**
+   * Marca um conteúdo como visto (UI otimista, com rollback em caso de erro).
+   */
   const handleMarkSeen = async (id: number) => {
     setItems((arr) =>
       arr.map((it) => (it.id === id ? { ...it, seen: true } : it))
@@ -214,6 +273,7 @@ export default function FeedScreen() {
     }
   };
 
+  // Ativar LayoutAnimation no Android
   React.useEffect(() => {
     if (
       Platform.OS === "android" &&
@@ -223,17 +283,17 @@ export default function FeedScreen() {
     }
   }, []);
 
-  // header colapsável
+  // Header colapsável
   const [headerCollapsed, setHeaderCollapsed] = React.useState(false);
   const toggleHeader = React.useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setHeaderCollapsed((v) => !v);
   }, []);
 
-  // visuais do header (usa a paleta da “BIBLIOTERAPIA”)
+  // Visuais do header (inspiração: biblioterapia)
   const headerVis = typeVisuals(theme, "BIBLIOTERAPIA");
 
-  /** Chip com “selected” no branding */
+  /** Chip “Filter” com branding do tema (PURO em termos de render) */
   const FilterChip: React.FC<{
     selected: boolean;
     onPress: () => void;
@@ -279,7 +339,7 @@ export default function FeedScreen() {
               paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
             }}
           >
-            {/* Header + Pesquisa + Chips de Tipo */}
+            {/* ========================= HEADER / FILTROS ========================= */}
             <FadeIn>
               <View
                 style={{
@@ -390,7 +450,7 @@ export default function FeedScreen() {
                 {/* Corpo colapsável: pesquisa + chips + preview de filtros */}
                 {!headerCollapsed && (
                   <>
-                    {/* Pesquisa */}
+                    {/* Pesquisa textual */}
                     <View
                       style={{
                         marginTop: 12,
@@ -409,7 +469,7 @@ export default function FeedScreen() {
                       />
                     </View>
 
-                    {/* Filtros rápidos: Tipo (com ícones) */}
+                    {/* Filtros rápidos: Tipo */}
                     <View
                       style={{
                         flexDirection: "row",
@@ -476,7 +536,7 @@ export default function FeedScreen() {
               </View>
             </FadeIn>
 
-            {/* Lista */}
+            {/* ============================ LISTA ============================ */}
             <FadeIn delay={60}>
               <View
                 style={{
@@ -526,6 +586,12 @@ export default function FeedScreen() {
                                   gap: 10,
                                   marginBottom: 8,
                                 }}
+                                accessibilityRole="button"
+                                accessibilityLabel={
+                                  isOpen
+                                    ? "Recolher conteúdo"
+                                    : "Expandir conteúdo"
+                                }
                               >
                                 <View
                                   style={{
@@ -695,6 +761,7 @@ export default function FeedScreen() {
                               ) : null}
                             </Card.Content>
 
+                            {/* Ações do cartão */}
                             <Card.Actions
                               style={{
                                 justifyContent: "space-between",
@@ -729,7 +796,7 @@ export default function FeedScreen() {
                   })
                 )}
 
-                {/* Paginação */}
+                {/* Paginação inferior */}
                 {items.length > 0 && page < pages && (
                   <View style={{ alignItems: "center", marginTop: 8 }}>
                     <Button
@@ -748,7 +815,7 @@ export default function FeedScreen() {
             </FadeIn>
           </ScrollView>
 
-          {/* Modal de Filtros (Tags + Biblioteca) — mantido */}
+          {/* ============================ MODAL FILTROS ============================ */}
           <Portal>
             <Modal
               visible={filtersOpen}
@@ -769,6 +836,7 @@ export default function FeedScreen() {
                 Filtros
               </Text>
 
+              {/* Tags */}
               <Text variant="labelLarge" style={{ marginBottom: 6 }}>
                 Tags
               </Text>
@@ -792,6 +860,7 @@ export default function FeedScreen() {
                 ))}
               </ScrollView>
 
+              {/* Bibliotecas */}
               <Text variant="labelLarge" style={{ marginBottom: 6 }}>
                 Biblioteca
               </Text>
@@ -819,6 +888,7 @@ export default function FeedScreen() {
                 ))}
               </ScrollView>
 
+              {/* Ações do modal */}
               <View
                 style={{
                   flexDirection: "row",

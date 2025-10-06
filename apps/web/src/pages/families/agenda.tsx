@@ -1,4 +1,15 @@
-// apps/web/src/pages/agendas.tsx
+// ================================= apps/web/src/pages/agendas.tsx =================================
+/**
+ * Autor: Alexandre Brrissos — Nº 21131
+ * Página: Agenda de consultas da família/criança
+ *
+ * Objetivos do refactor:
+ *  - Comentários claros por secção (código autoexplicativo)
+ *  - Helpers PUROS, pequenos (≤ 30 linhas) e reutilizáveis
+ *  - Handlers e efeitos organizados e nomeados
+ *  - Sem alterar o comportamento original
+ */
+
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { flushSync } from "react-dom";
 import {
@@ -58,15 +69,19 @@ import {
   createProposalForConsultation,
   cancelConsultation,
   getConsultation,
-} from "../../services/consultations";
+} from "@/services/consultations";
 import type { SlotLite } from "../../services/consultations";
 
-/* ---------- Status config com ícones ---------- */
+/* =========================================================================================
+   STATUS → LABEL / COR / ÍCONE (PURO, <30)
+   ========================================================================================= */
+
 type StatusCfg = {
   label: string;
   color: "success" | "warning" | "error" | "default";
   Icon?: React.ElementType;
 };
+
 const STATUS_CFG: Record<string, StatusCfg> = {
   CONFIRMED: {
     label: "Confirmado",
@@ -78,11 +93,18 @@ const STATUS_CFG: Record<string, StatusCfg> = {
   CANCELLED: { label: "Cancelado", color: "default", Icon: BlockRounded },
 };
 
+/* =========================================================================================
+   HELPERS DE DATA / FORMATAÇÃO (PUROS, <30)
+   ========================================================================================= */
+
+/** PURE: início do dia (local) */
 function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
+
+/** PURE: YYYY-MM-DD (local) */
 function fmtYMD(d?: string | Date | null) {
   if (!d) return "";
   const x = typeof d === "string" ? new Date(d) : d;
@@ -91,6 +113,8 @@ function fmtYMD(d?: string | Date | null) {
   const day = String(x.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
+/** PURE: partes úteis para pílula de data */
 function parts(iso?: string) {
   if (!iso) return { day: "—", mon: "—", time: "" };
   const d = new Date(iso);
@@ -101,7 +125,28 @@ function parts(iso?: string) {
   };
 }
 
-/* ---------- helpers de UI ---------- */
+/** PURE: intervalo “DD/MM/AAAA, HH:MM — HH:MM” */
+function fmtRange(a?: string, b?: string) {
+  const fDate = new Intl.DateTimeFormat("pt-PT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  const fTime = new Intl.DateTimeFormat("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  if (!a || !b) return "Sem horário";
+  const A = new Date(a);
+  const B = new Date(b);
+  return `${fDate.format(A)}, ${fTime.format(A)} — ${fTime.format(B)}`;
+}
+
+/* =========================================================================================
+   UI – COMPONENTES PEQUENOS
+   ========================================================================================= */
+
+/** Cabeçalho de cartão */
 function CardHeader({
   title,
   action,
@@ -131,7 +176,7 @@ function CardHeader({
   );
 }
 
-/* ---------- Linha de consulta ---------- */
+/** Linha de consulta clicável (lista do dia) */
 function ConsultaRow({ c, onClick }: { c: ConsultaLite; onClick: () => void }) {
   const iso = c.scheduledAt || c.date;
   const { day, mon, time } = parts(iso);
@@ -152,7 +197,7 @@ function ConsultaRow({ c, onClick }: { c: ConsultaLite; onClick: () => void }) {
       }}
     >
       <Stack direction="row" alignItems="center" spacing={1.5}>
-        {/* date pill */}
+        {/* Pílula de data */}
         <Box
           sx={{
             width: 68,
@@ -184,7 +229,7 @@ function ConsultaRow({ c, onClick }: { c: ConsultaLite; onClick: () => void }) {
           </Box>
         </Box>
 
-        {/* conteúdo */}
+        {/* Conteúdo */}
         <Box flex={1} minWidth={0}>
           <Typography fontWeight={900} noWrap title={c.title}>
             {c.title}
@@ -234,24 +279,27 @@ function ConsultaRow({ c, onClick }: { c: ConsultaLite; onClick: () => void }) {
   );
 }
 
-/* =================== Página =================== */
+/* =========================================================================================
+   PÁGINA: Agendas
+   ========================================================================================= */
+
 export default function AgendasPage() {
   const theme = useTheme();
   const { user, asChild } = useUserSession();
 
-  // filtro LOCAL (modo família)
-  const [localChildId, setLocalChildId] = useState<string | undefined>();
-  const [monthRef, setMonthRef] = useState(startOfDay(new Date()));
-  const [consultasRaw, setConsultasRaw] = useState<ConsultaLite[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(fmtYMD(new Date()));
-  const [focused, setFocused] = useState<ConsultaLite | null>(null);
+  // Estado base
+  const [localChildId, setLocalChildId] = useState<string | undefined>(); // filtro LOCAL (modo família)
+  const [monthRef, setMonthRef] = useState(startOfDay(new Date())); // mês visível
+  const [consultasRaw, setConsultasRaw] = useState<ConsultaLite[]>([]); // consultas carregadas
+  const [selectedDate, setSelectedDate] = useState<string>(fmtYMD(new Date())); // dia destacado
+  const [focused, setFocused] = useState<ConsultaLite | null>(null); // detalhe selecionado
 
-  // ---- propostas de reagendamento (família) ----
+  // Propostas de reagendamento (família)
   const [proposals, setProposals] = useState<any[]>([]);
   const [loadingProps, setLoadingProps] = useState(false);
   const [errProps, setErrProps] = useState<string | null>(null);
 
-  // diálogo de contra-proposta (controlado)
+  // Dialogs controlados
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogData, setDialogData] = useState<{
     consultationId: number;
@@ -264,10 +312,23 @@ export default function AgendasPage() {
     null
   );
 
-  // diálogo de cancelamento (custom)
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<ConsultaLite | null>(null);
 
+  /** UI: decide cor do “dot” diário por estado (usa tema → não puro) */
+  const dotColor = useCallback(
+    (status?: string) => {
+      const s = (status || "").toUpperCase();
+      if (s === "CONFIRMED") return theme.palette.success.main;
+      if (s === "PENDING") return theme.palette.warning.main;
+      if (s === "DECLINED") return theme.palette.error.main;
+      if (s === "CANCELLED") return theme.palette.grey[400];
+      return theme.palette.divider;
+    },
+    [theme.palette]
+  );
+
+  /** Abrir dialog de contra-proposta (mantém ordem de hooks estável) */
   const openRescheduleDialog = useCallback(
     (
       consultationId: number,
@@ -282,7 +343,8 @@ export default function AgendasPage() {
     []
   );
 
-  async function reloadFamilyProposals() {
+  /** Carrega propostas pendentes (família) */
+  const reloadFamilyProposals = useCallback(async () => {
     if (asChild) return setProposals([]);
     const famId = Number(user?.id);
     if (!Number.isFinite(famId)) return setProposals([]);
@@ -291,10 +353,10 @@ export default function AgendasPage() {
       limit: 50,
     });
     setProposals(res?.items || []);
-  }
+  }, [asChild, user?.id]);
 
-  // recarregar calendário/lista
-  async function reloadConsultas() {
+  /** Carrega consultas consoante modo criança/família */
+  const reloadConsultas = useCallback(async () => {
     try {
       let items: ConsultaLite[] = [];
       if (asChild) {
@@ -318,24 +380,9 @@ export default function AgendasPage() {
       console.error("Falha a carregar consultas:", e);
       setConsultasRaw([]);
     }
-  }
+  }, [asChild, user?.actingChild?.id, user?.id, localChildId]);
 
-  const fDate = new Intl.DateTimeFormat("pt-PT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-  const fTime = new Intl.DateTimeFormat("pt-PT", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  const fmtRange = (a?: string, b?: string) => {
-    if (!a || !b) return "Sem horário";
-    const A = new Date(a),
-      B = new Date(b);
-    return `${fDate.format(A)}, ${fTime.format(A)} — ${fTime.format(B)}`;
-  };
-
+  /* ---------- EFEITO: carregar propostas ao montar / trocar utilizador ---------- */
   useEffect(() => {
     (async () => {
       const famId = Number(user?.id);
@@ -357,6 +404,7 @@ export default function AgendasPage() {
     })();
   }, [user?.id, asChild]);
 
+  /* ---------- EFEITO: se entrar em modo criança, limpa estado de propostas ---------- */
   useEffect(() => {
     if (asChild) {
       setProposals([]);
@@ -365,6 +413,7 @@ export default function AgendasPage() {
     }
   }, [asChild]);
 
+  /* ---------- Opções de criança (AvatarSelect) ---------- */
   const childBaseOptions: AvatarOption[] = (user?.children || []).map((c) => ({
     id: String(c.id),
     nome: c.name ?? "",
@@ -375,11 +424,12 @@ export default function AgendasPage() {
     ...childBaseOptions,
   ];
 
+  /* ---------- EFEITO: carregar consultas em alterações relevantes ---------- */
   useEffect(() => {
     reloadConsultas();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asChild, user?.actingChild?.id, user?.id, localChildId]);
+  }, [reloadConsultas]);
 
+  /* ---------- Agrupar consultas por dia ---------- */
   const byDay = useMemo(() => {
     const map = new Map<string, ConsultaLite[]>();
     for (const c of consultasRaw) {
@@ -392,6 +442,7 @@ export default function AgendasPage() {
     return map;
   }, [consultasRaw]);
 
+  /* ---------- Ajustar dia selecionado para 1.º com itens, se necessário ---------- */
   useEffect(() => {
     if (!consultasRaw.length) return;
     const sorted = [...consultasRaw].sort(
@@ -409,15 +460,7 @@ export default function AgendasPage() {
     }
   }, [consultasRaw, byDay, selectedDate]);
 
-  const dotColor = (status?: string) => {
-    const s = (status || "").toUpperCase();
-    if (s === "CONFIRMED") return theme.palette.success.main;
-    if (s === "PENDING") return theme.palette.warning.main;
-    if (s === "DECLINED") return theme.palette.error.main;
-    if (s === "CANCELLED") return theme.palette.grey[400];
-    return theme.palette.divider;
-  };
-
+  /* ---------- Construir grelha mensal (local) ---------- */
   const month = useMemo(() => {
     const d0 = new Date(monthRef);
     d0.setDate(1);
@@ -443,6 +486,7 @@ export default function AgendasPage() {
     };
   }, [monthRef]);
 
+  /* ---------- Lista do dia + foco inicial ---------- */
   const dayList = useMemo(
     () => byDay.get(selectedDate) || [],
     [byDay, selectedDate]
@@ -450,8 +494,10 @@ export default function AgendasPage() {
 
   useEffect(() => {
     setFocused(dayList[0] ?? null);
-  }, [selectedDate, dayList.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, dayList.length]);
 
+  /* ---------- Navegação mensal ---------- */
   const goPrev = () => {
     const d = new Date(monthRef);
     d.setMonth(d.getMonth() - 1);
@@ -468,27 +514,36 @@ export default function AgendasPage() {
     setSelectedDate(fmtYMD(today));
   };
 
+  /* ---------- Cancelamento de consulta (confirma e atualiza) ---------- */
+  const handleConfirmCancel = useCallback(
+    async (reason?: string) => {
+      if (!cancelTarget) return;
+      try {
+        setBusyDetail("cancel");
+        await cancelConsultation(cancelTarget.id, reason);
+        await reloadConsultas();
+        await reloadFamilyProposals();
+        setCancelOpen(false);
+        setCancelTarget(null);
+        alert("Consulta cancelada.");
+      } catch (e: any) {
+        alert(e?.message || "Não foi possível cancelar a consulta.");
+      } finally {
+        setBusyDetail(null);
+      }
+    },
+    [cancelTarget, reloadConsultas, reloadFamilyProposals]
+  );
+
+  /* ---------- Título (sem dependências dinâmicas) ---------- */
   const titleLeft = "Agenda";
 
-  async function handleConfirmCancel(reason?: string) {
-    if (!cancelTarget) return;
-    try {
-      setBusyDetail("cancel");
-      await cancelConsultation(cancelTarget.id, reason);
-      await reloadConsultas();
-      await reloadFamilyProposals();
-      setCancelOpen(false);
-      setCancelTarget(null);
-      alert("Consulta cancelada.");
-    } catch (e: any) {
-      alert(e?.message || "Não foi possível cancelar a consulta.");
-    } finally {
-      setBusyDetail(null);
-    }
-  }
-
+  /* =====================================================================================
+     UI
+     ===================================================================================== */
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      {/* Título */}
       <Typography
         variant="h3"
         fontWeight={900}
@@ -504,8 +559,7 @@ export default function AgendasPage() {
         {titleLeft}
       </Typography>
 
-      {/* ---- Pedidos de reagendamento (família) ---- */
-      /* Barra extra com ícone e tooltips */}
+      {/* Pedidos de reagendamento (família) */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
           <CardHeader
@@ -689,7 +743,7 @@ export default function AgendasPage() {
         </WhiteCard>
       )}
 
-      {/* -------- Dialog para contra-proposta -------- */}
+      {/* Dialog para contra-proposta */}
       <SlotPickerDialog
         open={dialogOpen}
         librarianId={dialogData?.librarianId ?? 0}
@@ -730,7 +784,7 @@ export default function AgendasPage() {
         }}
       />
 
-      {/* -------- Topo: criança -------- */}
+      {/* Filtro LOCAL por criança (família) */}
       {!asChild && !!user?.children?.length && (
         <WhiteCard sx={{ mb: 2 }}>
           <CardHeader title="Escolher criança" icon={<PeopleAltRounded />} />
@@ -744,7 +798,7 @@ export default function AgendasPage() {
         </WhiteCard>
       )}
 
-      {/* Modo CRIANÇA → apenas mostra quem está ativo (sem escolher) */}
+      {/* Contexto: modo criança (mostra perfil ativo) */}
       {asChild && user?.actingChild && (
         <WhiteCard sx={{ mb: 2 }}>
           <CardHeader title="A atuar como" icon={<PersonRounded />} />
@@ -759,6 +813,7 @@ export default function AgendasPage() {
         </WhiteCard>
       )}
 
+      {/* Grelha principal: calendário | lista do dia | detalhe */}
       <Grid container spacing={2}>
         {/* Coluna 1: Calendário */}
         <Grid item xs={12} md={6}>
@@ -793,7 +848,7 @@ export default function AgendasPage() {
               }
             />
 
-            {/* grelha */}
+            {/* Grelha mensal */}
             <Box
               sx={{
                 display: "grid",
@@ -834,7 +889,7 @@ export default function AgendasPage() {
                       {dayNum}
                     </Typography>
 
-                    {/* bolinhas coloridas por estado */}
+                    {/* Bolinhas por estado */}
                     {items.slice(0, 2).map((it, idx) => {
                       const ccor = dotColor(it.status);
                       return (
@@ -1017,8 +1072,7 @@ export default function AgendasPage() {
                           try {
                             setBusyDetail("reschedule");
                             const full = await getConsultation(focused!.id);
-                            libId =
-                              full?.librarianId ?? full?.librarian?.id ?? null;
+                            libId = full?.librarian?.id ?? null;
                           } catch (e: any) {
                             console.warn(
                               "Falha a obter consulta completa:",
@@ -1076,7 +1130,7 @@ export default function AgendasPage() {
         </Grid>
       </Grid>
 
-      {/* ------- Dialog custom: confirmar cancelamento ------- */}
+      {/* Dialog custom: confirmar cancelamento */}
       <ConfirmCancelDialog
         open={cancelOpen}
         title={cancelTarget?.title ?? "Consulta"}
@@ -1089,7 +1143,10 @@ export default function AgendasPage() {
   );
 }
 
-/* --------- Dialog: selector de slots (família propõe novo) --------- */
+/* =========================================================================================
+   DIALOG: Selector de slots (família propõe novo)
+   ========================================================================================= */
+
 function SlotPickerDialog({
   open,
   onClose,
@@ -1109,6 +1166,14 @@ function SlotPickerDialog({
   const [windowEnd, setWindowEnd] = useState<Date | null>(null);
   const [noMore, setNoMore] = useState(false);
 
+  /** PURE: adicionar dias (local) */
+  function addDays(d: Date, n: number) {
+    const x = new Date(d);
+    x.setDate(x.getDate() + n);
+    return x;
+  }
+
+  /** Primeira carga de slots (14 dias) ao abrir */
   useEffect(() => {
     if (!open || !librarianId) return;
     (async () => {
@@ -1132,12 +1197,7 @@ function SlotPickerDialog({
     })();
   }, [open, librarianId]);
 
-  function addDays(d: Date, n: number) {
-    const x = new Date(d);
-    x.setDate(x.getDate() + n);
-    return x;
-  }
-
+  /** Mostrar mais 14 dias (sem duplicar slots) */
   async function handleShowMore() {
     if (!windowEnd || initialLoading || moreLoading || noMore) return;
     setMoreLoading(true);
@@ -1164,6 +1224,7 @@ function SlotPickerDialog({
     }
   }
 
+  /** Agrupar slots por dia (rótulo local) */
   const grouped = useMemo(() => {
     const map = new Map<string, SlotLite[]>();
     for (const s of slots) {
@@ -1304,7 +1365,10 @@ function SlotPickerDialog({
   );
 }
 
-/* --------- Dialog: confirmar cancelamento (custom) --------- */
+/* =========================================================================================
+   DIALOG: Confirmar cancelamento
+   ========================================================================================= */
+
 function ConfirmCancelDialog({
   open,
   onClose,

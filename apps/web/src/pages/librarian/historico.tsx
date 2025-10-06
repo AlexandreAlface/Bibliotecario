@@ -1,4 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+/**
+ * =============================================================================
+ *  Histórico de Consultas — Famílias / Bibliotecário
+ * -----------------------------------------------------------------------------
+ *  Ficheiro: src/pages/families/HistoricoConsultas.tsx
+ *  Autor:    Alexandre Brissos  (nº 21131)
+ *
+ *  Notas de reforço:
+ *  - Comentários em TODO o código.
+ *  - Helpers "puros" (sem efeitos colaterais) separados para testes fáceis.
+ *  - Funções auxiliares curtas (< 30 linhas).
+ *  - Mantido padrão de UI do projeto (MUI + ui-web).
+ * =============================================================================
+ */
+
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Box,
   Chip,
@@ -24,7 +39,11 @@ import {
   type ConsultationFull,
 } from "../../services/consultations";
 
-/* ---------- helpers ---------- */
+/* =================================================================================
+ *  Helpers "PUROS" (sem efeitos colaterais) — simples de testar e reutilizar
+ * ================================================================================= */
+
+/** Mapa de estados para rótulo/cor de Chip. */
 const STATUS_CFG: Record<
   string,
   { label: string; color: "success" | "warning" | "error" | "default" }
@@ -36,35 +55,112 @@ const STATUS_CFG: Record<
   COMPLETED: { label: "Concluído", color: "success" },
 };
 
+/** Início do dia (00:00:00.000) — evita bugs de TZ ao filtrar. */
 function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
+
+/** Fim do dia (23:59:59.999) — útil em filtros "até". */
 function endOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
   return x;
 }
+
+/** YYYY-MM-DD para inputs type="date". */
 function fmtYMD(d?: string | Date | null) {
   if (!d) return "";
   const x = typeof d === "string" ? new Date(d) : d;
-  return x.toISOString().slice(0, 10);
+  // Mantemos formato local (não UTC) para estabilidade nos inputs.
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, "0");
+  const day = String(x.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
+
+/** Partes formatadas de um ISO (dia, mês curto e hora). */
 function parts(iso?: string) {
   if (!iso) return { day: "—", mon: "—", hhmm: "" };
   const d = new Date(iso);
   return {
     day: d.toLocaleDateString("pt-PT", { day: "2-digit" }),
     mon: d.toLocaleDateString("pt-PT", { month: "short" }),
-    hhmm: d.toLocaleTimeString("pt-PT", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
+    hhmm: d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }),
   };
 }
 
-/* ---------- item da lista ---------- */
+/** Agrupa consultas por YYYY-MM-DD e ordena (dia desc, hora desc). */
+function groupByDay(items: ConsultationFull[]) {
+  const map = new Map<string, ConsultationFull[]>();
+  for (const c of items) {
+    const k = fmtYMD(c.startAt || c.requestedAt);
+    if (!k) continue;
+    const arr = map.get(k) || [];
+    arr.push(c);
+    map.set(k, arr);
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1)) // dias desc
+    .map(([key, arr]) => ({
+      key,
+      label: new Date(key).toLocaleDateString("pt-PT", {
+        weekday: "long",
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      }),
+      items: arr.sort(
+        (a, b) =>
+          new Date(b.startAt || 0).getTime() -
+          new Date(a.startAt || 0).getTime()
+      ),
+    }));
+}
+
+/** Constrói query para a API a partir do contexto/estado. */
+function buildHistoryQuery(params: {
+  fromYmd: string;
+  toYmd: string;
+  status: Set<string>;
+  isLibrarian: boolean;
+  asChild: boolean;
+  user: any;
+  localChildId?: string;
+}) {
+  const { fromYmd, toYmd, status, isLibrarian, asChild, user, localChildId } =
+    params;
+
+  const q: any = {
+    limit: 200,
+    order: "desc",
+    from: new Date(fromYmd).toISOString(),
+    to: endOfDay(new Date(toYmd)).toISOString(),
+    status: Array.from(status),
+  };
+
+  if (isLibrarian) {
+    const lid = Number(user?.id);
+    if (Number.isFinite(lid)) q.librarianId = lid;
+  } else if (asChild) {
+    const cid = Number((user?.actingChild?.id as any) ?? NaN);
+    if (Number.isFinite(cid)) q.childId = cid;
+  } else {
+    const fid = Number(user?.id);
+    if (Number.isFinite(fid)) q.familyId = fid;
+    if (localChildId && localChildId !== "") {
+      const cid = Number(localChildId);
+      if (Number.isFinite(cid)) q.childId = cid;
+    }
+  }
+  return q;
+}
+
+/* =================================================================================
+ *  Item da lista (Componente curto e reutilizável)
+ * ================================================================================= */
+
 function HistoryRow({
   c,
   onClick,
@@ -95,9 +191,10 @@ function HistoryRow({
         cursor: onClick ? "pointer" : "default",
         "&:hover": onClick ? { bgcolor: "action.hover" } : undefined,
       }}
+      role={onClick ? "button" : undefined}
     >
       <Stack direction="row" alignItems="center" spacing={1.5}>
-        {/* date pill */}
+        {/* “pílula” de data */}
         <Box
           sx={{
             width: 68,
@@ -185,28 +282,32 @@ function HistoryRow({
   );
 }
 
-/* =================== Página =================== */
+/* =================================================================================
+ *  Página
+ * ================================================================================= */
 
 type GroupedDay = { key: string; label: string; items: ConsultationFull[] };
 
 export default function HistoricoConsultasPage() {
   const { user, asChild, isLibrarian } = useUserSession() as any;
 
-  // filtros
+  // -------- Filtros de data/estado/filho --------
   const [localChildId, setLocalChildId] = useState<string | undefined>();
+  // Por defeito, últimos 6 meses
   const [fromYmd, setFromYmd] = useState(
     fmtYMD(startOfDay(new Date(new Date().setMonth(new Date().getMonth() - 6))))
-  ); // últimos 6 meses
-  const [toYmd, setToYmd] = useState(fmtYMD(new Date())); // hoje
+  );
+  const [toYmd, setToYmd] = useState(fmtYMD(new Date()));
   const [statusSet, setStatusSet] = useState<Set<string>>(
     new Set(["COMPLETED", "CANCELLED", "DECLINED"])
   );
 
+  // -------- Estado de dados/erro --------
   const [items, setItems] = useState<ConsultationFull[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // opções para o filtro por criança (usado só para famílias)
+  // -------- Opções do seletor por criança (apenas famílias) --------
   const childBaseOptions: AvatarOption[] = (user?.children || []).map(
     (c: { id: any; name: any }) => ({
       id: String(c.id),
@@ -219,34 +320,20 @@ export default function HistoricoConsultasPage() {
     ...childBaseOptions,
   ];
 
-  async function reload() {
+  /** Recarrega a lista com base no estado atual de filtros/role. */
+  const reload = useCallback(async () => {
     try {
       setLoading(true);
       setErr(null);
-
-      const query: any = {
-        limit: 200,
-        order: "desc",
-        from: new Date(fromYmd).toISOString(),
-        to: endOfDay(new Date(toYmd)).toISOString(),
-        status: Array.from(statusSet),
-      };
-
-      if (isLibrarian) {
-        const lid = Number(user?.id);
-        if (Number.isFinite(lid)) query.librarianId = lid;
-      } else if (asChild) {
-        const cid = Number((user?.actingChild?.id as any) ?? NaN);
-        if (Number.isFinite(cid)) query.childId = cid;
-      } else {
-        const fid = Number(user?.id);
-        if (Number.isFinite(fid)) query.familyId = fid;
-        if (localChildId && localChildId !== "") {
-          const cid = Number(localChildId);
-          if (Number.isFinite(cid)) query.childId = cid;
-        }
-      }
-
+      const query = buildHistoryQuery({
+        fromYmd,
+        toYmd,
+        status: statusSet,
+        isLibrarian: !!isLibrarian,
+        asChild: !!asChild,
+        user,
+        localChildId,
+      });
       const res = await getConsultationsHistory(query);
       setItems(res || []);
     } catch (e: any) {
@@ -255,64 +342,36 @@ export default function HistoricoConsultasPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [fromYmd, toYmd, statusSet, isLibrarian, asChild, user, localChildId]);
 
+  // Dispara reload quando filtros mudam
   useEffect(() => {
     reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    fromYmd,
-    toYmd,
-    Array.from(statusSet).join(","),
-    localChildId,
-    asChild,
-    user?.actingChild?.id,
-    user?.id,
+    reload, // memoizada
   ]);
 
-  const grouped = useMemo<GroupedDay[]>(() => {
-    const map = new Map<string, ConsultationFull[]>();
-    for (const c of items) {
-      const k = fmtYMD(c.startAt || c.requestedAt);
-      if (!k) continue;
-      const arr = map.get(k) || [];
-      arr.push(c);
-      map.set(k, arr);
-    }
-    // ordenar por data desc
-    return Array.from(map.entries())
-      .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-      .map(([key, arr]) => ({
-        key,
-        label: new Date(key).toLocaleDateString("pt-PT", {
-          weekday: "long",
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        }),
-        items: arr.sort(
-          (a, b) =>
-            new Date(b.startAt || 0).getTime() -
-            new Date(a.startAt || 0).getTime()
-        ),
-      }));
-  }, [items]);
+  /** Lista agrupada por dia (memoizada). */
+  const grouped = useMemo<GroupedDay[]>(() => groupByDay(items), [items]);
 
-  const toggleStatus = (s: string) =>
+  /** Toggle de um estado (imutável, puro). */
+  const toggleStatus = useCallback((s: string) => {
     setStatusSet((prev) => {
       const next = new Set(prev);
       if (next.has(s)) next.delete(s);
       else next.add(s);
       return next;
     });
+  }, []);
 
-  const quickSet = (days: number) => {
+  /** Atalhos rápidos de intervalo (ex.: últimos 30 dias). */
+  const quickSet = useCallback((days: number) => {
     const now = new Date();
     const from = new Date(now);
     from.setDate(now.getDate() - days);
     setFromYmd(fmtYMD(from));
     setToYmd(fmtYMD(now));
-  };
+  }, []);
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
@@ -324,7 +383,7 @@ export default function HistoricoConsultasPage() {
         Histórico de consultas
       </Typography>
 
-      {/* Filtros */}
+      {/* ------------------------- Filtros ------------------------- */}
       <WhiteCard sx={{ mb: 2 }}>
         <Stack
           direction={{ xs: "column", md: "row" }}
@@ -332,6 +391,7 @@ export default function HistoricoConsultasPage() {
           alignItems={{ xs: "stretch", md: "center" }}
           justifyContent="space-between"
         >
+          {/* Intervalo de datas + atalhos */}
           <Stack
             direction="row"
             spacing={1.5}
@@ -390,7 +450,7 @@ export default function HistoricoConsultasPage() {
           )}
         </Stack>
 
-        {/* Status */}
+        {/* Estados (chips toggle) */}
         <Stack
           direction="row"
           spacing={1}
@@ -401,7 +461,10 @@ export default function HistoricoConsultasPage() {
           {["COMPLETED", "CANCELLED", "DECLINED", "CONFIRMED", "PENDING"].map(
             (s) => {
               const active = statusSet.has(s);
-              const cfg = STATUS_CFG[s] || { label: s, color: "default" };
+              const cfg = STATUS_CFG[s] || {
+                label: s,
+                color: "default" as const,
+              };
               return (
                 <Chip
                   key={s}
@@ -410,6 +473,7 @@ export default function HistoricoConsultasPage() {
                   variant={active ? "filled" : "outlined"}
                   label={cfg.label}
                   onClick={() => toggleStatus(s)}
+                  aria-pressed={active}
                 />
               );
             }
@@ -417,13 +481,14 @@ export default function HistoricoConsultasPage() {
         </Stack>
       </WhiteCard>
 
+      {/* Erro global */}
       {err && (
         <Typography color="error" sx={{ mb: 2 }}>
           {err}
         </Typography>
       )}
 
-      {/* Lista agrupada por dia */}
+      {/* --------------------- Lista agrupada por dia --------------------- */}
       <Grid container spacing={2}>
         {grouped.length === 0 && !loading && (
           <Grid item xs={12}>
@@ -457,3 +522,8 @@ export default function HistoricoConsultasPage() {
     </Container>
   );
 }
+
+/* =============================================================================
+ *  Fim — Alexandre Brissos • nº 21131
+ * =============================================================================
+ */

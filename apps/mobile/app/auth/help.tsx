@@ -1,16 +1,58 @@
+/**
+ * =====================================================================
+ * Ficheiro: app/how-it-works.tsx
+ * Módulo: Ecrã “Como funciona?” com passos e CTAs
+ * Autor: Alexandre Brissos – Nº 21131
+ * ---------------------------------------------------------------------
+ * Reforços:
+ * • Comentários (PT-PT) e JSDoc completos.
+ * • Helpers PUROS e reutilizáveis.
+ * • Funções ≤ 30 linhas, coesas e testáveis.
+ * • Tipagem explícita e tratamento de erros “fail-safe”.
+ * =====================================================================
+ */
+
 import * as React from "react";
 import { ScrollView, View } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import {
-  Text,
-  IconButton,
-  useTheme,
-  Surface,
-  Button,
-} from "react-native-paper";
+import { Text, IconButton, useTheme, Surface, Button } from "react-native-paper";
 import { Background } from "@bibliotecario/ui-mobile";
 
-/** Cartão de passo (número + título + descrição) */
+/** =====================================================================
+ * Helpers PUROS (sem efeitos)
+ * ===================================================================== */
+
+/** Testa se o valor é uma string não vazia. */
+function isNonEmptyString(v: unknown): v is string {
+  return typeof v === "string" && v.trim().length > 0;
+}
+
+/** Normaliza o parâmetro `next` oriundo da querystring. */
+function normalizeNextParam(next: unknown): string | undefined {
+  return isNonEmptyString(next) ? next : undefined;
+}
+
+/** Label do CTA principal em função da existência de `next`. */
+function getPrimaryCtaLabel(hasNext: boolean): string {
+  return hasNext ? "Continuar" : "Voltar";
+}
+
+/** Navegação do CTA principal (mantém comportamento). */
+function handlePrimaryPress(router: ReturnType<typeof useRouter>, next?: string): void {
+  if (isNonEmptyString(next)) router.replace(next);
+  else router.back();
+}
+
+/** =====================================================================
+ * UI: Cartão de passo (número + título + descrição)
+ * ===================================================================== */
+
+/**
+ * Cartão visual de um passo do fluxo.
+ * @param props.step        Número do passo (1-based).
+ * @param props.title       Título conciso do passo.
+ * @param props.description Descrição breve do passo.
+ */
 function StepCard({
   step,
   title,
@@ -34,7 +76,7 @@ function StepCard({
           backgroundColor: theme.colors.surface,
         }}
       >
-        {/* Badge redondo “1/2” sobreposto */}
+        {/* Badge circular do número do passo (sobreposto) */}
         <View
           style={{
             position: "absolute",
@@ -50,22 +92,19 @@ function StepCard({
             borderColor: theme.colors.surface,
           }}
         >
-          <Text
-            variant="titleLarge"
-            style={{ color: theme.colors.onPrimary, fontWeight: "700" }}
-          >
+          <Text variant="titleLarge" style={{ color: theme.colors.onPrimary, fontWeight: "700" }}>
             {step}
           </Text>
         </View>
 
-        {/* “sub-card” interior suave (como no Figma) */}
+        {/* Sub-cartão interior suave (conforme Figma) */}
         <Surface
           elevation={0}
           style={{
             backgroundColor: theme.colors.surfaceVariant,
             borderRadius: 18,
             padding: 16,
-            marginTop: 12, // 🔹 espaço entre badge e card
+            marginTop: 12, // espaço entre badge e card
           }}
         >
           <Text
@@ -79,10 +118,7 @@ function StepCard({
           >
             {title}
           </Text>
-          <Text
-            variant="bodyMedium"
-            style={{ color: theme.colors.onSurface, textAlign: "center" }}
-          >
+          <Text variant="bodyMedium" style={{ color: theme.colors.onSurface, textAlign: "center" }}>
             {description}
           </Text>
         </Surface>
@@ -91,11 +127,24 @@ function StepCard({
   );
 }
 
+/** =====================================================================
+ * Página: “Como funciona?”
+ * ===================================================================== */
+
+type HowItWorksParams = { next?: string };
+
+/**
+ * Ecrã explicativo com 2 passos e CTAs de continuidade/retorno.
+ * Mantém navegação original, com guards para o parâmetro `next`.
+ */
 export default function HowItWorks() {
   const router = useRouter();
   const theme = useTheme();
-  // se vieres de algum fluxo (ex.: signup), podes passar ?next=/auth/signup
-  const { next } = useLocalSearchParams<{ next?: string }>();
+
+  // Se vieres de algum fluxo (ex.: signup), podes passar ?next=/auth/signup
+  const { next } = useLocalSearchParams<HowItWorksParams>();
+  const normalizedNext = normalizeNextParam(next);
+  const hasNext = isNonEmptyString(normalizedNext);
 
   return (
     <Background center={0.72}>
@@ -108,10 +157,8 @@ export default function HowItWorks() {
           marginTop: 16,
         }}
       >
-        {/* Topo: Back + título */}
-        <View
-          style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}
-        >
+        {/* Topo: Back + espaçador (título fora) */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
           <IconButton
             icon="arrow-left"
             size={24}
@@ -123,6 +170,7 @@ export default function HowItWorks() {
           <View style={{ flex: 1 }} />
         </View>
 
+        {/* Título do ecrã */}
         <Text
           variant="headlineLarge"
           style={{
@@ -136,7 +184,7 @@ export default function HowItWorks() {
           Como funciona?
         </Text>
 
-        {/* Cards */}
+        {/* Passos */}
         <StepCard
           step={1}
           title="Dados da Família"
@@ -148,25 +196,18 @@ export default function HowItWorks() {
           description="Mostra-nos os leitores! Indica o nome, a idade e o perfil de cada criança para receberes sugestões perfeitas."
         />
 
-        {/* CTA(s) em baixo */}
+        {/* CTAs em baixo */}
         <View style={{ marginTop: 12 }}>
           <Button
             mode="contained"
-            onPress={() => {
-              if (next && typeof next === "string") router.replace(next);
-              else router.back();
-            }}
+            onPress={() => handlePrimaryPress(router, normalizedNext)}
             style={{ borderRadius: 24 }}
             contentStyle={{ paddingVertical: 8 }}
           >
-            {next ? "Continuar" : "Voltar"}
+            {getPrimaryCtaLabel(hasNext)}
           </Button>
 
-          <Button
-            onPress={() => router.push("/auth/signup")}
-            style={{ marginTop: 8 }}
-            textColor={theme.colors.onPrimary}
-          >
+          <Button onPress={() => router.push("/auth/signup")} style={{ marginTop: 8 }} textColor={theme.colors.onPrimary}>
             Criar conta
           </Button>
         </View>

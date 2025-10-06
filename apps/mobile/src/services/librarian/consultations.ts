@@ -1,8 +1,24 @@
-// apps/mobile/src/services/librarian/consultations.ts
+/**
+ * =============================================================================
+ *  Módulo: apps/mobile/src/services/librarian/consultations.ts
+ *  Autor:  Alexandre Brissos — Nº 21131
+ * -----------------------------------------------------------------------------
+ *  Reforços aplicados:
+ *   • Comentários/JSDoc completos (PT-PT).
+ *   • Helpers **PUROS** para querystring, fetch JSON e normalização.
+ *   • Funções curtas (≤ 30 linhas), coesas e testáveis.
+ *   • Tipagem explícita e mapeamento defensivo de respostas do backend.
+ * =============================================================================
+ */
+
 import { API_URL } from "src/services/api";
 
-/* ---------------- helpers ---------------- */
-function qs(params: Record<string, string | number | undefined | null>) {
+/* =============================== Helpers PUROS =============================== */
+
+/** Constrói query-string ignorando nulos/vazios e números não finitos. */
+function qs(
+  params: Record<string, string | number | undefined | null>
+): string {
   const s = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
     if (v === undefined || v === null || v === "") continue;
@@ -12,6 +28,7 @@ function qs(params: Record<string, string | number | undefined | null>) {
   return s.toString();
 }
 
+/** Faz fetch → texto → JSON “seguro”; lança erro com mensagem útil quando !ok. */
 async function fetchJson<T = any>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     credentials: "include",
@@ -26,6 +43,7 @@ async function fetchJson<T = any>(url: string, init?: RequestInit): Promise<T> {
 
   const text = await res.text();
   if (!res.ok) {
+    // tenta extrair { error } do backend; fallback ao texto/status
     try {
       const j = text ? JSON.parse(text) : {};
       throw new Error(j?.error || `HTTP ${res.status}`);
@@ -33,25 +51,27 @@ async function fetchJson<T = any>(url: string, init?: RequestInit): Promise<T> {
       throw new Error(text || `HTTP ${res.status}`);
     }
   }
-  if (!text.trim()) return [] as any;
-  return JSON.parse(text);
+  if (!text.trim()) return [] as any; // endpoints que devolvem vazio
+  return JSON.parse(text) as T;
 }
 
-/* ---------------- tipos ---------------- */
+/* ================================ Tipos ===================================== */
+
 export type SlotLite = {
   id: number;
   startAt: string;
   endAt: string;
-  status: "OPEN" | "BOOKED" | "BLOCKED"; // ← inclui BLOCKED
+  status: "OPEN" | "BOOKED" | "BLOCKED";
   librarianId: number;
   librarianName?: string;
   librarianAvatarUrl?: string | null;
   libraryId?: number;
   libraryName?: string;
-  // ↓ novos
+  /** Nome da família que reservou (se aplicável). */
   reservedByName?: string | null;
+  /** Nome da criança associada (se aplicável). */
   reservedChildName?: string | null;
-};;
+};
 
 export type Proposal = {
   id: number;
@@ -82,40 +102,64 @@ export type SlotCreateInput = {
   status?: "OPEN" | "BLOCKED";
 };
 
-/* ---------------- Slots (bibliotecário) ---------------- */
+/* ======================= Normalizadores (PUROS) ============================== */
 
-// slots do bibliotecário num intervalo (mesmo endpoint do web)
+/** Normaliza um slot “rico” do backend para `SlotLite`. */
+function normalizeSlot(raw: any, fallbackLibrarianId?: number): SlotLite {
+  const statusRaw = String(raw?.status ?? "OPEN").toUpperCase();
+  return {
+    id: Number(raw?.id),
+    startAt: String(raw?.startAt ?? raw?.begin ?? raw?.since),
+    endAt: String(raw?.endAt ?? raw?.end ?? raw?.until),
+    status:
+      statusRaw === "BLOCKED"
+        ? "BLOCKED"
+        : statusRaw === "BOOKED"
+        ? "BOOKED"
+        : "OPEN",
+    librarianId: Number(
+      raw?.librarianId ?? raw?.librarian?.id ?? fallbackLibrarianId ?? 0
+    ),
+    librarianName: raw?.librarianName ?? raw?.librarian?.fullName ?? undefined,
+    librarianAvatarUrl:
+      raw?.librarianAvatarUrl ?? raw?.librarian?.avatarUrl ?? null,
+    libraryId: raw?.libraryId ?? raw?.library?.id ?? undefined,
+    libraryName: raw?.libraryName ?? raw?.library?.name ?? undefined,
+    reservedByName:
+      raw?.reservedByName ??
+      raw?.consultation?.family?.fullName ??
+      raw?.familyName ??
+      undefined,
+    reservedChildName:
+      raw?.reservedChildName ??
+      raw?.consultation?.child?.name ??
+      raw?.childName ??
+      undefined,
+  };
+}
+
+/* ====================== Slots (bibliotecário) ================================ */
+
+/**
+ * Lista slots do bibliotecário num intervalo.
+ * Usa exatamente o endpoint do web: GET /consultations/librarians/:id/slots
+ */
 export async function listLibrarianSlots(
   librarianId: number,
   params: { from: string; to: string }
 ): Promise<SlotLite[]> {
-  const url = `${API_URL}/consultations/librarians/${librarianId}/slots?${qs(params)}`;
-  const data = await fetchJson(url);
-  return (Array.isArray(data) ? data : []).map((s: any) => ({
-    id: Number(s.id),
-    startAt: String(s.startAt),
-    endAt: String(s.endAt),
-    status: (s.status || "OPEN").toUpperCase(),
-    librarianId: Number(s.librarianId ?? s.librarian?.id ?? librarianId),
-    librarianName: s.librarianName ?? s.librarian?.fullName ?? undefined,
-    librarianAvatarUrl: s.librarianAvatarUrl ?? s.librarian?.avatarUrl ?? null,
-    libraryId: s.libraryId ?? s.library?.id ?? undefined,
-    libraryName: s.libraryName ?? s.library?.name ?? undefined,
-    // 👇 tenta direto e com fallbacks (caso venham “aninhados”)
-    reservedByName:
-      s.reservedByName ??
-      s.consultation?.family?.fullName ??
-      s.familyName ??
-      undefined,
-    reservedChildName:
-      s.reservedChildName ??
-      s.consultation?.child?.name ??
-      s.childName ??
-      undefined,
-  }));
+  const url = `${API_URL}/consultations/librarians/${librarianId}/slots?${qs(
+    params
+  )}`;
+  const data = await fetchJson<any[]>(url);
+  const arr = Array.isArray(data) ? data : [];
+  return arr.map((s) => normalizeSlot(s, librarianId));
 }
 
-// slots abertos (para o picker de reagendamento)
+/**
+ * Obtém slots “abertos” para o picker de reagendamento.
+ * GET /consultations/slots?from=&to=&(libraryId|librarianId)
+ */
 export async function listOpenSlots(params: {
   from: string; // ISO
   to: string; // ISO
@@ -123,28 +167,12 @@ export async function listOpenSlots(params: {
   librarianId?: number;
 }): Promise<SlotLite[]> {
   const url = `${API_URL}/consultations/slots?${qs(params)}`;
-  const data = await fetchJson(url);
+  const data = await fetchJson<any[]>(url);
   const arr = Array.isArray(data) ? data : [];
-  // já pode vir normalizado; caso venha “rich”, mapeamos defensivamente
-  return arr.map((s: any) => ({
-    id: Number(s.id),
-    startAt: String(s.startAt ?? s.begin ?? s.since),
-    endAt: String(s.endAt ?? s.end ?? s.until),
-    status:
-      ((s.status ?? "OPEN") as string).toUpperCase() === "BOOKED"
-        ? "BOOKED"
-        : ((s.status ?? "OPEN") as string).toUpperCase() === "BLOCKED"
-        ? "BLOCKED"
-        : "OPEN",
-    librarianId: Number(s.librarianId ?? s.librarian?.id ?? 0),
-    librarianName: s.librarianName ?? s.librarian?.fullName ?? undefined,
-    librarianAvatarUrl: s.librarianAvatarUrl ?? s.librarian?.avatarUrl ?? null,
-    libraryId: s.libraryId ?? s.library?.id ?? undefined,
-    libraryName: s.libraryName ?? s.library?.name ?? undefined,
-  }));
+  return arr.map((s) => normalizeSlot(s));
 }
 
-// criar 1 slot
+/** Cria um slot. */
 export async function createSlot(payload: {
   startAt: string;
   endAt: string;
@@ -156,31 +184,28 @@ export async function createSlot(payload: {
   return fetchJson(url, { method: "POST", body: JSON.stringify(payload) });
 }
 
-// criar vários (bulk)
+/** Cria vários slots (bulk) para um bibliotecário. */
 export async function bulkCreateSlots(
   librarianId: number,
   slots: SlotCreateInput[]
 ) {
   const url = `${API_URL}/consultations/librarians/${librarianId}/slots/bulk`;
-  return fetchJson(url, {
-    method: "POST",
-    body: JSON.stringify({ slots }),
-  });
+  return fetchJson(url, { method: "POST", body: JSON.stringify({ slots }) });
 }
 
-// atualizar estado (bloquear/desbloquear)
+/** Atualiza o estado de um slot (bloquear/desbloquear). */
 export async function updateSlotStatus(
   slotId: number,
   status: "OPEN" | "BLOCKED"
 ) {
   const url = `${API_URL}/consultations/slots/${slotId}`;
-  return fetchJson(url, {
-    method: "PATCH",
-    body: JSON.stringify({ status }),
-  });
+  return fetchJson(url, { method: "PATCH", body: JSON.stringify({ status }) });
 }
 
-// tenta DELETE; se não existir, cai para PATCH BLOCKED
+/**
+ * Tenta apagar um slot; se o backend não suportar DELETE,
+ * faz fallback para marcar como BLOCKED.
+ */
 export async function deleteSlot(slotId: number) {
   try {
     const res = await fetch(`${API_URL}/consultations/slots/${slotId}`, {
@@ -198,9 +223,9 @@ export async function deleteSlot(slotId: number) {
   }
 }
 
-/* ---------------- Reagendamentos / Propostas ---------------- */
+/* =================== Reagendamentos / Propostas ============================= */
 
-// propostas pendentes do bibliotecário (lista paginada)
+/** Lista propostas de reagendamento do bibliotecário (paginação opcional). */
 export async function listLibrarianProposals(
   librarianId: number,
   {
@@ -209,12 +234,11 @@ export async function listLibrarianProposals(
     status = "PENDING",
   }: { page?: number; limit?: number; status?: string } = {}
 ): Promise<ProposalsPage> {
-  const url =
-    `${API_URL}/consultations/librarians/${librarianId}/proposals?` +
-    qs({ status, page, limit });
-  const data = await fetchJson(url);
-  // normalizar para { items, page, limit, total }
-  if (data && Array.isArray((data as any).items)) return data as ProposalsPage;
+  const url = `${API_URL}/consultations/librarians/${librarianId}/proposals?${qs(
+    { status, page, limit }
+  )}`;
+  const data = await fetchJson<any>(url);
+  if (data && Array.isArray(data.items)) return data as ProposalsPage;
   return {
     items: Array.isArray(data) ? (data as Proposal[]) : [],
     page,
@@ -223,7 +247,7 @@ export async function listLibrarianProposals(
   };
 }
 
-// criar proposta de reagendamento (bibliotecário → família)
+/** Cria proposta de reagendamento para uma consulta. */
 export async function createProposalForConsultation(
   consultationId: number,
   payload: {
@@ -249,19 +273,19 @@ export async function createProposalForConsultation(
   });
 }
 
-// aceitar proposta (quando veio da família)
+/** Aceita uma proposta (normalmente criada pela família). */
 export async function acceptProposal(proposalId: number) {
   const url = `${API_URL}/consultations/proposals/${proposalId}/accept`;
   return fetchJson(url, { method: "POST" });
 }
 
-// recusar/cancelar proposta
+/** Recusa/cancela uma proposta. */
 export async function declineProposal(proposalId: number) {
   const url = `${API_URL}/consultations/proposals/${proposalId}/decline`;
   return fetchJson(url, { method: "POST" });
 }
 
-// detetar conflitos no calendário do bibliotecário
+/** Verifica conflito no calendário do bibliotecário para um intervalo. */
 export async function checkLibrarianConflict(
   librarianId: number,
   {
@@ -283,8 +307,9 @@ export async function checkLibrarianConflict(
   return fetchJson(url);
 }
 
-/* ---------------- (opcional) pedidos pendentes ---------------- */
+/* ============== (Opcional) Pedidos pendentes para o bibliotecário =========== */
 
+/** Lista consultas pendentes futuras (ordem cronológica ascendente). */
 export async function listPendingConsultationsForLibrarian(
   librarianId: number,
   { limit = 100, from }: { limit?: number; from?: string } = {}
@@ -298,3 +323,7 @@ export async function listPendingConsultationsForLibrarian(
   })}`;
   return fetchJson(url);
 }
+
+/* ============================== Fim do módulo ===============================
+ *  Alexandre Brissos — Nº 21131
+ * ============================================================================ */

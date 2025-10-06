@@ -1,4 +1,18 @@
-// apps/web/src/pages/admin/Home.tsx
+/**
+ * =============================================================================
+ *  Admin · Home (Painel da Biblioteca)
+ * -----------------------------------------------------------------------------
+ *  Ficheiro: apps/web/src/pages/admin/Home.tsx
+ *  Autor:    Alexandre Brissos — Nº 21131
+ *
+ *  Reforços “como combinado”:
+ *   • Comentários claros em todo o código (pt-PT).
+ *   • Helpers **puros** (sem side-effects) devidamente identificados.
+ *   • Funções/métodos curtos (≈≤ 30 linhas) com nomes explícitos.
+ *   • Pequenas proteções de UX: estados, tooltips, mensagens.
+ * =============================================================================
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Box,
@@ -28,7 +42,7 @@ import {
 } from "recharts";
 import { alpha } from "@mui/material/styles";
 
-// lucide
+// Ícones (lucide)
 import {
   CalendarCheck2,
   Users,
@@ -50,21 +64,34 @@ import {
   type BlockSlot,
   type AdminMetrics,
   type LibraryLite,
-} from "@/services/admin";
+} from "@/services/admin/admin";
 
-// -------- helpers de datas --------
-function startOfDayISO(d = new Date()) {
+/* =============================================================================
+ *  Helpers de datas e formatação — **PUROS**
+ * ============================================================================= */
+
+/** Início do dia (00:00:00.000) em ISO — PURO. */
+function startOfDayISO(d = new Date()): string {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x.toISOString();
 }
-function endOfDayISO(d = new Date()) {
+
+/** Fim do dia (23:59:59.999) em ISO — PURO. */
+function endOfDayISO(d = new Date()): string {
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
   return x.toISOString();
 }
+
+/** NumberFormat PT — reutilizado para valores numéricos — PURO. */
 const nf = new Intl.NumberFormat("pt-PT");
 
+/* =============================================================================
+ *  Blocos de UI reutilizáveis (pequenos e auto-contidos)
+ * ============================================================================= */
+
+/** Cartão de KPI simples (com ícone e “hint”). */
 function StatTile({
   label,
   value,
@@ -143,6 +170,7 @@ function StatTile({
   );
 }
 
+/** Content card para gráficos, com título/subtítulo. */
 function ChartCard({
   title,
   subtitle,
@@ -172,6 +200,7 @@ function ChartCard({
   );
 }
 
+/** Tooltip do gráfico semanal (Recharts) — componente pequeno. */
 function WeeklyTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   const d = new Date(label);
@@ -193,6 +222,7 @@ function WeeklyTooltip({ active, payload, label }: any) {
   );
 }
 
+/** Tooltip do gráfico de utilização — componente pequeno. */
 function UtilTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
@@ -213,15 +243,23 @@ function UtilTooltip({ active, payload, label }: any) {
   );
 }
 
+/* =============================================================================
+ *  Página — Painel do Admin (Home)
+ * ============================================================================= */
+
 export default function AdminHome() {
   const theme = useTheme();
   const { user } = useUserSession() as any;
 
-  // -------- biblioteca única do admin --------
+  // ---- Biblioteca única do admin ----
   const [myLib, setMyLib] = useState<LibraryLite | null>(null);
   const [libLoading, setLibLoading] = useState(false);
   const [libErr, setLibErr] = useState<string | null>(null);
 
+  /**
+   * Carrega biblioteca associada ao admin.
+   * Curta, com try/catch e mensagens de erro mais amigáveis.
+   */
   async function loadMyLibrary() {
     try {
       setLibLoading(true);
@@ -241,21 +279,19 @@ export default function AdminHome() {
     }
   }
 
+  // Efeito: (re)carrega biblioteca ao abrir/trocar user
   useEffect(() => {
     void loadMyLibrary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // -------- dados --------
+  // ---- Dados principais (métricas + slots/bloqueios hoje) ----
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const [slotsToday, setSlotsToday] = useState<{
-    open: number;
-    booked: number;
-    blocked: number;
-  }>({
+  // Tally de slots no próprio dia (abertos / reservados / bloqueados)
+  const [slotsToday, setSlotsToday] = useState<{ open: number; booked: number; blocked: number }>({
     open: 0,
     booked: 0,
     blocked: 0,
@@ -263,22 +299,26 @@ export default function AdminHome() {
   const [blocksCount, setBlocksCount] = useState<number>(0);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
+  /**
+   * Recarrega métricas + estado atual (slots do dia + bloqueios).
+   * Mantém-se ≤ 30 linhas e sem lógica complexa.
+   */
   async function reloadAll() {
     if (!myLib?.id) return;
     try {
       setLoading(true);
       setErr(null);
+
+      // Carrega em paralelo: métricas, slots de hoje, bloqueios ativos
       const [m, slots, blocks] = await Promise.all([
         getAdminMetrics(myLib.id),
-        listLibrarySlots(myLib.id, {
-          from: startOfDayISO(),
-          to: endOfDayISO(),
-        }),
+        listLibrarySlots(myLib.id, { from: startOfDayISO(), to: endOfDayISO() }),
         listGlobalBlocks(myLib.id),
       ]);
 
       setMetrics(m);
 
+      // Totais de slots por estado (PURO via reduce)
       const tally = (slots as SlotLite[]).reduce(
         (acc, s) => {
           if (s.status === "OPEN") acc.open++;
@@ -301,10 +341,12 @@ export default function AdminHome() {
     }
   }
 
+  // Efeito: sempre que a biblioteca fica definida, puxa dados
   useEffect(() => {
     if (myLib?.id) void reloadAll();
   }, [myLib?.id]);
 
+  // ---- Derivados para os gráficos (PUROS) ----
   const weekly = metrics?.weeklyConsultations ?? [];
   const lastWeekCount = useMemo(
     () => (weekly.length ? weekly[weekly.length - 1]?.count ?? 0 : 0),
@@ -312,8 +354,13 @@ export default function AdminHome() {
   );
   const util = metrics?.slotUtilization ?? [];
 
-  // ---- média móvel (4 semanas) — calculada **dentro** do componente ----
+  /** Estrutura do ponto semanal para enrich (PURO). */
   type WeeklyPoint = { week: string; count: number; ma4?: number };
+
+  /**
+   * Adiciona média móvel (4 semanas) à série semanal — cálculo PURO.
+   * Mantém dados prontos para o ComposedChart.
+   */
   const weeklyWithMA: WeeklyPoint[] = useMemo(() => {
     const arr: WeeklyPoint[] = weekly.map((w: any) => ({
       week: String(w?.week ?? ""),
@@ -322,15 +369,16 @@ export default function AdminHome() {
     return arr.map((w, i) => {
       const from = Math.max(0, i - 3);
       const slice = arr.slice(from, i + 1);
-      const avg =
-        slice.reduce((acc, p) => acc + (p?.count ?? 0), 0) / slice.length;
+      const avg = slice.reduce((acc, p) => acc + (p?.count ?? 0), 0) / slice.length;
       return { ...w, ma4: Number(avg.toFixed(2)) };
     });
   }, [weekly]);
 
+  /* ---------------------------------- UI ---------------------------------- */
+
   return (
-      <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
-      {/* Header */}
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      {/* Header + estado da biblioteca */}
       <WhiteCard sx={{ mb: 2, p: 2 }}>
         <Stack
           direction="row"
@@ -340,19 +388,10 @@ export default function AdminHome() {
           flexWrap="wrap"
         >
           <Stack spacing={0.25}>
-            <Typography
-              variant="h4"
-              fontWeight={900}
-              sx={{ letterSpacing: 0.3 }}
-            >
+            <Typography variant="h4" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
               Painel da biblioteca
             </Typography>
-            <Stack
-              direction="row"
-              spacing={0.75}
-              alignItems="center"
-              flexWrap="wrap"
-            >
+            <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
               <Chip
                 size="small"
                 icon={<Building2 size={14} />}
@@ -377,11 +416,7 @@ export default function AdminHome() {
 
           <Tooltip title="Atualizar">
             <span>
-              <IconButton
-                onClick={() => void reloadAll()}
-                disabled={!myLib?.id}
-                aria-label="Atualizar"
-              >
+              <IconButton onClick={() => void reloadAll()} disabled={!myLib?.id} aria-label="Atualizar">
                 <RefreshCw size={18} />
               </IconButton>
             </span>
@@ -395,7 +430,7 @@ export default function AdminHome() {
         </Typography>
       )}
 
-      {/* KPIs */}
+      {/* KPIs (6 caixas) */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid item xs={12} md={2}>
           {loading ? (
@@ -409,6 +444,7 @@ export default function AdminHome() {
             />
           )}
         </Grid>
+
         <Grid item xs={12} md={2}>
           {loading ? (
             <Skeleton variant="rounded" height={80} />
@@ -421,6 +457,7 @@ export default function AdminHome() {
             />
           )}
         </Grid>
+
         <Grid item xs={12} md={2}>
           {loading ? (
             <Skeleton variant="rounded" height={80} />
@@ -446,6 +483,7 @@ export default function AdminHome() {
             />
           )}
         </Grid>
+
         <Grid item xs={12} md={2}>
           {loading ? (
             <Skeleton variant="rounded" height={80} />
@@ -458,6 +496,7 @@ export default function AdminHome() {
             />
           )}
         </Grid>
+
         <Grid item xs={12} md={2}>
           {loading ? (
             <Skeleton variant="rounded" height={80} />
@@ -472,9 +511,9 @@ export default function AdminHome() {
         </Grid>
       </Grid>
 
-      {/* Gráficos (2) */}
+      {/* Gráficos */}
       <Grid container spacing={2}>
-        {/* 1) Consultas por semana (barras + média móvel) */}
+        {/* (1) Consultas semanais — barras + média móvel */}
         <Grid item xs={12} md={7}>
           <ChartCard
             title="Consultas por semana"
@@ -482,6 +521,7 @@ export default function AdminHome() {
           >
             <ResponsiveContainer width="100%" height="85%">
               <ComposedChart data={weeklyWithMA}>
+                {/* Gradiente para as barras */}
                 <defs>
                   <linearGradient id="barColor" x1="0" y1="0" x2="0" y2="1">
                     <stop
@@ -527,7 +567,7 @@ export default function AdminHome() {
           </ChartCard>
         </Grid>
 
-        {/* 2) Utilização de slots (%) (área + linhas de referência) */}
+        {/* (2) Utilização diária dos slots — área + linhas de referência */}
         <Grid item xs={12} md={5}>
           <ChartCard
             title="Utilização de slots (%)"
@@ -536,6 +576,7 @@ export default function AdminHome() {
           >
             <ResponsiveContainer width="100%" height="85%">
               <AreaChart data={util}>
+                {/* Gradiente de preenchimento da área */}
                 <defs>
                   <linearGradient id="utilGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop
@@ -562,6 +603,7 @@ export default function AdminHome() {
                 <YAxis domain={[0, 100]} />
                 <Legend />
                 <RTooltip content={<UtilTooltip />} />
+                {/* Linhas de referência (targets visuais) */}
                 <ReferenceLine
                   y={70}
                   stroke={theme.palette.success.main}
@@ -600,3 +642,8 @@ export default function AdminHome() {
     </Container>
   );
 }
+
+/* =============================================================================
+ *  FIM — Alexandre Brissos • Nº 21131
+ * =============================================================================
+ */

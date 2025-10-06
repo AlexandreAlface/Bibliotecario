@@ -1,4 +1,18 @@
-// apps/web/src/pages/admin/CreateLibrarianPage.tsx
+/**
+ * =============================================================================
+ *  Admin · Criar Bibliotecário
+ * -----------------------------------------------------------------------------
+ *  Ficheiro: apps/web/src/pages/admin/CreateLibrarianPage.tsx
+ *  Autor:    Alexandre Brissos — Nº 21131
+ *
+ *  Melhorias feitas “como combinado”:
+ *   • Comentários explicativos por todo o ficheiro (pt-PT).
+ *   • Extra: funções utilitárias puras e curtas (≲ 30 linhas) sem side-effects.
+ *   • Mantida a estrutura de UI, com estados claros de carregamento/erro.
+ *   • Mapeamento de dados isolado em helper puro para facilitar testes.
+ * =============================================================================
+ */
+
 import * as React from "react";
 import { Box, Typography } from "@mui/material";
 import {
@@ -11,57 +25,102 @@ import SignUpForm from "@/Forms/SignUpForm";
 import type { FamilySignupDraft } from "@/interfaces/auth";
 import { api } from "@/services/https";
 import { useNavigate } from "react-router-dom";
-import { getMyLibrary, type LibraryLite } from "@/services/admin";
+import { getMyLibrary, type LibraryLite } from "@/services/admin/admin";
+
+/* ============================================================================
+ * Tipos & Helpers PUROS (sem side-effects)
+ * ========================================================================== */
+
+/** Payload esperado pelo endpoint de criação de bibliotecários (admin). */
+type AdminCreateLibrarianPayload = {
+  fullName: string;
+  email: string;
+  password: string;
+  phone?: string;
+  citizenCard?: string;
+  address?: string;
+  libraryId: number;
+};
+
+/**
+ * Mapeia os valores do SignUpForm (draft de “família” reutilizado)
+ * para o payload que o endpoint de admin espera.
+ * — Puro, determinístico e fácil de testar.
+ */
+function mapSignupToAdminPayload(
+  values: FamilySignupDraft,
+  libraryId: number
+): AdminCreateLibrarianPayload {
+  return {
+    fullName: values.fullName,
+    email: values.email,
+    password: values.password,
+    phone: values.phone || undefined,
+    citizenCard: values.citizenCard || undefined,
+    address: values.address || undefined,
+    libraryId, // força sempre a biblioteca do admin autenticado
+  };
+}
+
+/* ============================================================================
+ * Página
+ * ========================================================================== */
 
 const CreateLibrarianPage: React.FC = () => {
   const navigate = useNavigate();
 
-  // biblioteca do admin (única)
+  // Estado: biblioteca do admin (única) + flags de carregamento/erro
   const [myLib, setMyLib] = React.useState<LibraryLite | null>(null);
   const [libLoading, setLibLoading] = React.useState(true);
   const [libErr, setLibErr] = React.useState<string | null>(null);
 
+  // Carrega a biblioteca associada ao admin ao montar a página
   React.useEffect(() => {
     (async () => {
       try {
         setLibLoading(true);
         const lib = await getMyLibrary();
         if (!lib) {
-          setLibErr("Não estás associado a nenhuma biblioteca.");
           setMyLib(null);
+          setLibErr("Não estás associado a nenhuma biblioteca.");
         } else {
           setMyLib(lib);
           setLibErr(null);
         }
       } catch (e: any) {
-        setLibErr(e?.message || "Falha a carregar a tua biblioteca.");
         setMyLib(null);
+        setLibErr(e?.message || "Falha a carregar a tua biblioteca.");
       } finally {
         setLibLoading(false);
       }
     })();
   }, []);
 
+  /**
+   * Submissão do formulário (≲ 30 linhas)
+   * - Valida existência da biblioteca (segurança extra no cliente).
+   * - Mapeia para o payload do endpoint de admin.
+   * - Efetua o POST e redireciona para a lista.
+   * - Lança erro para o SignUpForm poder mostrar feedback (se aplicável).
+   */
   async function handleSubmit(values: FamilySignupDraft) {
     if (!myLib?.id) {
       throw new Error("Sem biblioteca associada — operação não permitida.");
     }
 
-    // O SignUpForm devolve um draft de “família”; mapeamos para o payload do admin
-    const payload = {
-      fullName: values.fullName,
-      email: values.email,
-      phone: values.phone || undefined,
-      citizenCard: values.citizenCard || undefined,
-      address: values.address || undefined,
-      password: values.password,
-      // ⚠️ força sempre a biblioteca do admin
-      libraryId: myLib.id,
-    };
+    const payload = mapSignupToAdminPayload(values, myLib.id);
 
-    await api.post("/admin/librarians", payload);
-    navigate("/admin/bibliotecarios", { replace: true });
+    try {
+      await api.post("/admin/librarians", payload);
+      // volta à listagem de bibliotecários
+      navigate("/admin/bibliotecarios", { replace: true });
+    } catch (e: any) {
+      // repassa mensagem para o form apresentar
+      throw new Error(e?.message || "Não foi possível criar o bibliotecário.");
+    }
   }
+
+  /* ------------------------------------------------------------------------ */
 
   return (
     <GradientBackgroundWithShapes sx={{ minHeight: "100vh" }}>
@@ -74,11 +133,12 @@ const CreateLibrarianPage: React.FC = () => {
         justifyContent="center"
       >
         <WhiteCard sx={{ width: 560, py: 4, px: { xs: 3, md: 5 } }}>
+          {/* Título da página */}
           <Typography variant="h4" component="h1" gutterBottom>
             Criar Bibliotecário
           </Typography>
 
-          {/* Estado da biblioteca do admin */}
+          {/* Estado da biblioteca do admin (pré-requisito para criar) */}
           {libLoading ? (
             <Typography sx={{ mb: 2, opacity: 0.75 }}>A carregar…</Typography>
           ) : libErr ? (
@@ -91,14 +151,15 @@ const CreateLibrarianPage: React.FC = () => {
             </Typography>
           )}
 
-          {/* Reaproveita o formulário (nome, contactos, password) */}
-          {/* Se o teu SignUpForm suportar, podes passar uma prop tipo `hideLibraryField`/`lockedLibrary`
-              para esconder o seletor de biblioteca. Aqui, independentemente do que o form enviar,
-              o handleSubmit força sempre o libraryId correto. */}
+          {/* Formulário de criação:
+              — Só aparece quando existe biblioteca válida e não está a carregar.
+              — Reutiliza o SignUpForm; o mapeamento garante o libraryId correto.
+              — onBack usa o router para recuar uma página. */}
           {!libLoading && !libErr && (
-            <SignUpForm onBack={() => history.back()} onSubmit={handleSubmit} />
+            <SignUpForm onBack={() => navigate(-1)} onSubmit={handleSubmit} />
           )}
 
+          {/* Link de retorno para a lista */}
           <Typography variant="body2" sx={{ mt: 1, textAlign: "center" }}>
             Voltar à{" "}
             <RouteLink href="/admin/bibliotecarios">
@@ -112,3 +173,8 @@ const CreateLibrarianPage: React.FC = () => {
 };
 
 export default CreateLibrarianPage;
+
+/* =============================================================================
+ *  FIM — Alexandre Brissos • Nº 21131
+ * =============================================================================
+ */

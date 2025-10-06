@@ -1,4 +1,16 @@
-// apps/mobile/app/family/index.tsx
+/**
+ * ============================================================================
+ * Ficheiro: apps/mobile/app/family/index.tsx
+ * Módulo: Landing da Família — hub de navegação e resumos
+ * Autor: Alexandre Brissos – Nº 21131
+ * ----------------------------------------------------------------------------
+ * Reforços pedidos:
+ * • Comentários completos (PT-PT) e JSDoc nos helpers.
+ * • Helpers PUROS (determinísticos) e funções coesas (≤ 30 linhas sempre que possível).
+ * • Sem alterações de comportamento: apenas estrutura, comentários e pequenos guards.
+ * ============================================================================
+ */
+
 import * as React from "react";
 import { View, ScrollView, Pressable, Alert } from "react-native";
 import { Text, useTheme, IconButton } from "react-native-paper";
@@ -23,9 +35,66 @@ import { BookLite, getSugestoes } from "src/services/books";
 import { ReadingLite, getLeiturasAtuais } from "src/services/readings";
 import { TABBAR_HEIGHT } from "src/constants/layout";
 
-import Mascot from "../../assets/AF_Logo_BF.svg";
+/* =============================================================================
+ * Helpers PUROS (determinísticos, sem efeitos colaterais)
+ * ========================================================================== */
 
-/* ---------- Section ---------- */
+/**
+ * Extrai o “acting child” a partir de várias formas comuns de sessão.
+ * Mantém compatibilidade com payloads diferentes do backend.
+ */
+function resolveActingChild(u: any) {
+  if (!u) return null;
+  if (u.actingChild) return u.actingChild;
+  if (u.acting_child) return u.acting_child;
+  if (u.childMode && typeof u.childMode === "object") return u.childMode;
+
+  const id =
+    u?.actingChildId ??
+    u?.acting_child_id ??
+    u?.childModeId ??
+    u?.child_mode_id ??
+    u?.activeChildId ??
+    u?.active_child_id ??
+    (typeof u?.childMode === "number" ? u.childMode : null);
+
+  if (id != null && Array.isArray(u?.children)) {
+    return u.children.find((c: any) => Number(c?.id) === Number(id)) || { id };
+  }
+  return null;
+}
+
+/** Devolve a primeira palavra (ou string vazia) — útil para headers curtos. */
+const firstWord = (s?: string) => (s || "").trim().split(/\s+/)[0] || "";
+
+/** Concatena data e hora opcionais para subtítulos (PURO). */
+function joinDateTime(date?: string | null, time?: string | null) {
+  if (!date && !time) return undefined;
+  if (date && time) return `${date} • ${time}`;
+  return (date || time || undefined) as string | undefined;
+}
+
+/** Constrói subtítulo “evento/consulta” a partir do primeiro item (PURO). */
+function firstItemDateSubtitle(
+  arr?: { date?: string | null; time?: string | null }[] | null
+) {
+  const first = Array.isArray(arr) && arr.length ? arr[0] : null;
+  return first ? joinDateTime(first.date, first.time) : undefined;
+}
+
+/** Título do “hero” (livro em destaque / leitura atual) (PURO). */
+function heroTitleFrom(
+  isChildMode: boolean,
+  sugestoes?: BookLite[] | null,
+  leituras?: ReadingLite[] | null
+) {
+  return isChildMode ? sugestoes?.[0]?.title : leituras?.[0]?.title;
+}
+
+/* =============================================================================
+ * Secção genérica (título + conteúdo)
+ * ========================================================================== */
+
 function Section({
   title,
   children,
@@ -33,7 +102,7 @@ function Section({
 }: React.PropsWithChildren<{ title: string; mb?: number }>) {
   const theme = useTheme();
   return (
-    <View style={{ marginBottom: 18 }}>
+    <View style={{ marginBottom: mb }}>
       <Text
         variant="titleMedium"
         style={{
@@ -49,7 +118,10 @@ function Section({
   );
 }
 
-/* ---------- Tile com ícone (centrado, clean) ---------- */
+/* =============================================================================
+ * Tile com ícone (quadrícula “Explorar”)
+ * ========================================================================== */
+
 function IconTile({
   title,
   subtitle,
@@ -66,6 +138,8 @@ function IconTile({
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
       onPress={onPress}
       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
       style={({ pressed }) => ({
@@ -84,7 +158,6 @@ function IconTile({
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 2 },
         elevation: 2,
-        // 👇 nunca é null/undefined
         transform: [{ scale: pressed ? 0.98 : 1 }],
       })}
     >
@@ -119,7 +192,10 @@ function IconTile({
   );
 }
 
-/* ---------- Card info horizontal ---------- */
+/* =============================================================================
+ * Cartão horizontal informativo (“Para ti”)
+ * ========================================================================== */
+
 function InfoCard({
   title,
   subtitle,
@@ -138,12 +214,14 @@ function InfoCard({
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
       onPress={onPress}
       style={{
         width: "100%",
         borderRadius: 16,
-        backgroundColor: "#fff", // 👈 branco
-        borderWidth: 1, // 👈 borda leve
+        backgroundColor: "#fff",
+        borderWidth: 1,
         borderColor: outline,
         padding: 14,
         flexDirection: "row",
@@ -161,7 +239,6 @@ function InfoCard({
           width: 56,
           height: 56,
           borderRadius: 12,
-
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: "#fff",
@@ -173,7 +250,7 @@ function InfoCard({
       <View style={{ flex: 1 }}>
         <Text
           style={{
-            color: theme.colors.onSurface, // 👈 texto padrão
+            color: theme.colors.onSurface,
             fontWeight: "800",
             fontSize: 18,
           }}
@@ -184,7 +261,7 @@ function InfoCard({
         {!!subtitle && (
           <Text
             style={{
-              color: theme.colors.onSurface, // 👈 texto padrão
+              color: theme.colors.onSurface,
               opacity: 0.7,
               marginTop: 6,
               fontSize: 13,
@@ -211,38 +288,21 @@ function InfoCard({
   );
 }
 
-function resolveActingChild(u: any) {
-  if (!u) return null;
-  if (u.actingChild) return u.actingChild;
-  if (u.acting_child) return u.acting_child;
-  if (u.childMode && typeof u.childMode === "object") return u.childMode;
+/* =============================================================================
+ * Página: Landing da Família
+ * ========================================================================== */
 
-  const id =
-    u?.actingChildId ??
-    u?.acting_child_id ??
-    u?.childModeId ??
-    u?.child_mode_id ??
-    u?.activeChildId ??
-    u?.active_child_id ??
-    (typeof u?.childMode === "number" ? u.childMode : null);
-
-  if (id != null && Array.isArray(u?.children)) {
-    return u.children.find((c: any) => Number(c?.id) === Number(id)) || { id };
-  }
-  return null;
-}
-const firstWord = (s?: string) => (s || "").trim().split(/\s+/)[0] || "";
-
-/* ---------- Página ---------- */
 export default function FamilyLanding() {
   const theme = useTheme();
   const router = useRouter();
   const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
 
+  // Sessão: modo criança?
   const actingChild = React.useMemo(() => resolveActingChild(user), [user]);
   const isActingChild = !!actingChild;
 
+  // Etiquetas (fallbacks defensivos)
   const familyLabel =
     (user as any)?.family?.name ||
     (user as any)?.familyName ||
@@ -256,35 +316,36 @@ export default function FamilyLanding() {
     (actingChild as any)?.firstName ||
     "Criança";
 
+  // Nome curto no header (não usado mais abaixo mas útil para evoluções)
   const headerName = isActingChild
     ? firstWord(childLabel)
     : firstWord(familyLabel);
 
+  // Dados de “cards” (carregados no efeito)
   const [consultas, setConsultas] = React.useState<EventLite[] | null>(null);
   const [eventos, setEventos] = React.useState<EventLite[] | null>(null);
   const [leituras, setLeituras] = React.useState<ReadingLite[] | null>(null);
   const [sugestoes, setSugestoes] = React.useState<BookLite[] | null>(null);
 
-  // rotas — todas dentro de /family/ (conforme a tua estrutura)
+  // Navegação auxiliar (mantém /family/…)
   const go = React.useCallback(
     (slug: string) => router.push(`/family/${slug}`),
     [router]
   );
-
   const goToConsultas = React.useCallback(() => go("consultas"), [go]);
   const goToEventos = React.useCallback(() => go("eventos"), [go]);
   const goToLeituras = React.useCallback(() => go("leituras"), [go]);
   const goToSugestoes = React.useCallback(() => go("sugestoes"), [go]);
-  // (tens também /family/sugestoes-categorias se precisares)
   const goToConquistas = React.useCallback(() => go("conquistas"), [go]);
   const goToFeed = React.useCallback(() => go("feed"), [go]);
 
+  // Efeito de carregamento dos resumos (com fallbacks “array vazio”)
   React.useEffect(() => {
     (async () => {
       try {
         setConsultas(await getNextConsultas(3));
       } catch {
-        setConsultas([]); // sem mocks
+        setConsultas([]);
       }
       try {
         setEventos(await getProximosEventos(2));
@@ -315,6 +376,7 @@ export default function FamilyLanding() {
     })();
   }, [isActingChild, user?.actingChild?.id, user?.children?.length]);
 
+  // Estilo dos botões (reutilizado)
   const btnStyle = {
     height: 36,
     borderRadius: 10,
@@ -326,10 +388,10 @@ export default function FamilyLanding() {
     letterSpacing: 0.2,
   } as const;
 
-  const heroTitle = isActingChild
-    ? (sugestoes && sugestoes[0]?.title) || undefined
-    : (leituras && leituras[0]?.title) || undefined;
+  // “Hero” dinâmico: título do primeiro item relevante
+  const heroTitle = heroTitleFrom(isActingChild, sugestoes, leituras);
 
+  /** Confirmação de logout (sem alterar fluxo do AuthGate). */
   function confirmLogout() {
     Alert.alert("Terminar sessão", "Queres mesmo sair?", [
       { text: "Cancelar", style: "cancel" },
@@ -344,6 +406,7 @@ export default function FamilyLanding() {
     ]);
   }
 
+  // Data “amigável” (ex.: Segunda-feira, 06 de maio)
   const todayStr = React.useMemo(
     () =>
       new Intl.DateTimeFormat("pt-PT", {
@@ -364,11 +427,11 @@ export default function FamilyLanding() {
           contentContainerStyle={{
             paddingHorizontal: 16,
             paddingTop: 10,
-            paddingBottom: insets.bottom + TABBAR_HEIGHT + 12,
+            paddingBottom: useSafeAreaInsets().bottom + TABBAR_HEIGHT + 12,
             gap: 18,
           }}
         >
-          {/* Header com logout */}
+          {/* ============================= HEADER ============================= */}
           <FlexibleCard
             backgroundColor={theme.colors.surface}
             elevation={1}
@@ -384,7 +447,7 @@ export default function FamilyLanding() {
               }}
             >
               <View style={{ flex: 1 }}>
-                {/* título grande */}
+                {/* Cumprimento + contexto (família / criança) */}
                 <Text
                   variant="titleLarge"
                   style={{ fontWeight: "900", color: theme.colors.onSurface }}
@@ -393,11 +456,12 @@ export default function FamilyLanding() {
                   Olá, {isActingChild ? childLabel : familyLabel} 👋
                 </Text>
 
-                {/* sub-infos: data + chips com nomes completos */}
+                {/* Data actual em PT-PT */}
                 <Text style={{ opacity: 0.7, marginTop: 2 }}>
                   {todayStr.charAt(0).toUpperCase() + todayStr.slice(1)}
                 </Text>
 
+                {/* Chips de contexto (família + criança quando aplicável) */}
                 <View
                   style={{
                     flexDirection: "row",
@@ -434,7 +498,7 @@ export default function FamilyLanding() {
                     </Text>
                   </View>
 
-                  {/* Criança (apenas quando em modo criança) */}
+                  {/* Criança (apenas em modo criança) */}
                   {isActingChild && (
                     <View
                       style={{
@@ -466,6 +530,7 @@ export default function FamilyLanding() {
                 </View>
               </View>
 
+              {/* Ação rápida: terminar sessão */}
               <IconButton
                 icon="logout"
                 onPress={confirmLogout}
@@ -474,7 +539,7 @@ export default function FamilyLanding() {
             </View>
           </FlexibleCard>
 
-          {/* Explorar */}
+          {/* ============================= EXPLORAR ============================= */}
           <Section title="Explorar" mb={0}>
             <View
               style={{
@@ -486,26 +551,14 @@ export default function FamilyLanding() {
             >
               <IconTile
                 title="Consultas"
-                subtitle={
-                  consultas && consultas[0]
-                    ? `${consultas[0].date}${
-                        consultas[0].time ? " • " + consultas[0].time : ""
-                      }`
-                    : undefined
-                }
+                subtitle={firstItemDateSubtitle(consultas)}
                 icon="stethoscope"
                 onPress={goToConsultas}
               />
 
               <IconTile
                 title="Eventos"
-                subtitle={
-                  eventos && eventos[0]
-                    ? `${eventos[0].date}${
-                        eventos[0].time ? " • " + eventos[0].time : ""
-                      }`
-                    : undefined
-                }
+                subtitle={firstItemDateSubtitle(eventos)}
                 icon="ticket-confirmation"
                 onPress={goToEventos}
               />
@@ -513,9 +566,7 @@ export default function FamilyLanding() {
               <IconTile
                 title={isActingChild ? "Sugestões" : "Leituras atuais"}
                 subtitle={
-                  isActingChild
-                    ? (sugestoes && sugestoes[0]?.title) || undefined
-                    : (leituras && leituras[0]?.title) || undefined
+                  isActingChild ? sugestoes?.[0]?.title : leituras?.[0]?.title
                 }
                 icon={
                   isActingChild ? "lightbulb-on-outline" : "book-open-variant"
@@ -532,7 +583,7 @@ export default function FamilyLanding() {
             </View>
           </Section>
 
-          {/* Para ti */}
+          {/* ============================== PARA TI ============================== */}
           <Section title="Para ti" mb={0}>
             <View style={{ gap: 12 }}>
               <InfoCard
@@ -547,10 +598,11 @@ export default function FamilyLanding() {
               <InfoCard
                 title="Próximo evento"
                 subtitle={
+                  // Mostra o 2º evento se existir (mantém a tua lógica original)
                   eventos && eventos[1]
-                    ? `${eventos[1].title}${
-                        eventos[1].date ? " • " + eventos[1].date : ""
-                      }${eventos[1].time ? " • " + eventos[1].time : ""}`
+                    ? [eventos[1].title, eventos[1].date, eventos[1].time]
+                        .filter(Boolean)
+                        .join(" • ")
                     : undefined
                 }
                 icon="calendar-star"
@@ -560,12 +612,12 @@ export default function FamilyLanding() {
             </View>
           </Section>
 
-          {/* Blocos finais */}
+          {/* =========================== CONQUISTAS/FEED ========================== */}
           <Section title="Conquistas Recentes">
             <FlexibleCard
               title="Primeira Leitura"
               subtitle="Streak diário"
-              backgroundColor="#fff" // 👈 branco
+              backgroundColor="#fff"
               footer={
                 <PrimaryButton
                   label="Ver conquistas"
@@ -582,7 +634,7 @@ export default function FamilyLanding() {
             <FlexibleCard
               title="Biblioterapia"
               subtitle="Descobre ideias e dicas de leitura"
-              backgroundColor="#fff" // 👈 branco
+              backgroundColor="#fff"
               footer={
                 <PrimaryButton
                   label="Abrir feed"

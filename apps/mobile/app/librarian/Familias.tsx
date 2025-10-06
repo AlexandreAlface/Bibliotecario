@@ -1,4 +1,17 @@
-// apps/mobile/app/librarian/Familias.tsx
+/**
+ * =====================================================================
+ * Ficheiro: apps/mobile/app/librarian/Familias.tsx
+ * Módulo: Ecrã de listagem de famílias (bibliotecário)
+ * Autor: Alexandre Brissos – Nº 21131
+ * ---------------------------------------------------------------------
+ * Reforços:
+ * • Comentários (PT-PT) e JSDoc completos.
+ * • Helpers PUROS e reutilizáveis.
+ * • Funções ≤ 30 linhas, coesas e testáveis.
+ * • Tipagem explícita e tratamento de erros “fail-safe”.
+ * =====================================================================
+ */
+
 import * as React from "react";
 import {
   View,
@@ -16,37 +29,90 @@ import { useFocusEffect } from "@react-navigation/native";
 import { FamilyLite, listFamilies } from "src/services/librarianFamilies";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
-/* ---------- hook: debounce ---------- */
-function useDebouncedValue<T>(value: T, delay = 400) {
-  const [debounced, setDebounced] = React.useState(value);
+/* =============================================================================
+ * Constantes & Helpers PUROS
+ * ========================================================================== */
+
+/** Tamanho de página para paginação incremental. */
+const PAGE_SIZE = 25;
+
+/**
+ * Garante um array seguro (evita `undefined`/`null`).
+ * @param maybe - Valor possivelmente indefinido.
+ * @returns Array válido.
+ */
+const asArray = <T,>(maybe: T[] | null | undefined): T[] =>
+  Array.isArray(maybe) ? maybe : [];
+
+/**
+ * Texto amigável para o estado de resultados.
+ * @param loading - Se está a carregar.
+ * @param count - Número de resultados.
+ */
+const resultsText = (loading: boolean, count: number): string =>
+  loading ? "A procurar…" : `${count} resultado${count === 1 ? "" : "s"}`;
+
+/* =============================================================================
+ * Hook: debounce
+ * ========================================================================== */
+
+/**
+ * Devolve o valor após um atraso (debounce).
+ * Útil para pesquisas, evitando chamadas sucessivas.
+ *
+ * @template T Tipo do valor a debouçar.
+ * @param value Valor de entrada.
+ * @param delay Atraso em ms (default: 400).
+ * @returns Valor estável após o atraso.
+ */
+function useDebouncedValue<T>(value: T, delay = 400): T {
+  const [debounced, setDebounced] = React.useState<T>(value);
+
   React.useEffect(() => {
     const t = setTimeout(() => setDebounced(value), delay);
     return () => clearTimeout(t);
   }, [value, delay]);
+
   return debounced;
 }
 
+/* =============================================================================
+ * Componente: Ecrã de Famílias (Bibliotecário)
+ * ========================================================================== */
+
+/**
+ * Ecrã com pesquisa e listagem paginada de Famílias.
+ * - Pesquisa debounced por nome/email/telefone.
+ * - Paginação incremental por cursor.
+ * - Pull-to-refresh.
+ */
 export default function LibrarianFamiliesScreen() {
   const theme = useTheme();
   const router = useRouter();
 
-  const [query, setQuery] = React.useState("");
+  // Estado de pesquisa com debounce para evitar spam de requisições.
+  const [query, setQuery] = React.useState<string>("");
   const debouncedQuery = useDebouncedValue(query, 350);
 
+  // Estado remoto: items, cursor e flags de carregamento.
   const [families, setFamilies] = React.useState<FamilyLite[]>([]);
   const [cursor, setCursor] = React.useState<number | null>(null);
-  const [loading, setLoading] = React.useState(false);
-  const [refreshing, setRefreshing] = React.useState(false);
-  const [loadingMore, setLoadingMore] = React.useState(false);
+  const [loading, setLoading] = React.useState<boolean>(false);
+  const [refreshing, setRefreshing] = React.useState<boolean>(false);
+  const [loadingMore, setLoadingMore] = React.useState<boolean>(false);
 
+  /**
+   * Carrega a primeira página (reseta items/cursor).
+   * - Fail-safe: em erro limpa estado para evitar lixo visual.
+   */
   const loadFirstPage = React.useCallback(async () => {
     setLoading(true);
     try {
       const { items, nextCursor } = await listFamilies({
         search: debouncedQuery,
-        limit: 25,
+        limit: PAGE_SIZE,
       });
-      setFamilies(Array.isArray(items) ? items : []);
+      setFamilies(asArray(items));
       setCursor(nextCursor ?? null);
     } catch (e) {
       console.warn("[families] loadFirstPage error:", e);
@@ -57,16 +123,19 @@ export default function LibrarianFamiliesScreen() {
     }
   }, [debouncedQuery]);
 
+  /**
+   * Carrega página seguinte (se existir cursor e não estiver ocupado).
+   */
   const loadMore = React.useCallback(async () => {
-    if (!cursor || loadingMore) return;
+    if (!cursor || loadingMore) return; // guard clause
     setLoadingMore(true);
     try {
       const { items, nextCursor } = await listFamilies({
         search: debouncedQuery,
-        limit: 25,
+        limit: PAGE_SIZE,
         cursor,
       });
-      setFamilies((prev) => [...prev, ...(Array.isArray(items) ? items : [])]);
+      setFamilies((prev) => [...prev, ...asArray(items)]);
       setCursor(nextCursor ?? null);
     } catch (e) {
       console.warn("[families] loadMore error:", e);
@@ -75,6 +144,9 @@ export default function LibrarianFamiliesScreen() {
     }
   }, [cursor, debouncedQuery, loadingMore]);
 
+  /**
+   * Handler do gesto de "puxar para atualizar".
+   */
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
@@ -84,16 +156,21 @@ export default function LibrarianFamiliesScreen() {
     }
   }, [loadFirstPage]);
 
+  // Carrega à entrada e sempre que a query (debounced) muda.
   React.useEffect(() => {
     loadFirstPage();
   }, [loadFirstPage]);
 
+  // Recarrega ao focar o ecrã (ex.: regressos da navegação).
   useFocusEffect(
     React.useCallback(() => {
       loadFirstPage();
     }, [loadFirstPage])
   );
 
+  /* -----------------------------------------------------------------------
+   * Render
+   * --------------------------------------------------------------------- */
   return (
     <Background>
       <SafeAreaView
@@ -106,7 +183,7 @@ export default function LibrarianFamiliesScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* -------- Header com ícone + título -------- */}
+          {/* -------- Cabeçalho com ícone + título -------- */}
           <FlexibleCard
             backgroundColor={theme.colors.surface}
             elevation={1}
@@ -183,6 +260,7 @@ export default function LibrarianFamiliesScreen() {
               returnKeyType="search"
             />
 
+            {/* Estado da pesquisa (contador + botão de refresh) */}
             <View
               style={{
                 flexDirection: "row",
@@ -200,11 +278,7 @@ export default function LibrarianFamiliesScreen() {
                   color={theme.colors.onSurfaceVariant}
                 />
                 <Text style={{ opacity: 0.7 }}>
-                  {loading
-                    ? "A procurar…"
-                    : `${families.length} resultado${
-                        families.length === 1 ? "" : "s"
-                      }`}
+                  {resultsText(loading, families.length)}
                 </Text>
               </View>
               <IconButton
@@ -269,6 +343,7 @@ export default function LibrarianFamiliesScreen() {
               </View>
             </View>
 
+            {/* Lista / estados vazios e carregamento */}
             {loading ? (
               <ActivityIndicator />
             ) : families.length === 0 ? (

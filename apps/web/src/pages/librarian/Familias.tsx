@@ -1,5 +1,15 @@
-// apps/web/src/pages/librarian/Familias.tsx
-import { useEffect, useMemo, useState } from "react";
+/**
+ * =============================================================================
+ *  Famílias — Painel do Bibliotecário
+ * -----------------------------------------------------------------------------
+ *  Ficheiro: src/pages/librarian/Familias.tsx
+ *  Autor:    Alexandre Brissos  (nº 21131)
+ *  Nota:     Código reforçado com comentários, helpers "puros" e funções curtas
+ *            (< 30 linhas) para facilitar manutenção e testes.
+ * =============================================================================
+ */
+
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Avatar,
   Box,
@@ -16,12 +26,8 @@ import {
   Tooltip,
   ToggleButtonGroup,
   ToggleButton,
-  useTheme,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
 } from "@mui/material";
-import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
+import Grid from "@mui/material/GridLegacy";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
@@ -29,14 +35,8 @@ import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import StarRounded from "@mui/icons-material/StarRounded";
 import LibraryBooksRounded from "@mui/icons-material/LibraryBooksRounded";
 import BookmarkAddedRounded from "@mui/icons-material/BookmarkAddedRounded";
-import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
-import MilitaryTechRounded from "@mui/icons-material/MilitaryTechRounded";
-import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
-import HistoryRounded from "@mui/icons-material/HistoryRounded";
-import MenuBookRounded from "@mui/icons-material/MenuBookRounded";
-import ContactPhoneRounded from "@mui/icons-material/ContactPhoneRounded";
 
-import { RouteLink } from "@bibliotecario/ui-web";
+import { WhiteCard, RouteLink } from "@bibliotecario/ui-web";
 import { useUserSession } from "../../contexts/UserSession";
 import {
   listFamilies,
@@ -45,26 +45,37 @@ import {
   type FamilyDetail,
 } from "../../services/families";
 
-/* ========= helpers ========= */
+/* =================================================================================
+ *  Helpers "PUROS" (sem efeitos colaterais) — fáceis de testar e reutilizar
+ * ================================================================================= */
+
+/** Formata uma data para DD/MM/AAAA (pt-PT). */
 const fDate = new Intl.DateTimeFormat("pt-PT", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
 });
+
+/** Formata uma hora para HH:mm (pt-PT). */
 const fTime = new Intl.DateTimeFormat("pt-PT", {
   hour: "2-digit",
   minute: "2-digit",
 });
-const initials = (name?: string | null) =>
-  (name || "")
-    .split(" ")
+
+/** Devolve iniciais (2 letras) a partir do nome. */
+function makeInitials(name?: string | null): string {
+  return (name || "")
+    .trim()
+    .split(/\s+/)
     .map((s) => s[0])
     .filter(Boolean)
     .slice(0, 2)
     .join("")
     .toUpperCase();
+}
 
-const statusCfg: Record<
+/** Config de estados para chips de consulta. */
+const STATUS_CFG: Record<
   string,
   { label: string; color: "default" | "success" | "warning" | "error" }
 > = {
@@ -75,7 +86,8 @@ const statusCfg: Record<
   COMPLETED: { label: "Concluída", color: "success" },
 };
 
-const scrollY = {
+/** Estilo reutilizável para containers com scroll vertical. */
+const SCROLL_Y_SX = {
   overflowY: "auto",
   pr: 1,
   "&::-webkit-scrollbar": { width: 8 },
@@ -85,79 +97,208 @@ const scrollY = {
   },
 } as const;
 
-function Empty({ children }: { children: React.ReactNode }) {
-  return <Typography sx={{ opacity: 0.8, py: 0.5 }}>{children}</Typography>;
+/* ----------------------- filtros "puros" (client-side) ----------------------- */
+
+/** Filtra próximas consultas por texto livre. */
+function filterUpcoming(
+  upcoming: FamilyDetail["upcomingConsultations"] | undefined,
+  q: string
+) {
+  if (!upcoming) return [];
+  const needle = q.trim().toLowerCase();
+  if (!needle) return upcoming;
+  return upcoming.filter((c) => {
+    const hay =
+      (c.child?.name || "") +
+      " " +
+      (c.library?.name || "") +
+      " " +
+      (c.librarian?.fullName || "");
+    return hay.toLowerCase().includes(needle);
+  });
 }
 
-function StatTile({
-  icon,
+/** Filtra consultas recentes por texto + estados. */
+function filterRecent(
+  recent: FamilyDetail["recentConsultations"] | undefined,
+  q: string,
+  statuses: string[]
+) {
+  if (!recent) return [];
+  const set = new Set(statuses);
+  const needle = q.trim().toLowerCase();
+  return recent.filter((c) => {
+    if (set.size && !set.has(c.status)) return false;
+    if (!needle) return true;
+    const hay =
+      (c.child?.name || "") +
+      " " +
+      (c.library?.name || "") +
+      " " +
+      (c.librarian?.fullName || "");
+    return hay.toLowerCase().includes(needle);
+  });
+}
+
+/** Filtra leituras por texto. */
+function filterReadings(
+  readings: FamilyDetail["readings"] | undefined,
+  q: string
+) {
+  if (!readings) return [];
+  const needle = q.trim().toLowerCase();
+  if (!needle) return readings;
+  return readings.filter((r) =>
+    `${r.book.title} ${r.book.author || ""}`.toLowerCase().includes(needle)
+  );
+}
+
+/** Filtra reservas por texto. */
+function filterReservations(
+  reservations: FamilyDetail["reservations"] | undefined,
+  q: string
+) {
+  if (!reservations) return [];
+  const needle = q.trim().toLowerCase();
+  if (!needle) return reservations;
+  return reservations.filter((r) =>
+    `${r.book.title} ${r.book.author || ""}`.toLowerCase().includes(needle)
+  );
+}
+
+/** Filtra avaliações por texto + mínimo de estrelas. */
+function filterRatings(
+  ratings: FamilyDetail["ratings"] | undefined,
+  q: string,
+  minStars: number
+) {
+  if (!ratings) return [];
+  const needle = q.trim().toLowerCase();
+  return ratings.filter((rt) => {
+    if (minStars && rt.stars < minStars) return false;
+    if (!needle) return true;
+    const hay = `${rt.book.title} ${rt.book.author || ""} ${rt.comment || ""}`;
+    return hay.toLowerCase().includes(needle);
+  });
+}
+
+/* =================================================================================
+ *  Pequenos "átomos" de UI (componentes curtos, reutilizáveis e comentados)
+ * ================================================================================= */
+
+/** Cabeçalho de secção simples. */
+function SectionHeader({
+  title,
+  action,
+}: {
+  title: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <Stack
+      direction="row"
+      alignItems="center"
+      justifyContent="space-between"
+      sx={{ mb: 1 }}
+    >
+      <Typography variant="h6" fontWeight={900}>
+        {title}
+      </Typography>
+      {action}
+    </Stack>
+  );
+}
+
+/** Linha "Etiqueta: Valor" compacta. */
+function LabeledValue({
   label,
   value,
-  color = "primary",
 }: {
-  icon: React.ReactElement;
   label: string;
-  value: string | number;
-  color?: "primary" | "secondary" | "success" | "warning" | "info";
+  value?: string | number | null;
 }) {
-  const theme = useTheme();
-  const c = (theme.palette as any)[color];
+  return (
+    <Stack direction="row" spacing={1} sx={{ opacity: value ? 1 : 0.8 }}>
+      <Typography variant="body2" sx={{ minWidth: 88, opacity: 0.8 }}>
+        {label}
+      </Typography>
+      <Typography variant="body2" fontWeight={700}>
+        {value || "—"}
+      </Typography>
+    </Stack>
+  );
+}
+
+/** Cartão de família (item da lista esquerda). */
+function FamilyListItem({
+  f,
+  active,
+  onSelect,
+}: {
+  f: FamilyLite;
+  active: boolean;
+  onSelect: (id: number) => void;
+}) {
   return (
     <Box
+      onClick={() => onSelect(f.id)}
       sx={{
-        p: 2,
-        borderRadius: 3,
+        p: 1,
+        borderRadius: 2,
         border: "1px solid",
-        borderColor: "divider",
-        bgcolor: "background.paper",
-        display: "flex",
-        alignItems: "center",
-        gap: 1.25,
+        borderColor: active ? "primary.main" : "divider",
+        bgcolor: active ? "action.selected" : "transparent",
+        cursor: "pointer",
+        "&:hover": { bgcolor: "action.hover" },
       }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && onSelect(f.id)}
+      aria-label={`Selecionar família ${f.fullName}`}
     >
-      <Box
-        sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 2,
-          display: "grid",
-          placeItems: "center",
-          bgcolor: c?.light,
-          color: c?.dark,
-        }}
-      >
-        {icon}
-      </Box>
-      <Box>
-        <Typography variant="caption" sx={{ opacity: 0.75 }}>
-          {label}
-        </Typography>
-        <Typography variant="h5" fontWeight={900} lineHeight={1}>
-          {value}
-        </Typography>
-      </Box>
+      <Stack direction="row" spacing={1.25} alignItems="center">
+        <Avatar sx={{ width: 36, height: 36 }}>
+          {makeInitials(f.fullName)}
+        </Avatar>
+        <Box minWidth={0}>
+          <Typography fontWeight={900} noWrap title={f.fullName}>
+            {f.fullName}
+          </Typography>
+          <Typography variant="body2" noWrap sx={{ opacity: 0.75 }}>
+            {f.email}
+          </Typography>
+        </Box>
+        <Chip
+          size="small"
+          sx={{ ml: "auto" }}
+          label={`${f.childrenCount} filhos`}
+        />
+      </Stack>
     </Box>
   );
 }
 
-/* ========= Página ========= */
+/* =================================================================================
+ *  Página
+ * ================================================================================= */
+
 export default function LibrarianFamilias() {
   const { isLibrarian } = useUserSession() as any;
 
-  // listagem
+  // --------- Estado da LISTAGEM (coluna esquerda) ---------
   const [query, setQuery] = useState("");
   const [families, setFamilies] = useState<FamilyLite[]>([]);
   const [famLoading, setFamLoading] = useState(false);
   const [cursor, setCursor] = useState<number | null>(null);
   const [errList, setErrList] = useState<string | null>(null);
 
-  // seleção + detalhe
+  // --------- Estado de DETALHE (coluna direita) ----------
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<FamilyDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [errDetail, setErrDetail] = useState<string | null>(null);
 
-  // filtros (secções)
+  // --------- Filtros locais (coluna direita) -------------
   const [upcomingSearch, setUpcomingSearch] = useState("");
   const [recentSearch, setRecentSearch] = useState("");
   const [recentStatus, setRecentStatus] = useState<string[]>([
@@ -170,6 +311,9 @@ export default function LibrarianFamilias() {
   const [ratingSearch, setRatingSearch] = useState("");
   const [minStars, setMinStars] = useState<number>(0);
 
+  /* ------------------------------------------
+   *  Efeitos: carga inicial de famílias
+   * ------------------------------------------ */
   useEffect(() => {
     if (!isLibrarian) return;
     (async () => {
@@ -189,13 +333,18 @@ export default function LibrarianFamilias() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLibrarian]);
 
-  async function searchFamilies() {
+  /* ------------------------------------------
+   *  Ações: pesquisar e "ver mais"
+   *  (useCallback para identidades estáveis)
+   * ------------------------------------------ */
+  const searchFamilies = useCallback(async () => {
     try {
       setFamLoading(true);
       setErrList(null);
       const res = await listFamilies(query, 25);
       setFamilies(res.items);
       setCursor(res.nextCursor);
+      // se a família selecionada não está na nova lista, seleciona a 1ª
       if (!res.items.some((f) => f.id === selectedId)) {
         setSelectedId(res.items[0]?.id ?? null);
       }
@@ -204,8 +353,9 @@ export default function LibrarianFamilias() {
     } finally {
       setFamLoading(false);
     }
-  }
-  async function loadMore() {
+  }, [query, selectedId]);
+
+  const loadMore = useCallback(async () => {
     if (!cursor) return;
     try {
       setFamLoading(true);
@@ -217,8 +367,11 @@ export default function LibrarianFamilias() {
     } finally {
       setFamLoading(false);
     }
-  }
+  }, [cursor, query]);
 
+  /* ------------------------------------------
+   *  Efeito: carregar detalhe quando muda o ID
+   * ------------------------------------------ */
   useEffect(() => {
     if (!selectedId) {
       setDetail(null);
@@ -230,7 +383,7 @@ export default function LibrarianFamilias() {
         setErrDetail(null);
         const d = await getFamilyDetail(selectedId);
         setDetail(d);
-        // reset filtros
+        // reset básico dos filtros ao trocar de família
         setUpcomingSearch("");
         setRecentSearch("");
         setRecentStatus(["COMPLETED", "CANCELLED", "DECLINED"]);
@@ -247,85 +400,41 @@ export default function LibrarianFamilias() {
     })();
   }, [selectedId]);
 
+  /* ------------------------------------------
+   *  Derivados memorizados: família ativa + listas filtradas
+   * ------------------------------------------ */
   const selectedFamily = useMemo(
     () => families.find((f) => f.id === selectedId) || null,
     [families, selectedId]
   );
 
-  // filtros client-side
-  const filteredUpcoming = useMemo(() => {
-    if (!detail?.upcomingConsultations) return [];
-    const q = upcomingSearch.trim().toLowerCase();
-    return detail.upcomingConsultations.filter((c) => {
-      if (!q) return true;
-      const hay = `${c.child?.name || ""} ${c.library?.name || ""} ${
-        c.librarian?.fullName || ""
-      }`;
-      return hay.toLowerCase().includes(q);
-    });
-  }, [detail?.upcomingConsultations, upcomingSearch]);
+  const filteredUpcoming = useMemo(
+    () => filterUpcoming(detail?.upcomingConsultations, upcomingSearch),
+    [detail?.upcomingConsultations, upcomingSearch]
+  );
+  const filteredRecent = useMemo(
+    () => filterRecent(detail?.recentConsultations, recentSearch, recentStatus),
+    [detail?.recentConsultations, recentSearch, recentStatus]
+  );
+  const filteredReadings = useMemo(
+    () => filterReadings(detail?.readings, readingSearch),
+    [detail?.readings, readingSearch]
+  );
+  const filteredReservations = useMemo(
+    () => filterReservations(detail?.reservations, reserveSearch),
+    [detail?.reservations, reserveSearch]
+  );
+  const filteredRatings = useMemo(
+    () => filterRatings(detail?.ratings, ratingSearch, minStars),
+    [detail?.ratings, ratingSearch, minStars]
+  );
 
-  const filteredRecent = useMemo(() => {
-    if (!detail?.recentConsultations) return [];
-    const q = recentSearch.trim().toLowerCase();
-    const set = new Set(recentStatus);
-    return detail.recentConsultations.filter((c) => {
-      if (set.size && !set.has(c.status)) return false;
-      if (!q) return true;
-      const hay = `${c.child?.name || ""} ${c.library?.name || ""} ${
-        c.librarian?.fullName || ""
-      }`;
-      return hay.toLowerCase().includes(q);
-    });
-  }, [detail?.recentConsultations, recentSearch, recentStatus]);
-
-  const filteredReadings = useMemo(() => {
-    if (!detail?.readings) return [];
-    const q = readingSearch.trim().toLowerCase();
-    return detail.readings.filter((r) => {
-      if (!q) return true;
-      const hay = `${r.book.title} ${r.book.author || ""}`;
-      return hay.toLowerCase().includes(q);
-    });
-  }, [detail?.readings, readingSearch]);
-
-  const filteredReservations = useMemo(() => {
-    if (!detail?.reservations) return [];
-    const q = reserveSearch.trim().toLowerCase();
-    return detail.reservations.filter((r) => {
-      if (!q) return true;
-      const hay = `${r.book.title} ${r.book.author || ""}`;
-      return hay.toLowerCase().includes(q);
-    });
-  }, [detail?.reservations, reserveSearch]);
-
-  const filteredRatings = useMemo(() => {
-    if (!detail?.ratings) return [];
-    const q = ratingSearch.trim().toLowerCase();
-    return detail.ratings.filter((rt) => {
-      if (minStars && rt.stars < minStars) return false;
-      if (!q) return true;
-      const hay = `${rt.book.title} ${rt.book.author || ""} ${
-        rt.comment || ""
-      }`;
-      return hay.toLowerCase().includes(q);
-    });
-  }, [detail?.ratings, ratingSearch, minStars]);
-
-  // KPIs
-  const kChildren = detail?.children?.length ?? 0;
-  const kUpcoming = detail?.upcomingConsultations?.length ?? 0;
-  const kReserves = detail?.reservations?.length ?? 0;
-  const kRatings = detail?.ratings?.length ?? 0;
-  const kAvgStars =
-    kRatings > 0
-      ? (
-          detail!.ratings!.reduce((a, r) => a + (r.stars || 0), 0) / kRatings
-        ).toFixed(1)
-      : "—";
-
+  /* ------------------------------------------
+   *  UI
+   * ------------------------------------------ */
   return (
     <Container maxWidth={false} sx={{ py: 4 }}>
+      {/* Cabeçalho da página */}
       <Typography
         variant="h3"
         fontWeight={900}
@@ -334,26 +443,33 @@ export default function LibrarianFamilias() {
         Famílias
       </Typography>
 
-      <Stack spacing={2}>
-        {/* Secção: Pesquisar famílias */}
-        <Accordion defaultExpanded>
-          <AccordionSummary expandIcon={<ExpandMoreRounded />}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <PeopleAltRounded />
-              <Typography fontWeight={900}>Pesquisar famílias</Typography>
-              <Chip size="small" variant="outlined" label={families.length} />
-              <Box sx={{ ml: "auto" }}>
+      <Grid container spacing={2}>
+        {/* COLUNA ESQUERDA — listagem / pesquisa */}
+        <Grid item xs={12} md={3} lg={3}>
+          <WhiteCard
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              maxHeight: { xs: "unset", md: "calc(100vh - 160px)" },
+            }}
+          >
+            <SectionHeader
+              title="Pesquisar famílias"
+              action={
                 <Tooltip title="Atualizar">
                   <span>
-                    <IconButton onClick={searchFamilies} disabled={famLoading}>
+                    <IconButton
+                      onClick={() => searchFamilies()}
+                      disabled={famLoading}
+                    >
                       <RefreshRounded />
                     </IconButton>
                   </span>
                 </Tooltip>
-              </Box>
-            </Stack>
-          </AccordionSummary>
-          <AccordionDetails>
+              }
+            />
+
+            {/* Campo de pesquisa com Enter e botão "Buscar" */}
             <TextField
               fullWidth
               placeholder="Nome, email ou telefone…"
@@ -368,72 +484,40 @@ export default function LibrarianFamilias() {
                 ),
                 endAdornment: (
                   <InputAdornment position="end">
+                    {/* Button aqui está dentro de InputAdornment (div), NÃO um botão dentro de botão */}
                     <Button
                       size="small"
                       onClick={searchFamilies}
                       disabled={famLoading}
                     >
-                      Procurar
+                      Buscar
                     </Button>
                   </InputAdornment>
                 ),
               }}
               sx={{ mb: 1.5 }}
             />
+
             {famLoading && <LinearProgress sx={{ mb: 1 }} />}
             {errList && (
               <Typography color="error" sx={{ mb: 1 }}>
                 {errList}
               </Typography>
             )}
-            <Box sx={{ ...scrollY, maxHeight: 380 }}>
+
+            {/* Lista com scroll */}
+            <Box sx={{ ...SCROLL_Y_SX, flex: 1 }}>
               <Stack spacing={1}>
-                {families.map((f) => {
-                  const active = f.id === selectedId;
-                  return (
-                    <Box
-                      key={f.id}
-                      onClick={() => setSelectedId(f.id)}
-                      sx={{
-                        p: 1,
-                        borderRadius: 2,
-                        border: "1px solid",
-                        borderColor: active ? "primary.main" : "divider",
-                        bgcolor: active ? "action.selected" : "transparent",
-                        cursor: "pointer",
-                        "&:hover": { bgcolor: "action.hover" },
-                      }}
-                    >
-                      <Stack direction="row" spacing={1.25} alignItems="center">
-                        <Avatar sx={{ width: 36, height: 36 }}>
-                          {initials(f.fullName)}
-                        </Avatar>
-                        <Box minWidth={0}>
-                          <Typography
-                            fontWeight={900}
-                            noWrap
-                            title={f.fullName}
-                          >
-                            {f.fullName}
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            noWrap
-                            sx={{ opacity: 0.75 }}
-                          >
-                            {f.email}
-                          </Typography>
-                        </Box>
-                        <Chip
-                          size="small"
-                          sx={{ ml: "auto" }}
-                          label={`${f.childrenCount} filhos`}
-                        />
-                      </Stack>
-                    </Box>
-                  );
-                })}
+                {families.map((f) => (
+                  <FamilyListItem
+                    key={f.id}
+                    f={f}
+                    active={f.id === selectedId}
+                    onSelect={setSelectedId}
+                  />
+                ))}
               </Stack>
+
               {!!cursor && (
                 <Button
                   fullWidth
@@ -445,608 +529,619 @@ export default function LibrarianFamilias() {
                 </Button>
               )}
             </Box>
-          </AccordionDetails>
-        </Accordion>
+          </WhiteCard>
+        </Grid>
 
-        {/* Secções de detalhe */}
-        {!selectedFamily ? (
-          <Accordion disabled>
-            <AccordionSummary expandIcon={<ExpandMoreRounded />}>
-              <Typography>Selecione uma família para ver detalhes</Typography>
-            </AccordionSummary>
-          </Accordion>
-        ) : (
-          <>
-            {/* Resumo */}
-            <Accordion defaultExpanded>
-              <AccordionSummary expandIcon={<ExpandMoreRounded />}>
+        {/* COLUNA DIREITA — detalhe */}
+        <Grid item xs={12} md={9} lg={9}>
+          {!selectedFamily ? (
+            <WhiteCard>
+              <Typography sx={{ opacity: 0.8 }}>
+                Selecione uma família à esquerda.
+              </Typography>
+            </WhiteCard>
+          ) : (
+            <>
+              {/* Cabeçalho família */}
+              <WhiteCard sx={{ mb: 2 }}>
                 <Stack
                   direction="row"
-                  spacing={1}
+                  spacing={1.5}
                   alignItems="center"
-                  sx={{ width: "100%" }}
+                  sx={{ mb: 1 }}
                 >
-                  <Avatar sx={{ width: 32, height: 32 }}>
-                    {initials(selectedFamily.fullName)}
+                  <Avatar sx={{ width: 48, height: 48 }}>
+                    {makeInitials(selectedFamily.fullName)}
                   </Avatar>
-                  <Typography fontWeight={900} noWrap sx={{ flex: 1 }}>
-                    {selectedFamily.fullName}
-                  </Typography>
+                  <Box flex={1} minWidth={0}>
+                    <Typography
+                      variant="h5"
+                      fontWeight={900}
+                      noWrap
+                      title={selectedFamily.fullName}
+                    >
+                      {selectedFamily.fullName}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                      {selectedFamily.email} • {selectedFamily.phone || "—"}
+                    </Typography>
+                  </Box>
+                  <RouteLink href="/consultas">Abrir consultas</RouteLink>
                 </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
+
                 {detailLoading && <LinearProgress />}
                 {errDetail && (
                   <Typography color="error" sx={{ mt: 1 }}>
                     {errDetail}
                   </Typography>
                 )}
+              </WhiteCard>
 
-                {!detailLoading && detail && (
-                  <Stack
-                    direction="row"
-                    spacing={1.5}
-                    useFlexGap
-                    flexWrap="wrap"
-                    sx={{ mt: 1 }}
+              {/* Grid de cartões */}
+              <Grid container spacing={2}>
+                {/* Filhos */}
+                <Grid item xs={12} md={6}>
+                  <WhiteCard
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      maxHeight: { xs: "unset", md: 360 },
+                    }}
                   >
-                    <StatTile
-                      icon={<PeopleAltRounded fontSize="small" />}
-                      label="Filhos"
-                      value={kChildren}
-                      color="info"
+                    <SectionHeader
+                      title={`Filhos (${detail?.children.length ?? 0})`}
                     />
-                    <StatTile
-                      icon={<EventAvailableRounded fontSize="small" />}
-                      label="Próximas consultas"
-                      value={kUpcoming}
-                      color="success"
-                    />
-                    <StatTile
-                      icon={<BookmarkAddedRounded fontSize="small" />}
-                      label="Reservas ativas"
-                      value={kReserves}
-                      color="secondary"
-                    />
-                    <StatTile
-                      icon={<StarRounded fontSize="small" />}
-                      label="Média ★"
-                      value={kAvgStars}
-                      color="warning"
-                    />
-                  </Stack>
-                )}
-              </AccordionDetails>
-            </Accordion>
-
-            {/* Filhos */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreRounded />}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <PeopleAltRounded />
-                  <Typography fontWeight={900}>Filhos</Typography>
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={detail?.children.length ?? 0}
-                  />
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Box sx={{ ...scrollY, maxHeight: 320 }}>
-                  {detail?.children?.length ? (
-                    <Stack spacing={1.25} divider={<Divider />}>
-                      {detail.children.map((c) => (
-                        <Stack
-                          key={c.id}
-                          direction="row"
-                          spacing={1.25}
-                          alignItems="center"
-                        >
-                          <Avatar sx={{ width: 36, height: 36 }}>
-                            {initials(c.name)}
-                          </Avatar>
-                          <Box flex={1} minWidth={0}>
-                            <Typography fontWeight={900} noWrap>
-                              {c.name}
-                            </Typography>
-                            <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                              Nasc.: {fDate.format(new Date(c.birthDate))}
-                            </Typography>
-                          </Box>
+                    <Box sx={{ ...SCROLL_Y_SX }}>
+                      {detail?.children?.length ? (
+                        <Stack spacing={1.25} divider={<Divider />}>
+                          {detail.children.map((c) => (
+                            <Stack
+                              key={c.id}
+                              direction="row"
+                              spacing={1.25}
+                              alignItems="center"
+                            >
+                              <Avatar sx={{ width: 36, height: 36 }}>
+                                {makeInitials(c.name)}
+                              </Avatar>
+                              <Box flex={1} minWidth={0}>
+                                <Typography fontWeight={900} noWrap>
+                                  {c.name}
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  sx={{ opacity: 0.8 }}
+                                >
+                                  Nasc.: {fDate.format(new Date(c.birthDate))}
+                                </Typography>
+                              </Box>
+                            </Stack>
+                          ))}
                         </Stack>
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Empty>Sem filhos registados.</Empty>
-                  )}
-                </Box>
-              </AccordionDetails>
-            </Accordion>
+                      ) : (
+                        <Typography sx={{ opacity: 0.8 }}>
+                          Sem filhos registados.
+                        </Typography>
+                      )}
+                    </Box>
+                  </WhiteCard>
+                </Grid>
 
-            {/* Conquistas */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreRounded />}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <MilitaryTechRounded />
-                  <Typography fontWeight={900}>Conquistas</Typography>
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={detail?.badges?.length ?? 0}
-                  />
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Box sx={{ ...scrollY, maxHeight: 320 }}>
-                  {detail?.badges?.length ? (
+                {/* Conquistas */}
+                <Grid item xs={12} md={6}>
+                  <WhiteCard
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      maxHeight: { xs: "unset", md: 360 },
+                    }}
+                  >
+                    <SectionHeader title="Conquistas" />
+                    <Box sx={{ ...SCROLL_Y_SX }}>
+                      {detail?.badges?.length ? (
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          useFlexGap
+                          flexWrap="wrap"
+                        >
+                          {detail.badges.slice(0, 200).map((b, idx) => (
+                            <Chip
+                              key={`${b.childId}-${b.badge.id}-${idx}`}
+                              label={b.badge.name}
+                              variant="outlined"
+                            />
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Typography sx={{ opacity: 0.8 }}>
+                          Sem conquistas ainda.
+                        </Typography>
+                      )}
+                    </Box>
+                  </WhiteCard>
+                </Grid>
+
+                {/* Consultas — próximas */}
+                <Grid item xs={12} md={6}>
+                  <WhiteCard
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      maxHeight: { xs: "unset", md: 420 },
+                    }}
+                  >
+                    <SectionHeader
+                      title="Próximas consultas"
+                      action={
+                        <RouteLink href="/librarian/agenda">
+                          Ver agenda
+                        </RouteLink>
+                      }
+                    />
+                    {/* toolbar */}
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Pesquisar por criança/biblioteca/bibliotecário…"
+                      value={upcomingSearch}
+                      onChange={(e) => setUpcomingSearch(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchRounded fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ mb: 1 }}
+                    />
+                    <Box sx={{ ...SCROLL_Y_SX }}>
+                      {filteredUpcoming?.length ? (
+                        <Stack spacing={1.25} divider={<Divider />}>
+                          {filteredUpcoming.map((c) => {
+                            const cfg = STATUS_CFG[c.status] || {
+                              label: c.status,
+                              color: "default",
+                            };
+                            const dt = c.startAt ? new Date(c.startAt) : null;
+                            return (
+                              <Stack
+                                key={c.id}
+                                direction="row"
+                                spacing={1.25}
+                                alignItems="center"
+                              >
+                                <Chip
+                                  size="small"
+                                  color={cfg.color}
+                                  label={cfg.label}
+                                  variant="outlined"
+                                />
+                                <Chip
+                                  size="small"
+                                  icon={
+                                    <CalendarMonthRounded fontSize="small" />
+                                  }
+                                  label={dt ? fDate.format(dt) : "—"}
+                                />
+                                <Chip
+                                  size="small"
+                                  icon={<AccessTimeRounded fontSize="small" />}
+                                  label={dt ? fTime.format(dt) : "—"}
+                                />
+                                <Typography
+                                  sx={{ ml: "auto", opacity: 0.85 }}
+                                  variant="body2"
+                                >
+                                  {c.child?.name ? `de ${c.child.name}` : ""}
+                                  {c.library?.name
+                                    ? ` • ${c.library.name}`
+                                    : ""}
+                                </Typography>
+                              </Stack>
+                            );
+                          })}
+                        </Stack>
+                      ) : (
+                        <Typography sx={{ opacity: 0.8 }}>
+                          Sem próximas consultas.
+                        </Typography>
+                      )}
+                    </Box>
+                  </WhiteCard>
+                </Grid>
+
+                {/* Consultas — recentes */}
+                <Grid item xs={12} md={6}>
+                  <WhiteCard
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      maxHeight: { xs: "unset", md: 420 },
+                    }}
+                  >
+                    <SectionHeader title="Consultas recentes" />
+                    {/* toolbar */}
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1}
+                      alignItems={{ xs: "stretch", sm: "center" }}
+                      sx={{ mb: 1 }}
+                    >
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Pesquisar…"
+                        value={recentSearch}
+                        onChange={(e) => setRecentSearch(e.target.value)}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <SearchRounded fontSize="small" />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                      <ToggleButtonGroup
+                        size="small"
+                        value={recentStatus}
+                        onChange={(_, v: string[]) => v && setRecentStatus(v)}
+                        aria-label="filtro de estado"
+                      >
+                        {[
+                          "COMPLETED",
+                          "CANCELLED",
+                          "DECLINED",
+                          "CONFIRMED",
+                          "PENDING",
+                        ].map((s) => {
+                          const cfg = STATUS_CFG[s] || {
+                            label: s,
+                            color: "default",
+                          };
+                          return (
+                            <ToggleButton
+                              key={s}
+                              value={s}
+                              aria-label={cfg.label}
+                            >
+                              {cfg.label}
+                            </ToggleButton>
+                          );
+                        })}
+                      </ToggleButtonGroup>
+                    </Stack>
+
+                    <Box sx={{ ...SCROLL_Y_SX }}>
+                      {filteredRecent?.length ? (
+                        <Stack spacing={1.25} divider={<Divider />}>
+                          {filteredRecent.map((c) => {
+                            const cfg = STATUS_CFG[c.status] || {
+                              label: c.status,
+                              color: "default",
+                            };
+                            const dt = c.startAt
+                              ? new Date(c.startAt)
+                              : c.requestedAt
+                              ? new Date(c.requestedAt)
+                              : null;
+                            return (
+                              <Stack
+                                key={c.id}
+                                direction="row"
+                                spacing={1.25}
+                                alignItems="center"
+                              >
+                                <Chip
+                                  size="small"
+                                  color={cfg.color}
+                                  label={cfg.label}
+                                  variant="outlined"
+                                />
+                                <Chip
+                                  size="small"
+                                  icon={
+                                    <CalendarMonthRounded fontSize="small" />
+                                  }
+                                  label={dt ? fDate.format(dt) : "—"}
+                                />
+                                {dt && (
+                                  <Chip
+                                    size="small"
+                                    icon={
+                                      <AccessTimeRounded fontSize="small" />
+                                    }
+                                    label={fTime.format(dt)}
+                                  />
+                                )}
+                                <Typography
+                                  sx={{ ml: "auto", opacity: 0.85 }}
+                                  variant="body2"
+                                >
+                                  {c.child?.name ? `de ${c.child.name}` : ""}
+                                  {c.library?.name
+                                    ? ` • ${c.library.name}`
+                                    : ""}
+                                </Typography>
+                              </Stack>
+                            );
+                          })}
+                        </Stack>
+                      ) : (
+                        <Typography sx={{ opacity: 0.8 }}>
+                          Sem histórico recente.
+                        </Typography>
+                      )}
+                    </Box>
+                  </WhiteCard>
+                </Grid>
+
+                {/* Leituras em curso */}
+                <Grid item xs={12} md={6}>
+                  <WhiteCard
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      maxHeight: { xs: "unset", md: 420 },
+                    }}
+                  >
+                    <SectionHeader title="A ler" />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Pesquisar por título/autor…"
+                      value={readingSearch}
+                      onChange={(e) => setReadingSearch(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchRounded fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ mb: 1 }}
+                    />
+                    <Box sx={{ ...SCROLL_Y_SX }}>
+                      {filteredReadings?.length ? (
+                        <Stack spacing={1.25} divider={<Divider />}>
+                          {filteredReadings.map((r) => (
+                            <Stack
+                              key={r.id}
+                              direction="row"
+                              spacing={1.25}
+                              alignItems="center"
+                            >
+                              <LibraryBooksRounded fontSize="small" />
+                              <Box minWidth={0}>
+                                <Typography
+                                  fontWeight={900}
+                                  noWrap
+                                  title={r.book.title}
+                                >
+                                  {r.book.title}
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  sx={{ opacity: 0.8 }}
+                                >
+                                  {r.book.author || "Autor desconhecido"}
+                                </Typography>
+                              </Box>
+                              <Typography
+                                variant="body2"
+                                sx={{ ml: "auto", opacity: 0.8 }}
+                              >
+                                {r.startedAt
+                                  ? fDate.format(new Date(r.startedAt))
+                                  : "—"}
+                              </Typography>
+                            </Stack>
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Typography sx={{ opacity: 0.8 }}>
+                          Sem leituras em curso.
+                        </Typography>
+                      )}
+                    </Box>
+                  </WhiteCard>
+                </Grid>
+
+                {/* Reservas */}
+                <Grid item xs={12} md={6}>
+                  <WhiteCard
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      maxHeight: { xs: "unset", md: 420 },
+                    }}
+                  >
+                    <SectionHeader title="Reservas de livros" />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      placeholder="Pesquisar por título/autor…"
+                      value={reserveSearch}
+                      onChange={(e) => setReserveSearch(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchRounded fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ mb: 1 }}
+                    />
+                    <Box sx={{ ...SCROLL_Y_SX }}>
+                      {filteredReservations?.length ? (
+                        <Stack spacing={1.25} divider={<Divider />}>
+                          {filteredReservations.map((r) => (
+                            <Stack
+                              key={r.id}
+                              direction="row"
+                              spacing={1.25}
+                              alignItems="center"
+                            >
+                              <BookmarkAddedRounded fontSize="small" />
+                              <Box minWidth={0}>
+                                <Typography
+                                  fontWeight={900}
+                                  noWrap
+                                  title={r.book.title}
+                                >
+                                  {r.book.title}
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  sx={{ opacity: 0.8 }}
+                                >
+                                  {r.book.author || "Autor desconhecido"}
+                                </Typography>
+                              </Box>
+                              <Typography
+                                variant="body2"
+                                sx={{ ml: "auto", opacity: 0.8 }}
+                              >
+                                {fDate.format(new Date(r.reservedAt))}
+                              </Typography>
+                            </Stack>
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Typography sx={{ opacity: 0.8 }}>
+                          Sem reservas ativas.
+                        </Typography>
+                      )}
+                    </Box>
+                  </WhiteCard>
+                </Grid>
+
+                {/* Avaliações */}
+                <Grid item xs={12}>
+                  <WhiteCard
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      maxHeight: { xs: "unset", md: 420 },
+                    }}
+                  >
+                    <SectionHeader title="Avaliações de livros" />
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1}
+                      alignItems={{ xs: "stretch", sm: "center" }}
+                      sx={{ mb: 1 }}
+                    >
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Pesquisar por título/autor/comentário…"
+                        value={ratingSearch}
+                        onChange={(e) => setRatingSearch(e.target.value)}
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <SearchRounded fontSize="small" />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                      <ToggleButtonGroup
+                        size="small"
+                        exclusive
+                        value={minStars}
+                        onChange={(_, v) =>
+                          setMinStars(Number.isInteger(v) ? v : 0)
+                        }
+                        aria-label="mínimo de estrelas"
+                      >
+                        <ToggleButton value={0}>Todas</ToggleButton>
+                        <ToggleButton value={3}>3★+</ToggleButton>
+                        <ToggleButton value={4}>4★+</ToggleButton>
+                        <ToggleButton value={5}>5★</ToggleButton>
+                      </ToggleButtonGroup>
+                    </Stack>
+
+                    <Box sx={{ ...SCROLL_Y_SX }}>
+                      {filteredRatings?.length ? (
+                        <Stack spacing={1.25} divider={<Divider />}>
+                          {filteredRatings.map((rt) => (
+                            <Stack
+                              key={rt.id}
+                              direction="row"
+                              spacing={1.25}
+                              alignItems="center"
+                            >
+                              <StarRounded fontSize="small" />
+                              <Box minWidth={0}>
+                                <Typography
+                                  fontWeight={900}
+                                  noWrap
+                                  title={rt.book.title}
+                                >
+                                  {rt.book.title}
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  sx={{ opacity: 0.8 }}
+                                >
+                                  {`${rt.stars}★`}{" "}
+                                  {rt.comment ? `• “${rt.comment}”` : ""}
+                                </Typography>
+                              </Box>
+                              <Typography
+                                variant="body2"
+                                sx={{ ml: "auto", opacity: 0.8 }}
+                              >
+                                {fDate.format(new Date(rt.ratedAt))}
+                              </Typography>
+                            </Stack>
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Typography sx={{ opacity: 0.8 }}>
+                          Sem avaliações.
+                        </Typography>
+                      )}
+                    </Box>
+                  </WhiteCard>
+                </Grid>
+
+                {/* Contactos / Info extra */}
+                <Grid item xs={12}>
+                  <WhiteCard>
+                    <SectionHeader title="Contactos" />
                     <Stack
                       direction="row"
-                      spacing={1}
+                      spacing={2}
                       useFlexGap
                       flexWrap="wrap"
                     >
-                      {detail.badges.slice(0, 200).map((b, idx) => (
-                        <Chip
-                          key={`${b.childId}-${b.badge.id}-${idx}`}
-                          label={b.badge.name}
-                          variant="outlined"
-                        />
-                      ))}
+                      <LabeledValue
+                        label="Email"
+                        value={detail?.family.email}
+                      />
+                      <LabeledValue
+                        label="Telefone"
+                        value={detail?.family.phone ?? "—"}
+                      />
+                      <LabeledValue
+                        label="Morada"
+                        value={detail?.family.address ?? "—"}
+                      />
                     </Stack>
-                  ) : (
-                    <Empty>Sem conquistas ainda.</Empty>
-                  )}
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-
-            {/* Próximas */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreRounded />}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <EventAvailableRounded />
-                  <Typography fontWeight={900}>Próximas consultas</Typography>
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={detail?.upcomingConsultations?.length ?? 0}
-                  />
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Pesquisar por criança/biblioteca/bibliotecário…"
-                  value={upcomingSearch}
-                  onChange={(e) => setUpcomingSearch(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchRounded fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{ mb: 1 }}
-                />
-                <Box sx={{ ...scrollY, maxHeight: 360 }}>
-                  {filteredUpcoming?.length ? (
-                    <Stack spacing={1.25} divider={<Divider />}>
-                      {filteredUpcoming.map((c) => {
-                        const scfg = statusCfg[c.status] || {
-                          label: c.status,
-                          color: "default",
-                        };
-                        const dt = c.startAt ? new Date(c.startAt) : null;
-                        return (
-                          <Stack
-                            key={c.id}
-                            direction="row"
-                            spacing={1.25}
-                            alignItems="center"
-                          >
-                            <Chip
-                              size="small"
-                              color={scfg.color}
-                              label={scfg.label}
-                              variant="outlined"
-                            />
-                            <Chip
-                              size="small"
-                              icon={<CalendarMonthRounded fontSize="small" />}
-                              label={dt ? fDate.format(dt) : "—"}
-                            />
-                            <Chip
-                              size="small"
-                              icon={<AccessTimeRounded fontSize="small" />}
-                              label={dt ? fTime.format(dt) : "—"}
-                            />
-                            <Typography
-                              sx={{ ml: "auto", opacity: 0.85 }}
-                              variant="body2"
-                            >
-                              {c.child?.name ? `de ${c.child.name}` : ""}
-                              {c.library?.name ? ` • ${c.library.name}` : ""}
-                            </Typography>
-                          </Stack>
-                        );
-                      })}
-                    </Stack>
-                  ) : (
-                    <Empty>Sem próximas consultas.</Empty>
-                  )}
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-
-            {/* Recentes */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreRounded />}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <HistoryRounded />
-                  <Typography fontWeight={900}>Consultas recentes</Typography>
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={detail?.recentConsultations?.length ?? 0}
-                  />
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={1}
-                  alignItems={{ xs: "stretch", sm: "center" }}
-                  sx={{ mb: 1 }}
-                >
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Pesquisar…"
-                    value={recentSearch}
-                    onChange={(e) => setRecentSearch(e.target.value)}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchRounded fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                  <ToggleButtonGroup
-                    size="small"
-                    value={recentStatus}
-                    onChange={(_, v: string[]) => v && setRecentStatus(v)}
-                    aria-label="filtro de estado"
-                  >
-                    {[
-                      "COMPLETED",
-                      "CANCELLED",
-                      "DECLINED",
-                      "CONFIRMED",
-                      "PENDING",
-                    ].map((s) => {
-                      const cfg = statusCfg[s] || {
-                        label: s,
-                        color: "default",
-                      };
-                      return (
-                        <ToggleButton key={s} value={s} aria-label={cfg.label}>
-                          {cfg.label}
-                        </ToggleButton>
-                      );
-                    })}
-                  </ToggleButtonGroup>
-                </Stack>
-                <Box sx={{ ...scrollY, maxHeight: 360 }}>
-                  {filteredRecent?.length ? (
-                    <Stack spacing={1.25} divider={<Divider />}>
-                      {filteredRecent.map((c) => {
-                        const scfg = statusCfg[c.status] || {
-                          label: c.status,
-                          color: "default",
-                        };
-                        const dt = c.startAt
-                          ? new Date(c.startAt)
-                          : c.requestedAt
-                          ? new Date(c.requestedAt)
-                          : null;
-                        return (
-                          <Stack
-                            key={c.id}
-                            direction="row"
-                            spacing={1.25}
-                            alignItems="center"
-                          >
-                            <Chip
-                              size="small"
-                              color={scfg.color}
-                              label={scfg.label}
-                              variant="outlined"
-                            />
-                            <Chip
-                              size="small"
-                              icon={<CalendarMonthRounded fontSize="small" />}
-                              label={dt ? fDate.format(dt) : "—"}
-                            />
-                            {dt && (
-                              <Chip
-                                size="small"
-                                icon={<AccessTimeRounded fontSize="small" />}
-                                label={fTime.format(dt)}
-                              />
-                            )}
-                            <Typography
-                              sx={{ ml: "auto", opacity: 0.85 }}
-                              variant="body2"
-                            >
-                              {c.child?.name ? `de ${c.child.name}` : ""}
-                              {c.library?.name ? ` • ${c.library.name}` : ""}
-                            </Typography>
-                          </Stack>
-                        );
-                      })}
-                    </Stack>
-                  ) : (
-                    <Empty>Sem histórico recente.</Empty>
-                  )}
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-
-            {/* Leituras */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreRounded />}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <MenuBookRounded />
-                  <Typography fontWeight={900}>A ler</Typography>
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={detail?.readings?.length ?? 0}
-                  />
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Pesquisar por título/autor…"
-                  value={readingSearch}
-                  onChange={(e) => setReadingSearch(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchRounded fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{ mb: 1 }}
-                />
-                <Box sx={{ ...scrollY, maxHeight: 360 }}>
-                  {filteredReadings?.length ? (
-                    <Stack spacing={1.25} divider={<Divider />}>
-                      {filteredReadings.map((r) => (
-                        <Stack
-                          key={r.id}
-                          direction="row"
-                          spacing={1.25}
-                          alignItems="center"
-                        >
-                          <LibraryBooksRounded fontSize="small" />
-                          <Box minWidth={0}>
-                            <Typography
-                              fontWeight={900}
-                              noWrap
-                              title={r.book.title}
-                            >
-                              {r.book.title}
-                            </Typography>
-                            <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                              {r.book.author || "Autor desconhecido"}
-                            </Typography>
-                          </Box>
-                          <Typography
-                            variant="body2"
-                            sx={{ ml: "auto", opacity: 0.8 }}
-                          >
-                            {r.startedAt
-                              ? fDate.format(new Date(r.startedAt))
-                              : "—"}
-                          </Typography>
-                        </Stack>
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Empty>Sem leituras em curso.</Empty>
-                  )}
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-
-            {/* Reservas */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreRounded />}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <BookmarkAddedRounded />
-                  <Typography fontWeight={900}>Reservas de livros</Typography>
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={detail?.reservations?.length ?? 0}
-                  />
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="Pesquisar por título/autor…"
-                  value={reserveSearch}
-                  onChange={(e) => setReserveSearch(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchRounded fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{ mb: 1 }}
-                />
-                <Box sx={{ ...scrollY, maxHeight: 360 }}>
-                  {filteredReservations?.length ? (
-                    <Stack spacing={1.25} divider={<Divider />}>
-                      {filteredReservations.map((r) => (
-                        <Stack
-                          key={r.id}
-                          direction="row"
-                          spacing={1.25}
-                          alignItems="center"
-                        >
-                          <BookmarkAddedRounded fontSize="small" />
-                          <Box minWidth={0}>
-                            <Typography
-                              fontWeight={900}
-                              noWrap
-                              title={r.book.title}
-                            >
-                              {r.book.title}
-                            </Typography>
-                            <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                              {r.book.author || "Autor desconhecido"}
-                            </Typography>
-                          </Box>
-                          <Typography
-                            variant="body2"
-                            sx={{ ml: "auto", opacity: 0.8 }}
-                          >
-                            {fDate.format(new Date(r.reservedAt))}
-                          </Typography>
-                        </Stack>
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Empty>Sem reservas ativas.</Empty>
-                  )}
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-
-            {/* Avaliações */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreRounded />}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <StarRounded />
-                  <Typography fontWeight={900}>Avaliações de livros</Typography>
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={detail?.ratings?.length ?? 0}
-                  />
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={1}
-                  alignItems={{ xs: "stretch", sm: "center" }}
-                  sx={{ mb: 1 }}
-                >
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Pesquisar por título/autor/comentário…"
-                    value={ratingSearch}
-                    onChange={(e) => setRatingSearch(e.target.value)}
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <SearchRounded fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                  <ToggleButtonGroup
-                    size="small"
-                    exclusive
-                    value={minStars}
-                    onChange={(_, v) =>
-                      setMinStars(Number.isInteger(v) ? v : 0)
-                    }
-                    aria-label="mínimo de estrelas"
-                  >
-                    <ToggleButton value={0}>Todas</ToggleButton>
-                    <ToggleButton value={3}>3★+</ToggleButton>
-                    <ToggleButton value={4}>4★+</ToggleButton>
-                    <ToggleButton value={5}>5★</ToggleButton>
-                  </ToggleButtonGroup>
-                </Stack>
-                <Box sx={{ ...scrollY, maxHeight: 360 }}>
-                  {filteredRatings?.length ? (
-                    <Stack spacing={1.25} divider={<Divider />}>
-                      {filteredRatings.map((rt) => (
-                        <Stack
-                          key={rt.id}
-                          direction="row"
-                          spacing={1.25}
-                          alignItems="center"
-                        >
-                          <StarRounded fontSize="small" />
-                          <Box minWidth={0}>
-                            <Typography
-                              fontWeight={900}
-                              noWrap
-                              title={rt.book.title}
-                            >
-                              {rt.book.title}
-                            </Typography>
-                            <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                              {`${rt.stars}★`}{" "}
-                              {rt.comment ? `• “${rt.comment}”` : ""}
-                            </Typography>
-                          </Box>
-                          <Typography
-                            variant="body2"
-                            sx={{ ml: "auto", opacity: 0.8 }}
-                          >
-                            {fDate.format(new Date(rt.ratedAt))}
-                          </Typography>
-                        </Stack>
-                      ))}
-                    </Stack>
-                  ) : (
-                    <Empty>Sem avaliações.</Empty>
-                  )}
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-
-            {/* Contactos */}
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreRounded />}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <ContactPhoneRounded />
-                  <Typography fontWeight={900}>Contactos</Typography>
-                </Stack>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
-                  <Typography variant="body2">
-                    <b>Email:</b> {detail?.family.email || "—"}
-                  </Typography>
-                  <Typography variant="body2">
-                    <b>Telefone:</b> {detail?.family.phone || "—"}
-                  </Typography>
-                  <Typography variant="body2">
-                    <b>Morada:</b> {detail?.family.address || "—"}
-                  </Typography>
-                </Stack>
-              </AccordionDetails>
-            </Accordion>
-          </>
-        )}
-      </Stack>
+                  </WhiteCard>
+                </Grid>
+              </Grid>
+            </>
+          )}
+        </Grid>
+      </Grid>
     </Container>
   );
 }
+
+/* =============================================================================
+ *  Fim — Alexandre Brissos • nº 21131
+ * =============================================================================
+ */

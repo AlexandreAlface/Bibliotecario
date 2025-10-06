@@ -1,4 +1,14 @@
-// apps/web/src/pages/librarian/Agenda.tsx
+// ====================== apps/web/src/pages/librarian/Agenda.tsx ======================
+/**
+ * Autor: Alexandre Brrissos — Nº 21131
+ * Página: Agenda do Bibliotecário
+ *
+ * Objetivos deste refactor:
+ * - Comentários claros por secções (layout, estado, efeitos, handlers)
+ * - Helpers PUROS (sem efeitos colaterais) e com máx. 30 linhas
+ * - Preserva a funcionalidade/UX original
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import {
   WhiteCard,
@@ -21,6 +31,7 @@ import {
   Tooltip,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
+
 import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import TodayRounded from "@mui/icons-material/TodayRounded";
@@ -47,12 +58,18 @@ import {
   updateSlotStatus,
 } from "../../services/consultations";
 
-/* ---------------- utils/format ---------------- */
+/* =========================================================================================
+   Utils/format — Helpers PUROS (≤ 30 linhas)
+   ========================================================================================= */
+
+/** Normaliza para início do dia (local). */
 function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
+
+/** YYYY-MM-DD (local). */
 function fmtYMD(d?: string | Date | null) {
   if (!d) return "";
   const x = typeof d === "string" ? new Date(d) : d;
@@ -61,6 +78,8 @@ function fmtYMD(d?: string | Date | null) {
   const day = String(x.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
+/** Partes amigáveis para chips/pílulas. */
 function parts(iso?: string) {
   if (!iso) return { day: "—", mon: "—", time: "" };
   const d = new Date(iso);
@@ -70,6 +89,48 @@ function parts(iso?: string) {
     time: d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }),
   };
 }
+
+/** Compõe o intervalo [from, to] (mês inteiro) a partir de um “monthRef”. */
+function monthRange(ref: Date) {
+  const from = new Date(ref);
+  from.setDate(1);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from);
+  to.setMonth(to.getMonth() + 1);
+  to.setDate(0);
+  to.setHours(23, 59, 59, 999);
+  return { from, to };
+}
+
+/** Grelha do mês (células com ymd + flag inMonth). */
+function buildMonthGrid(ref: Date) {
+  const d0 = new Date(ref);
+  d0.setDate(1);
+  const firstWeekday = (d0.getDay() + 6) % 7; // 0 = Mon
+  const dEnd = new Date(d0);
+  dEnd.setMonth(dEnd.getMonth() + 1);
+  dEnd.setDate(0);
+  const total = dEnd.getDate();
+
+  const cells: { ymd: string; inMonth: boolean }[] = [];
+  for (let i = 0; i < firstWeekday; i++)
+    cells.push({ ymd: "", inMonth: false });
+  for (let day = 1; day <= total; day++) {
+    const d = new Date(d0);
+    d.setDate(day);
+    cells.push({ ymd: fmtYMD(d), inMonth: true });
+  }
+  while (cells.length % 7) cells.push({ ymd: "", inMonth: false });
+
+  return {
+    title: d0.toLocaleDateString("pt-PT", { month: "long", year: "numeric" }),
+    cells,
+  };
+}
+
+/* =========================================================================================
+   Tipos e constantes
+   ========================================================================================= */
 
 const STATUS_CFG: Record<
   string,
@@ -105,7 +166,11 @@ type DayItem =
       libraryName?: string;
     };
 
-/* ---------------- components ---------------- */
+/* =========================================================================================
+   Helpers de UI (PUROS)
+   ========================================================================================= */
+
+/** Cabeçalho de cartão (título + ação à direita). */
 function CardHeader({
   title,
   action,
@@ -128,6 +193,7 @@ function CardHeader({
   );
 }
 
+/** Bolinha colorida com tooltip. */
 function Dot({ color, title }: { color: string; title?: string }) {
   return (
     <Box
@@ -147,7 +213,48 @@ function Dot({ color, title }: { color: string; title?: string }) {
   );
 }
 
-/* ------- Cancel Dialog (custom) ------- */
+/** Chip “toggle” (filled/outlined) com tooltip (opcional). */
+function ToggleChip({
+  active,
+  onToggle,
+  label,
+  color = "default",
+  icon,
+  tooltip,
+}: {
+  active: boolean;
+  onToggle: () => void;
+  label: string;
+  color?:
+    | "default"
+    | "primary"
+    | "secondary"
+    | "success"
+    | "warning"
+    | "info"
+    | "error";
+  icon?: React.ReactElement;
+  tooltip?: string;
+}) {
+  const chip = (
+    <Chip
+      clickable
+      size="small"
+      variant={active ? "filled" : "outlined"}
+      color={color}
+      onClick={onToggle}
+      label={label}
+      icon={icon}
+    />
+  );
+  return tooltip ? <Tooltip title={tooltip}>{chip}</Tooltip> : chip;
+}
+
+/* =========================================================================================
+   Dialogs
+   ========================================================================================= */
+
+/** Dialog de cancelamento (custom) — controlado a partir do parent. */
 function CancelDialog({
   open,
   onClose,
@@ -209,7 +316,10 @@ function CancelDialog({
   );
 }
 
-/* ---------- Linha de item (consulta/slot) ---------- */
+/* =========================================================================================
+   Linha de item (consulta/slot)
+   ========================================================================================= */
+
 function DayItemRow({
   item,
   onConfirm,
@@ -228,12 +338,12 @@ function DayItemRow({
   const iso = item.startAt;
   const { day, mon, time: timeStr } = parts(iso);
 
+  // --------- Consulta ----------
   if (item.kind === "CONSULTA") {
     const cfg = STATUS_CFG[(item.status || "").toUpperCase()] || {
       label: item.status,
       color: "default",
     };
-
     const isBusy = busyId === item.id;
 
     return (
@@ -246,7 +356,7 @@ function DayItemRow({
         }}
       >
         <Stack direction="row" alignItems="center" spacing={1.5}>
-          {/* date pill */}
+          {/* Data */}
           <Box
             sx={{
               width: 68,
@@ -278,7 +388,7 @@ function DayItemRow({
             </Box>
           </Box>
 
-          {/* conteúdo */}
+          {/* Conteúdo */}
           <Box flex={1} minWidth={0}>
             <Typography fontWeight={900} noWrap title={item.title}>
               {item.title}
@@ -313,7 +423,7 @@ function DayItemRow({
             </Stack>
           </Box>
 
-          {/* ações por estado */}
+          {/* Ações por estado */}
           {["PENDING"].includes((item.status || "").toUpperCase()) ? (
             <Stack direction="row" spacing={1}>
               <PrimaryButton
@@ -351,7 +461,7 @@ function DayItemRow({
     );
   }
 
-  // SLOT
+  // --------- Slot ----------
   const a = new Date(item.startAt);
   const b = new Date(item.endAt);
   const timeRange = `${a.toLocaleTimeString("pt-PT", {
@@ -421,66 +531,33 @@ function DayItemRow({
   );
 }
 
-/* ---------- Toggle chip helper ---------- */
-/* ---------- Toggle chip helper ---------- */
-function ToggleChip({
-  active,
-  onToggle,
-  label,
-  color = "default",
-  icon,
-  tooltip,
-}: {
-  active: boolean;
-  onToggle: () => void;
-  label: string;
-  color?:
-    | "default"
-    | "primary"
-    | "secondary"
-    | "success"
-    | "warning"
-    | "info"
-    | "error";
-  icon?: React.ReactElement; // 👈 antes era React.ReactNode
-  tooltip?: string;
-}) {
-  const chip = (
-    <Chip
-      clickable
-      size="small"
-      variant={active ? "filled" : "outlined"}
-      color={color}
-      onClick={onToggle}
-      label={label}
-      icon={icon} // agora o tipo bate certo com o Chip
-    />
-  );
-  return tooltip ? <Tooltip title={tooltip}>{chip}</Tooltip> : chip;
-}
+/* =========================================================================================
+   Página
+   ========================================================================================= */
 
-
-/* =================== Página =================== */
 export default function LibrarianAgenda() {
   const theme = useTheme();
   const { user } = useUserSession();
   const librarianId = Number(user?.id);
+
+  // Estado principal de navegação/seleção
   const [monthRef, setMonthRef] = useState(startOfDay(new Date()));
   const [selectedDate, setSelectedDate] = useState<string>(fmtYMD(new Date()));
 
+  // Dados carregados
   const [consultas, setConsultas] = useState<ConsultaLite[]>([]);
   const [slots, setSlots] = useState<SlotLite[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
-  // busy id para desativar botões de um item específico
+  // Busy (desativa ações por item)
   const [busyId, setBusyId] = useState<number | null>(null);
 
-  // cancel dialog state
+  // Dialog de cancelamento
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelId, setCancelId] = useState<number | null>(null);
   const [cancelBusy, setCancelBusy] = useState<boolean>(false);
 
-  // filtros
+  // Filtros de lista do dia
   const [query, setQuery] = useState("");
   const [showPending, setShowPending] = useState(true);
   const [showConfirmed, setShowConfirmed] = useState(true);
@@ -488,38 +565,31 @@ export default function LibrarianAgenda() {
   const [showSlotsBlocked, setShowSlotsBlocked] = useState(false);
   const [showSlotsBooked, setShowSlotsBooked] = useState(false);
 
-  const goPrev = () => {
-    const d = new Date(monthRef);
-    d.setMonth(d.getMonth() - 1);
-    setMonthRef(startOfDay(d));
-  };
-  const goNext = () => {
-    const d = new Date(monthRef);
-    d.setMonth(d.getMonth() + 1);
-    setMonthRef(startOfDay(d));
-  };
+  /* -------------------------- Navegação temporal -------------------------- */
+  const goPrev = () =>
+    setMonthRef(
+      startOfDay(new Date(monthRef.setMonth(monthRef.getMonth() - 1)))
+    );
+  const goNext = () =>
+    setMonthRef(
+      startOfDay(new Date(monthRef.setMonth(monthRef.getMonth() + 1)))
+    );
   const goToday = () => {
     const today = startOfDay(new Date());
     setMonthRef(today);
     setSelectedDate(fmtYMD(today));
   };
 
+  /* -------------------------- Load (consultas + slots) -------------------------- */
   async function reloadAll() {
     if (!Number.isFinite(librarianId)) return;
     setLoading(true);
     try {
-      // Consultas futuras (PENDING/CONFIRMED)
+      // Consultas futuras
       const cons = await getNextConsultas(120, { librarianId });
 
       // Slots do mês corrente
-      const from = new Date(monthRef);
-      from.setDate(1);
-      from.setHours(0, 0, 0, 0);
-      const to = new Date(from);
-      to.setMonth(to.getMonth() + 1);
-      to.setDate(0);
-      to.setHours(23, 59, 59, 999);
-
+      const { from, to } = monthRange(monthRef);
       const rawSlots = await listLibrarianSlots(librarianId, {
         from: from.toISOString(),
         to: to.toISOString(),
@@ -541,6 +611,7 @@ export default function LibrarianAgenda() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [librarianId, monthRef]);
 
+  /* -------------------------- Mapear dados do dia (PURO) -------------------------- */
   const dayItems = useMemo(() => {
     const map = new Map<string, DayItem[]>();
 
@@ -554,9 +625,10 @@ export default function LibrarianAgenda() {
         title: c.title,
         startAt: String(c.scheduledAt || c.date),
         status: String(c.status || ""),
-        familyId: c.familyId,
-        childId: c.childId,
-        librarianId: c.librarianId,
+        familyId: typeof c.familyId === "number" ? c.familyId : undefined,
+        childId: typeof c.childId === "number" ? c.childId : undefined,
+        librarianId:
+          typeof c.librarianId === "number" ? c.librarianId : undefined,
         librarianName: (c as any).librarianName,
       };
       map.set(key, [...(map.get(key) || []), it]);
@@ -579,7 +651,7 @@ export default function LibrarianAgenda() {
       map.set(key, [...(map.get(key) || []), it]);
     }
 
-    // sort por hora
+    // ordenar por hora
     for (const [k, arr] of map.entries()) {
       arr.sort(
         (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
@@ -589,31 +661,10 @@ export default function LibrarianAgenda() {
     return map;
   }, [consultas, slots]);
 
-  const month = useMemo(() => {
-    const d0 = new Date(monthRef);
-    d0.setDate(1);
-    const firstWeekday = (d0.getDay() + 6) % 7; // 0=Mon
-    const dEnd = new Date(d0);
-    dEnd.setMonth(dEnd.getMonth() + 1);
-    dEnd.setDate(0);
-    const total = dEnd.getDate();
+  /* -------------------------- Grelha do mês (PURO) -------------------------- */
+  const month = useMemo(() => buildMonthGrid(monthRef), [monthRef]);
 
-    const cells: { ymd: string; inMonth: boolean }[] = [];
-    for (let i = 0; i < firstWeekday; i++)
-      cells.push({ ymd: "", inMonth: false });
-    for (let day = 1; day <= total; day++) {
-      const d = new Date(d0);
-      d.setDate(day);
-      cells.push({ ymd: fmtYMD(d), inMonth: true });
-    }
-    while (cells.length % 7) cells.push({ ymd: "", inMonth: false });
-
-    return {
-      title: d0.toLocaleDateString("pt-PT", { month: "long", year: "numeric" }),
-      cells,
-    };
-  }, [monthRef]);
-
+  /* -------------------------- Seleção do dia “melhor” -------------------------- */
   const todayFirstWithItems = useMemo(() => {
     const todayKey = fmtYMD(new Date());
     if ((dayItems.get(todayKey) || []).length > 0) return todayKey;
@@ -629,72 +680,94 @@ export default function LibrarianAgenda() {
     }
   }, [dayItems, todayFirstWithItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* -------------------------- Lista do dia + cores -------------------------- */
   const itemsForSelected = useMemo(
     () => dayItems.get(selectedDate) || [],
     [dayItems, selectedDate]
   );
 
-  // legend colors
-  const dotColor = (it: DayItem, palette: any) => {
+  /** Cor do “dot” consoante tipo/estado (puro). */
+  const dotColor = (it: DayItem) => {
     if (it.kind === "CONSULTA") {
       const s = (it.status || "").toUpperCase();
-      if (s === "CONFIRMED") return palette.success.main;
-      if (s === "PENDING") return palette.warning.main;
-      if (s === "DECLINED") return palette.error.main;
-      if (s === "CANCELLED") return palette.grey[400];
-      return palette.divider;
-    } else {
-      if (it.status === "OPEN") return palette.info.main;
-      if (it.status === "BLOCKED") return palette.grey[500];
-      if (it.status === "BOOKED") return palette.text.secondary;
-      return palette.divider;
+      if (s === "CONFIRMED") return theme.palette.success.main;
+      if (s === "PENDING") return theme.palette.warning.main;
+      if (s === "DECLINED") return theme.palette.error.main;
+      if (s === "CANCELLED") return theme.palette.grey[400];
+      return theme.palette.divider;
     }
+    if (it.status === "OPEN") return theme.palette.info.main;
+    if (it.status === "BLOCKED") return theme.palette.grey[500];
+    if (it.status === "BOOKED") return theme.palette.text.secondary;
+    return theme.palette.divider;
   };
 
-  // filtros aplicados à lista do dia
-  const filteredItemsForSelected = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const matchQuery = (it: DayItem) => {
-      if (!q) return true;
-      if (it.kind === "CONSULTA") {
-        return (
-          it.title?.toLowerCase().includes(q) ||
-          (it.librarianName || "").toLowerCase().includes(q)
-        );
-      }
-      // Slot
-      const a = new Date(it.startAt);
-      const b = new Date((it as any).endAt);
-      const tr = `${a.toLocaleTimeString("pt-PT", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })} — ${b.toLocaleTimeString("pt-PT", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`;
-      return (
-        (it.libraryName || "").toLowerCase().includes(q) ||
-        tr.toLowerCase().includes(q)
-      );
-    };
-    return itemsForSelected.filter((it) => {
-      if (!matchQuery(it)) return false;
+  /* -------------------------- Filtros da lista do dia (PUROS) -------------------------- */
 
+  /** Verifica se item “bate” com a query livre. */
+  function matchQuery(it: DayItem, q: string): boolean {
+    const s = q.trim().toLowerCase();
+    if (!s) return true;
+    if (it.kind === "CONSULTA") {
+      return (
+        it.title?.toLowerCase().includes(s) ||
+        (it.librarianName || "").toLowerCase().includes(s)
+      );
+    }
+    const a = new Date(it.startAt);
+    const b = new Date((it as any).endAt);
+    const tr = `${a.toLocaleTimeString("pt-PT", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })} — ${b.toLocaleTimeString("pt-PT", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
+    return (
+      (it.libraryName || "").toLowerCase().includes(s) ||
+      tr.toLowerCase().includes(s)
+    );
+  }
+
+  /** Aplica os toggles de filtros à lista. */
+  function applyToggles(
+    arr: DayItem[],
+    toggles: {
+      pending: boolean;
+      confirmed: boolean;
+      open: boolean;
+      blocked: boolean;
+      booked: boolean;
+    }
+  ): DayItem[] {
+    return arr.filter((it) => {
       if (it.kind === "CONSULTA") {
         const s = (it.status || "").toUpperCase();
-        if (s === "PENDING" && !showPending) return false;
-        if (s === "CONFIRMED" && !showConfirmed) return false;
+        if (s === "PENDING" && !toggles.pending) return false;
+        if (s === "CONFIRMED" && !toggles.confirmed) return false;
         if (!["PENDING", "CONFIRMED", "DECLINED", "CANCELLED"].includes(s))
           return false;
         return true;
       }
-
-      // SLOT
-      if (it.status === "OPEN" && !showSlotsOpen) return false;
-      if (it.status === "BLOCKED" && !showSlotsBlocked) return false;
-      if (it.status === "BOOKED" && !showSlotsBooked) return false;
+      if (it.status === "OPEN" && !toggles.open) return false;
+      if (it.status === "BLOCKED" && !toggles.blocked) return false;
+      if (it.status === "BOOKED" && !toggles.booked) return false;
       return true;
     });
+  }
+
+  const filteredItemsForSelected = useMemo(() => {
+    const toggles = {
+      pending: showPending,
+      confirmed: showConfirmed,
+      open: showSlotsOpen,
+      blocked: showSlotsBlocked,
+      booked: showSlotsBooked,
+    };
+    return applyToggles(
+      itemsForSelected.filter((it) => matchQuery(it, query)),
+      toggles
+    );
   }, [
     itemsForSelected,
     query,
@@ -705,7 +778,7 @@ export default function LibrarianAgenda() {
     showSlotsBooked,
   ]);
 
-  // contadores rápidos do dia
+  /* -------------------------- Contadores rápidos -------------------------- */
   const counts = useMemo(() => {
     const c = { pending: 0, confirmed: 0, open: 0, blocked: 0, booked: 0 };
     for (const it of itemsForSelected) {
@@ -722,7 +795,7 @@ export default function LibrarianAgenda() {
     return c;
   }, [itemsForSelected]);
 
-  // handlers de ações
+  /* -------------------------- Handlers (ações) -------------------------- */
   const handleConfirm = async (id: number) => {
     try {
       setBusyId(id);
@@ -775,6 +848,8 @@ export default function LibrarianAgenda() {
     }
   };
 
+  /* --------------------------------- Render --------------------------------- */
+
   if (!Number.isFinite(librarianId)) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -790,6 +865,7 @@ export default function LibrarianAgenda() {
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      {/* Topo */}
       <Stack
         direction="row"
         alignItems="center"
@@ -860,7 +936,7 @@ export default function LibrarianAgenda() {
               />
             </Stack>
 
-            {/* grelha */}
+            {/* Grelha */}
             <Box
               sx={{
                 display: "grid",
@@ -901,11 +977,11 @@ export default function LibrarianAgenda() {
                       {dayNum}
                     </Typography>
 
-                    {/* bolinhas coloridas por item */}
+                    {/* “Dots” de estado */}
                     {items.slice(0, 3).map((it, idx) => (
                       <Dot
                         key={idx}
-                        color={dotColor(it, theme.palette)}
+                        color={dotColor(it)}
                         title={
                           it.kind === "CONSULTA"
                             ? `${it.title} — ${
@@ -961,7 +1037,7 @@ export default function LibrarianAgenda() {
               }
             />
 
-            {/* Toolbar: pesquisa + filtros */}
+            {/* Toolbar: pesquisa + toggles */}
             <Stack
               direction={{ xs: "column", md: "row" }}
               spacing={1}
@@ -985,6 +1061,7 @@ export default function LibrarianAgenda() {
                   ),
                 }}
               />
+
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
                 <Chip
                   size="small"
@@ -1030,6 +1107,7 @@ export default function LibrarianAgenda() {
               </Stack>
             </Stack>
 
+            {/* Lista / loading */}
             <Box
               sx={{
                 flex: 1,
@@ -1074,7 +1152,7 @@ export default function LibrarianAgenda() {
         </Grid>
       </Grid>
 
-      {/* Cancel Dialog */}
+      {/* Dialog de Cancelamento */}
       <CancelDialog
         open={cancelOpen}
         onClose={() => {

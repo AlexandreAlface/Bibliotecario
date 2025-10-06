@@ -1,7 +1,22 @@
-// apps/mobile/src/services/readings.ts
-import { API_URL, request } from "./api"; // ⬅️ remove 'api'
+/**
+ * =============================================================================
+ *  Módulo: apps/mobile/src/services/readings.ts
+ *  Autor:  Alexandre Brissos — Nº 21131
+ * -----------------------------------------------------------------------------
+ *  Reforços aplicados:
+ *   • Comentários detalhados (PT-PT) e cabeçalho com autor/nº aluno.
+ *   • Helpers **PUROS** para querystrings e tratamento de erros.
+ *   • Funções pequenas (≤ 30 linhas), coesas e tipadas.
+ *   • Tipos claros para leituras, pendentes e concluídas.
+ * =============================================================================
+ */
+
+import { API_URL, request } from "./api";
 import axios from "axios";
 
+/* =============================== Tipos =============================== */
+
+/** Linha simplificada de leitura (em curso ou recente). */
 export type ReadingLite = {
   id: number;
   childId: number;
@@ -18,6 +33,7 @@ type Options = {
   familyId?: number;
 };
 
+/** Estrutura para uma leitura terminada (com avaliação opcional). */
 export type FinishedReading = {
   id: number;
   childId: number;
@@ -31,7 +47,7 @@ export type FinishedReading = {
   comment?: string | null;
 };
 
-// 🔹 PENDENTES (reservas / a ler) — já tinhas no meu patch anterior
+/** Linha “pendente” para avaliação/estado de leitura. */
 export type PendingRatingRow = {
   reservationId?: number;
   readingId?: number | null;
@@ -46,83 +62,177 @@ export type PendingRatingRow = {
   ratedAt?: string | null;
 };
 
+/* ============================ Helpers PUROS =========================== */
+
+/** 🔹 **PURO**: cria `URLSearchParams` ignorando valores vazios/nulos. */
+function toParams(obj: Record<string, unknown>): URLSearchParams {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || v === null || v === "") continue;
+    qs.set(k, String(v));
+  }
+  return qs;
+}
+
+/**
+ * 🔹 **PURO**: extrai `status`/`error` de um erro Axios e
+ * devolve uma mensagem mapeada caso exista.
+ */
+function mapAxiosError(
+  err: any,
+  map: Record<string, string>,
+  fallback: string
+): never {
+  const status = err?.response?.status as number | undefined;
+  const code = err?.response?.data?.error as string | undefined;
+  if (status && code) {
+    const key = `${status}:${code}`;
+    if (map[key]) throw new Error(map[key]);
+  }
+  throw new Error(fallback);
+}
+
+/** 🔹 **PURO**: garante limite positivo. */
+function safeLimit(n: number, def = 12): number {
+  const x = Number(n);
+  return Number.isFinite(x) && x > 0 ? Math.floor(x) : def;
+}
+
+/** 🔹 **PURO**: devolve array seguro. */
+function asArray<T>(data: unknown): T[] {
+  return Array.isArray(data) ? (data as T[]) : [];
+}
+
+/* ================================ API ================================= */
+
+/**
+ * Lista registos pendentes para avaliação ou continuação.
+ * Envia opcionalmente `userId` para cruzar as estrelas do utilizador.
+ */
 export async function listPendingRatings(opts: {
   childId?: number;
   familyId?: number;
   limit?: number;
-  userId?: number;   // vai na query (?userId=) para o backend juntar as estrelas do utilizador
+  userId?: number; // ?userId= para backend juntar as estrelas do utilizador
 }): Promise<PendingRatingRow[]> {
-  const qs = new URLSearchParams();
-  if (opts.childId) qs.set("childId", String(opts.childId));
-  if (opts.familyId) qs.set("familyId", String(opts.familyId));
-  if (opts.limit) qs.set("limit", String(opts.limit));
-  if (opts.userId) qs.set("userId", String(opts.userId));
-
+  const qs = toParams({
+    childId: opts.childId,
+    familyId: opts.familyId,
+    limit: opts.limit,
+    userId: opts.userId,
+  });
   const data = await request<PendingRatingRow[]>(
     `/ratings/pending?${qs.toString()}`
   );
-  return Array.isArray(data) ? data : [];
+  return asArray<PendingRatingRow>(data);
 }
 
-// 🔹 Leituras (histórico + em curso, vindo de /readings)
+/**
+ * Leituras atuais (histórico recente + em curso) vindas de `/readings`.
+ * Aceita filtros por criança(s) e/ou família.
+ */
 export async function getLeiturasAtuais(
   limit = 4,
   opts: Options = {}
 ): Promise<ReadingLite[]> {
-  const params: Record<string, string> = { limit: String(limit) };
-  if (opts.childId) params.childId = String(opts.childId);
-  if (opts.childIds?.length) params.childIds = opts.childIds.join(",");
-  if (opts.familyId) params.familyId = String(opts.familyId);
+  const qs = toParams({
+    limit: safeLimit(limit, 4),
+    childId: opts.childId,
+    familyId: opts.familyId,
+    // backend aceita lista separada por vírgulas
+    childIds: opts.childIds?.length ? opts.childIds.join(",") : undefined,
+  });
 
-  const qs = new URLSearchParams(params).toString();
-  const url = `/readings${qs ? `?${qs}` : ""}`;
-
-  const data = await request<ReadingLite[]>(url); // ⬅️ era api(...)
-  return Array.isArray(data) ? data : [];
+  const data = await request<ReadingLite[]>(
+    `/readings${qs.size ? `?${qs.toString()}` : ""}`
+  );
+  return asArray<ReadingLite>(data);
 }
 
-export async function startReading(childId: number, familyId: number | undefined, isbn: string) {
+/**
+ * Inicia uma leitura para uma criança (e, se aplicável, família).
+ * Usa axios direto para enviar `withCredentials`.
+ */
+export async function startReading(
+  childId: number,
+  familyId: number | undefined,
+  isbn: string
+) {
   try {
-    const q = new URLSearchParams({ childId: String(childId), ...(familyId ? { familyId: String(familyId) } : {}) });
-    const { data } = await axios.post(`${API_URL}/readings/start?${q.toString()}`, { isbn }, { withCredentials: true });
+    const qs = toParams({
+      childId,
+      familyId,
+    }).toString();
+
+    const { data } = await axios.post(
+      `${API_URL}/readings/start?${qs}`,
+      { isbn },
+      { withCredentials: true }
+    );
     return data; // { ok, reading }
   } catch (err: any) {
-    const status = err?.response?.status;
-    const code = err?.response?.data?.error;
-    if (status === 409 && code === "already_reading") {
-      throw new Error("Já existe uma leitura em curso para este livro.");
-    }
-    if (status === 404 && code === "book_not_found") {
-      throw new Error("Livro não encontrado.");
-    }
-    throw new Error("Não foi possível iniciar a leitura.");
+    return mapAxiosError(
+      err,
+      {
+        "409:already_reading":
+          "Já existe uma leitura em curso para este livro.",
+        "404:book_not_found": "Livro não encontrado.",
+      },
+      "Não foi possível iniciar a leitura."
+    );
   }
 }
 
-export async function finishReading(childId: number, familyId: number | undefined, isbn: string) {
+/**
+ * Termina uma leitura (se existir leitura em curso para o ISBN/criança).
+ */
+export async function finishReading(
+  childId: number,
+  familyId: number | undefined,
+  isbn: string
+) {
   try {
-    const q = new URLSearchParams({ childId: String(childId), ...(familyId ? { familyId: String(familyId) } : {}) });
-    const { data } = await axios.post(`${API_URL}/readings/finish?${q.toString()}`, { isbn }, { withCredentials: true });
+    const qs = toParams({
+      childId,
+      familyId,
+    }).toString();
+
+    const { data } = await axios.post(
+      `${API_URL}/readings/finish?${qs}`,
+      { isbn },
+      { withCredentials: true }
+    );
     return data; // { ok, reading }
   } catch (err: any) {
-    const status = err?.response?.status;
-    const code = err?.response?.data?.error;
-    if (status === 404 && code === "no_open_reading") {
-      throw new Error("Não há leitura em curso para este livro.");
-    }
-    throw new Error("Não foi possível terminar a leitura.");
+    return mapAxiosError(
+      err,
+      {
+        "404:no_open_reading": "Não há leitura em curso para este livro.",
+      },
+      "Não foi possível terminar a leitura."
+    );
   }
 }
 
+/**
+ * Lista leituras terminadas (com ou sem rating).
+ * Filtra no cliente por `finishedAt`.
+ */
 export async function getLeiturasTerminadas(
   limit = 50,
   opts: { childId?: number; familyId?: number } = {}
 ): Promise<FinishedReading[]> {
-  const qs = new URLSearchParams({ limit: String(limit) });
-  if (opts.childId) qs.set("childId", String(opts.childId));
-  if (opts.familyId) qs.set("familyId", String(opts.familyId));
+  const qs = toParams({
+    limit: safeLimit(limit, 50),
+    childId: opts.childId,
+    familyId: opts.familyId,
+  });
 
-  const data = await request<any[]>(`/readings?${qs.toString()}`);
-  const arr = Array.isArray(data) ? data : [];
-  return arr.filter((r) => !!r.finishedAt);
+  const data = await request<unknown[]>(`/readings?${qs.toString()}`);
+  const arr = asArray<any>(data);
+  return arr.filter((r) => !!r.finishedAt) as FinishedReading[];
 }
+
+/* ============================== Fim do módulo ==============================
+ *  Alexandre Brissos — Nº 21131
+ * ========================================================================== */

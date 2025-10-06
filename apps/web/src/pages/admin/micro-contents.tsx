@@ -1,4 +1,17 @@
-// apps/web/src/pages/admin/MicroContents.tsx
+/**
+ * =============================================================================
+ *  Admin · Micro-conteúdos (Biblioterapia)
+ * -----------------------------------------------------------------------------
+ *  Ficheiro: apps/web/src/pages/admin/MicroContents.tsx
+ *  Autor:    Alexandre Brissos — Nº 21131
+ *
+ *  Reforços “como combinado”:
+ *   • Comentários completos (pt-PT) em todo o ficheiro.
+ *   • Marcação explícita de funções **puras** (determinísticas, sem efeitos).
+ *   • Manter métodos curtos (≈≤30 linhas) com nomes descritivos.
+ * =============================================================================
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Box,
@@ -48,8 +61,13 @@ import {
 import type { MicroContentItem } from "@/services/microcontent";
 import { WhiteCard } from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
-import { getMyLibrary, type LibraryLite } from "@/services/admin";
+import { getMyLibrary, type LibraryLite } from "@/services/admin/admin";
 
+/* ============================================================================
+ *                                  CONSTANTES
+ * ========================================================================== */
+
+/** Tipos suportados no domínio. Usados em selects/validadores. */
 const TYPES: MicroContentItem["type"][] = [
   "BIBLIOTERAPIA",
   "DICA",
@@ -57,7 +75,7 @@ const TYPES: MicroContentItem["type"][] = [
   "OUTRO",
 ];
 
-/* --------------------- UI helpers --------------------- */
+/** Metadados por tipo (rótulo/cores/ícone). Declarativo e estático. */
 const TYPE_META: Record<
   MicroContentItem["type"],
   {
@@ -76,6 +94,27 @@ const TYPE_META: Record<
   OUTRO: { label: "Outro", color: "default", Icon: LabelRounded },
 };
 
+/* ============================================================================
+ *                                HELPERS PUROS
+ * ========================================================================== */
+
+/** Extrai e deduplica tags de uma resposta de listagem. ✅ **PURO** */
+function extractTagOptions(resp: any): string[] {
+  const fromRoot = Array.isArray(resp?.tags) ? resp.tags : [];
+  const fromItems = Array.isArray(resp?.items)
+    ? resp.items.flatMap((mc: any) => (Array.isArray(mc?.tags) ? mc.tags : []))
+    : [];
+  const all = [...fromRoot, ...fromItems].filter(
+    (t): t is string => typeof t === "string"
+  );
+  return Array.from(new Set(all)).sort((a, b) => a.localeCompare(b));
+}
+
+/* ============================================================================
+ *                                   UI CHIPS
+ * ========================================================================== */
+
+/** Chip que representa o tipo do micro-conteúdo. Stateless e determinístico. */
 function TypeChip({ type }: { type: MicroContentItem["type"] }) {
   const meta = TYPE_META[type];
   const Ico = meta.Icon;
@@ -89,6 +128,7 @@ function TypeChip({ type }: { type: MicroContentItem["type"] }) {
   );
 }
 
+/** Grupo de chips de tags. Não renderiza se vier lista vazia. */
 function TagGroup({ tags }: { tags: string[] }) {
   if (!tags?.length) return null;
   return (
@@ -113,7 +153,11 @@ function TagGroup({ tags }: { tags: string[] }) {
   );
 }
 
-/* Mini-card do livro com capa maior */
+/* ============================================================================
+ *                                 CARTÃO DE LIVRO
+ * ========================================================================== */
+
+/** “Card” compacto para livro (capa, título, ISBN). Apenas UI. */
 function BookCard({
   isbn,
   title,
@@ -168,7 +212,11 @@ function BookCard({
   );
 }
 
-/* --------------------- Inputs com tokenização --------------------- */
+/* ============================================================================
+ *                           INPUTS TOKENIZADOS (tags/ISBN)
+ * ========================================================================== */
+
+/** Input de tags “tokenizado” (vírgula/Enter/;). */
 function TagInput({
   value,
   onChange,
@@ -180,13 +228,19 @@ function TagInput({
 }) {
   const [txt, setTxt] = useState("");
 
-  function pushTokens(s: string) {
-    const tokens = s
+  /** Tokenização/normalização de tags. ✅ **PURO** */
+  function tokenizeTags(s: string): string[] {
+    return s
       .split(/[,\n;]+/g)
       .map((t) => t.trim())
       .filter(Boolean)
       .map((t) => t.replace(/\s+/g, " "))
       .map((t) => t.slice(0, 64));
+  }
+
+  /** Concatena com as atuais (dedupe via Set) e devolve ao parent. */
+  function pushTokens(s: string) {
+    const tokens = tokenizeTags(s);
     if (!tokens.length) return;
     const set = new Set(value);
     tokens.forEach((t) => set.add(t));
@@ -198,6 +252,7 @@ function TagInput({
       <Typography variant="caption" sx={{ opacity: 0.7 }}>
         {label}
       </Typography>
+      {/* Chips já inseridos */}
       <Stack
         direction="row"
         spacing={1}
@@ -216,6 +271,8 @@ function TagInput({
           />
         ))}
       </Stack>
+
+      {/* Campo de entrada com tokenização em Enter/vírgula/; e blur */}
       <TextField
         size="small"
         fullWidth
@@ -241,6 +298,7 @@ function TagInput({
   );
 }
 
+/** Input de lista de ISBNs com normalização e validação. */
 function IsbnListInput({
   value,
   onChange,
@@ -250,12 +308,17 @@ function IsbnListInput({
 }) {
   const [txt, setTxt] = useState("");
 
-  function pushIsbns(s: string) {
-    const tokens = s
+  /** Extrai ISBNs 10/13 normalizados (sem hífens/espaços). ✅ **PURO** */
+  function tokenizeIsbns(s: string): string[] {
+    return s
       .split(/[,\s;]+/g)
       .map((t) => t.replace(/[-\s]/g, "").toUpperCase())
       .filter(Boolean)
       .filter((t) => /^\d{13}$|^\d{9}(\d|X)$/.test(t));
+  }
+
+  function pushIsbns(s: string) {
+    const tokens = tokenizeIsbns(s);
     if (!tokens.length) return;
     const set = new Set(value);
     tokens.forEach((t) => set.add(t));
@@ -267,6 +330,8 @@ function IsbnListInput({
       <Typography variant="caption" sx={{ opacity: 0.7 }}>
         ISBNs associados
       </Typography>
+
+      {/* Chips atuais */}
       <Stack
         direction="row"
         spacing={1}
@@ -284,6 +349,8 @@ function IsbnListInput({
           />
         ))}
       </Stack>
+
+      {/* Campo com tokenização por Enter/space/vírgula/; e blur */}
       <TextField
         size="small"
         fullWidth
@@ -314,7 +381,10 @@ function IsbnListInput({
   );
 }
 
-/* --------------------- Page --------------------- */
+/* ============================================================================
+ *                                 ESTADO DE EDIÇÃO
+ * ========================================================================== */
+
 type EditState =
   | { open: false }
   | {
@@ -330,15 +400,20 @@ type EditState =
       };
     };
 
+/* ============================================================================
+ *                                     PÁGINA
+ * ========================================================================== */
+
 export default function AdminMicroContentsPage() {
   const { user } = useUserSession() as any;
   const theme = useTheme();
 
-  // Biblioteca do admin
+  /* ------------------ Biblioteca (única) do admin ------------------ */
   const [myLib, setMyLib] = useState<LibraryLite | null>(null);
   const [libErr, setLibErr] = useState<string | null>(null);
   const [libLoading, setLibLoading] = useState(false);
 
+  // Carrega a biblioteca assim que o utilizador está disponível.
   useEffect(() => {
     (async () => {
       try {
@@ -360,14 +435,16 @@ export default function AdminMicroContentsPage() {
     })();
   }, [user?.id]);
 
-  // Filtros
+  /* --------------------------- Filtros/Query --------------------------- */
   const [q, setQ] = useState("");
   const [type, setType] = useState<string>("");
   const [tag, setTag] = useState<string>("");
 
+  /* --------------------------- Paginação --------------------------- */
   const [page, setPage] = useState(1);
   const [limit] = useState(12);
 
+  /* --------------------------- Dados remotos --------------------------- */
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<MicroContentItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -378,6 +455,10 @@ export default function AdminMicroContentsPage() {
     [total, limit]
   );
 
+  /**
+   * Lista micro-conteúdos para a biblioteca + filtros/página atuais.
+   * Pequeno e focado: muda `items`, `total` e `tagOptions`.
+   */
   async function load(p = page) {
     if (!myLib?.id) return;
     setLoading(true);
@@ -386,35 +467,26 @@ export default function AdminMicroContentsPage() {
         q: q || undefined,
         type: type || undefined,
         tag: tag || undefined,
-        libraryId: myLib.id, // scoped à biblioteca do admin
+        libraryId: myLib.id, // 👉 escopo da biblioteca do admin
         page: p,
         limit,
       });
-      setItems(res.items as MicroContentItem[]);
+      setItems((res.items || []) as MicroContentItem[]);
       setTotal(Number(res.total || 0));
-
-      const rawTags: string[] = [
-        ...((Array.isArray(res.tags) ? res.tags : []) as unknown[]),
-        ...(((res.items || []) as unknown[]).flatMap((mc: any) =>
-          Array.isArray(mc?.tags) ? mc.tags : []
-        ) as unknown[]),
-      ].filter((t): t is string => typeof t === "string");
-
-      const dedupTags: string[] = Array.from(new Set(rawTags)).sort((a, b) =>
-        a.localeCompare(b)
-      );
-      setTagOptions(dedupTags);
+      setTagOptions(extractTagOptions(res));
     } finally {
       setLoading(false);
     }
   }
 
+  // Carrega ao mudar de página/tipo/biblioteca (debounce do q/tag está noutro efeito)
   useEffect(() => {
     if (!myLib?.id) return;
     load(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, type, myLib?.id]);
 
+  // Debounce simples para q/tag (evita flood à API)
   useEffect(() => {
     if (!myLib?.id) return;
     const t = setTimeout(() => {
@@ -425,6 +497,7 @@ export default function AdminMicroContentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, tag, myLib?.id]);
 
+  /* --------------------------- Header (memo) --------------------------- */
   const header = useMemo(
     () => (
       <Stack
@@ -433,12 +506,9 @@ export default function AdminMicroContentsPage() {
         useFlexGap
         flexWrap="wrap"
         alignItems="center"
-        sx={{
-          pb: 1,
-          borderBottom: "1px solid",
-          borderColor: "divider",
-        }}
+        sx={{ pb: 1, borderBottom: "1px solid", borderColor: "divider" }}
       >
+        {/* Biblioteca corrente */}
         <Box sx={{ mr: 1 }}>
           <Typography variant="body2" sx={{ opacity: 0.8 }}>
             {libLoading ? (
@@ -457,6 +527,7 @@ export default function AdminMicroContentsPage() {
           </Typography>
         </Box>
 
+        {/* Pesquisa texto/tag implícita */}
         <TextField
           size="small"
           placeholder="Pesquisar texto ou tag…"
@@ -467,6 +538,7 @@ export default function AdminMicroContentsPage() {
           disabled={!myLib?.id}
         />
 
+        {/* Filtro por tipo */}
         <TextField
           select
           size="small"
@@ -487,6 +559,7 @@ export default function AdminMicroContentsPage() {
           ))}
         </TextField>
 
+        {/* Filtro por tag (vêm da resposta/dedup) */}
         <TextField
           select
           size="small"
@@ -508,6 +581,7 @@ export default function AdminMicroContentsPage() {
         </TextField>
 
         <Box flex={1} />
+        {/* Recarregar explícito */}
         <Tooltip title="Recarregar">
           <span>
             <IconButton
@@ -518,6 +592,8 @@ export default function AdminMicroContentsPage() {
             </IconButton>
           </span>
         </Tooltip>
+
+        {/* Novo registo */}
         <Button
           startIcon={<AddRounded />}
           variant="contained"
@@ -543,13 +619,16 @@ export default function AdminMicroContentsPage() {
     [q, type, tag, tagOptions, myLib, libLoading, libErr, loading]
   );
 
+  /* --------------------------- Estado de edição --------------------------- */
   const [edit, setEdit] = useState<EditState>({ open: false });
 
+  /* --------------------------------- UI ---------------------------------- */
   return (
-    // layout FLUIDO: ocupa toda a largura; conteúdo respirável
+    // Layout fluido com conteúdo “respirável”
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       <WhiteCard sx={{ p: { xs: 2, md: 2.5 } }}>
         <Stack spacing={2}>
+          {/* Título */}
           <Typography
             variant="h4"
             fontWeight={900}
@@ -563,9 +642,11 @@ export default function AdminMicroContentsPage() {
             Micro-conteúdos (Biblioterapia)
           </Typography>
 
+          {/* Header c/ filtros/ações */}
           {header}
           {loading && <LinearProgress />}
 
+          {/* Corpo */}
           {!myLib?.id ? (
             <Typography sx={{ opacity: 0.8, py: 2 }}>
               {libLoading
@@ -574,9 +655,9 @@ export default function AdminMicroContentsPage() {
             </Typography>
           ) : (
             <>
+              {/* Lista de conteúdos */}
               <Stack spacing={1.25}>
                 {items.map((mc) => {
-                  const meta = TYPE_META[mc.type];
                   const pubChip = mc.isPublished ? (
                     <Chip
                       size="small"
@@ -619,6 +700,7 @@ export default function AdminMicroContentsPage() {
                         justifyContent="space-between"
                         alignItems="flex-start"
                       >
+                        {/* Coluna de conteúdo */}
                         <Box sx={{ flex: 1, minWidth: 0 }}>
                           <Stack
                             direction="row"
@@ -639,16 +721,19 @@ export default function AdminMicroContentsPage() {
                             )}
                           </Stack>
 
+                          {/* Texto do micro-conteúdo */}
                           <Typography sx={{ whiteSpace: "pre-wrap" }}>
                             {mc.text}
                           </Typography>
 
+                          {/* Tags (se houver) */}
                           {!!mc.tags?.length && (
                             <Box sx={{ mt: 1 }}>
                               <TagGroup tags={mc.tags} />
                             </Box>
                           )}
 
+                          {/* Livros associados (se houver) */}
                           {!!mc.books?.length && (
                             <>
                               <Divider sx={{ my: 1.25 }} />
@@ -671,6 +756,7 @@ export default function AdminMicroContentsPage() {
                           )}
                         </Box>
 
+                        {/* Ações de linha */}
                         <Stack
                           direction="row"
                           spacing={1}
@@ -693,6 +779,7 @@ export default function AdminMicroContentsPage() {
                                   },
                                 })
                               }
+                              aria-label="Editar"
                             >
                               <EditRounded />
                             </IconButton>
@@ -705,6 +792,7 @@ export default function AdminMicroContentsPage() {
                                 await adminDeleteMicroContent(mc.id);
                                 load();
                               }}
+                              aria-label="Apagar"
                             >
                               <DeleteRounded />
                             </IconButton>
@@ -716,6 +804,7 @@ export default function AdminMicroContentsPage() {
                 })}
               </Stack>
 
+              {/* Paginação */}
               <Stack direction="row" justifyContent="center" sx={{ mt: 1 }}>
                 <Pagination
                   count={pageCount}
@@ -728,7 +817,7 @@ export default function AdminMicroContentsPage() {
         </Stack>
       </WhiteCard>
 
-      {/* Dialog de edição/criação */}
+      {/* ================================== Dialog Edição/Criação ================================== */}
       {edit.open && (
         <Dialog
           open
@@ -739,8 +828,10 @@ export default function AdminMicroContentsPage() {
           <DialogTitle sx={{ fontWeight: 900 }}>
             {edit.data.id ? "Editar conteúdo" : "Novo conteúdo"}
           </DialogTitle>
+
           <DialogContent dividers>
             <Stack spacing={2} sx={{ mt: 1 }}>
+              {/* Texto */}
               <TextField
                 multiline
                 minRows={4}
@@ -756,6 +847,7 @@ export default function AdminMicroContentsPage() {
                 fullWidth
               />
 
+              {/* Tipo */}
               <TextField
                 select
                 label="Tipo"
@@ -785,6 +877,7 @@ export default function AdminMicroContentsPage() {
                 ))}
               </TextField>
 
+              {/* Publicação */}
               <FormControlLabel
                 control={
                   <Switch
@@ -807,6 +900,7 @@ export default function AdminMicroContentsPage() {
                 label="Publicado"
               />
 
+              {/* Tags e ISBNs */}
               <TagInput
                 value={edit.data.tags}
                 onChange={(tags) =>
@@ -825,20 +919,24 @@ export default function AdminMicroContentsPage() {
               />
             </Stack>
           </DialogContent>
+
           <DialogActions>
             <Button onClick={() => setEdit({ open: false })}>Cancelar</Button>
             <Button
               variant="contained"
               onClick={async () => {
                 if (!myLib?.id) return;
+
+                // Payload mínimo e claro; força associação à biblioteca do admin
                 const payload = {
                   text: edit.data.text,
                   type: edit.data.type,
                   tags: edit.data.tags,
-                  libraryId: myLib.id, // força associação à biblioteca do admin
+                  libraryId: myLib.id,
                   bookIsbns: edit.data.bookIsbns,
                   isPublished: !!edit.data.isPublished,
                 };
+
                 if (edit.data.id) {
                   await adminUpdateMicroContent(edit.data.id, payload);
                 } else {
@@ -857,3 +955,9 @@ export default function AdminMicroContentsPage() {
     </Container>
   );
 }
+
+/**
+ * =============================================================================
+ *  FIM — Alexandre Brissos • Nº 21131
+ * =============================================================================
+ */

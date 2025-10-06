@@ -1,4 +1,15 @@
 // ========================== apps/web/src/pages/consultas.tsx ==========================
+/**
+ * Autor: Alexandre Brrissos — Nº 21131
+ * Página: Consultas (família marca consultas em slots de bibliotecários)
+ *
+ * Princípios:
+ * - Helpers PUROS (sem side-effects) e com < 30 linhas
+ * - Handlers curtos e nomeados
+ * - Componentes pequenos/memo sempre que possível
+ * - Tipagem explícita nas estruturas passadas entre UI e serviços
+ */
+
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   WhiteCard,
@@ -34,32 +45,44 @@ import PersonRounded from "@mui/icons-material/PersonRounded";
 import EditNoteRounded from "@mui/icons-material/EditNoteRounded";
 import PlaceRounded from "@mui/icons-material/PlaceRounded";
 
-import { useUserSession } from "../../contexts/UserSession";
+import { useUserSession } from "@/contexts/UserSession";
 import {
   type ConsultaLite,
   type SlotLite,
   listOpenSlots,
   createConsultationWithSlot,
-} from "../../services/consultations";
+} from "@/services/consultations";
 
-/* ---------- utils ---------- */
+/* =====================================================================================
+   HELPERS (PUROS / <30 linhas)
+   ===================================================================================== */
+
+/** PURE: devolve o início do dia (00:00:00.000) para uma data */
 function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
+
+/** PURE: devolve o fim do dia (23:59:59.999) para uma data */
 function endOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
   return x;
 }
+
+/** PURE: formata hora/min "HH:MM" a partir de ISO */
 function timeLabel(iso?: string) {
   if (!iso) return "—";
   const d = new Date(iso);
   return d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" });
 }
 
-/* ---------- cabeçalho de cards ---------- */
+/* =====================================================================================
+   CABEÇALHO DE CARTÕES (UI PEQUENA)
+   ===================================================================================== */
+
+/** Cabeçalho reutilizável para cartões */
 const CardHeader = memo(function CardHeader({
   title,
   action,
@@ -70,7 +93,12 @@ const CardHeader = memo(function CardHeader({
   icon?: React.ReactElement;
 }) {
   return (
-    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.25 }}>
+    <Stack
+      direction="row"
+      alignItems="center"
+      justifyContent="space-between"
+      sx={{ mb: 1.25 }}
+    >
       <Stack direction="row" spacing={1} alignItems="center">
         {icon}
         <Typography variant="h6" fontWeight={900} component="h2">
@@ -82,7 +110,11 @@ const CardHeader = memo(function CardHeader({
   );
 });
 
-/* ---------- botão de slot ---------- */
+/* =====================================================================================
+   CHIP DE SLOT (UI PEQUENA)
+   ===================================================================================== */
+
+/** Chip de seleção de um slot (horário) */
 const SlotChip = memo(function SlotChip({
   slot,
   selected,
@@ -106,14 +138,17 @@ const SlotChip = memo(function SlotChip({
   );
 });
 
-/* =================== Página =================== */
+/* =====================================================================================
+   PÁGINA
+   ===================================================================================== */
+
 export default function ConsultasPage() {
   const { user, asChild, clearChild } = useUserSession();
 
-  // 🎯 Filtro LOCAL de criança (modo família). Não altera o contexto global.
+  // 🎯 Filtro LOCAL por criança (modo família) — NÃO mexe no contexto global.
   const [localChildId, setLocalChildId] = useState<string>("");
 
-  // --- estado
+  // Estado principal
   const [dayRef, setDayRef] = useState(startOfDay(new Date()));
   const [slotsAll, setSlotsAll] = useState<SlotLite[]>([]);
   const [loading, setLoading] = useState(false);
@@ -121,10 +156,10 @@ export default function ConsultasPage() {
   const [justBooked, setJustBooked] = useState<ConsultaLite | null>(null);
   const [notes, setNotes] = useState("");
 
-  // filtro por bibliotecário ("" = todos)
+  // Filtro por bibliotecário
   const [selectedLibrarianId, setSelectedLibrarianId] = useState<string>("");
 
-  // opções de filhos (tipadas)
+  // Opções de filhos para o AvatarSelect
   const childOptions: AvatarOption[] = (user?.children || []).map((c) => ({
     id: String(c.id),
     nome: c.name ?? "",
@@ -135,7 +170,12 @@ export default function ConsultasPage() {
     ...childOptions,
   ];
 
-  // carregar slots do dia
+  /* ------------------------- Carregamento de slots ------------------------- */
+
+  /**
+   * Efeito: carrega slots abertos para o dia selecionado, aplicando (opcionalmente)
+   * filtro por bibliotecário. Mantém loading e limpa seleção ao mudar dependências.
+   */
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -147,7 +187,9 @@ export default function ConsultasPage() {
         const list = await listOpenSlots({
           from,
           to,
-          librarianId: selectedLibrarianId ? Number(selectedLibrarianId) : undefined,
+          librarianId: selectedLibrarianId
+            ? Number(selectedLibrarianId)
+            : undefined,
         });
         setSlotsAll(list);
       } finally {
@@ -156,7 +198,9 @@ export default function ConsultasPage() {
     })();
   }, [dayRef, selectedLibrarianId]);
 
-  // opções de bibliotecário (tipadas)
+  /* ------------------------- Opções por bibliotecário ------------------------- */
+
+  /** Memo: cria opções únicas de bibliotecário a partir dos slots carregados */
   const librarianOptions: AvatarOption[] = useMemo(() => {
     const seen = new Set<number>();
     const opts: AvatarOption[] = [];
@@ -175,11 +219,17 @@ export default function ConsultasPage() {
     ];
   }, [slotsAll]);
 
-  // aplica filtro por bibliotecário
+  /* ------------------------- Filtro aplicado ------------------------- */
+
+  /** Memo: lista final de slots com filtro por bibliotecário aplicado */
   const slots = useMemo(() => {
     if (!selectedLibrarianId) return slotsAll;
-    return slotsAll.filter((s) => String(s.librarianId) === String(selectedLibrarianId));
+    return slotsAll.filter(
+      (s) => String(s.librarianId) === String(selectedLibrarianId)
+    );
   }, [slotsAll, selectedLibrarianId]);
+
+  /* ------------------------- Agrupar por bibliotecário ------------------------- */
 
   type Group = {
     librarianId: number;
@@ -188,7 +238,7 @@ export default function ConsultasPage() {
     items: SlotLite[];
   };
 
-  // agrupar por bibliotecário
+  /** Memo: agrupa slots por bibliotecário e ordena por nome e hora */
   const grouped = useMemo<Group[]>(() => {
     const map = new Map<number, Group>();
 
@@ -212,7 +262,9 @@ export default function ConsultasPage() {
       items: g.items
         .slice()
         .sort(
-          (a, b) => new Date(a.startAt || 0).getTime() - new Date(b.startAt || 0).getTime()
+          (a, b) =>
+            new Date(a.startAt || 0).getTime() -
+            new Date(b.startAt || 0).getTime()
         ),
     }));
 
@@ -220,16 +272,36 @@ export default function ConsultasPage() {
     return out;
   }, [slots]);
 
-  // navegação de dias
-  const prevDay = useCallback(() => setDayRef(startOfDay(new Date(dayRef.getTime() - 86400000))), [dayRef]);
-  const nextDay = useCallback(() => setDayRef(startOfDay(new Date(dayRef.getTime() + 86400000))), [dayRef]);
+  /* ------------------------- Navegação por dia ------------------------- */
+
+  /** Handler: vai para o dia anterior */
+  const prevDay = useCallback(
+    () => setDayRef(startOfDay(new Date(dayRef.getTime() - 86400000 /* 1d */))),
+    [dayRef]
+  );
+  /** Handler: vai para o dia seguinte */
+  const nextDay = useCallback(
+    () => setDayRef(startOfDay(new Date(dayRef.getTime() + 86400000 /* 1d */))),
+    [dayRef]
+  );
+  /** Handler: vai para hoje */
   const goToday = useCallback(() => setDayRef(startOfDay(new Date())), []);
 
-  // ação: reservar
+  /* ------------------------- Reservar slot ------------------------- */
+
+  /**
+   * Handler: reserva o slot selecionado para a criança escolhida
+   * - valida sessão/família
+   * - exige criança selecionada
+   * - envia notas (limpas) e atualiza UI
+   */
   const reservar = useCallback(async () => {
     if (!selectedSlot) return;
     const familyId = Number(user?.id);
-    const childIdNum = localChildId && String(localChildId).length ? Number(localChildId) : undefined;
+    const childIdNum =
+      localChildId && String(localChildId).length
+        ? Number(localChildId)
+        : undefined;
 
     if (!Number.isFinite(familyId)) {
       alert("Sessão inválida.");
@@ -261,18 +333,24 @@ export default function ConsultasPage() {
     }
   }, [selectedSlot, user?.id, localChildId, notes]);
 
-  const title = "Consultas";
+  /* ------------------------- Notas (sanitização/limite) ------------------------- */
 
-  // helper: sanitize notas (controlar o que escrevem)
   const MAX_NOTES = 280;
+
+  /** Handler: sanitize de notas (remove control chars e normaliza espaços) */
   const onNotesChange = useCallback((v: string) => {
-    // remove controlo/emoji de linha e normaliza espaços
     const cleaned = v
       .replace(/[\u0000-\u001F\u007F]/g, " ")
       .replace(/\s{2,}/g, " ")
       .slice(0, MAX_NOTES);
     setNotes(cleaned);
   }, []);
+
+  const title = "Consultas";
+
+  /* =================================================================================
+     RENDER
+     ================================================================================= */
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
@@ -290,7 +368,9 @@ export default function ConsultasPage() {
           <Typography sx={{ mb: 1 }}>
             Esta página é para a <b>família</b>. Estás em modo criança.
           </Typography>
-          <PrimaryButton onClick={clearChild}>Sair do modo criança</PrimaryButton>
+          <PrimaryButton onClick={clearChild}>
+            Sair do modo criança
+          </PrimaryButton>
         </WhiteCard>
       )}
 
@@ -359,12 +439,19 @@ export default function ConsultasPage() {
                 ))}
               </Stack>
             ) : slots.length === 0 ? (
-              <Stack direction="row" spacing={1} alignItems="center" sx={{ opacity: 0.8 }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="center"
+                sx={{ opacity: 0.8 }}
+              >
                 <EventBusyRounded />
                 <Typography>Sem slots disponíveis neste dia.</Typography>
               </Stack>
             ) : (
-              <Typography sx={{ opacity: 0.7 }}>{slots.length} slot(s) disponível(eis).</Typography>
+              <Typography sx={{ opacity: 0.7 }}>
+                {slots.length} slot(s) disponível(eis).
+              </Typography>
             )}
           </WhiteCard>
         </Grid>
@@ -373,7 +460,10 @@ export default function ConsultasPage() {
         <Grid item xs={12} md={6}>
           {/* Filtro por bibliotecário */}
           <WhiteCard sx={{ mb: 2 }}>
-            <CardHeader title="Filtrar por bibliotecário" icon={<FilterListRounded />} />
+            <CardHeader
+              title="Filtrar por bibliotecário"
+              icon={<FilterListRounded />}
+            />
             <AvatarSelect
               label="Bibliotecário"
               options={librarianOptions}
@@ -386,7 +476,9 @@ export default function ConsultasPage() {
             />
           </WhiteCard>
 
-          <WhiteCard sx={{ minHeight: 380, display: "flex", flexDirection: "column" }}>
+          <WhiteCard
+            sx={{ minHeight: 380, display: "flex", flexDirection: "column" }}
+          >
             <CardHeader title="Escolher horário" icon={<AccessTimeRounded />} />
             <Box
               sx={{
@@ -394,7 +486,10 @@ export default function ConsultasPage() {
                 overflowY: "auto",
                 pr: 1,
                 "&::-webkit-scrollbar": { width: 6 },
-                "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(0,0,0,.15)", borderRadius: 8 },
+                "&::-webkit-scrollbar-thumb": {
+                  backgroundColor: "rgba(0,0,0,.15)",
+                  borderRadius: 8,
+                },
               }}
             >
               {loading ? (
@@ -406,22 +501,47 @@ export default function ConsultasPage() {
               ) : grouped.length ? (
                 <Stack spacing={1.5}>
                   {grouped.map((g) => (
-                    <Box key={g.librarianId} sx={{ p: 1.25, borderRadius: 2, border: "1px solid", borderColor: "divider" }}>
-                      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                        <Avatar src={g.librarianAvatarUrl || undefined} sx={{ width: 32, height: 32 }} />
-                        <Typography fontWeight={900}>{g.librarianName}</Typography>
+                    <Box
+                      key={g.librarianId}
+                      sx={{
+                        p: 1.25,
+                        borderRadius: 2,
+                        border: "1px solid",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        spacing={1}
+                        sx={{ mb: 1 }}
+                      >
+                        <Avatar
+                          src={g.librarianAvatarUrl || undefined}
+                          sx={{ width: 32, height: 32 }}
+                        />
+                        <Typography fontWeight={900}>
+                          {g.librarianName}
+                        </Typography>
                       </Stack>
 
                       <Box>
                         {g.items.map((s) => (
-                          <SlotChip key={s.id} slot={s} selected={selectedSlot?.id === s.id} onSelect={() => setSelectedSlot(s)} />
+                          <SlotChip
+                            key={s.id}
+                            slot={s}
+                            selected={selectedSlot?.id === s.id}
+                            onSelect={() => setSelectedSlot(s)}
+                          />
                         ))}
                       </Box>
                     </Box>
                   ))}
                 </Stack>
               ) : (
-                <Typography sx={{ opacity: 0.7 }}>Sem slots disponíveis neste dia.</Typography>
+                <Typography sx={{ opacity: 0.7 }}>
+                  Sem slots disponíveis neste dia.
+                </Typography>
               )}
             </Box>
           </WhiteCard>
@@ -440,11 +560,20 @@ export default function ConsultasPage() {
                 <Stack direction="row" spacing={1} sx={{ mb: 1.25 }}>
                   <Chip
                     icon={<CalendarMonthRounded fontSize="small" />}
-                    label={new Date(selectedSlot.startAt).toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                    label={new Date(selectedSlot.startAt).toLocaleDateString(
+                      "pt-PT",
+                      {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      }
+                    )}
                   />
                   <Chip
                     icon={<AccessTimeRounded fontSize="small" />}
-                    label={`${timeLabel(selectedSlot.startAt)} – ${timeLabel(selectedSlot.endAt)}`}
+                    label={`${timeLabel(selectedSlot.startAt)} – ${timeLabel(
+                      selectedSlot.endAt
+                    )}`}
                   />
                 </Stack>
 
@@ -469,22 +598,39 @@ export default function ConsultasPage() {
                   sx={{ mb: 1 }}
                   inputProps={{ maxLength: MAX_NOTES }}
                   helperText={`${notes.length}/${MAX_NOTES}`}
-                  InputProps={{ startAdornment: <InputAdornment position="start"><EditNoteRounded fontSize="small" /></InputAdornment> }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <EditNoteRounded fontSize="small" />
+                      </InputAdornment>
+                    ),
+                  }}
                 />
 
                 {!!localChildId ? (
                   <>
                     <Typography sx={{ mb: 1 }}>
-                      Marcar para: <b>{childOptions.find((c) => c.id === localChildId)?.nome}</b>
+                      Marcar para:{" "}
+                      <b>
+                        {childOptions.find((c) => c.id === localChildId)?.nome}
+                      </b>
                     </Typography>
-                    <PrimaryButton onClick={reservar} disabled={loading} aria-label="Reservar consulta">
+                    <PrimaryButton
+                      onClick={reservar}
+                      disabled={loading}
+                      aria-label="Reservar consulta"
+                    >
                       Reservar
                     </PrimaryButton>
                   </>
                 ) : (
                   <Tooltip title="Escolhe a criança acima para reservar">
                     <span>
-                      <PrimaryButton onClick={reservar} disabled aria-label="Reservar consulta">
+                      <PrimaryButton
+                        onClick={reservar}
+                        disabled
+                        aria-label="Reservar consulta"
+                      >
                         Reservar
                       </PrimaryButton>
                     </span>
@@ -493,7 +639,12 @@ export default function ConsultasPage() {
               </>
             ) : justBooked ? (
               <>
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  alignItems="center"
+                  sx={{ mb: 1 }}
+                >
                   <CheckCircleRounded color="success" />
                   <Typography fontWeight={900}>Reserva efetuada!</Typography>
                 </Stack>
@@ -503,7 +654,9 @@ export default function ConsultasPage() {
                 <RouteLink href="/agenda">Ver na Agenda</RouteLink>
               </>
             ) : (
-              <Typography sx={{ opacity: 0.7 }}>Seleciona um horário.</Typography>
+              <Typography sx={{ opacity: 0.7 }}>
+                Seleciona um horário.
+              </Typography>
             )}
           </WhiteCard>
         </Grid>

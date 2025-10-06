@@ -1,5 +1,11 @@
-// apps/web/src/services/microcontent.ts
-import { api } from "./https";
+/**
+ * Alexandre Brrissos 21131
+ * Descrição: Serviço de Microconteúdos (listagem pública e admin, CRUD e interações).
+ *            Usa cliente HTTP central (axios) com cookies e erros normalizados.
+ */
+import { http } from "./https";
+
+/* ---------------- Tipos ---------------- */
 
 export type MicroContentItem = {
   id: number;
@@ -9,16 +15,54 @@ export type MicroContentItem = {
   isPublished?: boolean;
   publishedAt?: string;
   library?: { id: number; name: string } | null;
-  books: { isbn: string; title: string; coverUrl?: string | null; summary?: string | null }[];
+  books: {
+    isbn: string;
+    title: string;
+    coverUrl?: string | null;
+    summary?: string | null;
+  }[];
   author?: { id: number; name: string } | null;
   createdAt?: string;
   updatedAt?: string;
-
-  // 👇 NOVO
+  // NOVO
   seen?: boolean;
   interactionsCount?: number;
 };
 
+export type Page<T> = {
+  total: number;
+  page: number;
+  limit: number;
+  items: T[];
+};
+
+/* --------------- Helpers --------------- */
+
+/** Constrói params ignorando undefined/null/"" */
+function cleanParams<T extends Record<string, unknown>>(
+  p: T
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(p)) {
+    if (v !== undefined && v !== null && v !== "") out[k] = String(v);
+  }
+  return out;
+}
+
+/** Normaliza publishedAt (aceita string/Date/null). */
+function asDateString(v: string | Date | null | undefined): string | null {
+  if (v == null) return null;
+  if (typeof v === "string") return v;
+  try {
+    return v.toISOString();
+  } catch {
+    return null;
+  }
+}
+
+/* --------------- Público --------------- */
+
+/** Lista microconteúdos públicos com filtros e paginação. */
 export async function listMicroContentsPublic(params: {
   q?: string;
   type?: string;
@@ -26,19 +70,17 @@ export async function listMicroContentsPublic(params: {
   libraryId?: number;
   page?: number;
   limit?: number;
-}) {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v != null && v !== "") qs.set(k, String(v));
-  }
-  const { data } = await api.get(`/micro-contents?${qs.toString()}`, {
-    withCredentials: true,
+}): Promise<Page<MicroContentItem>> {
+  return http<Page<MicroContentItem>>({
+    url: "/micro-contents",
+    method: "GET",
+    params: cleanParams(params),
   });
-  return data as { total: number; page: number; limit: number; items: MicroContentItem[] };
 }
 
 /* ---------------- Admin ---------------- */
 
+/** Lista microconteúdos (área admin) com filtros e paginação. */
 export async function adminListMicroContents(params: {
   q?: string;
   type?: string;
@@ -46,17 +88,15 @@ export async function adminListMicroContents(params: {
   libraryId?: number;
   page?: number;
   limit?: number;
-}) {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v != null && v !== "") qs.set(k, String(v));
-  }
-  const { data } = await api.get(`/admin/micro-contents?${qs.toString()}`, {
-    withCredentials: true,
+}): Promise<Page<MicroContentItem>> {
+  return http<Page<MicroContentItem>>({
+    url: "/admin/micro-contents",
+    method: "GET",
+    params: cleanParams(params),
   });
-  return data as { total: number; page: number; limit: number; items: MicroContentItem[] };
 }
 
+/** Cria microconteúdo (admin). */
 export async function adminCreateMicroContent(payload: {
   text: string;
   type: MicroContentItem["type"];
@@ -66,12 +106,15 @@ export async function adminCreateMicroContent(payload: {
   isPublished?: boolean;
   publishedAt?: string | Date | null;
 }) {
-  const { data } = await api.post(`/admin/micro-contents`, payload, {
-    withCredentials: true,
+  const body = { ...payload, publishedAt: asDateString(payload.publishedAt) };
+  return http<any>({
+    url: "/admin/micro-contents",
+    method: "POST",
+    data: body,
   });
-  return data;
 }
 
+/** Atualiza microconteúdo (admin). */
 export async function adminUpdateMicroContent(
   id: number,
   payload: {
@@ -84,24 +127,24 @@ export async function adminUpdateMicroContent(
     publishedAt?: string | Date | null;
   }
 ) {
-  const { data } = await api.put(`/admin/micro-contents/${id}`, payload, {
-    withCredentials: true,
+  const body = { ...payload, publishedAt: asDateString(payload.publishedAt) };
+  return http<any>({
+    url: `/admin/micro-contents/${id}`,
+    method: "PUT",
+    data: body,
   });
-  return data;
 }
 
+/** Apaga microconteúdo (admin). */
 export async function adminDeleteMicroContent(id: number) {
-  const { data } = await api.delete(`/admin/micro-contents/${id}`, {
-    withCredentials: true,
-  });
-  return data;
+  return http<any>({ url: `/admin/micro-contents/${id}`, method: "DELETE" });
 }
 
+/** Marca um microconteúdo como visto (interação simples). */
 export async function markMicroContentSeen(microContentId: number) {
-  const { data } = await api.post(
-    `/micro-interactions`,
-    { microContentId },
-    { withCredentials: true }
-  );
-  return data;
+  return http<any>({
+    url: "/micro-interactions",
+    method: "POST",
+    data: { microContentId },
+  });
 }

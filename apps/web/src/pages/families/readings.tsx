@@ -1,4 +1,15 @@
-// apps/web/src/pages/readings.tsx
+// ============================== apps/web/src/pages/readings.tsx ==============================
+/**
+ * Autor: Alexandre Brrissos — Nº 21131
+ * Página: Leituras (reservas/“a ler”/histórico) com filtro por criança no modo família.
+ *
+ * Princípios do refactor:
+ *  - Helpers PUROS (<30 linhas) bem identificados
+ *  - Handlers curtos e seguros (try/catch + feedback)
+ *  - Componentes simples e comentados
+ *  - Chaves de lista estáveis
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Container,
@@ -18,7 +29,6 @@ import {
   Box,
 } from "@mui/material";
 import { LoadingButton } from "@mui/lab";
-import Rating from "@mui/material/Rating";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import TuneRounded from "@mui/icons-material/TuneRounded";
 import StarRounded from "@mui/icons-material/StarRounded";
@@ -49,6 +59,9 @@ import {
 } from "@mui/icons-material";
 import { getBookByIsbn } from "@/services/books";
 
+/* =====================================================================================
+   Tipos locais
+   ===================================================================================== */
 type PendingRow = {
   isbn: string;
   title: string;
@@ -69,6 +82,49 @@ type HistoryRow = {
   comment?: string | null;
 };
 
+/* =====================================================================================
+   Helpers (PUROS, <30 linhas)
+   ===================================================================================== */
+
+/** PURE: devolve string data PT-PT segura ou "—" */
+function toPTDate(iso?: string) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime()) ? d.toLocaleDateString("pt-PT") : "—";
+}
+
+/** PURE: normaliza array potencialmente indefinido */
+function safeArr<T>(v: T[] | undefined | null): T[] {
+  return Array.isArray(v) ? v : [];
+}
+
+/** PURE: fatia paginada (1-based) */
+function paginatedSlice<T>(arr: T[], page: number, size: number) {
+  const start = (Math.max(1, page) - 1) * size;
+  return arr.slice(start, start + size);
+}
+
+/** PURE: extrai lista de autores como array de strings */
+function authorList(book: any): string[] {
+  if (!book) return [];
+  if (Array.isArray(book.authors)) return book.authors as string[];
+  if (typeof book.authors === "string") return [book.authors];
+  return [];
+}
+
+/** PURE: extrai categorias/géneros (máx 12) */
+function categoryList(book: any): string[] {
+  const raw =
+    (Array.isArray(book?.categories) && book.categories) ||
+    (Array.isArray(book?.genres) && book.genres) ||
+    (typeof book?.categories === "string" ? [book.categories] : []) ||
+    (typeof book?.genres === "string" ? [book.genres] : []);
+  return safeArr(raw).slice(0, 12).map(String);
+}
+
+/* =====================================================================================
+   Dialog — Detalhes do livro (UI simples; recebe dados já preparados)
+   ===================================================================================== */
 function BookDetailsDialog({
   open,
   book,
@@ -80,18 +136,8 @@ function BookDetailsDialog({
 }) {
   if (!book) return null;
 
-  const authors = Array.isArray(book.authors)
-    ? book.authors
-    : typeof book.authors === "string"
-    ? [book.authors]
-    : [];
-  const categoriesRaw =
-    (Array.isArray(book.categories) && book.categories) ||
-    (Array.isArray(book.genres) && book.genres) ||
-    (typeof book.categories === "string" ? [book.categories] : []) ||
-    (typeof book.genres === "string" ? [book.genres] : []);
-  const categories = (categoriesRaw || []).slice(0, 12);
-
+  const authors = authorList(book);
+  const categories = categoryList(book);
   const hasSummary = !!(book.summary && String(book.summary).trim());
   const cover = book.coverUrl || "/placeholder-book.jpg";
 
@@ -103,8 +149,10 @@ function BookDetailsDialog({
         <MenuBookRounded fontSize="small" />
         {book.title}
       </DialogTitle>
+
       <DialogContent dividers>
         <Stack direction="row" spacing={2}>
+          {/* Capa com fallback */}
           <Box
             component="img"
             src={cover}
@@ -123,6 +171,7 @@ function BookDetailsDialog({
               flexShrink: 0,
             }}
           />
+          {/* Metadados principais */}
           <Stack spacing={1} sx={{ minWidth: 0, flex: 1 }}>
             {typeof (book as any).score === "number" && (
               <Chip
@@ -133,7 +182,7 @@ function BookDetailsDialog({
               />
             )}
 
-            {authors.length > 0 && (
+            {!!authors.length && (
               <Typography
                 sx={{
                   opacity: 0.9,
@@ -147,7 +196,7 @@ function BookDetailsDialog({
               </Typography>
             )}
 
-            {categories.length > 0 && (
+            {!!categories.length && (
               <Stack
                 direction="row"
                 spacing={1}
@@ -166,6 +215,7 @@ function BookDetailsDialog({
           </Stack>
         </Stack>
 
+        {/* Resumo */}
         {hasSummary ? (
           <Typography sx={{ mt: 2, whiteSpace: "pre-line" }}>
             {book.summary}
@@ -182,6 +232,7 @@ function BookDetailsDialog({
           </Stack>
         )}
 
+        {/* Ações */}
         <Stack direction="row" gap={1.5} sx={{ mt: 2 }}>
           <Button onClick={onClose}>Fechar</Button>
         </Stack>
@@ -190,13 +241,16 @@ function BookDetailsDialog({
   );
 }
 
+/* =====================================================================================
+   Página principal
+   ===================================================================================== */
 export default function ReadingsPage() {
   const { user, asChild } = useUserSession();
 
-  // 🎯 Em modo família, usamos um filtro LOCAL de criança (não altera active user)
+  // 🎯 Em modo família: filtro LOCAL para não mexer no contexto global
   const [localChildId, setLocalChildId] = useState<string>("");
 
-  // ID efetivo para chamadas: actingChild em modo criança; localChildId em família
+  // ID efetivo para as chamadas: actingChild no modo criança; escolha local no modo família
   const childId = asChild
     ? Number(user?.actingChild?.id as any)
     : localChildId
@@ -205,6 +259,7 @@ export default function ReadingsPage() {
 
   const familyId = asChild ? undefined : Number(user?.id);
 
+  // Estado de dados
   const [pending, setPending] = useState<PendingRow[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -213,6 +268,7 @@ export default function ReadingsPage() {
     type: "success" | "error";
   } | null>(null);
 
+  // Estado do diálogo de detalhes
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailBook, setDetailBook] = useState<
     import("@/services/books").BookDetails | null
@@ -221,14 +277,14 @@ export default function ReadingsPage() {
     null
   );
 
+  /** Handler (curto): abre o diálogo e carrega detalhe por ISBN */
   async function openDetailsByIsbn(
     isbn?: string,
     fallbackTitle?: string,
     fallbackCover?: string | null
   ) {
     if (!isbn) return;
-
-    // 1) semear logo com o novo ISBN (evita ver o anterior por 1 frame)
+    // 1) Semear diálogo com fallback imediato (evita flicker)
     setDetailBook({
       isbn,
       title: fallbackTitle || "Livro",
@@ -237,8 +293,7 @@ export default function ReadingsPage() {
     });
     setDetailOpen(true);
     setDetailLoadingIsbn(isbn);
-
-    // 2) depois vai buscar o detalhe e atualiza
+    // 2) Buscar detalhe e atualizar
     try {
       const b = await getBookByIsbn(isbn);
       setDetailBook({
@@ -250,14 +305,16 @@ export default function ReadingsPage() {
         categories: (b as any).categories ?? (b as any).genres ?? null,
       });
     } catch {
-      /* silencioso: fica com o fallback */
+      /* mantém fallback silenciosamente */
     } finally {
       setDetailLoadingIsbn(null);
     }
   }
 
+  // Gate: no modo família é obrigatório escolher criança
   const mustPickChild = !asChild && !childId;
 
+  // Opções de criança para o AvatarSelect
   const childOptions =
     (user?.children || []).map((c: any) => ({
       id: String(c.id),
@@ -265,7 +322,7 @@ export default function ReadingsPage() {
       avatar: (c as any).avatarUrl || undefined,
     })) ?? [];
 
-  // ---------- Filtros + paginação (PENDING) ----------
+  /* ===================== Filtros + paginação (PENDING) ===================== */
   const PENDING_FILTERS: FilterDefinition[] = [
     {
       id: "status",
@@ -278,9 +335,7 @@ export default function ReadingsPage() {
   ];
   const [pendingFilters, setPendingFilters] = useState<
     Record<string, string[]>
-  >({
-    status: [], // vazio = todos
-  });
+  >({ status: [] });
   const pendingIcons = { status: <AutoStoriesRounded fontSize="small" /> };
   const [pendingPage, setPendingPage] = useState(1);
   const PENDING_PAGE_SIZE = 12;
@@ -295,16 +350,15 @@ export default function ReadingsPage() {
     1,
     Math.ceil(filteredPending.length / PENDING_PAGE_SIZE)
   );
-  const pendingPageItems = useMemo(() => {
-    const start = (pendingPage - 1) * PENDING_PAGE_SIZE;
-    return filteredPending.slice(start, start + PENDING_PAGE_SIZE);
-  }, [filteredPending, pendingPage]);
-
+  const pendingPageItems = useMemo(
+    () => paginatedSlice(filteredPending, pendingPage, PENDING_PAGE_SIZE),
+    [filteredPending, pendingPage]
+  );
   useEffect(() => {
     setPendingPage(1);
   }, [JSON.stringify(pendingFilters), pending.length]);
 
-  // ---------- Filtros + paginação (HISTORY) ----------
+  /* ===================== Filtros + paginação (HISTORY) ===================== */
   const HISTORY_FILTERS: FilterDefinition[] = [
     {
       id: "rating",
@@ -317,9 +371,7 @@ export default function ReadingsPage() {
   ];
   const [historyFilters, setHistoryFilters] = useState<
     Record<string, string[]>
-  >({
-    rating: [],
-  });
+  >({ rating: [] });
   const historyIcons = { rating: <StarRounded fontSize="small" /> };
   const [historyPage, setHistoryPage] = useState(1);
   const HISTORY_PAGE_SIZE = 12;
@@ -337,22 +389,19 @@ export default function ReadingsPage() {
     1,
     Math.ceil(filteredHistory.length / HISTORY_PAGE_SIZE)
   );
-
-  const historyPageItems = useMemo(() => {
-    const start = (historyPage - 1) * HISTORY_PAGE_SIZE;
-    return filteredHistory.slice(start, start + HISTORY_PAGE_SIZE);
-  }, [filteredHistory, historyPage]);
-
+  const historyPageItems = useMemo(
+    () => paginatedSlice(filteredHistory, historyPage, HISTORY_PAGE_SIZE),
+    [filteredHistory, historyPage]
+  );
   useEffect(() => {
     setHistoryPage(1);
   }, [JSON.stringify(historyFilters), history.length]);
 
-  // ---------- Carregamento ----------
+  /* ===================== Carregamento dos dados ===================== */
   async function loadAll() {
-    // 🚫 Em modo família, obriga a escolher criança primeiro
+    // Em modo família: requer criança escolhida
     if (!asChild && !childId) return;
-
-    // Em modo criança, precisa de childId válido
+    // Em modo criança: precisa de actingChild válido
     if (asChild && !childId) return;
 
     const [pRows, hRaw] = await Promise.all([
@@ -360,13 +409,15 @@ export default function ReadingsPage() {
       getLeiturasAtuais(200, { childId, familyId }),
     ]);
 
+    // “Em curso”: apenas reserved/reading
     setPending(
       pRows.filter((r) => r.status === "reserved" || r.status === "reading")
     );
 
+    // Histórico: normalização defensiva
     const hRows: HistoryRow[] = hRaw.map((r: any) => ({
       id: Number(r.id),
-      isbn: r.isbn, // NEW
+      isbn: r.isbn,
       title: r.title,
       coverUrl: r.coverUrl ?? undefined,
       date: r.date || undefined,
@@ -388,6 +439,7 @@ export default function ReadingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, familyId, asChild]);
 
+  // Botão de atualizar (desabilita quando falta escolher criança)
   const headerRight = useMemo(
     () => (
       <IconButton onClick={loadAll} title="Atualizar" disabled={mustPickChild}>
@@ -422,10 +474,10 @@ export default function ReadingsPage() {
     );
   }
 
-  /* ===================== CONTEÚDO PRINCIPAL (após escolher criança / modo criança) ===================== */
+  /* ===================== CONTEÚDO PRINCIPAL ===================== */
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
-      {/* Contexto em modo família (seletor LOCAL; não muda active user) */}
+      {/* Contexto: no modo família mostramos o seletor LOCAL (não altera sessão) */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
           <Stack
@@ -447,7 +499,7 @@ export default function ReadingsPage() {
         </WhiteCard>
       )}
 
-      {/* --------- LEITURAS EM CURSO --------- */}
+      {/* ===================== LEITURAS EM CURSO ===================== */}
       <WhiteCard sx={{ mb: 2 }}>
         <Stack
           direction="row"
@@ -466,7 +518,7 @@ export default function ReadingsPage() {
           {headerRight}
         </Stack>
 
-        {/* Filtros de "em curso" */}
+        {/* Filtros “em curso” */}
         <FilterBar
           filters={PENDING_FILTERS}
           selected={pendingFilters}
@@ -486,6 +538,7 @@ export default function ReadingsPage() {
             <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
               {pendingPageItems.map((r) => (
                 <Card key={r.isbn} sx={{ width: 260 }}>
+                  {/* Capa com click para detalhes */}
                   <img
                     src={r.coverUrl || "/placeholder-book.jpg"}
                     alt={r.title}
@@ -508,6 +561,8 @@ export default function ReadingsPage() {
                       openDetailsByIsbn(r.isbn, r.title, r.coverUrl ?? null)
                     }
                   />
+
+                  {/* Conteúdo do cartão */}
                   <CardContent>
                     <Typography fontWeight={900} noWrap title={r.title}>
                       {r.title}
@@ -538,6 +593,8 @@ export default function ReadingsPage() {
                       )}
                     </Stack>
                   </CardContent>
+
+                  {/* Ações */}
                   <CardActions>
                     {r.status === "reserved" ? (
                       <Button
@@ -623,7 +680,7 @@ export default function ReadingsPage() {
         )}
       </WhiteCard>
 
-      {/* --------- HISTÓRICO --------- */}
+      {/* ===================== HISTÓRICO ===================== */}
       <WhiteCard>
         <Stack
           direction="row"
@@ -669,6 +726,7 @@ export default function ReadingsPage() {
             <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
               {historyPageItems.map((row) => (
                 <Card key={row.id} sx={{ width: 220 }}>
+                  {/* Capa (abre detalhes se houver ISBN) */}
                   <img
                     src={row.coverUrl || "/placeholder-book.jpg"}
                     alt={row.title}
@@ -696,6 +754,7 @@ export default function ReadingsPage() {
                       )
                     }
                   />
+                  {/* Conteúdo */}
                   <CardContent>
                     <Typography fontWeight={900} noWrap title={row.title}>
                       {row.title}
@@ -706,7 +765,7 @@ export default function ReadingsPage() {
                         <Chip
                           size="small"
                           icon={<CalendarMonthRounded fontSize="small" />}
-                          label={new Date(row.date).toLocaleDateString("pt-PT")}
+                          label={toPTDate(row.date)}
                         />
                       )}
                       {typeof row.stars === "number" && (
@@ -728,6 +787,8 @@ export default function ReadingsPage() {
                       </Typography>
                     )}
                   </CardContent>
+
+                  {/* Ações */}
                   <CardActions>
                     <LoadingButton
                       size="small"
@@ -763,6 +824,7 @@ export default function ReadingsPage() {
         )}
       </WhiteCard>
 
+      {/* Feedback de operações */}
       {toast && (
         <Snackbar
           open
@@ -776,8 +838,9 @@ export default function ReadingsPage() {
         </Snackbar>
       )}
 
+      {/* Diálogo de detalhes do livro */}
       <BookDetailsDialog
-        key={detailBook?.isbn || "empty"}
+        key={detailBook?.isbn || "empty"} // força re-mount ao trocar de ISBN
         open={detailOpen}
         book={detailBook}
         onClose={() => {

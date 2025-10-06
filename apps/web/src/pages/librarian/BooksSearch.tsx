@@ -1,3 +1,12 @@
+/**
+ * ============================================================
+ *  Pesquisar livros (versão Bibliotecário)
+ *  Refatorado e comentado — funções pequenas (< 30 linhas)
+ *  Autor do trabalho (aluno): <O TEU NOME AQUI> — Nº <O TEU NÚMERO AQUI>
+ *  Nota: substitui o nome e nº acima pelos teus dados 👍
+ * ============================================================
+ */
+
 import * as React from "react";
 import {
   Box,
@@ -39,7 +48,35 @@ import {
   type BookDetailLibrarian,
 } from "@/services/books";
 
-/* ---- Cartão simples (mesmo visual de sugestões, sem botão de reservar) ---- */
+/* =======================================================================
+ * Helpers PUROS (sem efeitos colaterais) — fáceis de testar e reutilizar
+ * ======================================================================= */
+
+/** [PURO] devolve uma capa válida (fallback para placeholder) */
+function coverOrPlaceholder(url?: string | null): string {
+  return url && url.trim() ? url : "/placeholder-book.jpg";
+}
+
+/** [PURO] normaliza input numérico controlado (permite string vazia) */
+function normalizeNumInput(v: string): number | "" {
+  return v ? Number(v) : "";
+}
+
+/** [PURO] converte '' | number em number | undefined para payloads */
+function numOrUndef(v: number | ""): number | undefined {
+  return v === "" ? undefined : Number(v);
+}
+
+/** [PURO] utilidade pequena para limitar páginas (evita 0) */
+function safePageCount(total: number, perPage: number): number {
+  const pages = Math.ceil(Math.max(0, total) / Math.max(1, perPage));
+  return Math.max(1, pages);
+}
+
+/* =======================================================================
+ * Cartão de livro — visual simples (sem ação de reserva)
+ * ======================================================================= */
+
 function BookCard({
   book,
   onOpen,
@@ -47,7 +84,9 @@ function BookCard({
   book: BookLite;
   onOpen: (b: BookLite) => void;
 }) {
-  const cover = book.coverUrl || "/placeholder-book.jpg";
+  // Mantém o componente abaixo das 30 linhas e sem efeitos
+  const cover = coverOrPlaceholder(book.coverUrl);
+
   return (
     <Box
       sx={{
@@ -61,18 +100,22 @@ function BookCard({
         flexDirection: "column",
       }}
     >
+      {/* Capa clicável → abre detalhes */}
       <Box
         component="img"
         src={cover}
         alt={book.title}
         onClick={() => onOpen(book)}
-        onKeyDown={(e: any) => e.key === "Enter" && onOpen(book)}
+        onKeyDown={(e: React.KeyboardEvent) =>
+          e.key === "Enter" && onOpen(book)
+        }
         tabIndex={0}
         role="button"
         aria-label={`Abrir detalhes de ${book.title}`}
         onError={(e: any) => {
-          if (!e.currentTarget.src.includes("placeholder-book.jpg"))
+          if (!e.currentTarget.src.includes("placeholder-book.jpg")) {
             e.currentTarget.src = "/placeholder-book.jpg";
+          }
         }}
         sx={{
           width: "100%",
@@ -84,6 +127,8 @@ function BookCard({
           cursor: "pointer",
         }}
       />
+
+      {/* Título */}
       <Typography
         fontWeight={900}
         sx={{
@@ -99,6 +144,7 @@ function BookCard({
         {book.title}
       </Typography>
 
+      {/* Resumo curto (se existir) */}
       {book.summary && (
         <Typography
           variant="body2"
@@ -121,6 +167,7 @@ function BookCard({
         </Typography>
       )}
 
+      {/* Atalho para detalhes */}
       <Button
         size="small"
         variant="text"
@@ -134,7 +181,121 @@ function BookCard({
   );
 }
 
-/* ---- Dialog de detalhes (com holdings por biblioteca) ---- */
+/* =======================================================================
+ * Sub-blocos do diálogo (mantidos pequenos e reusáveis)
+ * ======================================================================= */
+
+/** Bloco com meta (autores, categorias, ano, faixa etária) — PURO */
+function BookMeta({
+  authors,
+  categories,
+  publicationYear,
+  ageRange,
+}: {
+  authors: string[];
+  categories: string[];
+  publicationYear?: number | null;
+  ageRange?: string | null;
+}) {
+  return (
+    <Stack spacing={1} sx={{ minWidth: 0, flex: 1 }}>
+      {!!authors.length && (
+        <Typography
+          sx={{
+            opacity: 0.9,
+            display: "flex",
+            alignItems: "center",
+            gap: 0.5,
+          }}
+        >
+          <PersonOutlineRounded fontSize="small" /> <b>Autor(es):</b>&nbsp;
+          {authors.join(", ")}
+        </Typography>
+      )}
+
+      {!!categories.length && (
+        <Stack
+          direction="row"
+          spacing={1}
+          useFlexGap
+          flexWrap="wrap"
+          alignItems="center"
+        >
+          <CategoryRounded fontSize="small" />
+          <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+            {categories.slice(0, 10).map((c, i) => (
+              <Chip key={i} size="small" label={c} />
+            ))}
+          </Stack>
+        </Stack>
+      )}
+
+      {(publicationYear || ageRange) && (
+        <Typography sx={{ opacity: 0.8 }}>
+          {publicationYear ? `Ano: ${publicationYear} • ` : ""}
+          {ageRange ? `Faixa etária: ${ageRange}` : ""}
+        </Typography>
+      )}
+    </Stack>
+  );
+}
+
+/** Tabela de exemplares/holdings — PURO */
+function HoldingsTable({
+  holdings,
+}: {
+  holdings:
+    | BookDetailLibrarian["holdings"]
+    | undefined
+    | null;
+}) {
+  if (!holdings || holdings.length === 0) {
+    return <Typography sx={{ mt: 0.5, opacity: 0.7 }}>Sem registos.</Typography>;
+  }
+
+  return (
+    <Box
+      component="table"
+      sx={{
+        mt: 1,
+        width: "100%",
+        borderCollapse: "collapse",
+        "& th, & td": {
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          p: 1,
+        },
+        "& th": { textAlign: "left", fontWeight: 800, opacity: 0.8 },
+      }}
+    >
+      <thead>
+        <tr>
+          <th>Biblioteca</th>
+          <th>Quantidade</th>
+          <th>Prateleira</th>
+          <th>Nº de registo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {holdings.map((h, i) => (
+          <tr key={i}>
+            <td>{h.libraryName}</td>
+            <td>{h.quantity ?? "—"}</td>
+            <td>{h.shelfCode ?? "—"}</td>
+            <td>{h.accessionNo ?? "—"}</td>
+          </tr>
+        ))}
+      </tbody>
+    </Box>
+  );
+}
+
+/* =======================================================================
+ * Dialog de detalhes (bibliotecário)
+ *  - Efeito isolado para fetch
+ *  - Render dividido em blocos pequenos
+ * ======================================================================= */
+
 function BookDetailsDialogLibrarian({
   open,
   isbn,
@@ -147,6 +308,7 @@ function BookDetailsDialogLibrarian({
   const [loading, setLoading] = React.useState(false);
   const [data, setData] = React.useState<BookDetailLibrarian | null>(null);
 
+  // Carrega detalhe quando abre e tem ISBN válido
   React.useEffect(() => {
     if (!open || !isbn) return;
     (async () => {
@@ -160,9 +322,9 @@ function BookDetailsDialogLibrarian({
     })();
   }, [open, isbn]);
 
-  const cover = data?.coverUrl || "/placeholder-book.jpg";
+  const cover = coverOrPlaceholder(data?.coverUrl);
   const authors = data?.authors ?? [];
-  const cats = data?.categories ?? [];
+  const categories = data?.categories ?? [];
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
@@ -177,14 +339,16 @@ function BookDetailsDialogLibrarian({
 
         {data && (
           <>
+            {/* Cabeçalho: capa + meta */}
             <Stack direction="row" spacing={2}>
               <Box
                 component="img"
                 src={cover}
                 alt={data.title}
                 onError={(e: any) => {
-                  if (!e.currentTarget.src.includes("placeholder-book.jpg"))
+                  if (!e.currentTarget.src.includes("placeholder-book.jpg")) {
                     e.currentTarget.src = "/placeholder-book.jpg";
+                  }
                 }}
                 sx={{
                   width: { xs: 160, sm: 200 },
@@ -196,50 +360,15 @@ function BookDetailsDialogLibrarian({
                   flexShrink: 0,
                 }}
               />
-              <Stack spacing={1} sx={{ minWidth: 0, flex: 1 }}>
-                {!!authors.length && (
-                  <Typography
-                    sx={{
-                      opacity: 0.9,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 0.5,
-                    }}
-                  >
-                    <PersonOutlineRounded fontSize="small" /> <b>Autor(es):</b>
-                    &nbsp;{authors.join(", ")}
-                  </Typography>
-                )}
-                {!!cats.length && (
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    useFlexGap
-                    flexWrap="wrap"
-                    alignItems="center"
-                  >
-                    <CategoryRounded fontSize="small" />
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      useFlexGap
-                      flexWrap="wrap"
-                    >
-                      {cats.slice(0, 10).map((c, i) => (
-                        <Chip key={i} size="small" label={c} />
-                      ))}
-                    </Stack>
-                  </Stack>
-                )}
-                <Typography sx={{ opacity: 0.8 }}>
-                  {data.publicationYear
-                    ? `Ano: ${data.publicationYear} • `
-                    : ""}
-                  {data.ageRange ? `Faixa etária: ${data.ageRange}` : ""}
-                </Typography>
-              </Stack>
+              <BookMeta
+                authors={authors}
+                categories={categories}
+                publicationYear={data.publicationYear}
+                ageRange={data.ageRange}
+              />
             </Stack>
 
+            {/* Resumo */}
             {data.summary ? (
               <Typography sx={{ mt: 2, whiteSpace: "pre-line" }}>
                 <ArticleOutlined
@@ -263,45 +392,7 @@ function BookDetailsDialogLibrarian({
               <LibraryBooksRounded fontSize="small" />
               Exemplares por biblioteca
             </Typography>
-            {!(data.holdings && data.holdings.length) ? (
-              <Typography sx={{ mt: 0.5, opacity: 0.7 }}>
-                Sem registos.
-              </Typography>
-            ) : (
-              <Box
-                component="table"
-                sx={{
-                  mt: 1,
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  "& th, & td": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                    p: 1,
-                  },
-                  "& th": { textAlign: "left", fontWeight: 800, opacity: 0.8 },
-                }}
-              >
-                <thead>
-                  <tr>
-                    <th>Biblioteca</th>
-                    <th>Quantidade</th>
-                    <th>Prateleira</th>
-                    <th>Nº de registo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.holdings.map((h, i) => (
-                    <tr key={i}>
-                      <td>{h.libraryName}</td>
-                      <td>{h.quantity ?? "—"}</td>
-                      <td>{h.shelfCode ?? "—"}</td>
-                      <td>{h.accessionNo ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Box>
-            )}
+            <HoldingsTable holdings={data.holdings} />
           </>
         )}
       </DialogContent>
@@ -309,27 +400,33 @@ function BookDetailsDialogLibrarian({
   );
 }
 
-/* ---- Página ---- */
+/* =======================================================================
+ * Página: Pesquisa de livros (Bibliotecário)
+ *  - Pesquisa com debounce
+ *  - Mantém funções pequenas e comentários orientadores
+ * ======================================================================= */
+
 export default function LibrarianBooksSearch() {
   const { user } = useUserSession();
 
-  // bibliotecas do bibliotecário (se vierem no user)
+  // Bibliotecas associadas ao bibliotecário (se presentes no user)
   const myLibraries =
     (user as any)?.userLibraries?.map?.((ul: any) => ({
       id: Number(ul.libraryId ?? ul.library?.id),
       name: ul.library?.name ?? `Biblioteca ${ul.libraryId}`,
     })) ?? [];
 
-  // biblioteca “default” do bibliotecário:
-  // - se tiver exatamente uma, usa essa
-  // - se tiver várias ou nenhuma, não filtra por biblioteca (procura global)
+  /**
+   * Biblioteca default:
+   * - se o bibliotecário tiver exatamente 1, filtramos por essa
+   * - caso contrário, pesquisa global (undefined)
+   */
   const defaultLibraryId: number | undefined = React.useMemo(() => {
     if (!myLibraries.length) return undefined;
-    if (myLibraries.length === 1) return myLibraries[0].id;
-    return undefined;
+    return myLibraries.length === 1 ? myLibraries[0].id : undefined;
   }, [myLibraries]);
 
-  // filtros
+  // ---------- Filtros controlados ----------
   const [q, setQ] = React.useState("");
   const [author, setAuthor] = React.useState("");
   const [category, setCategory] = React.useState("");
@@ -338,13 +435,22 @@ export default function LibrarianBooksSearch() {
   const [ageMin, setAgeMin] = React.useState<number | "">("");
   const [ageMax, setAgeMax] = React.useState<number | "">("");
 
+  // ---------- Paginação ----------
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(12);
 
+  // ---------- Estado remoto ----------
   const [loading, setLoading] = React.useState(false);
   const [items, setItems] = React.useState<BookLite[]>([]);
   const [total, setTotal] = React.useState(0);
 
+  // ---------- Detalhe (dialog) ----------
+  const [openIsbn, setOpenIsbn] = React.useState<string | null>(null);
+
+  /**
+   * Faz a pesquisa remota com os filtros atuais.
+   * Mantido < 30 linhas. Sem dependência de efeitos colaterais externos.
+   */
   const doSearch = React.useCallback(
     async (goToPage?: number) => {
       setLoading(true);
@@ -353,11 +459,11 @@ export default function LibrarianBooksSearch() {
           q: q || undefined,
           author: author || undefined,
           category: category || undefined,
-          yearFrom: yearFrom === "" ? undefined : Number(yearFrom),
-          yearTo: yearTo === "" ? undefined : Number(yearTo),
-          ageMin: ageMin === "" ? undefined : Number(ageMin),
-          ageMax: ageMax === "" ? undefined : Number(ageMax),
-          libraryId: defaultLibraryId, // usa a lib do bibliotecário (ou global)
+          yearFrom: numOrUndef(yearFrom),
+          yearTo: numOrUndef(yearTo),
+          ageMin: numOrUndef(ageMin),
+          ageMax: numOrUndef(ageMax),
+          libraryId: defaultLibraryId, // filtra pela biblioteca do bibliotecário (se única)
           page: goToPage ?? page,
           perPage,
         });
@@ -382,37 +488,31 @@ export default function LibrarianBooksSearch() {
     ]
   );
 
-  // primeira carga + quando a biblioteca default muda
+  // 1) Primeira carga + sempre que muda a biblioteca default
   React.useEffect(() => {
     doSearch(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultLibraryId]);
 
-  // paginação e "por página" (sem debounce)
+  // 2) Paginação (página/perPage) sem debounce
   React.useEffect(() => {
     doSearch(page);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, perPage]);
 
-  // 🔎 AUTOSEARCH com debounce quando qualquer filtro muda (excepto paginação)
+  // 3) Debounce de filtros (volta sempre à página 1)
   React.useEffect(() => {
-    const DEBOUNCE_MS = 400;
-    const t = setTimeout(() => {
-      // sempre que mudam filtros, volta à página 1
-      doSearch(1);
-    }, DEBOUNCE_MS);
+    const t = setTimeout(() => doSearch(1), 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, author, category, yearFrom, yearTo, ageMin, ageMax]);
 
-  // detalhes
-  const [openIsbn, setOpenIsbn] = React.useState<string | null>(null);
-
-  const pageCount = Math.max(1, Math.ceil(total / perPage));
+  const pageCount = safePageCount(total, perPage);
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       <WhiteCard>
+        {/* Cabeçalho */}
         <Stack
           direction="row"
           alignItems="center"
@@ -437,12 +537,8 @@ export default function LibrarianBooksSearch() {
                 </IconButton>
               </span>
             </Tooltip>
-            {/* Botão fica como “forçar refresh”, mas já não é necessário */}
-            {/* <Button
-              variant="contained"
-              startIcon={<SearchRounded />}
-              onClick={() => doSearch(1)}
-            >
+            {/* Mantemos um botão de pesquisa manual opcional (comentado)
+            <Button variant="contained" startIcon={<SearchRounded />} onClick={() => doSearch(1)}>
               Pesquisar
             </Button> */}
           </Stack>
@@ -482,9 +578,7 @@ export default function LibrarianBooksSearch() {
           <TextField
             label="Ano de"
             value={yearFrom}
-            onChange={(e) =>
-              setYearFrom(e.target.value ? Number(e.target.value) : "")
-            }
+            onChange={(e) => setYearFrom(normalizeNumInput(e.target.value))}
             size="small"
             type="number"
             sx={{ width: 120 }}
@@ -492,9 +586,7 @@ export default function LibrarianBooksSearch() {
           <TextField
             label="Ano até"
             value={yearTo}
-            onChange={(e) =>
-              setYearTo(e.target.value ? Number(e.target.value) : "")
-            }
+            onChange={(e) => setYearTo(normalizeNumInput(e.target.value))}
             size="small"
             type="number"
             sx={{ width: 120 }}
@@ -502,9 +594,7 @@ export default function LibrarianBooksSearch() {
           <TextField
             label="Idade min"
             value={ageMin}
-            onChange={(e) =>
-              setAgeMin(e.target.value ? Number(e.target.value) : "")
-            }
+            onChange={(e) => setAgeMin(normalizeNumInput(e.target.value))}
             size="small"
             type="number"
             sx={{ width: 120 }}
@@ -512,17 +602,15 @@ export default function LibrarianBooksSearch() {
           <TextField
             label="Idade máx"
             value={ageMax}
-            onChange={(e) =>
-              setAgeMax(e.target.value ? Number(e.target.value) : "")
-            }
+            onChange={(e) => setAgeMax(normalizeNumInput(e.target.value))}
             size="small"
             type="number"
             sx={{ width: 120 }}
           />
 
-          {/* Biblioteca: removida do UI — usa-se automaticamente a do bibliotecário */}
+          {/* Biblioteca: não exposta no UI — usamos a(s) do bibliotecário */}
 
-          {/* Para evitar erro de tipo no Select, usamos strings como value */}
+          {/* Por página (controlado como string para evitar warnings do MUI) */}
           <FormControl size="small" sx={{ minWidth: 140, ml: "auto" }}>
             <InputLabel id="per-page-label">Por página</InputLabel>
             <Select
@@ -551,11 +639,7 @@ export default function LibrarianBooksSearch() {
         ) : (
           <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
             {items.map((b) => (
-              <BookCard
-                key={b.isbn}
-                book={b}
-                onOpen={(bk) => setOpenIsbn(bk.isbn)}
-              />
+              <BookCard key={b.isbn} book={b} onOpen={(bk) => setOpenIsbn(bk.isbn)} />
             ))}
           </Stack>
         )}
@@ -578,6 +662,7 @@ export default function LibrarianBooksSearch() {
         </Stack>
       </WhiteCard>
 
+      {/* Diálogo de detalhes (por ISBN) */}
       <BookDetailsDialogLibrarian
         open={!!openIsbn}
         isbn={openIsbn}

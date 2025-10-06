@@ -1,4 +1,17 @@
-// src/app/family/SugestoesTab.tsx
+/**
+ * ============================================================================
+ * Ficheiro: src/app/family/SugestoesTab.tsx
+ * Ecrã: Sugestões (Perfil + Quiz)
+ * Autor: Alexandre Brissos — Nº 21131
+ * ----------------------------------------------------------------------------
+ * Melhorias (como combinado):
+ * • Comentários detalhados PT-PT em todo o código.
+ * • Helpers “PUROS” (determinísticos) destacados e documentados (≤ 30 linhas).
+ * • Funções curtas / legíveis, mantendo o comportamento original.
+ * • Acessibilidade (labels) e consistência com o tema.
+ * ============================================================================
+ */
+
 import SelectChild from "@bibliotecario/ui-mobile/components/Avatars/SelectChild";
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
@@ -40,7 +53,14 @@ import {
 } from "react-native-safe-area-context";
 import { TABBAR_HEIGHT } from "src/constants/layout";
 
-/* ---------------- Anim helpers ---------------- */
+/* ============================================================================
+ * Animações / helpers visuais
+ * ========================================================================== */
+
+/**
+ * FadeIn — pequeno wrapper animado (fade + slide Y).
+ * Não é “puro” (tem efeitos), mas é curto e reutilizável (≤ 30 linhas).
+ */
 function FadeIn({
   children,
   delay = 0,
@@ -85,7 +105,10 @@ function FadeIn({
   );
 }
 
-/* ---------------- Quiz steps ---------------- */
+/* ============================================================================
+ * Quiz — passos e ícones
+ * ========================================================================== */
+
 const QUIZ_STEPS = [
   {
     id: "genres",
@@ -121,7 +144,7 @@ const QUIZ_STEPS = [
   },
 ] as const;
 
-/* Mini mapeamento de ícones para chips do quiz */
+/** Mapeamento (PURO) de rótulos → ícones para chips. */
 const chipIconFor: Record<string, string> = {
   Aventura: "map-marker-path",
   Fantasia: "magic-staff",
@@ -143,13 +166,16 @@ const chipIconFor: Record<string, string> = {
   "12-15": "numeric-1-circle-outline",
 };
 
-/* ---------------- Component ---------------- */
+/* ============================================================================
+ * Componente principal
+ * ========================================================================== */
+
 export default function SugestoesTab() {
   const { user } = useAuth();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  // enable LayoutAnimation no Android
+  // Android: habilita LayoutAnimation (colapsáveis/“load more” suaves).
   useEffect(() => {
     if (
       Platform.OS === "android" &&
@@ -159,11 +185,13 @@ export default function SugestoesTab() {
     }
   }, []);
 
+  // Localização atual de rota (para “Quiz/Categorias” ficar sublinhado).
   const pathname = usePathname();
   const onQuiz =
     pathname?.includes("/sugestoes") && !pathname.includes("categorias");
   const onCategorias = pathname?.includes("sugestoes-categorias");
 
+  // Criança “ativa” (modo criança tem precedência).
   const actingChildId = (user as any)?.actingChild?.id
     ? Number((user as any).actingChild.id)
     : undefined;
@@ -172,28 +200,39 @@ export default function SugestoesTab() {
   const childId =
     actingChildId ?? (selectedChildId ? Number(selectedChildId) : undefined);
 
-  // dados
+  /* ---------------- Estado de dados / UI ---------------- */
+
   const [items, setItems] = useState<BookLite[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Modo de origem das sugestões: perfil ou quiz
   const [mode, setMode] = useState<"perfil" | "quiz">("perfil");
+
+  // Estado do modal/quiz e respetivas respostas
   const [quizOpen, setQuizOpen] = useState(false);
   const [quizState, setQuizState] = useState<Record<string, any>>({});
   const [lastAnswers, setLastAnswers] = useState<QuizAnswer[] | null>(null);
 
-  // paginação
+  // Paginação cumulativa via “limit = perPage * page”
   const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(12);
+  const [perPage] = useState(12);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // UI
-  const [snack, setSnack] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  // Feedbacks e reserva
+  const [snack, setSnack] = useState<{
+    msg: string;
+    type: "success" | "error";
+  } | null>(null);
   const [busyByIsbn, setBusyByIsbn] = useState<Record<string, boolean>>({});
-  const [statusByIsbn, setStatusByIsbn] = useState<Record<string, "reserved" | "reading">>({});
+  const [statusByIsbn, setStatusByIsbn] = useState<
+    Record<string, "reserved" | "reading">
+  >({});
 
-  // detalhe (modal expandir)
+  // Modal de detalhe
   const [detailItem, setDetailItem] = useState<BookLite | null>(null);
 
+  // Remoção de duplicados por ISBN do conjunto corrente (PURO).
   const dedupedItems = useMemo<BookLite[]>(() => {
     const seen = new Set<string>();
     const out: BookLite[] = [];
@@ -206,6 +245,7 @@ export default function SugestoesTab() {
     return out;
   }, [items]);
 
+  // Subtítulo dinâmico consoante a fonte das sugestões.
   const subtitle = useMemo(
     () =>
       mode === "perfil"
@@ -214,7 +254,14 @@ export default function SugestoesTab() {
     [mode]
   );
 
-  // ====== fetch helpers (sem OFFSET) ======
+  /* ==========================================================================
+   * Fetch helpers (≤ 30 linhas)
+   * ======================================================================== */
+
+  /**
+   * (PURO quanto ao retorno) Calcula novo conjunto para “perfil” até à página N.
+   * Mantém estratégia de “limit cumulativo” para simplificar a UI sem merges.
+   */
   async function fetchPerfilPaged(nextPage = 1) {
     if (!childId) return;
     const limit = perPage * nextPage;
@@ -224,6 +271,10 @@ export default function SugestoesTab() {
     setHasMore(data.length >= limit);
   }
 
+  /**
+   * (PURO quanto ao retorno) Calcula novo conjunto para “quiz” até à página N.
+   * O “answers” é guardado em lastAnswers para poder refrescar/repetir.
+   */
   async function fetchQuizPaged(answers: QuizAnswer[], nextPage = 1) {
     if (!childId) return;
     const limit = perPage * nextPage;
@@ -233,7 +284,11 @@ export default function SugestoesTab() {
     setHasMore(data.length >= limit);
   }
 
-  // chamadas públicas
+  /* ==========================================================================
+   * Ações públicas (≤ 30 linhas)
+   * ======================================================================== */
+
+  /** Carrega lista por PERFIL (reset de página/estado). */
   async function loadPerfil() {
     if (!childId) return;
     setMode("perfil");
@@ -247,6 +302,7 @@ export default function SugestoesTab() {
     }
   }
 
+  /** Executa o QUIZ (usa respostas, reseta paging). */
   async function runQuiz(answers: QuizAnswer[]) {
     if (!childId) return;
     setMode("quiz");
@@ -260,6 +316,7 @@ export default function SugestoesTab() {
     }
   }
 
+  /** Carrega página seguinte (perfil/quiz) — limit cumulativo. */
   async function loadMore() {
     if (!hasMore || loadingMore) return;
     const next = page + 1;
@@ -274,7 +331,14 @@ export default function SugestoesTab() {
     }
   }
 
-  // ====== reservar ======
+  /* ==========================================================================
+   * Reservas (≤ 30 linhas)
+   * ======================================================================== */
+
+  /**
+   * Cria reserva para a criança selecionada.
+   * Mostra estados “busy” por ISBN e trata respostas comuns do backend.
+   */
   async function onReserve(isbn: string) {
     try {
       if (!childId) {
@@ -284,7 +348,10 @@ export default function SugestoesTab() {
       setBusyByIsbn((m) => ({ ...m, [isbn]: true }));
       await reserveBook(childId, isbn);
       setStatusByIsbn((m) => ({ ...m, [isbn]: "reserved" }));
-      setSnack({ msg: "Reserva criada! Vai a Leituras › Reservado.", type: "success" });
+      setSnack({
+        msg: "Reserva criada! Vai a Leituras › Reservado.",
+        type: "success",
+      });
     } catch (e: any) {
       const code = e?.response?.data?.error;
       if (code === "already_reading") {
@@ -292,7 +359,10 @@ export default function SugestoesTab() {
         setSnack({ msg: "Já estás a ler este livro.", type: "error" });
       } else if (code === "already_reserved") {
         setStatusByIsbn((m) => ({ ...m, [isbn]: "reserved" }));
-        setSnack({ msg: "Este livro já está reservado para esta criança.", type: "error" });
+        setSnack({
+          msg: "Este livro já está reservado para esta criança.",
+          type: "error",
+        });
       } else if (typeof e?.message === "string" && e.message) {
         setSnack({ msg: e.message, type: "error" });
       } else {
@@ -304,13 +374,21 @@ export default function SugestoesTab() {
     }
   }
 
-  // ====== lifecycle ======
+  /* ==========================================================================
+   * Ciclo de vida
+   * ======================================================================== */
+
+  // Quando muda a criança ativa/selecionada, recarrega por PERFIL.
   useEffect(() => {
     if (childId) loadPerfil();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId]);
 
-  // ====== UI infra ======
+  /* ==========================================================================
+   * UI utilitária
+   * ======================================================================== */
+
+  /** Content wrapper branco com borda leve (consistente com restantes ecrãs). */
   const CardContainer: React.FC<{ children: React.ReactNode; style?: any }> = ({
     children,
     style,
@@ -336,6 +414,7 @@ export default function SugestoesTab() {
     </View>
   );
 
+  /** Valida se o “quizState” tem dados suficientes para emitir respostas. (PURO) */
   function quizReady(state: Record<string, any>) {
     return (
       Array.isArray(state.genres) &&
@@ -347,8 +426,10 @@ export default function SugestoesTab() {
     );
   }
 
+  /** Constrói respostas a partir do estado e executa o quiz. (≤ 30 linhas) */
   function handleQuizFinish() {
     if (!quizReady(quizState)) {
+      // Caso já exista um conjunto anterior, reaplica-o.
       if (mode === "quiz" && lastAnswers) {
         runQuiz(lastAnswers);
       }
@@ -364,6 +445,7 @@ export default function SugestoesTab() {
     runQuiz(answers);
   }
 
+  // Ícone circular do cabeçalho (segue cores MD3).
   const headerIcon = (
     <View
       style={{
@@ -376,13 +458,24 @@ export default function SugestoesTab() {
         marginRight: 10,
       }}
     >
-      <Icon name="lightbulb-on-outline" size={20} color={theme.colors.onPrimaryContainer} />
+      <Icon
+        name="lightbulb-on-outline"
+        size={20}
+        color={theme.colors.onPrimaryContainer}
+      />
     </View>
   );
 
+  /* ==========================================================================
+   * Render
+   * ======================================================================== */
+
   return (
     <Background>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["top"]}>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
+      >
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           refreshControl={
@@ -404,12 +497,22 @@ export default function SugestoesTab() {
             paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
           }}
         >
-          {/* CARD #1 — Header compacto + links + seletor */}
+          {/* ---------------- CARD #1 — Header + links + seletor ---------------- */}
           <FadeIn>
             <CardContainer>
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+              {/* Título + refresh */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 4,
+                }}
+              >
                 {headerIcon}
-                <Text variant="headlineSmall" style={{ fontWeight: "900", flex: 1 }}>
+                <Text
+                  variant="headlineSmall"
+                  style={{ fontWeight: "900", flex: 1 }}
+                >
                   Sugestões de Leitura
                 </Text>
                 <IconButton
@@ -422,20 +525,49 @@ export default function SugestoesTab() {
                       ? runQuiz(lastAnswers)
                       : handleQuizFinish()
                   }
+                  accessibilityLabel="Atualizar sugestões"
                 />
               </View>
 
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                <Text style={{ opacity: 0.7, flex: 1, marginRight: 8 }} numberOfLines={2}>
+              {/* Subtítulo + CTA para abrir Quiz */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
+                <Text
+                  style={{ opacity: 0.7, flex: 1, marginRight: 8 }}
+                  numberOfLines={2}
+                >
                   {subtitle}
                 </Text>
-                <Button mode="contained-tonal" icon="clipboard-text-outline" onPress={() => setQuizOpen(true)} disabled={!childId}>
+                <Button
+                  mode="contained-tonal"
+                  icon="clipboard-text-outline"
+                  onPress={() => setQuizOpen(true)}
+                  disabled={!childId}
+                >
                   Fazer quiz
                 </Button>
               </View>
 
-              <View style={{ flexDirection: "row", alignItems: "center", columnGap: 8, marginTop: 8 }}>
-                <Icon name="compass-outline" size={16} color={theme.colors.onSurfaceVariant} />
+              {/* Links “Quiz” / “Categorias” (mantém routing existente) */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  columnGap: 8,
+                  marginTop: 8,
+                }}
+              >
+                <Icon
+                  name="compass-outline"
+                  size={16}
+                  color={theme.colors.onSurfaceVariant}
+                />
                 <LinkText
                   underline
                   size="sm"
@@ -449,16 +581,24 @@ export default function SugestoesTab() {
                   underline
                   size="sm"
                   onPress={() => router.push("/family/sugestoes-categorias")}
-                  style={onCategorias ? { fontWeight: "700" } : { opacity: 0.85 }}
+                  style={
+                    onCategorias ? { fontWeight: "700" } : { opacity: 0.85 }
+                  }
                 >
                   Categorias
                 </LinkText>
               </View>
 
+              {/* Seletor de criança (não mostra em modo criança) */}
               {!actingChildId && (
                 <View style={{ rowGap: 10, marginTop: 12 }}>
                   <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
-                    <Icon name="account-child-outline" size={18} color={theme.colors.onSurface} /> Escolhe a criança
+                    <Icon
+                      name="account-child-outline"
+                      size={18}
+                      color={theme.colors.onSurface}
+                    />{" "}
+                    Escolhe a criança
                   </Text>
                   <SelectChild
                     label="Selecionar criança"
@@ -474,33 +614,68 @@ export default function SugestoesTab() {
                     disabled={!user?.children?.length}
                     menuMaxHeight={360}
                   />
-                  {!childId && <Text style={{ opacity: 0.7 }}>Seleciona uma criança para veres sugestões e poderes reservar.</Text>}
+                  {!childId && (
+                    <Text style={{ opacity: 0.7 }}>
+                      Seleciona uma criança para veres sugestões e poderes
+                      reservar.
+                    </Text>
+                  )}
                 </View>
               )}
             </CardContainer>
           </FadeIn>
 
-          {/* CARD #2 — Grelha de sugestões */}
+          {/* ---------------- CARD #2 — Grelha de sugestões ---------------- */}
           <FadeIn delay={60}>
             <CardContainer>
               {dedupedItems.length === 0 ? (
                 <View style={{ paddingVertical: 12, alignItems: "center" }}>
-                  <Icon name="book-off-outline" size={32} color={theme.colors.onSurfaceDisabled} />
-                  <Text style={{ opacity: 0.7, marginTop: 6, textAlign: "center" }}>
-                    {childId ? "Sem resultados. Experimenta o quiz para explorar novos livros." : "Seleciona uma criança para começar."}
+                  <Icon
+                    name="book-off-outline"
+                    size={32}
+                    color={theme.colors.onSurfaceDisabled}
+                  />
+                  <Text
+                    style={{ opacity: 0.7, marginTop: 6, textAlign: "center" }}
+                  >
+                    {childId
+                      ? "Sem resultados. Experimenta o quiz para explorar novos livros."
+                      : "Seleciona uma criança para começar."}
                   </Text>
                 </View>
               ) : (
                 <>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+                  {/* Grelha 2 colunas com “cards” de livros */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      flexWrap: "wrap",
+                      justifyContent: "space-between",
+                    }}
+                  >
                     {dedupedItems.map((item, idx) => {
                       const btnBusy = !!busyByIsbn[item.isbn];
-                      const serverStatus = (item as any).status as "reserved" | "reading" | "finished" | "none" | undefined;
+                      const serverStatus = (item as any).status as
+                        | "reserved"
+                        | "reading"
+                        | "finished"
+                        | "none"
+                        | undefined;
                       const localOverride = statusByIsbn[item.isbn];
-                      const effectiveStatus = (localOverride || serverStatus) as "reserved" | "reading" | "finished" | "none" | undefined;
+                      const effectiveStatus = (localOverride ||
+                        serverStatus) as
+                        | "reserved"
+                        | "reading"
+                        | "finished"
+                        | "none"
+                        | undefined;
 
                       const disabled =
-                        !childId || btnBusy || effectiveStatus === "reserved" || effectiveStatus === "reading";
+                        !childId ||
+                        btnBusy ||
+                        effectiveStatus === "reserved" ||
+                        effectiveStatus === "reading";
+
                       const label =
                         effectiveStatus === "reserved"
                           ? "Reservado"
@@ -509,6 +684,7 @@ export default function SugestoesTab() {
                           : effectiveStatus === "finished"
                           ? "Reservar de novo"
                           : "Reservar";
+
                       const iconForBtn =
                         effectiveStatus === "reserved"
                           ? "bookmark-check"
@@ -532,7 +708,7 @@ export default function SugestoesTab() {
                           }}
                         >
                           <Card style={{ overflow: "hidden" }}>
-                            {/* Capa */}
+                            {/* Capa com “badge” de estado (Reservado/A ler) */}
                             <View>
                               <Card.Cover
                                 source={
@@ -543,7 +719,8 @@ export default function SugestoesTab() {
                                 resizeMode="cover"
                                 style={{ height: 200 }}
                               />
-                              {(effectiveStatus === "reserved" || effectiveStatus === "reading") && (
+                              {(effectiveStatus === "reserved" ||
+                                effectiveStatus === "reading") && (
                                 <View
                                   style={{
                                     position: "absolute",
@@ -555,45 +732,97 @@ export default function SugestoesTab() {
                                     paddingHorizontal: 8,
                                   }}
                                 >
-                                  <Text style={{ color: theme.colors.onPrimary, fontWeight: "700", fontSize: 10 }}>
-                                    {effectiveStatus === "reserved" ? "RESERVADO" : "A LER"}
+                                  <Text
+                                    style={{
+                                      color: theme.colors.onPrimary,
+                                      fontWeight: "700",
+                                      fontSize: 10,
+                                    }}
+                                  >
+                                    {effectiveStatus === "reserved"
+                                      ? "RESERVADO"
+                                      : "A LER"}
                                   </Text>
                                 </View>
                               )}
                             </View>
 
-                            {/* Conteúdo (flex:1 para manter altura) */}
-                            <View style={{ paddingHorizontal: 12, paddingTop: 8, flex: 1 }}>
-                              <Text variant="titleSmall" numberOfLines={2} style={{ fontWeight: "700" }}>
+                            {/* Corpo (título + resumo + meta) */}
+                            <View
+                              style={{
+                                paddingHorizontal: 12,
+                                paddingTop: 8,
+                                flex: 1,
+                              }}
+                            >
+                              <Text
+                                variant="titleSmall"
+                                numberOfLines={2}
+                                style={{ fontWeight: "700" }}
+                              >
                                 {item.title}
                               </Text>
 
                               {item.summary ? (
-                                <Text variant="bodySmall" numberOfLines={3} style={{ opacity: 0.85, marginTop: 4 }}>
+                                <Text
+                                  variant="bodySmall"
+                                  numberOfLines={3}
+                                  style={{ opacity: 0.85, marginTop: 4 }}
+                                >
                                   {item.summary}
                                 </Text>
                               ) : null}
 
-                              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  marginTop: 6,
+                                }}
+                              >
                                 {typeof item.score === "number" && (
-                                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, opacity: 0.7 }}>
-                                    <Icon name="chart-line" size={14} color={theme.colors.onSurfaceVariant} />
-                                    <Text variant="labelSmall">{item.score.toFixed(3)}</Text>
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      opacity: 0.7,
+                                    }}
+                                  >
+                                    <Icon
+                                      name="chart-line"
+                                      size={14}
+                                      color={theme.colors.onSurfaceVariant}
+                                    />
+                                    <Text variant="labelSmall">
+                                      {item.score.toFixed(3)}
+                                    </Text>
                                   </View>
                                 )}
                                 {serverStatus === "finished" && (
-                                  <Chip compact icon="check" style={{ height: 26 }}>
+                                  <Chip
+                                    compact
+                                    icon="check"
+                                    style={{ height: 26 }}
+                                  >
                                     Já lido
                                   </Chip>
                                 )}
                               </View>
 
-                              {/* empurra o rodapé para o fim */}
+                              {/* empurra rodapé para o fundo do card */}
                               <View style={{ flex: 1 }} />
                             </View>
 
-                            {/* Rodapé: “Ver mais” em cima, “Reservar” por baixo */}
-                            <View style={{ paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2 }}>
+                            {/* Rodapé: “Ver mais” + ação “Reservar” */}
+                            <View
+                              style={{
+                                paddingHorizontal: 12,
+                                paddingBottom: 12,
+                                paddingTop: 2,
+                              }}
+                            >
                               <Button
                                 compact
                                 mode="text"
@@ -622,11 +851,20 @@ export default function SugestoesTab() {
                     })}
                   </View>
 
-                  {/* Load more */}
+                  {/* Paginação (“load more”) */}
                   {hasMore ? (
                     <View style={{ alignItems: "center", marginTop: 8 }}>
-                      <Button mode="outlined" onPress={loadMore} disabled={loadingMore} icon={loadingMore ? undefined : "chevron-down"}>
-                        {loadingMore ? <ActivityIndicator animating size="small" /> : "Carregar mais"}
+                      <Button
+                        mode="outlined"
+                        onPress={loadMore}
+                        disabled={loadingMore}
+                        icon={loadingMore ? undefined : "chevron-down"}
+                      >
+                        {loadingMore ? (
+                          <ActivityIndicator animating size="small" />
+                        ) : (
+                          "Carregar mais"
+                        )}
                       </Button>
                     </View>
                   ) : null}
@@ -636,7 +874,7 @@ export default function SugestoesTab() {
           </FadeIn>
         </ScrollView>
 
-        {/* Snackbar */}
+        {/* Snackbar de feedbacks (reserva/erros) */}
         <Portal>
           <Snackbar
             visible={!!snack}
@@ -656,7 +894,7 @@ export default function SugestoesTab() {
         </Portal>
       </SafeAreaView>
 
-      {/* Quiz modal */}
+      {/* ---------------------- Quiz modal ---------------------- */}
       <Portal>
         <Modal
           visible={quizOpen}
@@ -670,63 +908,107 @@ export default function SugestoesTab() {
             borderColor: theme.colors.outlineVariant,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <Icon name="clipboard-text-outline" size={18} color={theme.colors.onSurface} />
+          {/* Cabeçalho do modal */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+            }}
+          >
+            <Icon
+              name="clipboard-text-outline"
+              size={18}
+              color={theme.colors.onSurface}
+            />
             <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
               Sugestões — Quiz
             </Text>
           </View>
 
+          {/* Passos do quiz (chips com seleção multi/simples) */}
           {QUIZ_STEPS.map((step) => (
             <View key={step.id} style={{ marginBottom: 12 }}>
-              <Text variant="titleSmall" style={{ marginBottom: 8, fontWeight: "700" }}>
+              <Text
+                variant="titleSmall"
+                style={{ marginBottom: 8, fontWeight: "700" }}
+              >
                 {step.title}
               </Text>
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                  {step.items.map((it) => {
-                    const selected = step.multi
-                      ? Array.isArray(quizState[step.id]) && quizState[step.id]?.includes(it)
-                      : quizState[step.id] === it;
-                    return (
-                      <Chip
-                        key={it}
-                        mode={selected ? "flat" : "outlined"}
-                        selected={selected}
-                        icon={chipIconFor[it]}
-                        onPress={() => {
-                          setQuizState((s) => {
-                            if (step.multi) {
-                              const prev = Array.isArray(s[step.id]) ? s[step.id] : [];
-                              return {
-                                ...s,
-                                [step.id]: prev.includes(it) ? prev.filter((x: string) => x !== it) : [...prev, it],
-                              };
-                            } else {
-                              return { ...s, [step.id]: s[step.id] === it ? undefined : it };
-                            }
-                          });
-                        }}
-                      >
-                        {it}
-                      </Chip>
-                    );
-                  })}
-                </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {step.items.map((it) => {
+                  const selected = step.multi
+                    ? Array.isArray(quizState[step.id]) &&
+                      quizState[step.id]?.includes(it)
+                    : quizState[step.id] === it;
+                  return (
+                    <Chip
+                      key={it}
+                      mode={selected ? "flat" : "outlined"}
+                      selected={selected}
+                      icon={chipIconFor[it]}
+                      onPress={() => {
+                        setQuizState((s) => {
+                          if (step.multi) {
+                            const prev = Array.isArray(s[step.id])
+                              ? s[step.id]
+                              : [];
+                            return {
+                              ...s,
+                              [step.id]: prev.includes(it)
+                                ? prev.filter((x: string) => x !== it)
+                                : [...prev, it],
+                            };
+                          } else {
+                            return {
+                              ...s,
+                              [step.id]: s[step.id] === it ? undefined : it,
+                            };
+                          }
+                        });
+                      }}
+                      accessibilityLabel={`Selecionar ${it}`}
+                    >
+                      {it}
+                    </Chip>
+                  );
+                })}
+              </View>
             </View>
           ))}
 
-          <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-            <Button icon="close" onPress={() => { setQuizState({}); setQuizOpen(false); }}>
+          {/* Ações do modal */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "flex-end",
+              gap: 8,
+              marginTop: 8,
+            }}
+          >
+            <Button
+              icon="close"
+              onPress={() => {
+                setQuizState({});
+                setQuizOpen(false);
+              }}
+            >
               Cancelar
             </Button>
-            <Button mode="contained" icon="eye-outline" onPress={handleQuizFinish} disabled={!quizReady(quizState) || !childId}>
+            <Button
+              mode="contained"
+              icon="eye-outline"
+              onPress={handleQuizFinish}
+              disabled={!quizReady(quizState) || !childId}
+            >
               Ver sugestões
             </Button>
           </View>
         </Modal>
       </Portal>
 
-      {/* Detalhe da sugestão (expansão) */}
+      {/* ---------------------- Detalhe de livro ---------------------- */}
       <Portal>
         <Modal
           visible={!!detailItem}
@@ -742,14 +1024,29 @@ export default function SugestoesTab() {
         >
           {detailItem && (
             <View style={{ gap: 10 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Icon name="book-open-page-variant" size={20} color={theme.colors.onSurface} />
-                <Text variant="titleMedium" style={{ fontWeight: "800", flex: 1 }}>
+              {/* Cabeçalho do detalhe */}
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Icon
+                  name="book-open-page-variant"
+                  size={20}
+                  color={theme.colors.onSurface}
+                />
+                <Text
+                  variant="titleMedium"
+                  style={{ fontWeight: "800", flex: 1 }}
+                >
                   {detailItem.title}
                 </Text>
-                <IconButton icon="close" onPress={() => setDetailItem(null)} />
+                <IconButton
+                  icon="close"
+                  onPress={() => setDetailItem(null)}
+                  accessibilityLabel="Fechar detalhe"
+                />
               </View>
 
+              {/* Capa */}
               <Card.Cover
                 source={
                   detailItem.coverUrl
@@ -759,20 +1056,35 @@ export default function SugestoesTab() {
                 style={{ height: 220, borderRadius: 10 }}
               />
 
+              {/* Metadados (score) */}
               {typeof (detailItem as any).score === "number" && (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Icon name="chart-line" size={16} color={theme.colors.onSurfaceVariant} />
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <Icon
+                    name="chart-line"
+                    size={16}
+                    color={theme.colors.onSurfaceVariant}
+                  />
                   <Text style={{ opacity: 0.7 }}>
                     score {(detailItem as any).score.toFixed(3)}
                   </Text>
                 </View>
               )}
 
+              {/* Resumo, se existir */}
               {!!detailItem.summary && (
                 <Text style={{ opacity: 0.9 }}>{detailItem.summary}</Text>
               )}
 
-              <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+              {/* Ações do detalhe */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "flex-end",
+                  gap: 8,
+                }}
+              >
                 <Button onPress={() => setDetailItem(null)}>Fechar</Button>
                 <Button
                   mode="contained"
@@ -793,7 +1105,14 @@ export default function SugestoesTab() {
   );
 }
 
-// utils locais
+/* ============================================================================
+ * Utils locais (PUROS) — ≤ 30 linhas
+ * ========================================================================== */
+
+/**
+ * dedupe — remove duplicados por ISBN preservando a 1.ª ocorrência.
+ * Puro/determinístico: não altera os itens originais.
+ */
 function dedupe(list: BookLite[]) {
   const seen = new Set<string>();
   const out: BookLite[] = [];

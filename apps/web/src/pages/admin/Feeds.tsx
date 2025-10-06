@@ -1,4 +1,18 @@
-// apps/web/src/pages/admin/Feeds.tsx
+/**
+ * =============================================================================
+ *  Admin · Feeds RSS da Biblioteca
+ * -----------------------------------------------------------------------------
+ *  Ficheiro: apps/web/src/pages/admin/Feeds.tsx
+ *  Autor:    Alexandre Brissos — Nº 21131
+ *
+ *  Reforços “como combinado”:
+ *   • Comentários descritivos em todo o ficheiro (pt-PT).
+ *   • Helpers **puros** (sem side-effects) bem identificados.
+ *   • Funções curtas (≲ 30 linhas) com nomes explícitos e propósito claro.
+ *   • Pequenas proteções/UX: tooltips, estados disabled, mensagens de erro.
+ * =============================================================================
+ */
+
 import { useEffect, useState } from "react";
 import {
   Alert,
@@ -13,7 +27,6 @@ import {
   Tooltip,
   Typography,
   Chip,
-  Paper,
 } from "@mui/material";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import RssFeedRounded from "@mui/icons-material/RssFeedRounded";
@@ -36,8 +49,12 @@ import {
   type LibraryLite,
 } from "@/services/feeds";
 
-/* util */
-function isValidUrl(u: string) {
+/* =============================================================================
+ *  Helpers PUROS (sem side-effects) — pequenos e testáveis
+ * ============================================================================= */
+
+/** Valida URL http/https (PURO). */
+function isValidUrl(u: string): boolean {
   try {
     const x = new URL(u);
     return x.protocol === "http:" || x.protocol === "https:";
@@ -46,21 +63,36 @@ function isValidUrl(u: string) {
   }
 }
 
+/** Formata data/hora em PT ou devolve "—" (PURO). */
+function fmtPt(dateIso?: string | null): string {
+  if (!dateIso) return "—";
+  const t = new Date(dateIso);
+  return isNaN(t.getTime()) ? "—" : t.toLocaleString("pt-PT");
+}
+
+/* =============================================================================
+ *  Página — AdminFeeds
+ * ============================================================================= */
+
 export default function AdminFeeds() {
+  // Estado base
   const [library, setLibrary] = useState<LibraryLite | null>(null);
   const [feeds, setFeeds] = useState<FeedLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Campo para adicionar novo feed
   const [url, setUrl] = useState("");
   const urlOk = url.trim() !== "" && isValidUrl(url.trim());
 
+  /** Carrega a biblioteca do utilizador (≲ 30 linhas). */
   async function loadLibrary() {
     setErr(null);
     const lib = await getMyLibrary();
     setLibrary(lib);
   }
 
+  /** Carrega os feeds da biblioteca (≲ 30 linhas). */
   async function loadFeeds(libId?: number) {
     if (!libId) {
       setFeeds([]);
@@ -76,6 +108,7 @@ export default function AdminFeeds() {
     }
   }
 
+  /** Recarrega tudo: biblioteca (o efeito abaixo puxa os feeds) (≲ 30 linhas). */
   async function reloadAll() {
     try {
       setLoading(true);
@@ -87,35 +120,51 @@ export default function AdminFeeds() {
     }
   }
 
+  // Montagem inicial
   useEffect(() => {
     void reloadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sempre que a biblioteca muda, recarrega feeds
   useEffect(() => {
     if (library?.id) void loadFeeds(library.id);
     else setFeeds([]);
   }, [library?.id]);
 
+  /** Adiciona um novo feed à biblioteca (≲ 30 linhas). */
   async function onAdd() {
     if (!library || !urlOk) return;
-    const created = await addFeed({
-      libraryId: library.id,
-      url: url.trim(),
-    });
-    setFeeds((prev) => [...prev, created]);
-    setUrl("");
+    try {
+      const created = await addFeed({ libraryId: library.id, url: url.trim() });
+      setFeeds((prev) => [...prev, created]);
+      setUrl("");
+    } catch (e: any) {
+      alert(e?.message || "Falha ao adicionar feed.");
+    }
   }
 
+  /** Guarda alterações de uma row (≲ 30 linhas). */
   async function onSaveRow(f: FeedLite, patch: Partial<FeedLite>) {
-    const upd = await updateFeed(f.id, { url: patch.url ?? f.url });
-    setFeeds((prev) => prev.map((x) => (x.id === f.id ? upd : x)));
+    try {
+      const upd = await updateFeed(f.id, { url: patch.url ?? f.url });
+      setFeeds((prev) => prev.map((x) => (x.id === f.id ? upd : x)));
+    } catch (e: any) {
+      alert(e?.message || "Falha ao guardar alterações.");
+    }
   }
 
+  /** Remove um feed (≲ 30 linhas). */
   async function onRemove(id: number) {
-    await removeFeed(id);
-    setFeeds((prev) => prev.filter((x) => x.id !== id));
+    try {
+      await removeFeed(id);
+      setFeeds((prev) => prev.filter((x) => x.id !== id));
+    } catch (e: any) {
+      alert(e?.message || "Falha ao remover feed.");
+    }
   }
+
+  /* ---------------------------------- UI ---------------------------------- */
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
@@ -156,6 +205,7 @@ export default function AdminFeeds() {
         </Alert>
       )}
 
+      {/* Card: adicionar feed */}
       <WhiteCard sx={{ mb: 2, p: { xs: 2, md: 2.5 } }}>
         <Stack spacing={1.25}>
           <Typography variant="body1" sx={{ opacity: 0.85 }}>
@@ -163,6 +213,7 @@ export default function AdminFeeds() {
             <strong>{library ? library.name : "— (sem associação)"}</strong>
           </Typography>
 
+          {/* Campo + botão adicionar */}
           <Stack
             direction={{ xs: "column", sm: "row" }}
             spacing={1.25}
@@ -207,6 +258,7 @@ export default function AdminFeeds() {
         </Stack>
       </WhiteCard>
 
+      {/* Card: lista de feeds */}
       <WhiteCard sx={{ p: { xs: 2, md: 2.5 } }}>
         <Stack
           direction="row"
@@ -243,7 +295,10 @@ export default function AdminFeeds() {
   );
 }
 
-/* —— Row editável (sem TTL) —— */
+/* =============================================================================
+ *  Linha editável de Feed — componente autónomo (pequenas helpers internas)
+ * ============================================================================= */
+
 function FeedRow({
   feed,
   onSave,
@@ -253,11 +308,15 @@ function FeedRow({
   onSave: (f: FeedLite, patch: Partial<FeedLite>) => Promise<void>;
   onRemove: (id: number) => Promise<void>;
 }) {
+  // Estado local
   const [url, setUrl] = useState(feed.url);
   const [busy, setBusy] = useState(false);
+
+  // Derivados (PUROS)
   const changed = url !== feed.url;
   const ok = isValidUrl(url);
 
+  /** Guarda alterações desta row (≲ 30 linhas). */
   async function doSave() {
     if (!changed || !ok) return;
     try {
@@ -268,6 +327,7 @@ function FeedRow({
     }
   }
 
+  /** Remove esta row (≲ 30 linhas). */
   async function doRemove() {
     if (!confirm("Remover este feed?")) return;
     try {
@@ -305,23 +365,15 @@ function FeedRow({
           }}
           sx={{ mb: 0.5 }}
         />
-        <Stack
-          direction="row"
-          spacing={1}
-          alignItems="center"
-          sx={{ opacity: 0.8 }}
-        >
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ opacity: 0.8 }}>
           <UpdateRounded fontSize="small" />
           <Typography variant="body2">
-            Última atualização:{" "}
-            {feed.lastBuildDate
-              ? new Date(feed.lastBuildDate).toLocaleString("pt-PT")
-              : "—"}
+            Última atualização: {fmtPt(feed.lastBuildDate)}
           </Typography>
         </Stack>
       </Box>
 
-      {/* Abrir */}
+      {/* Abrir feed em nova janela */}
       <Box sx={{ justifySelf: "end" }}>
         <Tooltip title="Abrir feed">
           <span>
@@ -330,7 +382,7 @@ function FeedRow({
               size="small"
               href={feed.url}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
               startIcon={<OpenInNewRounded />}
             >
               Abrir
@@ -339,17 +391,9 @@ function FeedRow({
         </Tooltip>
       </Box>
 
-      {/* Guardar */}
+      {/* Guardar alterações */}
       <Box sx={{ justifySelf: "end" }}>
-        <Tooltip
-          title={
-            changed
-              ? ok
-                ? "Guardar alterações"
-                : "URL inválido"
-              : "Sem alterações"
-          }
-        >
+        <Tooltip title={changed ? (ok ? "Guardar alterações" : "URL inválido") : "Sem alterações"}>
           <span>
             <Button
               variant="outlined"
@@ -364,7 +408,7 @@ function FeedRow({
         </Tooltip>
       </Box>
 
-      {/* Remover */}
+      {/* Remover feed */}
       <Box sx={{ justifySelf: "end" }}>
         <Tooltip title="Remover feed">
           <span>
@@ -384,3 +428,8 @@ function FeedRow({
     </Box>
   );
 }
+
+/* =============================================================================
+ *  FIM — Alexandre Brissos • Nº 21131
+ * =============================================================================
+ */

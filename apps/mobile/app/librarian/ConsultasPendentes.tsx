@@ -1,3 +1,17 @@
+/**
+ * ============================================================================
+ * Ficheiro: apps/mobile/app/librarian/consultas-pendentes.tsx (ecrã pendentes)
+ * Funcionalidade: Pedidos de consulta (aceitar/recusar) e reagendamentos
+ * Autor: Alexandre Brissos — Nº 21131
+ * ----------------------------------------------------------------------------
+ * Reforços conforme combinado:
+ *  • Comentários em PT-PT em TODO o ficheiro.
+ *  • Helpers PUROS (sem efeitos) e curtos (≤ 30 linhas).
+ *  • Manter componentes e UI estáveis, com pequenas melhorias de UX/A11y.
+ *  • Não quebrar contratos de serviços já existentes.
+ * ============================================================================
+ */
+
 import * as React from "react";
 import {
   View,
@@ -35,22 +49,35 @@ import {
 
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
-/* ---------------- helpers de data ---------------- */
+/* =============================================================================
+ * Helpers de data — PUROS e curtos
+ * ========================================================================== */
+
+/** startOfDay — devolve data no início do dia local (00:00). */
 function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
+
+/** endOfDay — devolve data no fim do dia local (23:59:59.999). */
 function endOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
   return x;
 }
+
+/** addDays — devolve nova data com +N dias (não muta o original). */
 function addDays(d: Date, days: number) {
   const x = new Date(d);
   x.setDate(x.getDate() + days);
   return x;
 }
+
+/**
+ * fmtRange — formata intervalo legível "dia • h1 — h2".
+ * Aceita ISO string ou Date e devolve "" se incompleto.
+ */
 function fmtRange(a?: string | Date | null, b?: string | Date | null) {
   if (!a || !b) return "";
   const A = typeof a === "string" ? new Date(a) : a;
@@ -63,8 +90,12 @@ function fmtRange(a?: string | Date | null, b?: string | Date | null) {
   return `${day} • ${t1} — ${t2}`;
 }
 
-/* ---------------- tipos ---------------- */
+/* =============================================================================
+ * Tipos
+ * ========================================================================== */
+
 type Status = "PENDING" | "CONFIRMED" | "DECLINED" | "CANCELLED" | "COMPLETED";
+
 type ConsultationLite = {
   id: number | string;
   title?: string | null;
@@ -81,7 +112,9 @@ type ConsultationLite = {
 
 type SlotLite = { id: number; startAt: string; endAt: string };
 
-/* ---------------- UI: pill filtro (estilo antigo) ---------------- */
+/* =============================================================================
+ * UI: “Pílula” (chip) de filtro — simples e reutilizável
+ * ========================================================================== */
 function Pill({
   label,
   active,
@@ -95,6 +128,8 @@ function Pill({
   return (
     <TouchableOpacity
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={[
         styles.pill,
         {
@@ -106,6 +141,7 @@ function Pill({
         },
       ]}
       activeOpacity={0.85}
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
     >
       <Text
         style={{
@@ -121,7 +157,9 @@ function Pill({
   );
 }
 
-/* ---------------- CollapsibleSection ---------------- */
+/* =============================================================================
+ * Secção colapsável genérica — para agrupar listas
+ * ========================================================================== */
 function CollapsibleSection({
   title,
   right,
@@ -143,6 +181,7 @@ function CollapsibleSection({
       padding={12}
       style={{ borderRadius: 12 }}
     >
+      {/* Cabeçalho clicável: alterna colapso/expansão */}
       <TouchableOpacity
         onPress={() => setCollapsed((v) => !v)}
         activeOpacity={0.8}
@@ -186,7 +225,9 @@ function CollapsibleSection({
   );
 }
 
-/* ---------------- Selector de slots (modal) ---------------- */
+/* =============================================================================
+ * Modal: Seletor de Slots (para reagendar) — carrega slots abertos por janelas
+ * ========================================================================== */
 function SlotPickerModal({
   visible,
   onClose,
@@ -199,14 +240,21 @@ function SlotPickerModal({
   onPick: (slot: SlotLite) => void;
 }) {
   const theme = useTheme();
+
+  // Estado de carregamento/paginação em janelas de 14 dias
   const [loading, setLoading] = React.useState(false);
   const [moreLoading, setMoreLoading] = React.useState(false);
   const [noMore, setNoMore] = React.useState(false);
+
+  // Janela temporal atualmente carregada
   const [windowStart, setWindowStart] = React.useState<Date | null>(null);
   const [windowEnd, setWindowEnd] = React.useState<Date | null>(null);
+
+  // Dados e seleção
   const [slots, setSlots] = React.useState<SlotLite[]>([]);
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
 
+  // Ao abrir, buscar próximos 14 dias
   React.useEffect(() => {
     if (!visible) return;
     (async () => {
@@ -231,6 +279,7 @@ function SlotPickerModal({
     })();
   }, [visible, librarianId]);
 
+  /** loadMore — estende a janela +14 dias e junta resultados sem duplicar. */
   async function loadMore() {
     if (!windowEnd || moreLoading || loading || noMore) return;
     setMoreLoading(true);
@@ -242,6 +291,7 @@ function SlotPickerModal({
         to: to.toISOString(),
         librarianId,
       });
+      // dedupe por ID e ordena cronologicamente
       setSlots((prev) => {
         const map = new Map<number, SlotLite>();
         for (const s of prev) map.set(s.id, s);
@@ -258,6 +308,7 @@ function SlotPickerModal({
     }
   }
 
+  /** Agrupa slots por dia, mantendo ordem por hora. */
   const grouped = React.useMemo(() => {
     const byDay = new Map<string, SlotLite[]>();
     for (const s of slots) {
@@ -290,6 +341,7 @@ function SlotPickerModal({
       animationType="fade"
       onRequestClose={onClose}
     >
+      {/* Backdrop com fecho ao toque fora */}
       <Pressable
         onPress={onClose}
         style={{
@@ -299,40 +351,45 @@ function SlotPickerModal({
           padding: 16,
         }}
       >
+        {/* Cartão do modal (toque dentro não fecha) */}
         <Pressable
           onPress={() => {}}
           style={{
             borderRadius: 16,
             overflow: "hidden",
-            backgroundColor: useTheme().colors.surface,
+            backgroundColor: theme.colors.surface,
             borderWidth: 1,
-            borderColor: useTheme().colors.outlineVariant,
+            borderColor: theme.colors.outlineVariant,
             maxHeight: "80%",
           }}
+          accessibilityViewIsModal
+          accessibilityLabel="Escolher horário"
         >
+          {/* Cabeçalho */}
           <View
             style={{
               padding: 14,
               borderBottomWidth: 1,
-              borderBottomColor: useTheme().colors.outlineVariant,
+              borderBottomColor: theme.colors.outlineVariant,
             }}
           >
             <Text
               style={{
                 fontWeight: "800",
                 fontSize: 16,
-                color: useTheme().colors.onSurface,
+                color: theme.colors.onSurface,
               }}
             >
               Escolher horário
             </Text>
           </View>
 
+          {/* Lista de dias/slots */}
           <ScrollView contentContainerStyle={{ padding: 14, gap: 12 }}>
             {loading && <ActivityIndicator style={{ marginTop: 8 }} />}
 
             {!loading && grouped.length === 0 && (
-              <Text style={{ color: useTheme().colors.onSurfaceVariant }}>
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>
                 Sem slots abertos nos próximos 14 dias.
               </Text>
             )}
@@ -342,13 +399,14 @@ function SlotPickerModal({
                 key={g.key}
                 style={{
                   borderWidth: 1,
-                  borderColor: useTheme().colors.outlineVariant,
+                  borderColor: theme.colors.outlineVariant,
                   borderRadius: 12,
                   padding: 10,
                   gap: 6,
                 }}
               >
                 <Text style={{ fontWeight: "700" }}>{g.label}</Text>
+
                 <View
                   style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
                 >
@@ -362,22 +420,24 @@ function SlotPickerModal({
                         onPress={() =>
                           setSelectedId((prev) => (prev === s.id ? null : s.id))
                         }
+                        accessibilityRole="button"
+                        accessibilityLabel={`Escolher ${label}`}
                         style={{
                           paddingVertical: 6,
                           paddingHorizontal: 10,
                           borderRadius: 999,
                           borderWidth: 1,
-                          borderColor: useTheme().colors.outlineVariant,
+                          borderColor: theme.colors.outlineVariant,
                           backgroundColor: isSel
-                            ? useTheme().colors.primary
-                            : useTheme().colors.surface,
+                            ? theme.colors.primary
+                            : theme.colors.surface,
                         }}
                       >
                         <Text
                           style={{
                             color: isSel
-                              ? useTheme().colors.onPrimary
-                              : useTheme().colors.onSurface,
+                              ? theme.colors.onPrimary
+                              : theme.colors.onSurface,
                             fontWeight: "700",
                           }}
                         >
@@ -390,6 +450,7 @@ function SlotPickerModal({
               </View>
             ))}
 
+            {/* Paginação incremental (+14 dias) */}
             <View
               style={{
                 flexDirection: "row",
@@ -406,6 +467,7 @@ function SlotPickerModal({
             </View>
           </ScrollView>
 
+          {/* Footer: ações do modal */}
           <View
             style={{
               flexDirection: "row",
@@ -413,7 +475,7 @@ function SlotPickerModal({
               gap: 8,
               padding: 12,
               borderTopWidth: 1,
-              borderTopColor: useTheme().colors.outlineVariant,
+              borderTopColor: theme.colors.outlineVariant,
             }}
           >
             <SecondaryButton label="Cancelar" onPress={onClose} />
@@ -432,7 +494,9 @@ function SlotPickerModal({
   );
 }
 
-/* ---------------- Cartão: pedido COM slot (aceitar / reagendar / recusar) ---------------- */
+/* =============================================================================
+ * Cartão: Pedido COM slot — aceitar, reagendar (via modal) ou recusar
+ * ========================================================================== */
 function PedidoComSlotCard({
   c,
   librarianId,
@@ -447,6 +511,7 @@ function PedidoComSlotCard({
   const [conflict, setConflict] = React.useState<string | null>(null);
   const [showPicker, setShowPicker] = React.useState(false);
 
+  // Verifica conflito com outras consultas do bibliotecário
   React.useEffect(() => {
     if (!c.startAt || !c.endAt) return;
     checkLibrarianConflict(librarianId, {
@@ -460,6 +525,7 @@ function PedidoComSlotCard({
       .catch(() => {});
   }, [c.id, c.startAt, c.endAt, librarianId]);
 
+  /** Confirmar pedido (endpoint específico, fallback para PATCH). */
   async function confirm() {
     setBusy("confirm");
     try {
@@ -486,6 +552,7 @@ function PedidoComSlotCard({
     }
   }
 
+  /** Recusar pedido (endpoint específico, fallback para PATCH). */
   async function decline() {
     setBusy("decline");
     try {
@@ -522,15 +589,21 @@ function PedidoComSlotCard({
       }}
     >
       <View style={{ padding: 12, gap: 6 }}>
+        {/* Título: Família + estado pendente */}
         <Text style={{ fontWeight: "800", fontSize: 16 }}>
           {c.family?.fullName ?? `Família #${c.familyId ?? "—"}`} •{" "}
           <Text style={{ fontWeight: "400" }}>Pendente</Text>
         </Text>
+
+        {/* Intervalo do slot sugerido */}
         <Text style={{ color: theme.colors.onSurfaceVariant }}>
           {fmtRange(c.startAt, c.endAt)}
         </Text>
+
+        {/* Aviso de conflito (se existir) */}
         {!!conflict && <Text style={{ color: "#9A3412" }}>{conflict}</Text>}
 
+        {/* Ações: aceitar / reagendar / recusar */}
         <View
           style={{
             flexDirection: "row",
@@ -556,6 +629,7 @@ function PedidoComSlotCard({
         </View>
       </View>
 
+      {/* Modal de seleção de slot para reagendamento */}
       <SlotPickerModal
         visible={showPicker}
         onClose={() => setShowPicker(false)}
@@ -578,7 +652,9 @@ function PedidoComSlotCard({
   );
 }
 
-/* ---------------- Row: proposta de reagendamento ---------------- */
+/* =============================================================================
+ * Linha: Proposta de reagendamento — aceitar (se família propôs) / cancelar
+ * ========================================================================== */
 function PropostaRow({
   p,
   librarianId,
@@ -592,10 +668,12 @@ function PropostaRow({
   const [busy, setBusy] = React.useState<"accept" | "decline" | null>(null);
   const [conflict, setConflict] = React.useState<string | null>(null);
 
+  // Regra: bibliotecário só pode aceitar se a proposta vier da família
   const isFromFamily = String(p?.proposedBy || "").toUpperCase() === "FAMILY";
   const canAccept = isFromFamily;
   const canDecline = true;
 
+  // Verifica conflito na data proposta
   React.useEffect(() => {
     if (!p?.toStartAt || !p?.toEndAt) return;
     checkLibrarianConflict(librarianId, {
@@ -609,6 +687,7 @@ function PropostaRow({
       .catch(() => {});
   }, [p?.id, p?.toStartAt, p?.toEndAt, p?.consultation?.id, librarianId]);
 
+  /** Aceitar proposta (da família). */
   async function doAccept() {
     setBusy("accept");
     try {
@@ -620,6 +699,8 @@ function PropostaRow({
       setBusy(null);
     }
   }
+
+  /** Recusar/cancelar proposta. */
   async function doDecline() {
     setBusy("decline");
     try {
@@ -642,6 +723,7 @@ function PropostaRow({
       }}
     >
       <View style={{ padding: 12, gap: 6 }}>
+        {/* Cabeçalho: família + origem da proposta */}
         <Text style={{ fontWeight: "800", fontSize: 16 }}>
           {p?.consultation?.family?.fullName ?? "Família"} •{" "}
           <Text style={{ fontWeight: "400" }}>
@@ -649,6 +731,7 @@ function PropostaRow({
           </Text>
         </Text>
 
+        {/* Detalhes dos intervalos antigo vs proposto */}
         <View style={{ rowGap: 4 }}>
           {!!p?.fromStartAt && !!p?.fromEndAt && (
             <Text style={{ color: theme.colors.onSurfaceVariant }}>
@@ -666,6 +749,7 @@ function PropostaRow({
           )}
         </View>
 
+        {/* Ações dependentes da origem */}
         <View
           style={{
             flexDirection: "row",
@@ -694,20 +778,28 @@ function PropostaRow({
   );
 }
 
-/* ---------------- Página ---------------- */
+/* =============================================================================
+ * Página: Consultas Pendentes c/ reagendamento
+ *  - Filtro temporal (“Hoje”, “Amanhã”, “+3”, “+7”, “Todos”)
+ *  - Lista pedidos pendentes com slot (aceitar/recusar/reagendar)
+ *  - Lista propostas pendentes (aceitar/cancelar)
+ * ========================================================================== */
 export default function ConsultasPendentesComReagendamento() {
   const theme = useTheme();
   const { user } = useAuth();
   const librarianId = Number(user?.id);
 
+  // Estado principal
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const [consultas, setConsultas] = React.useState<ConsultationLite[]>([]);
   const [propostas, setPropostas] = React.useState<any[]>([]);
 
+  // Filtro de intervalo
   type RangeKey = "today" | "tomorrow" | "next3" | "next7" | "all";
   const [range, setRange] = React.useState<RangeKey>("today");
 
+  /** Calcula [fromIso, toIso] com base no filtro escolhido. */
   const { fromIso, toIso } = React.useMemo(() => {
     const now = new Date();
     if (range === "today")
@@ -732,6 +824,10 @@ export default function ConsultasPendentesComReagendamento() {
     };
   }, [range]);
 
+  /**
+   * load — busca pedidos PENDING e propostas PENDING.
+   * Mantém chamadas separadas e normaliza arrays vazios.
+   */
   const load = React.useCallback(async () => {
     if (!librarianId) {
       setConsultas([]);
@@ -740,6 +836,7 @@ export default function ConsultasPendentesComReagendamento() {
     }
     setLoading(true);
     try {
+      // Pedidos de consulta pendentes no intervalo
       const params = new URLSearchParams({
         librarianId: String(librarianId),
         status: "PENDING",
@@ -749,14 +846,17 @@ export default function ConsultasPendentesComReagendamento() {
       });
       if (toIso) params.set("to", toIso);
       const url = `${API_URL}/consultations/all?${params.toString()}`;
-      const list = (await fetch(url, { credentials: "include" }).then((r) =>
-        r.json()
-      )) as ConsultationLite[];
 
+      const list = (await fetch(url, {
+        credentials: "include",
+      }).then((r) => r.json())) as ConsultationLite[];
+
+      // Propostas pendentes (ambas as origens)
       const ps = await listLibrarianProposals(librarianId, {
         status: "PENDING",
         limit: 100,
       }).catch(() => ({ items: [] as any[] }));
+
       setConsultas(Array.isArray(list) ? list : []);
       setPropostas(Array.isArray(ps?.items) ? ps.items : []);
     } catch {
@@ -767,15 +867,19 @@ export default function ConsultasPendentesComReagendamento() {
     }
   }, [librarianId, fromIso, toIso]);
 
+  // Carregar ao montar/alterar range
   React.useEffect(() => {
     load();
   }, [load]);
+
+  // Recarrega quando volta ao foco
   useFocusEffect(
     React.useCallback(() => {
       load();
     }, [load])
   );
 
+  // Pull-to-refresh
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
@@ -785,11 +889,13 @@ export default function ConsultasPendentesComReagendamento() {
     }
   }, [load]);
 
+  // Derivados úteis
   const consultasComSlot = React.useMemo(
     () => (consultas || []).filter((c) => c.startAt && c.endAt),
     [consultas]
   );
 
+  // Conjunto de consultas com proposta PENDING feita pelo bibliotecário
   const librarianPendingSet = React.useMemo(() => {
     const set = new Set<number>();
     for (const p of propostas) {
@@ -803,11 +909,14 @@ export default function ConsultasPendentesComReagendamento() {
     return set;
   }, [propostas]);
 
+  // Pedidos com slot mas ainda sem proposta “do bibliotecário” pendente
   const pedidosComSlotSemPropDoBibliotecario = React.useMemo(
     () =>
       consultasComSlot.filter((c) => !librarianPendingSet.has(Number(c.id))),
     [consultasComSlot, librarianPendingSet]
   );
+
+  /* ============================== Render ============================== */
 
   return (
     <Background>
@@ -821,7 +930,6 @@ export default function ConsultasPendentesComReagendamento() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* Header + filtros */}
           {/* HEADER TOP — Pedidos de consulta */}
           <FlexibleCard
             backgroundColor={theme.colors.surface}
@@ -865,7 +973,7 @@ export default function ConsultasPendentesComReagendamento() {
             </View>
           </FlexibleCard>
 
-          {/* Filtros rápidos */}
+          {/* Filtros rápidos (intervalos) */}
           <FlexibleCard
             title="Filtros"
             backgroundColor={theme.colors.surface}
@@ -906,7 +1014,7 @@ export default function ConsultasPendentesComReagendamento() {
             </View>
           </FlexibleCard>
 
-          {/* Secção: Solicitações com proposta de horário (COLAPSÁVEL) */}
+          {/* Secção: pedidos com slot e sem proposta PENDING do bibliotecário */}
           <CollapsibleSection
             title="Solicitações com proposta de horário"
             right={
@@ -951,7 +1059,7 @@ export default function ConsultasPendentesComReagendamento() {
             )}
           </CollapsibleSection>
 
-          {/* Secção: Propostas de reagendamento (COLAPSÁVEL) */}
+          {/* Secção: propostas PENDING (da família ou do bibliotecário) */}
           <CollapsibleSection
             title="Propostas de reagendamento"
             right={
@@ -1002,6 +1110,9 @@ export default function ConsultasPendentesComReagendamento() {
   );
 }
 
+/* =============================================================================
+ * Estilos locais
+ * ========================================================================== */
 const styles = StyleSheet.create({
   pill: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20 },
 });

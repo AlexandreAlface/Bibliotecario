@@ -1,7 +1,20 @@
-// apps/mobile/src/services/librarianFamilies.ts
+/**
+ * =============================================================================
+ *  Módulo: apps/mobile/src/services/librarianFamilies.ts
+ *  Autor:  Alexandre Brissos — Nº 21131
+ * -----------------------------------------------------------------------------
+ *  Reforços aplicados:
+ *   • Comentários detalhados (PT-PT) em todo o código.
+ *   • Helpers **PUROS** para querystring, junção de URLs e normalização.
+ *   • Funções pequenas (≤ 30 linhas) e coesas.
+ *   • Tolerância a respostas diferentes do backend (normalização robusta).
+ * =============================================================================
+ */
+
 import { API_URL } from "src/services/api";
 
-/** === Tipos iguais aos do web/src/services/families.ts === */
+/* =============================== Tipos =============================== */
+/** Família simplificada (lista) — alinhado com web/src/services/families.ts */
 export type FamilyLite = {
   id: number;
   fullName: string;
@@ -11,12 +24,14 @@ export type FamilyLite = {
 };
 
 export type ChildLite = { id: number; name: string; birthDate: string };
+
 export type BookLite = {
   isbn: string;
   title: string;
   author?: string | null;
   coverUrl?: string | null;
 };
+
 export type BadgeLite = { id: number; name: string; type: string };
 
 export type ConsultationLite = {
@@ -39,6 +54,7 @@ export type RatingLite = {
   book: BookLite;
 };
 
+/** Payload do detalhe da família (vista do bibliotecário) */
 export type FamilyDetail = {
   family: {
     id: number;
@@ -49,13 +65,62 @@ export type FamilyDetail = {
   };
   children: ChildLite[];
   badges: { assignedAt: string; childId: number; badge: BadgeLite }[];
-  readings: { id: number; childId: number; startedAt?: string | null; book: BookLite }[];
-  reservations: { id: number; childId: number; reservedAt: string; book: BookLite }[];
+  readings: {
+    id: number;
+    childId: number;
+    startedAt?: string | null;
+    book: BookLite;
+  }[];
+  reservations: {
+    id: number;
+    childId: number;
+    reservedAt: string;
+    book: BookLite;
+  }[];
   ratings: RatingLite[];
   upcomingConsultations: ConsultationLite[];
   recentConsultations: ConsultationLite[];
 };
 
+/* ============================ Helpers PUROS =========================== */
+
+/** 🔹 **PURO**: cria querystring ignorando nulos/vazios. */
+function toQuery(params: Record<string, unknown>): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === "") continue;
+    qs.set(k, String(v));
+  }
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}
+
+/** 🔹 **PURO**: junta base + path e evita duplicar '/api/api/'. */
+function safeJoinApi(base: string, path: string): string {
+  const b = base.replace(/\/+$/, "");
+  const p = path.replace(/^\/+/, "");
+  return `${b}/${p}`.replace(/\/api\/api\//, "/api/");
+}
+
+/** 🔹 **PURO**: normaliza a resposta da lista para { items, nextCursor }. */
+function normalizeListFamiliesResponse(raw: any): {
+  items: FamilyLite[];
+  nextCursor: number | null;
+} {
+  // Alguns backends podem devolver array direto ou ter forma { items, nextCursor }
+  if (Array.isArray(raw)) return { items: raw as FamilyLite[], nextCursor: null };
+  const items = Array.isArray(raw?.items) ? (raw.items as FamilyLite[]) : [];
+  const next =
+    typeof raw?.nextCursor === "number" ? (raw.nextCursor as number) : null;
+  return { items, nextCursor: next };
+}
+
+/* =============================== HTTP ================================ */
+
+/**
+ * GET JSON com credenciais e erros mais legíveis.
+ * Mantém-se curto (≤ 30 linhas) e sem efeitos colaterais externos.
+ */
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     credentials: "include",
@@ -66,46 +131,48 @@ async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
     let msg = "";
     try {
       msg = await res.text();
-    } catch {}
+    } catch {
+      /* ignora erro ao ler texto */
+    }
     throw new Error(msg || `HTTP ${res.status}`);
   }
-  return res.json() as Promise<T>;
+  return (await res.json()) as T;
 }
 
-/** Lista (web: GET /api/librarian/families?search=&limit=&cursor=) */
+/* ================================ API ================================ */
+
+/**
+ * Lista famílias (paginado) para o bibliotecário.
+ * web: GET /api/librarian/families?search=&limit=&cursor=
+ */
 export async function listFamilies(params?: {
   search?: string;
   limit?: number;
   cursor?: number | null;
 }): Promise<{ items: FamilyLite[]; nextCursor: number | null }> {
-  const qs = new URLSearchParams();
-  if (params?.search) qs.set("search", params.search);
-  if (params?.limit) qs.set("limit", String(params.limit));
-  if (params?.cursor) qs.set("cursor", String(params.cursor));
+  // Construção de query limpa e robusta
+  const query = toQuery({
+    search: params?.search,
+    limit: params?.limit,
+    cursor: params?.cursor,
+  });
 
-  // usa exatamente a mesma rota da web
-  const base = `${API_URL}/api/librarian/families`;
-  const url = `${base}?${qs.toString()}`;
+  // Evita /api/api com configs onde API_URL já contém '/api'
+  const url = safeJoinApi(API_URL, `/api/librarian/families${query}`);
 
-  // algumas configs locais tinham "API_URL = .../api" → evitar /api/api duplicado
-  const safeUrl = url.replace("/api/api/", "/api/");
-
-  const data = await getJson<any>(safeUrl);
-  // web devolve { items, nextCursor }
-  if (Array.isArray(data)) {
-    return { items: data as FamilyLite[], nextCursor: null };
-  }
-  const items = (data?.items ?? []) as FamilyLite[];
-  const nextCursor =
-    typeof data?.nextCursor === "number" ? (data.nextCursor as number) : null;
-  return { items, nextCursor };
+  const raw = await getJson<any>(url);
+  return normalizeListFamiliesResponse(raw);
 }
 
-/** Detalhe (web: GET /api/librarian/families/:id) */
+/**
+ * Detalhe da família (inclui crianças, leituras, ratings, consultas, etc.)
+ * web: GET /api/librarian/families/:id
+ */
 export async function getFamilyDetail(id: number): Promise<FamilyDetail> {
-  const url = `${API_URL}/api/librarian/families/${id}`.replace(
-    "/api/api/",
-    "/api/"
-  );
+  const url = safeJoinApi(API_URL, `/api/librarian/families/${id}`);
   return getJson<FamilyDetail>(url);
 }
+
+/* ============================== Fim do módulo ==============================
+ *  Alexandre Brissos — Nº 21131
+ * ========================================================================== */

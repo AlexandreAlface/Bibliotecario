@@ -1,4 +1,16 @@
-// apps/web/src/pages/SuggestionsByCategoriesPage.tsx
+// ====================== apps/web/src/pages/SuggestionsByCategoriesPage.tsx ======================
+/**
+ * Autor: Alexandre Brrissos — Nº 21131
+ *
+ * Página: Sugestões por Categorias (família/criança)
+ *
+ * Objetivos do refactor:
+ *  - Helpers PUROS (assinalados com "PURE") e com menos de 30 linhas
+ *  - Handlers/efeitos curtos e defensivos (try/catch, checks de sessão)
+ *  - Comentários orientativos por secção e componente
+ *  - Chaves React estáveis e sem warnings
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import {
   WhiteCard,
@@ -65,7 +77,10 @@ import {
 } from "../../services/books";
 import { reserveBook } from "@/services/reservation";
 
-/* ------------ filtros ------------ */
+/* =====================================================================================
+   Tipos e estado de filtros
+   ===================================================================================== */
+
 type Filters = {
   ageRange?: string;
   genres: string[];
@@ -76,7 +91,11 @@ type Filters = {
 
 const LS_KEY = "categoryFilters";
 
-/* ------------ helpers ------------ */
+/* =====================================================================================
+   Helpers (PUROS / <30 linhas)
+   ===================================================================================== */
+
+/** PURE: carrega filtros guardados no localStorage; devolve defaults se inválido */
 function loadSavedFilters(): Filters {
   try {
     const raw = localStorage.getItem(LS_KEY);
@@ -93,19 +112,27 @@ function loadSavedFilters(): Filters {
     return { genres: [], format: [], goals: [] };
   }
 }
+
+/** PURE: guarda filtros atuais no localStorage (sem validação profunda) */
 function saveFilters(f: Filters) {
   localStorage.setItem(LS_KEY, JSON.stringify(f));
 }
+
+/** PURE: traduz "momento" de UI para "mood" do serviço */
 function momentToMood(m?: string) {
   if (!m) return undefined;
   if (m === "antes-de-dormir") return "antes-de-dormir";
   return "tempo-livre";
 }
+
+/** PURE: alterna presença de um valor numa lista (toggle imutável) */
 function toggle(list: string[], v: string) {
   return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
 }
 
-/* ------------ Modal de detalhes ------------ */
+/* =====================================================================================
+   Modal de detalhes de livro (apresenta metadados + reservar)
+   ===================================================================================== */
 function BookDetailsDialog({
   open,
   book,
@@ -125,11 +152,12 @@ function BookDetailsDialog({
 }) {
   if (!book) return null;
 
+  // Normalização defensiva de metadados vindo de múltiplas origens
   const cover = book.coverUrl || "/placeholder-book.jpg";
   const authors =
     (book as any)?.authors ||
     (book as any)?.author ||
-    ((book as any)?.authorName ? [((book as any).authorName as string)] : []);
+    ((book as any)?.authorName ? [(book as any).authorName as string] : []);
   const categories =
     (book as any)?.categories ||
     (book as any)?.genres ||
@@ -193,8 +221,7 @@ function BookDetailsDialog({
                 }}
               >
                 <PersonOutlineRounded fontSize="small" /> <b>Autor(es):</b>
-                &nbsp;
-                {authors.join(", ")}
+                &nbsp;{authors.join(", ")}
               </Typography>
             )}
 
@@ -217,6 +244,7 @@ function BookDetailsDialog({
           </Stack>
         </Stack>
 
+        {/* Resumo ou fallback */}
         {hasSummary ? (
           <Typography sx={{ mt: 2, whiteSpace: "pre-line" }}>
             <ArticleOutlined
@@ -237,6 +265,7 @@ function BookDetailsDialog({
           </Stack>
         )}
 
+        {/* Ações do modal */}
         <Stack direction="row" gap={1.5} sx={{ mt: 2 }}>
           <Button
             variant="contained"
@@ -255,7 +284,9 @@ function BookDetailsDialog({
   );
 }
 
-/* ------------ cartão ------------ */
+/* =====================================================================================
+   Cartão de sugestão (cada livro com ações rápidas)
+   ===================================================================================== */
 function SuggestionCard({
   book,
   onReserve,
@@ -295,6 +326,7 @@ function SuggestionCard({
         flexDirection: "column",
       }}
     >
+      {/* Capa clicável → abre detalhes */}
       <Box
         component="img"
         src={cover}
@@ -319,6 +351,7 @@ function SuggestionCard({
         }}
       />
 
+      {/* Título (clamp 2 linhas) */}
       <Typography
         fontWeight={900}
         sx={{
@@ -334,6 +367,7 @@ function SuggestionCard({
         {book.title}
       </Typography>
 
+      {/* Score (quando existir) */}
       {typeof book.score === "number" && (
         <Chip
           size="small"
@@ -343,6 +377,7 @@ function SuggestionCard({
         />
       )}
 
+      {/* Resumo curto (clamp 3 linhas) */}
       {book.summary && (
         <Typography
           variant="body2"
@@ -365,6 +400,7 @@ function SuggestionCard({
         </Typography>
       )}
 
+      {/* Ações */}
       <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
         <Button
           size="small"
@@ -389,35 +425,41 @@ function SuggestionCard({
   );
 }
 
-/* ------------ página ------------ */
+/* =====================================================================================
+   Página: Sugestões por Categorias
+   - Em modo família: seleção LOCAL de criança (não altera sessão global)
+   - Gera por PERFIL (padrão) ou por QUIZ (com filtros desta página)
+   ===================================================================================== */
 export default function SuggestionsByCategoriesPage() {
   const { user, asChild } = useUserSession();
 
-  // 🧭 Em modo família, a escolha da criança é LOCAL (não muda o utilizador ativo)
+  // 🎯 Em modo família, a escolha da criança é LOCAL (obriga antes de ver resultados)
   const [localChildId, setLocalChildId] = useState<string>("");
 
-  // Em modo criança usa a criança ativa; em modo família é OBRIGATÓRIO escolher (local)
+  // Ids efetivos para chamadas
   const childId = asChild
-    ? Number((user?.actingChild?.id as any))
+    ? Number(user?.actingChild?.id as any)
     : localChildId
     ? Number(localChildId)
     : undefined;
-  const familyId = asChild ? undefined : (Number(user?.id) || undefined);
+  const familyId = asChild ? undefined : Number(user?.id) || undefined;
 
   const mustPickChild = !asChild && !childId;
 
+  // Filtros controlados (persistência local)
   const [filters, setFilters] = useState<Filters>(() => loadSavedFilters());
+
+  // Resultados + paginação
   const [items, setItems] = useState<BookLite[] | null>(null);
   const [total, setTotal] = useState<number>(0);
-
-  // paginação
   const [page, setPage] = useState<number>(1);
   const [perPage, setPerPage] = useState<number>(12);
 
-  // modo atual
+  // Origem ativa + memória das últimas respostas (quiz)
   const [source, setSource] = useState<"perfil" | "quiz">("perfil");
   const [lastAnswers, setLastAnswers] = useState<QuizAnswer[] | null>(null);
 
+  // UI state
   const [loading, setLoading] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [toast, setToast] = useState<{
@@ -425,22 +467,23 @@ export default function SuggestionsByCategoriesPage() {
     type: "success" | "error";
   } | null>(null);
 
-  // ⬇️ flags por ISBN
+  // Flags por ISBN (busy/reserved)
   const [busyByIsbn, setBusyByIsbn] = useState<Record<string, boolean>>({});
   const [reservedByIsbn, setReservedByIsbn] = useState<Record<string, boolean>>(
     {}
   );
 
-  // modal de detalhes
+  // Modal de detalhes
   const [openDetails, setOpenDetails] = useState(false);
   const [selected, setSelected] = useState<BookLite | null>(null);
 
+  // Subtítulo contextual
   const subtitle = useMemo(
     () => "Escolhe categorias para afinar as sugestões",
     []
   );
 
-  // opções para o AvatarSelect
+  // Opções do seletor de criança (modo família)
   const childOptions =
     (user?.children || []).map((c: any) => ({
       id: String(c.id),
@@ -448,7 +491,7 @@ export default function SuggestionsByCategoriesPage() {
       avatar: c.avatarUrl ?? undefined,
     })) ?? [];
 
-  // Limpa resultados/estados quando troca a criança
+  // Ao trocar de criança: limpar resultados/estados locais
   useEffect(() => {
     setItems(null);
     setBusyByIsbn({});
@@ -456,7 +499,7 @@ export default function SuggestionsByCategoriesPage() {
     setPage(1);
   }, [childId]);
 
-  // Carregar perfil (padrão) quando há criança válida
+  // Primeira carga por PERFIL quando há criança válida
   useEffect(() => {
     if (mustPickChild) return;
     (async () => {
@@ -478,7 +521,7 @@ export default function SuggestionsByCategoriesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, familyId]);
 
-  // Paginação: recarrega mantendo a origem (perfil/quiz)
+  // Recarrega ao mudar paginação, mantendo a origem atual (perfil/quiz)
   useEffect(() => {
     if (mustPickChild || !childId) return;
     (async () => {
@@ -493,11 +536,11 @@ export default function SuggestionsByCategoriesPage() {
           setItems(items);
           setTotal(total);
         } else if (lastAnswers) {
-          const { items, total } = await getSugestoesQuiz(lastAnswers, perPage, {
-            childId,
-            familyId,
-            page,
-          });
+          const { items, total } = await getSugestoesQuiz(
+            lastAnswers,
+            perPage,
+            { childId, familyId, page }
+          );
           setItems(items);
           setTotal(total);
         }
@@ -509,6 +552,7 @@ export default function SuggestionsByCategoriesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, perPage]);
 
+  /** Aplica filtros → gera sugestões via QUIZ (mantém estado paginado) */
   async function applyFilters() {
     if (mustPickChild) return;
     saveFilters(filters);
@@ -522,7 +566,7 @@ export default function SuggestionsByCategoriesPage() {
     ];
     setLastAnswers(answers);
     setSource("quiz");
-    setPage(1); // volta ao início para resultados novos
+    setPage(1);
 
     setLoading(true);
     try {
@@ -539,6 +583,7 @@ export default function SuggestionsByCategoriesPage() {
     }
   }
 
+  /** Atualiza resultados conforme origem ativa (perfil/quiz) */
   async function refresh() {
     if (source === "perfil") {
       const { items, total } = await getSugestoesPerfil(perPage, {
@@ -561,6 +606,7 @@ export default function SuggestionsByCategoriesPage() {
     }
   }
 
+  /** Reserva um livro; marca flags locais e mostra feedback */
   async function onReserve(isbn: string) {
     if (!childId) {
       setToast({ msg: "Escolhe primeiro a criança.", type: "error" });
@@ -588,7 +634,7 @@ export default function SuggestionsByCategoriesPage() {
     }
   }
 
-  // ---- BLOQUEIO: escolher criança em modo família ----
+  /* ================= GATE: Modo família → obriga a escolher criança ================= */
   if (mustPickChild) {
     return (
       <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
@@ -601,6 +647,8 @@ export default function SuggestionsByCategoriesPage() {
             <MenuBookRounded />
             Sugestões de Leitura
           </Typography>
+
+          {/* Links úteis entre páginas relacionadas */}
           <Typography sx={{ opacity: 0.75 }}>
             <RouteLink href="/suggestions" weight={600}>
               <QuizRounded fontSize="inherit" style={{ marginRight: 4 }} />
@@ -639,11 +687,12 @@ export default function SuggestionsByCategoriesPage() {
     );
   }
 
+  /* ===================== Conteúdo principal (com criança escolhida) ===================== */
   const pageCount = Math.max(1, Math.ceil(total / perPage));
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
-      {/* Barra de contexto em modo família (filtro LOCAL) */}
+      {/* Contexto (modo família) — seletor LOCAL de criança */}
       {!asChild && (
         <WhiteCard sx={{ mb: 2 }}>
           <Stack
@@ -672,7 +721,7 @@ export default function SuggestionsByCategoriesPage() {
       )}
 
       <WhiteCard>
-        {/* Cabeçalho */}
+        {/* Cabeçalho + ações */}
         <Stack
           direction="row"
           alignItems="center"
@@ -707,7 +756,10 @@ export default function SuggestionsByCategoriesPage() {
               </RouteLink>
               {" · "}
               <RouteLink href="/suggestions-categories" weight={600}>
-                <CategoryRounded fontSize="inherit" style={{ marginRight: 4 }} />
+                <CategoryRounded
+                  fontSize="inherit"
+                  style={{ marginRight: 4 }}
+                />
                 Categorias
               </RouteLink>
             </Typography>
@@ -722,7 +774,8 @@ export default function SuggestionsByCategoriesPage() {
                 }}
               >
                 <AccessTimeRounded fontSize="inherit" />
-                Última atualização: {new Date(updatedAt).toLocaleString("pt-PT")}
+                Última atualização:{" "}
+                {new Date(updatedAt).toLocaleString("pt-PT")}
               </Typography>
             )}
           </Box>
@@ -746,7 +799,7 @@ export default function SuggestionsByCategoriesPage() {
 
         <Divider sx={{ my: 2 }} />
 
-        {/* Filtros */}
+        {/* --------- Filtros (categorias) --------- */}
         <Stack spacing={3} sx={{ mb: 2 }}>
           {/* Faixa etária */}
           <Box>
@@ -821,10 +874,26 @@ export default function SuggestionsByCategoriesPage() {
             </Typography>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
               {[
-                { k: "ilustrado", label: "Ilustrações", icon: <ImageRounded /> },
-                { k: "curto", label: "Texto equilibrado", icon: <SubjectRounded /> },
-                { k: "imagens", label: "Imagens", icon: <PhotoLibraryRounded /> },
-                { k: "serie", label: "Série/Coleção", icon: <CollectionsBookmarkRounded /> },
+                {
+                  k: "ilustrado",
+                  label: "Ilustrações",
+                  icon: <ImageRounded />,
+                },
+                {
+                  k: "curto",
+                  label: "Texto equilibrado",
+                  icon: <SubjectRounded />,
+                },
+                {
+                  k: "imagens",
+                  label: "Imagens",
+                  icon: <PhotoLibraryRounded />,
+                },
+                {
+                  k: "serie",
+                  label: "Série/Coleção",
+                  icon: <CollectionsBookmarkRounded />,
+                },
               ].map(({ k, label, icon }) => (
                 <Chip
                   key={k}
@@ -852,10 +921,22 @@ export default function SuggestionsByCategoriesPage() {
             </Typography>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
               {[
-                { k: "divertir", label: "Divertir", icon: <SentimentSatisfiedRounded /> },
+                {
+                  k: "divertir",
+                  label: "Divertir",
+                  icon: <SentimentSatisfiedRounded />,
+                },
                 { k: "aprender", label: "Aprender", icon: <SchoolRounded /> },
-                { k: "emocionar", label: "Emocionar", icon: <VolunteerActivismRounded /> },
-                { k: "explorar", label: "Explorar", icon: <TravelExploreRounded /> },
+                {
+                  k: "emocionar",
+                  label: "Emocionar",
+                  icon: <VolunteerActivismRounded />,
+                },
+                {
+                  k: "explorar",
+                  label: "Explorar",
+                  icon: <TravelExploreRounded />,
+                },
               ].map(({ k, label, icon }) => (
                 <Chip
                   key={k}
@@ -883,10 +964,26 @@ export default function SuggestionsByCategoriesPage() {
             </Typography>
             <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
               {[
-                { k: "antes-de-dormir", label: "Antes de dormir", icon: <NightlightRounded /> },
-                { k: "pequeno-almoco", label: "Pequeno-almoço", icon: <FreeBreakfastRounded /> },
-                { k: "viagens", label: "Viagens", icon: <DirectionsCarRounded /> },
-                { k: "lazer-familiar", label: "Lazer familiar", icon: <Diversity3Rounded /> },
+                {
+                  k: "antes-de-dormir",
+                  label: "Antes de dormir",
+                  icon: <NightlightRounded />,
+                },
+                {
+                  k: "pequeno-almoco",
+                  label: "Pequeno-almoço",
+                  icon: <FreeBreakfastRounded />,
+                },
+                {
+                  k: "viagens",
+                  label: "Viagens",
+                  icon: <DirectionsCarRounded />,
+                },
+                {
+                  k: "lazer-familiar",
+                  label: "Lazer familiar",
+                  icon: <Diversity3Rounded />,
+                },
               ].map(({ k, label, icon }) => (
                 <Chip
                   key={k}
@@ -905,6 +1002,7 @@ export default function SuggestionsByCategoriesPage() {
             </Stack>
           </Box>
 
+          {/* Ações de filtros */}
           <Stack direction="row" spacing={1}>
             <Button
               startIcon={<ReplayRounded />}
@@ -936,11 +1034,17 @@ export default function SuggestionsByCategoriesPage() {
 
         <Divider sx={{ my: 2 }} />
 
-        {/* Resultados */}
+        {/* Resultado / estados */}
         {loading && (
-          <Typography sx={{ opacity: 0.7, display: "flex", alignItems: "center", gap: 0.5 }}>
-            <HourglassTopRounded />
-            A preparar sugestões…
+          <Typography
+            sx={{
+              opacity: 0.7,
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+            }}
+          >
+            <HourglassTopRounded />A preparar sugestões…
           </Typography>
         )}
 
@@ -963,7 +1067,7 @@ export default function SuggestionsByCategoriesPage() {
               ))}
             </Stack>
 
-            {/* --- Paginator --- */}
+            {/* Paginador + "por página" */}
             <Stack
               direction={{ xs: "column", sm: "row" }}
               alignItems={{ xs: "flex-start", sm: "center" }}
@@ -984,7 +1088,10 @@ export default function SuggestionsByCategoriesPage() {
                 >
                   {[6, 8, 12, 16, 20, 24, 32, 48].map((n) => (
                     <MenuItem key={n} value={n}>
-                      <MenuBookRounded fontSize="small" style={{ marginRight: 6 }} />
+                      <MenuBookRounded
+                        fontSize="small"
+                        style={{ marginRight: 6 }}
+                      />
                       {n}
                     </MenuItem>
                   ))}
@@ -1003,7 +1110,14 @@ export default function SuggestionsByCategoriesPage() {
         )}
 
         {!loading && items && items.length === 0 && (
-          <Typography sx={{ opacity: 0.7, display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Typography
+            sx={{
+              opacity: 0.7,
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5,
+            }}
+          >
             <SearchOffRounded />
             Sem resultados. Ajusta os filtros e tenta novamente.
           </Typography>
@@ -1021,6 +1135,7 @@ export default function SuggestionsByCategoriesPage() {
         disabled={!childId}
       />
 
+      {/* Toast */}
       <Snackbar
         open={!!toast}
         autoHideDuration={3000}

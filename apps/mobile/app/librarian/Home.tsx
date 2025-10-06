@@ -1,4 +1,17 @@
-// apps/mobile/app/librarian/index.tsx
+/**
+ * =====================================================================
+ * Ficheiro: apps/mobile/app/librarian/index.tsx
+ * Módulo: Ecrã inicial do Bibliotecário (atalhos + KPIs do dia)
+ * Autor: Alexandre Brissos – Nº 21131
+ * ---------------------------------------------------------------------
+ * Reforços:
+ * • Comentários (PT-PT) e JSDoc completos.
+ * • Helpers PUROS e reutilizáveis.
+ * • Funções ≤ 30 linhas, coesas e testáveis.
+ * • Tipagem explícita e tratamento de erros “fail-safe”.
+ * =====================================================================
+ */
+
 import * as React from "react";
 import {
   View,
@@ -22,26 +35,93 @@ import { consultationsApi } from "src/services/consultations";
 import { API_URL } from "src/services/api";
 import { useFocusEffect } from "@react-navigation/native";
 
-/** Helpers de data */
-function startOfDay(d: Date) {
+/** =====================================================================
+ * Helpers PUROS (datas, normalização e apresentação)
+ * ===================================================================== */
+
+/**
+ * Devolve o início do dia para a data fornecida.
+ * @param d Data base.
+ * @returns Nova instância em 00:00:00.000.
+ */
+function startOfDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
-function endOfDay(d: Date) {
+
+/**
+ * Devolve o fim do dia para a data fornecida.
+ * @param d Data base.
+ * @returns Nova instância em 23:59:59.999.
+ */
+function endOfDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
   return x;
 }
 
-/** Tile para ações rápidas (layout vertical p/ caber o texto) */
+/**
+ * Converte um valor possivelmente indefinido num contador seguro.
+ * Evita crashes e mantém comportamento “fail-safe”.
+ */
+function safeCount(list: unknown): number {
+  return Array.isArray(list) ? list.length : 0;
+}
+
+/** Tipagem mínima para os campos usados do utilizador (sem impor esquema). */
+type MinimalUser = {
+  id?: number | string;
+  fullName?: string;
+  name?: string;
+  email?: string;
+  library?: { name?: string };
+  libraryName?: string;
+  organization?: { name?: string };
+};
+
+/** Nome a apresentar com fallback amigável. */
+function getDisplayName(user?: MinimalUser | null): string {
+  return user?.fullName || user?.name || user?.email || "Bibliotecário";
+}
+
+/** Etiqueta de biblioteca/organização de forma resiliente. */
+function getLibraryLabel(user?: MinimalUser | null): string | undefined {
+  return (
+    user?.library?.name ||
+    user?.libraryName ||
+    user?.organization?.name ||
+    undefined
+  );
+}
+
+/** Texto “Hoje” em PT-PT com capitalização adequada. */
+function getTodayLabel(): string {
+  const s = new Intl.DateTimeFormat("pt-PT", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  }).format(new Date());
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** =====================================================================
+ * Componentes de UI atómica
+ * ===================================================================== */
+
+/**
+ * Tile vertical para ações rápidas (texto mais legível).
+ */
 function QuickAction({
   icon,
   label,
   onPress,
 }: {
+  /** Nome do ícone do MaterialCommunityIcons. */
   icon: React.ComponentProps<typeof Icon>["name"];
+  /** Texto curto do atalho. */
   label: string;
+  /** Callback ao tocar. */
   onPress: () => void;
 }) {
   const theme = useTheme();
@@ -80,31 +160,259 @@ function QuickAction({
   );
 }
 
-export default function LibrarianHomeScreen() {
+/**
+ * Cartão do cabeçalho com saudação, contexto e botão de logout.
+ */
+function HeaderCard({
+  displayName,
+  todayStr,
+  libraryLabel,
+  onLogout,
+}: {
+  displayName: string;
+  todayStr: string;
+  libraryLabel?: string;
+  onLogout: () => void;
+}) {
   const theme = useTheme();
-  const router = useRouter();
-  const auth = useAuth();
-  const user = auth.user;
+  return (
+    <FlexibleCard
+      backgroundColor={theme.colors.surface}
+      elevation={1}
+      padding={14}
+      style={{ borderRadius: 12 }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <Text
+            variant="titleLarge"
+            style={{ fontWeight: "900", color: theme.colors.onSurface }}
+            numberOfLines={1}
+          >
+            Olá, {displayName} 👋
+          </Text>
 
-  const displayName =
-    user?.fullName || user?.name || user?.email || "Bibliotecário";
-  const todayStr = React.useMemo(
-    () =>
-      new Intl.DateTimeFormat("pt-PT", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-      }).format(new Date()),
-    []
+          <Text style={{ opacity: 0.7, marginTop: 2 }}>{todayStr}</Text>
+
+          {/* Chips de contexto */}
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: 8,
+              marginTop: 6,
+            }}
+          >
+            {!!libraryLabel && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  paddingVertical: 4,
+                  paddingHorizontal: 10,
+                  borderRadius: 999,
+                  backgroundColor: theme.colors.secondaryContainer,
+                }}
+              >
+                <Icon
+                  name="library"
+                  size={14}
+                  color={theme.colors.onSecondaryContainer}
+                />
+                <Text
+                  style={{
+                    color: theme.colors.onSecondaryContainer,
+                    fontWeight: "700",
+                  }}
+                  numberOfLines={1}
+                >
+                  {libraryLabel}
+                </Text>
+              </View>
+            )}
+
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                paddingVertical: 4,
+                paddingHorizontal: 10,
+                borderRadius: 999,
+                backgroundColor: theme.colors.secondaryContainer,
+              }}
+            >
+              <Icon
+                name="account-badge"
+                size={14}
+                color={theme.colors.onSecondaryContainer}
+              />
+              <Text
+                style={{
+                  color: theme.colors.onSecondaryContainer,
+                  fontWeight: "700",
+                }}
+              >
+                Bibliotecário
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <IconButton
+          icon="logout"
+          onPress={onLogout}
+          accessibilityLabel="Terminar sessão"
+        />
+      </View>
+    </FlexibleCard>
   );
+}
 
-  const libraryLabel =
-    (user as any)?.library?.name ||
-    (user as any)?.libraryName ||
-    (user as any)?.organization?.name ||
-    undefined;
+/**
+ * Cartão com atalhos principais do módulo do bibliotecário.
+ */
+function QuickActionsCard({ go }: { go: (path: string) => void }) {
+  const theme = useTheme();
+  return (
+    <FlexibleCard
+      title="Ações rápidas"
+      backgroundColor={theme.colors.surface}
+      elevation={1}
+      padding={14}
+      style={{ borderRadius: 12 }}
+    >
+      <View style={{ rowGap: 10 }}>
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <QuickAction
+            icon="calendar-clock"
+            label="Consultas pendentes"
+            onPress={() => go("/librarian/ConsultasPendentes")}
+          />
+          <QuickAction
+            icon="calendar-month-outline"
+            label="Agenda"
+            onPress={() => go("/librarian/Agenda")}
+          />
+        </View>
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <QuickAction
+            icon="timetable"
+            label="Slots"
+            onPress={() => go("/librarian/Slots")}
+          />
+          <QuickAction
+            icon="account-search"
+            label="Famílias / Crianças"
+            onPress={() => go("/librarian/Familias")}
+          />
+        </View>
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <QuickAction
+            icon="history"
+            label="Histórico"
+            onPress={() => go("/librarian/historico")}
+          />
+          {/* Espaço reservado a futuras ações */}
+          <View style={{ flex: 1, minWidth: 140 }} />
+        </View>
+      </View>
+    </FlexibleCard>
+  );
+}
 
-  // KPIs
+/**
+ * Cartão de KPIs diários com navegação rápida para os detalhes.
+ */
+function SummaryCard({
+  pendingToday,
+  openSlotsToday,
+  loading,
+  go,
+}: {
+  pendingToday: number | null;
+  openSlotsToday: number | null;
+  loading: boolean;
+  go: (path: string) => void;
+}) {
+  const theme = useTheme();
+  return (
+    <FlexibleCard
+      title="Resumo rápido"
+      backgroundColor={theme.colors.surface}
+      elevation={1}
+      padding={14}
+      style={{ borderRadius: 12 }}
+    >
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => go("/librarian/consultas")}
+          style={{
+            flexGrow: 1,
+            minWidth: 150,
+            padding: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme.colors.outlineVariant,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Icon
+              name="calendar-clock"
+              size={18}
+              color={theme.colors.primary}
+            />
+            <Text style={{ opacity: 0.7 }}>Pedidos de consulta (hoje)</Text>
+          </View>
+          <Text style={{ fontWeight: "900", fontSize: 22, marginTop: 6 }}>
+            {pendingToday === null || loading ? "—" : pendingToday}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => go("/librarian/slots")}
+          style={{
+            flexGrow: 1,
+            minWidth: 150,
+            padding: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme.colors.outlineVariant,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Icon name="timetable" size={18} color={theme.colors.primary} />
+            <Text style={{ opacity: 0.7 }}>Horários livres (hoje)</Text>
+          </View>
+          <Text style={{ fontWeight: "900", fontSize: 22, marginTop: 6 }}>
+            {openSlotsToday === null || loading ? "—" : openSlotsToday}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </FlexibleCard>
+  );
+}
+
+/** =====================================================================
+ * Hook para KPIs do dia (sem efeitos colaterais externos)
+ * ===================================================================== */
+
+/**
+ * Carrega e mantém os KPI's do dia para o bibliotecário.
+ * - Sem alterar rotas nem comportamento de UI.
+ * - Lida com ausência de `userId` de forma segura.
+ */
+function useDailyStats(userId?: number | string) {
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const [pendingToday, setPendingToday] = React.useState<number | null>(null);
@@ -113,7 +421,7 @@ export default function LibrarianHomeScreen() {
   );
 
   const loadStats = React.useCallback(async () => {
-    if (!user?.id) {
+    if (!userId) {
       setPendingToday(0);
       setOpenSlotsToday(0);
       return;
@@ -124,9 +432,9 @@ export default function LibrarianHomeScreen() {
       const fromIso = startOfDay(now).toISOString();
       const toIso = endOfDay(now).toISOString();
 
-      // Pedidos de consultas pendentes do bibliotecário (hoje)
+      // Pedidos de consultas pendentes (hoje)
       const params = new URLSearchParams({
-        librarianId: String(user.id),
+        librarianId: String(userId),
         status: "PENDING",
         from: fromIso,
         to: toIso,
@@ -137,22 +445,23 @@ export default function LibrarianHomeScreen() {
       const pendingList = await fetch(url, { credentials: "include" }).then(
         (r) => r.json()
       );
-      setPendingToday(Array.isArray(pendingList) ? pendingList.length : 0);
+      setPendingToday(safeCount(pendingList));
 
-      // Horários livres do bibliotecário (hoje)
+      // Slots livres (hoje)
       const slots = await consultationsApi.searchSlots({
         from: fromIso,
         to: toIso,
-        librarianId: Number(user.id),
+        librarianId: Number(userId),
       });
-      setOpenSlotsToday(Array.isArray(slots) ? slots.length : 0);
+      setOpenSlotsToday(safeCount(slots));
     } catch {
+      // Falha silenciosa: mantemos a app utilizável
       setPendingToday(0);
       setOpenSlotsToday(0);
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [userId]);
 
   React.useEffect(() => {
     loadStats();
@@ -173,7 +482,39 @@ export default function LibrarianHomeScreen() {
     }
   }, [loadStats]);
 
-  // Logout com confirmação
+  return { loading, refreshing, pendingToday, openSlotsToday, onRefresh };
+}
+
+/** =====================================================================
+ * Ecrã principal
+ * ===================================================================== */
+
+/**
+ * Ecrã inicial do Bibliotecário:
+ * - Saudação + contexto
+ * - Atalhos de navegação
+ * - KPIs live de hoje
+ */
+export default function LibrarianHomeScreen() {
+  const theme = useTheme();
+  const router = useRouter();
+  const auth = useAuth();
+  const user = auth.user as MinimalUser | undefined;
+
+  const displayName = React.useMemo(() => getDisplayName(user), [user]);
+  const todayStr = React.useMemo(() => getTodayLabel(), []);
+  const libraryLabel = React.useMemo(() => getLibraryLabel(user), [user]);
+
+  const { loading, refreshing, pendingToday, openSlotsToday, onRefresh } =
+    useDailyStats(user?.id);
+
+  /** Navegação curta e explícita. */
+  const go = React.useCallback(
+    (path: string) => router.push(path as any),
+    [router]
+  );
+
+  /** Terminar sessão com confirmação e “best effort” ao chamar o contexto. */
   const onLogout = React.useCallback(() => {
     Alert.alert("Terminar sessão", "Queres mesmo sair da conta?", [
       { text: "Cancelar", style: "cancel" },
@@ -183,13 +524,11 @@ export default function LibrarianHomeScreen() {
         onPress: async () => {
           const anyAuth = auth as any;
           try {
-            if (typeof anyAuth.logout === "function") {
-              await anyAuth.logout();
-            } else if (typeof anyAuth.signOut === "function") {
+            if (typeof anyAuth.logout === "function") await anyAuth.logout();
+            else if (typeof anyAuth.signOut === "function")
               await anyAuth.signOut();
-            }
           } catch {
-            // noop
+            // Silencia erros de rede/estado — não bloqueia a UI.
           }
         },
       },
@@ -208,226 +547,24 @@ export default function LibrarianHomeScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* Header compacto com botão de logout */}
-          <FlexibleCard
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={14}
-            style={{ borderRadius: 12 }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text
-                  variant="titleLarge"
-                  style={{ fontWeight: "900", color: theme.colors.onSurface }}
-                  numberOfLines={1}
-                >
-                  Olá, {displayName} 👋
-                </Text>
+          {/* Cabeçalho compacto */}
+          <HeaderCard
+            displayName={displayName}
+            todayStr={todayStr}
+            libraryLabel={libraryLabel}
+            onLogout={onLogout}
+          />
 
-                <Text style={{ opacity: 0.7, marginTop: 2 }}>
-                  {todayStr.charAt(0).toUpperCase() + todayStr.slice(1)}
-                </Text>
+          {/* Ações rápidas -> rotas existentes */}
+          <QuickActionsCard go={go} />
 
-                {/* chips de contexto */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    flexWrap: "wrap",
-                    gap: 8,
-                    marginTop: 6,
-                  }}
-                >
-                  {!!libraryLabel && (
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 6,
-                        paddingVertical: 4,
-                        paddingHorizontal: 10,
-                        borderRadius: 999,
-                        backgroundColor: theme.colors.secondaryContainer,
-                      }}
-                    >
-                      <Icon
-                        name="library"
-                        size={14}
-                        color={theme.colors.onSecondaryContainer}
-                      />
-                      <Text
-                        style={{
-                          color: theme.colors.onSecondaryContainer,
-                          fontWeight: "700",
-                        }}
-                        numberOfLines={1}
-                      >
-                        {libraryLabel}
-                      </Text>
-                    </View>
-                  )}
-
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 6,
-                      paddingVertical: 4,
-                      paddingHorizontal: 10,
-                      borderRadius: 999,
-                      backgroundColor: theme.colors.secondaryContainer,
-                    }}
-                  >
-                    <Icon
-                      name="account-badge"
-                      size={14}
-                      color={theme.colors.onSecondaryContainer}
-                    />
-                    <Text
-                      style={{
-                        color: theme.colors.onSecondaryContainer,
-                        fontWeight: "700",
-                      }}
-                    >
-                      Bibliotecário
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <IconButton
-                icon="logout"
-                onPress={onLogout}
-                accessibilityLabel="Terminar sessão"
-              />
-            </View>
-          </FlexibleCard>
-
-          {/* Ações rápidas -> rotas certas */}
-          <FlexibleCard
-            title="Ações rápidas"
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={14}
-            style={{ borderRadius: 12 }}
-          >
-            <View style={{ rowGap: 10 }}>
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <QuickAction
-                  icon="calendar-clock"
-                  label="Consultas pendentes"
-                  onPress={() => router.push("/librarian/ConsultasPendentes")}
-                />
-                <QuickAction
-                  icon="calendar-month-outline"
-                  label="Agenda"
-                  onPress={() => router.push("/librarian/Agenda")}
-                />
-              </View>
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <QuickAction
-                  icon="timetable"
-                  label="Slots"
-                  onPress={() => router.push("/librarian/Slots")}
-                />
-                <QuickAction
-                  icon="account-search"
-                  label="Famílias / Crianças"
-                  onPress={() => router.push("/librarian/Familias")}
-                />
-              </View>
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <QuickAction
-                  icon="history"
-                  label="Histórico"
-                  onPress={() => router.push("/librarian/historico")}
-                />
-                {/* Espaço livre para futuro */}
-                <View style={{ flex: 1, minWidth: 140 }} />
-              </View>
-            </View>
-          </FlexibleCard>
-
-          {/* Resumo com KPIs live */}
-          <FlexibleCard
-            title="Resumo rápido"
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={14}
-            style={{ borderRadius: 12 }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: 10,
-              }}
-            >
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => router.push("/librarian/consultas")}
-                style={{
-                  flexGrow: 1,
-                  minWidth: 150,
-                  padding: 12,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: theme.colors.outlineVariant,
-                }}
-              >
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-                >
-                  <Icon
-                    name="calendar-clock"
-                    size={18}
-                    color={theme.colors.primary}
-                  />
-                  <Text style={{ opacity: 0.7 }}>
-                    Pedidos de consulta (hoje)
-                  </Text>
-                </View>
-                <Text style={{ fontWeight: "900", fontSize: 22, marginTop: 6 }}>
-                  {pendingToday === null || loading ? "—" : pendingToday}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Horários livres (hoje) */}
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => router.push("/librarian/slots")}
-                style={{
-                  flexGrow: 1,
-                  minWidth: 150,
-                  padding: 12,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: theme.colors.outlineVariant,
-                }}
-              >
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-                >
-                  <Icon
-                    name="timetable"
-                    size={18}
-                    color={theme.colors.primary}
-                  />
-                  <Text style={{ opacity: 0.7 }}>Horários livres (hoje)</Text>
-                </View>
-                <Text style={{ fontWeight: "900", fontSize: 22, marginTop: 6 }}>
-                  {openSlotsToday === null || loading ? "—" : openSlotsToday}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </FlexibleCard>
+          {/* KPIs do dia */}
+          <SummaryCard
+            pendingToday={pendingToday}
+            openSlotsToday={openSlotsToday}
+            loading={loading}
+            go={go}
+          />
         </ScrollView>
       </SafeAreaView>
     </Background>

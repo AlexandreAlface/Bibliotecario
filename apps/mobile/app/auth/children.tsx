@@ -1,4 +1,17 @@
-// app/auth/children.tsx
+/**
+ * =====================================================================
+ * Ficheiro: app/auth/children.tsx
+ * Módulo: Passo 2/2 — criação de perfis de crianças no registo
+ * Autor: Alexandre Brissos – Nº 21131
+ * ---------------------------------------------------------------------
+ * Reforços:
+ * • Comentários (PT-PT) e JSDoc completos.
+ * • Helpers PUROS e reutilizáveis.
+ * • Funções ≤ 30 linhas, coesas e testáveis.
+ * • Tipagem explícita e tratamento de erros “fail-safe”.
+ * =====================================================================
+ */
+
 import * as React from "react";
 import { Alert, View, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
@@ -10,28 +23,118 @@ import {
   TextField,
   DateTimeField,
   AvatarUpload,
-  RadioOptionGroup, // ← usa o teu componente do UI Mobile
+  RadioOptionGroup, // componente do UI Mobile
 } from "@bibliotecario/ui-mobile";
 
 import { authApi, ChildInput, FamilySignupDraft } from "src/services/auth";
 import { registerTranslation, pt } from "react-native-paper-dates";
 
+/* ============================================================================
+ * Localização do picker de data/hora (PT e PT-PT)
+ * ========================================================================== */
 registerTranslation("pt", pt);
 registerTranslation("pt-PT", { ...pt });
 
+/* ============================================================================
+ * Tipos e Constantes
+ * ========================================================================== */
+
+/**
+ * Tipo do formulário de criança no contexto do registo.
+ * - Mantém os campos de `ChildInput` e adiciona id local, avatar e data ISO.
+ */
 type ChildForm = ChildInput & {
   id: string;
   avatarUri?: string | null;
-  birthDate: string; // AAAA-MM-DD
+  /** Data de nascimento em formato ISO "AAAA-MM-DD". */
+  birthDate: string;
 };
 
+/** Avatares de exemplo para o mock de upload (sem efeitos colaterais remotos). */
+const MOCK_AVATARS = [
+  "https://i.pravatar.cc/200?img=5",
+  "https://i.pravatar.cc/200?img=12",
+  "https://i.pravatar.cc/200?img=25",
+  "https://i.pravatar.cc/200?img=33",
+] as const;
+
+/** Gera um id local simples para linhas temporárias. */
+const randId = () => String(Math.random());
+
+/* ============================================================================
+ * Helpers PUROS
+ * ========================================================================== */
+
+/**
+ * Converte uma `Date` para ISO "AAAA-MM-DD".
+ * @param d Data ou `null`.
+ * @returns String "AAAA-MM-DD" ou string vazia se `null`.
+ */
+function toISODate(d: Date | null): string {
+  return d
+    ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+        d.getDate()
+      ).padStart(2, "0")}`
+    : "";
+}
+
+/**
+ * Calcula idade (anos/meses) a partir de uma data ISO.
+ * @param iso Data ISO "AAAA-MM-DD".
+ * @returns Objeto com `years`, `months`, `totalMonths` e `label`, ou `null` se inválida.
+ */
+function ageFromISO(iso: string):
+  | {
+      years: number;
+      months: number;
+      totalMonths: number;
+      label: string;
+    }
+  | null {
+  if (!iso) return null;
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return null;
+
+  const dob = new Date(y, m - 1, d);
+  if (isNaN(dob.getTime())) return null;
+
+  const now = new Date();
+  const ymDob = y * 12 + (m - 1);
+  const ymNow = now.getFullYear() * 12 + now.getMonth();
+
+  let totalMonths = ymNow - ymDob;
+  if (now.getDate() < d) totalMonths -= 1;
+
+  const years = Math.floor(totalMonths / 12);
+  const months = Math.max(0, totalMonths % 12);
+  const label =
+    totalMonths < 0
+      ? "—"
+      : years >= 1
+      ? `${years} ${years === 1 ? "ano" : "anos"}`
+      : `${months} ${months === 1 ? "mês" : "meses"}`;
+
+  return { years, months, totalMonths, label };
+}
+
+/* ============================================================================
+ * Componente
+ * ========================================================================== */
+
+/**
+ * Ecrã de criação/gestão de perfis de crianças durante o registo da família.
+ * - Permite adicionar várias crianças a partir de um formulário simples.
+ * - Mostra lista editável das crianças criadas localmente.
+ * - No final, cria a conta familiar com os perfis indicados.
+ */
 export default function ChildrenProfiles() {
   const router = useRouter();
   const theme = useTheme();
 
+  // Estado principal: lista de crianças e formulário temporário.
   const [children, setChildren] = React.useState<ChildForm[]>([]);
   const [temp, setTemp] = React.useState<ChildForm>({
-    id: String(Math.random()),
+    id: randId(),
     firstName: "",
     lastName: "",
     gender: "M",
@@ -39,7 +142,18 @@ export default function ChildrenProfiles() {
     avatarUri: null,
   });
 
-  function addChild() {
+  // Índice do mock de avatares (para simular uploads locais).
+  const [mockIndex, setMockIndex] = React.useState(0);
+
+  /** Informação de idade para a data atualmente selecionada. */
+  const ageInfo = React.useMemo(() => ageFromISO(temp.birthDate), [temp.birthDate]);
+
+  /**
+   * Adiciona o formulário atual à lista de crianças com validações mínimas.
+   * - Nome e data são obrigatórios.
+   * - Data não pode ser futura.
+   */
+  const addChild = React.useCallback(() => {
     if (!temp.firstName || !temp.birthDate) {
       Alert.alert(
         "Validação",
@@ -47,29 +161,34 @@ export default function ChildrenProfiles() {
       );
       return;
     }
-    const ageInfo = ageFromISO(temp.birthDate);
-    if (!ageInfo) {
+    const info = ageFromISO(temp.birthDate);
+    if (!info) {
       Alert.alert("Validação", "Data de nascimento inválida.");
       return;
     }
-    if (ageInfo.totalMonths < 0) {
+    if (info.totalMonths < 0) {
       Alert.alert("Validação", "A data de nascimento não pode ser no futuro.");
       return;
     }
     setChildren((prev) => [...prev, temp]);
     setTemp({
-      id: String(Math.random()),
+      id: randId(),
       firstName: "",
       lastName: "",
       gender: "M",
       birthDate: "",
       avatarUri: null,
     });
-  }
+  }, [temp]);
 
-  async function createAccount() {
+  /**
+   * Conclui o registo criando a conta da família.
+   * - Lê o draft do passo anterior de `globalThis._signupDraft`.
+   * - Envia as crianças sem campos auxiliares (`id`, `avatarUri`).
+   */
+  const createAccount = React.useCallback(async () => {
     try {
-      // @ts-ignore — do passo anterior
+      // @ts-ignore — obtido no passo anterior do fluxo de registo
       const draft: FamilySignupDraft | undefined = globalThis._signupDraft;
       if (!draft) {
         Alert.alert("Ups", "Volta ao passo anterior e preenche os dados.");
@@ -85,58 +204,11 @@ export default function ChildrenProfiles() {
     } catch (e: any) {
       Alert.alert("Erro", e?.message || "Não foi possível criar a conta.");
     }
-  }
+  }, [children, router]);
 
-  const toISODate = (d: Date | null) =>
-    d
-      ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
-          2,
-          "0"
-        )}-${String(d.getDate()).padStart(2, "0")}`
-      : "";
-
-  /** anos/meses e label; null se inválida */
-  function ageFromISO(iso: string): {
-    years: number;
-    months: number;
-    totalMonths: number;
-    label: string;
-  } | null {
-    if (!iso) return null;
-    const [y, m, d] = iso.split("-").map(Number);
-    if (!y || !m || !d) return null;
-
-    const dob = new Date(y, m - 1, d);
-    if (isNaN(dob.getTime())) return null;
-
-    const now = new Date();
-    const ymDob = y * 12 + (m - 1);
-    const ymNow = now.getFullYear() * 12 + now.getMonth();
-    let totalMonths = ymNow - ymDob;
-    if (now.getDate() < d) totalMonths -= 1;
-
-    const years = Math.floor(totalMonths / 12);
-    const months = Math.max(0, totalMonths % 12);
-    const label =
-      totalMonths < 0
-        ? "—"
-        : years >= 1
-        ? `${years} ${years === 1 ? "ano" : "anos"}`
-        : `${months} ${months === 1 ? "mês" : "meses"}`;
-    return { years, months, totalMonths, label };
-  }
-
-  const ageInfo = ageFromISO(temp.birthDate);
-
-  // mock para simular upload
-  const MOCK_AVATARS = [
-    "https://i.pravatar.cc/200?img=5",
-    "https://i.pravatar.cc/200?img=12",
-    "https://i.pravatar.cc/200?img=25",
-    "https://i.pravatar.cc/200?img=33",
-  ];
-  const [mockIndex, setMockIndex] = React.useState(0);
-
+  /* -----------------------------------------------------------------------
+   * Render
+   * --------------------------------------------------------------------- */
   return (
     <Background center={0.72}>
       <ScrollView
@@ -148,16 +220,14 @@ export default function ChildrenProfiles() {
         }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* topo */}
-        <View
-          style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}
-        >
+        {/* ---------- Topo: voltar, ajuda e indicador de passo ---------- */}
+        <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
           <IconButton
             icon="arrow-left"
             size={24}
             onPress={() => router.back()}
             style={{ marginLeft: -8 }}
-            iconColor={theme.colors.onPrimary} // seta branca
+            iconColor={theme.colors.onPrimary}
             accessibilityLabel="Voltar"
           />
           <Text
@@ -178,16 +248,12 @@ export default function ChildrenProfiles() {
               gap: 6,
             }}
           >
-            <Text style={{ color: theme.colors.onPrimary, marginTop: 16 }}>
-              ●
-            </Text>
-            <Text style={{ color: theme.colors.onPrimary, marginTop: 16 }}>
-              2/2
-            </Text>
+            <Text style={{ color: theme.colors.onPrimary, marginTop: 16 }}>●</Text>
+            <Text style={{ color: theme.colors.onPrimary, marginTop: 16 }}>2/2</Text>
           </View>
         </View>
 
-        {/* título */}
+        {/* ---------- Título ---------- */}
         <Text
           variant="headlineLarge"
           style={{
@@ -200,7 +266,7 @@ export default function ChildrenProfiles() {
           Criar Perfil Criança
         </Text>
 
-        {/* avatar grande (upload simulado) */}
+        {/* ---------- Avatar grande (upload simulado) ---------- */}
         <View style={{ alignItems: "center", marginVertical: 12 }}>
           <AvatarUpload
             uri={temp.avatarUri ?? undefined}
@@ -215,8 +281,9 @@ export default function ChildrenProfiles() {
           />
         </View>
 
-        {/* campos em UMA COLUNA */}
+        {/* ---------- Formulário: uma coluna ---------- */}
         <View style={{ gap: 12 }}>
+          {/* Primeiro Nome */}
           <View>
             <Text
               style={{
@@ -234,6 +301,7 @@ export default function ChildrenProfiles() {
             />
           </View>
 
+          {/* Sobrenome */}
           <View>
             <Text
               style={{
@@ -251,6 +319,7 @@ export default function ChildrenProfiles() {
             />
           </View>
 
+          {/* Data de nascimento */}
           <View>
             <Text
               style={{
@@ -263,9 +332,7 @@ export default function ChildrenProfiles() {
             </Text>
             <DateTimeField
               value={temp.birthDate ? new Date(temp.birthDate) : null}
-              onChange={(d) =>
-                setTemp((p) => ({ ...p, birthDate: toISODate(d) }))
-              }
+              onChange={(d) => setTemp((p) => ({ ...p, birthDate: toISODate(d) }))}
               withTime={false}
               fullWidth
               maximumDate={new Date()} // impede datas futuras
@@ -279,7 +346,7 @@ export default function ChildrenProfiles() {
             />
           </View>
 
-          {/* GÉNERO — usa RadioOptionGroup (UI Mobile) */}
+          {/* Género — RadioOptionGroup (UI Mobile) */}
           <RadioOptionGroup
             label="Género"
             options={[
@@ -290,7 +357,7 @@ export default function ChildrenProfiles() {
             value={temp.gender}
             onChange={(v) => setTemp((p) => ({ ...p, gender: v as any }))}
             orientation="horizontal"
-            indicator="circle" // bolinha custom para iOS/nativo
+            indicator="circle"
             elevated={false}
             helperText={undefined}
             errorText={undefined}
@@ -299,7 +366,7 @@ export default function ChildrenProfiles() {
           />
         </View>
 
-        {/* separador */}
+        {/* ---------- Separador ---------- */}
         <View
           style={{
             height: 1,
@@ -309,7 +376,7 @@ export default function ChildrenProfiles() {
           }}
         />
 
-        {/* lista de perfis */}
+        {/* ---------- Lista de perfis criados ---------- */}
         <Text style={{ color: theme.colors.onPrimary, marginBottom: 8 }}>
           Perfis Criados:
         </Text>
@@ -347,18 +414,17 @@ export default function ChildrenProfiles() {
                       icon="pencil"
                       size={18}
                       onPress={() => {
+                        // Move o item para edição no formulário temporário.
                         setTemp(c);
-                        setChildren((prev) =>
-                          prev.filter((x) => x.id !== c.id)
-                        );
+                        setChildren((prev) => prev.filter((x) => x.id !== c.id));
                       }}
+                      accessibilityLabel="Editar perfil"
                     />
                     <IconButton
                       icon="delete-outline"
                       size={18}
-                      onPress={() =>
-                        setChildren((p) => p.filter((x) => x.id !== c.id))
-                      }
+                      onPress={() => setChildren((p) => p.filter((x) => x.id !== c.id))}
+                      accessibilityLabel="Remover perfil"
                     />
                   </View>
                 );
@@ -367,7 +433,7 @@ export default function ChildrenProfiles() {
           </ScrollView>
         </View>
 
-        {/* separador */}
+        {/* ---------- Separador ---------- */}
         <View
           style={{
             height: 1,
@@ -377,7 +443,7 @@ export default function ChildrenProfiles() {
           }}
         />
 
-        {/* ações */}
+        {/* ---------- Ações ---------- */}
         <View style={{ flexDirection: "row", gap: 12 }}>
           <View style={{ flex: 1 }}>
             <PrimaryButton

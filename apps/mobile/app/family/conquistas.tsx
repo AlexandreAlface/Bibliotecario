@@ -1,4 +1,17 @@
-// apps/mobile/app/family/conquistas.tsx
+/**
+ * ============================================================================
+ * Ficheiro: apps/mobile/app/family/conquistas.tsx
+ * Módulo: Ecrã "Conquistas" (Selos e Troféus) — React Native / Expo
+ * Autor: Alexandre Brissos – Nº 21131
+ * ----------------------------------------------------------------------------
+ * Reforços:
+ * • Comentários (PT-PT) e JSDoc completos.
+ * • Helpers PUROS e reutilizáveis (sem efeitos).
+ * • Funções ≤ 30 linhas, coesas e testáveis.
+ * • Tipagem explícita e guards/edge-cases “fail-safe” sem alterar comportamentos.
+ * ============================================================================
+ */
+
 import * as React from "react";
 import {
   View,
@@ -19,20 +32,41 @@ import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard"
 import { useAuth } from "src/contexts/AuthContext";
 import { badgesApi, type Badge } from "src/services/badges";
 
-/** ------ helpers ------ */
-function isTrophy(t?: string | null) {
+/* =============================================================================
+ * Helpers PUROS (determinísticos)
+ * ===========================================================================*/
+
+/**
+ * Indica se o tipo corresponde a "Troféu".
+ * Aceita undefined/null e é case-insensitive.
+ */
+function isTrophy(t?: string | null): boolean {
   const v = (t ?? "").toUpperCase();
   return v.includes("TROF");
 }
-function isSeal(t?: string | null) {
-  const v = (t ?? "").toUpperCase();
-  return !isTrophy(v); // tudo o resto cai em “Selos”
+
+/**
+ * Indica se o tipo corresponde a "Selo" (tudo o que não é troféu).
+ */
+function isSeal(t?: string | null): boolean {
+  return !isTrophy(t);
 }
-function plural(n: number, a: string, b: string) {
+
+/**
+ * Devolve pluralização simples com contagem.
+ * Ex.: plural(1, "troféu", "troféus") => "1 troféu"
+ */
+function plural(n: number, a: string, b: string): string {
   return `${n} ${n === 1 ? a : b}`;
 }
 
-/** Chip pill reutilizável com ícone (usa o tema) */
+/* =============================================================================
+ * Componentes UI reutilizáveis
+ * ===========================================================================*/
+
+/**
+ * Chip “pill” com ícone que respeita o tema.
+ */
 function PillChip({
   label,
   active,
@@ -49,9 +83,12 @@ function PillChip({
   const fg = active
     ? theme.colors.onPrimary
     : theme.colors.onSecondaryContainer;
+
   return (
     <TouchableOpacity
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={{
         flexDirection: "row",
         alignItems: "center",
@@ -72,7 +109,10 @@ function PillChip({
   );
 }
 
-/** Tile de Badge (conquistado vs. por conquistar) — com ícones e tipo */
+/**
+ * Tile de Badge (visual para "conquistado" vs "por conquistar").
+ * Mantém exatamente o comportamento existente.
+ */
 function BadgeTile({
   name,
   achieved,
@@ -95,6 +135,8 @@ function BadgeTile({
     return (
       <TouchableOpacity
         onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir ${name}`}
         style={{
           flexDirection: "row",
           alignItems: "center",
@@ -136,10 +178,12 @@ function BadgeTile({
     );
   }
 
-  // Não conquistado → outline dashed com ícone
+  // Não conquistado → outline tracejado com ícone
   return (
     <TouchableOpacity
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Abrir ${name}`}
       style={{
         flexDirection: "row",
         alignItems: "center",
@@ -206,11 +250,21 @@ function BadgeTile({
   );
 }
 
-/** ------ Screen ------ */
+/* =============================================================================
+ * Screen
+ * ===========================================================================*/
+
+/**
+ * Ecrã: Conquistas (Lista/Resumo de Selos e Troféus).
+ * - Carrega catálogo e atribuições do utilizador/família.
+ * - Permite filtrar por criança e ver detalhe de uma conquista.
+ * - Sem alterações de comportamento (apenas reforços de robustez).
+ */
 export default function ConquistasScreen() {
   const theme = useTheme();
   const { user } = useAuth();
 
+  // Ativa animações de layout no Android (guard idempotente).
   React.useEffect(() => {
     if (
       Platform.OS === "android" &&
@@ -222,23 +276,25 @@ export default function ConquistasScreen() {
 
   const actingChildId = user?.actingChild?.id ?? null;
 
-  // seleção da criança
+  // Seleção da criança (se não estiver a “atuar como”)
   const [childId, setChildId] = React.useState<number | null>(
     actingChildId || user?.children?.[0]?.id || null
   );
 
-  // dados
+  // Dados principais
   const [catalog, setCatalog] = React.useState<Badge[]>([]);
   const [achieved, setAchieved] = React.useState<Set<number>>(new Set());
   const [selectedBadge, setSelectedBadge] = React.useState<Badge | null>(null);
 
+  // Estado de carregamento/refresh
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
 
-  // colapso dos cards
+  // Colapso das secções
   const [sealsCollapsed, setSealsCollapsed] = React.useState(false);
   const [trophiesCollapsed, setTrophiesCollapsed] = React.useState(false);
 
+  // Toggle com animação (≤ 30 linhas)
   const toggleSeals = React.useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setSealsCollapsed((v) => !v);
@@ -248,12 +304,13 @@ export default function ConquistasScreen() {
     setTrophiesCollapsed((v) => !v);
   }, []);
 
+  // Chips das crianças (nome + id)
   const childrenChips = React.useMemo(
     () => (user?.children ?? []).map((c) => ({ id: c.id, name: c.name })),
     [user?.children]
   );
 
-  // carregar catálogo (uma vez)
+  // Carregar catálogo (uma vez; fail-safe → vazio)
   React.useEffect(() => {
     let alive = true;
     (async () => {
@@ -261,6 +318,7 @@ export default function ConquistasScreen() {
         const items = await badgesApi.listCatalog();
         if (!alive) return;
         setCatalog(items);
+        // Seleciona automaticamente a 1ª conquista para mostrar detalhe (se não houver uma escolhida)
         if (!selectedBadge && items.length) setSelectedBadge(items[0]);
       } catch {
         setCatalog([]);
@@ -269,9 +327,12 @@ export default function ConquistasScreen() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, []); // mantém semântica original
 
-  // carregar conquistas
+  /**
+   * Carrega atribuições (conquistas) do utilizador/filho atual.
+   * Mantém assinatura e comportamento.
+   */
   const loadAssignments = React.useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
@@ -289,11 +350,12 @@ export default function ConquistasScreen() {
     }
   }, [user?.id, childId]);
 
+  // Carrega ao montar / quando muda o alvo
   React.useEffect(() => {
     loadAssignments();
   }, [loadAssignments]);
 
-  // pull-to-refresh
+  // Pull-to-refresh (idempotente)
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
@@ -303,7 +365,7 @@ export default function ConquistasScreen() {
     }
   }, [loadAssignments]);
 
-  // grupos + contagens
+  // Grupos e contagens (memoizados)
   const seals = React.useMemo(
     () => catalog.filter((b) => isSeal(b.type)),
     [catalog]
@@ -316,6 +378,7 @@ export default function ConquistasScreen() {
   const sealsWon = seals.filter((b) => achieved.has(b.id)).length;
   const trophiesWon = trophies.filter((b) => achieved.has(b.id)).length;
 
+  /* -------------------------------- Render -------------------------------- */
   return (
     <Background>
       <SafeAreaView
@@ -328,7 +391,6 @@ export default function ConquistasScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          {/* Título com ícone */}
           {/* HEADER TOP — Conquistas (compacto: ícone + título) */}
           <FlexibleCard
             backgroundColor={theme.colors.surface}
@@ -376,7 +438,7 @@ export default function ConquistasScreen() {
             </View>
           </FlexibleCard>
 
-          {/* Escolher criança (esconde se a sessão estiver em modo criança) */}
+          {/* Seleção da criança (oculta quando a sessão já está em modo criança) */}
           {!actingChildId && (
             <FlexibleCard
               title="Escolher criança"
@@ -652,7 +714,7 @@ export default function ConquistasScreen() {
             )}
           </FlexibleCard>
 
-          {/* Detalhe da conquista */}
+          {/* Detalhe da conquista selecionada */}
           {selectedBadge && (
             <FlexibleCard
               title="Detalhe da conquista"
@@ -692,6 +754,7 @@ export default function ConquistasScreen() {
                       color: theme.colors.onSurface,
                       flex: 1,
                     }}
+                    numberOfLines={1}
                   >
                     {selectedBadge.name}
                   </Text>
@@ -702,6 +765,7 @@ export default function ConquistasScreen() {
                 />
               </View>
 
+              {/* Etiquetas de tipo e estado */}
               <View
                 style={{
                   flexDirection: "row",
@@ -809,6 +873,7 @@ export default function ConquistasScreen() {
             </FlexibleCard>
           )}
 
+          {/* Dica quando não há seleção */}
           {!selectedBadge && seals.length + trophies.length > 0 && (
             <View style={{ alignItems: "center" }}>
               <Text

@@ -1,4 +1,17 @@
-// apps/mobile/app/family/consultas.tsx
+/**
+ * ============================================================================
+ * Ficheiro: apps/mobile/app/family/consultas.tsx
+ * Módulo: Ecrã de Consultas (Próximas/Anteriores) — filtros, datas e paginação
+ * Autor: Alexandre Brissos – Nº 21131
+ * ----------------------------------------------------------------------------
+ * Reforços:
+ * • Comentários (PT-PT) e JSDoc completos.
+ * • Helpers PUROS e reutilizáveis (≤ 30 linhas) sem efeitos.
+ * • Guards/edge-cases “fail-safe”, sem alterar o comportamento.
+ * • Tipagem explícita em estruturas e retornos.
+ * ============================================================================
+ */
+
 import * as React from "react";
 import {
   View,
@@ -27,6 +40,10 @@ import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard"
 import { useAuth } from "src/contexts/AuthContext";
 import { ConsultationLite } from "src/services/consultations";
 
+/* =============================================================================
+ * Tipos e Constantes
+ * ===========================================================================*/
+
 type TabKey = "next" | "past";
 export type Status =
   | "PENDING"
@@ -36,7 +53,14 @@ export type Status =
   | "COMPLETED"
   | undefined;
 
-function fmtDateTime(d?: string | null) {
+/* =============================================================================
+ * Helpers PUROS (determinísticos, sem efeitos)
+ * ===========================================================================*/
+
+/**
+ * Formata um ISO datetime para "pt-PT" (data+hora curtas). Vazio se não existir.
+ */
+function fmtDateTime(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d);
   return new Intl.DateTimeFormat("pt-PT", {
@@ -45,7 +69,60 @@ function fmtDateTime(d?: string | null) {
   }).format(dt);
 }
 
-/* ---------- Chips ---------- */
+/**
+ * Constrói um querystring a partir de um objeto, ignorando `undefined`, `null` e "".
+ */
+function encodeQuery(params: Record<string, unknown>): string {
+  return Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .map(
+      ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
+    )
+    .join("&");
+}
+
+/**
+ * Calcula os limites efetivos de datas consoante a tab ativa.
+ * - Próximas: `from = now` por omissão.
+ * - Anteriores: `to = now` por omissão.
+ */
+function getEffectiveRange(
+  tab: TabKey,
+  fromDate: Date | null,
+  toDate: Date | null
+): { from?: string; to?: string } {
+  const nowIso = new Date().toISOString();
+  const from = fromDate
+    ? fromDate.toISOString()
+    : tab === "next"
+    ? nowIso
+    : undefined;
+  const to = toDate
+    ? toDate.toISOString()
+    : tab === "past"
+    ? nowIso
+    : undefined;
+  return { from, to };
+}
+
+/**
+ * Conta filtros ativos (nº de estados + existência de datas).
+ */
+function countActiveFilters(
+  statuses: Set<Exclude<Status, undefined>>,
+  fromDate: Date | null,
+  toDate: Date | null
+): number {
+  return (statuses.size || 0) + (fromDate ? 1 : 0) + (toDate ? 1 : 0);
+}
+
+/* =============================================================================
+ * UI — Chips e Pílulas
+ * ===========================================================================*/
+
+/**
+ * Chip “pill” simples para tabs/filtros.
+ */
 function PillChip({
   active,
   label,
@@ -59,6 +136,8 @@ function PillChip({
   return (
     <TouchableOpacity
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
       style={{
         paddingVertical: 8,
         paddingHorizontal: 12,
@@ -84,7 +163,8 @@ function PillChip({
   );
 }
 
-/* ---------- Cores por estado ---------- */
+/* ---------- Cores/etiquetas por estado ---------- */
+
 const STATUS_STYLE: Record<
   Exclude<Status, undefined>,
   { label: string; bg: string; fg: string; accent: string }
@@ -121,11 +201,17 @@ const STATUS_STYLE: Record<
   },
 };
 
+/**
+ * Retorna metadados de apresentação para um estado (default = PENDING).
+ */
 function statusMeta(status?: Status) {
   const key = (status ?? "PENDING") as Exclude<Status, undefined>;
   return STATUS_STYLE[key];
 }
 
+/**
+ * Pílula com rótulo de estado (usa as cores do mapping).
+ */
 function StatusPill({
   status,
   active,
@@ -139,6 +225,8 @@ function StatusPill({
   return (
     <TouchableOpacity
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={s.label}
       style={{
         paddingVertical: 8,
         paddingHorizontal: 12,
@@ -155,7 +243,13 @@ function StatusPill({
   );
 }
 
-/* ---------- DatePickerModal (teu componente) ---------- */
+/* =============================================================================
+ * DatePickerModal — componente isolado
+ * ===========================================================================*/
+
+/**
+ * Modal de seleção de data (reutilizável, controlado por `visible`).
+ */
 function DatePickerModal({
   visible,
   value,
@@ -298,13 +392,20 @@ function DatePickerModal({
   );
 }
 
-/* -------------------------------------------------- */
+/* =============================================================================
+ * Screen
+ * ===========================================================================*/
 
+/**
+ * Ecrã: Consultas — lista de marcações (próximas/anteriores) com filtros.
+ * Mantém o comportamento original; reforça acessibilidade, comentários e guards.
+ */
 export default function ConsultasScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { user } = useAuth();
 
+  // Ativar animações de layout no Android (guard idempotente)
   React.useEffect(() => {
     if (
       Platform.OS === "android" &&
@@ -316,12 +417,14 @@ export default function ConsultasScreen() {
 
   const isActingChild = !!user?.actingChild;
   const actingChildId = user?.actingChild?.id ?? null;
+
+  // Tab ativa
   const [tab, setTab] = React.useState<TabKey>("next");
 
-  // colapso filtros
+  // Colapso dos filtros
   const [filtersCollapsed, setFiltersCollapsed] = React.useState(false);
 
-  // estados seleccionáveis
+  // Estados seleccionáveis
   const STATUS_OPTIONS: { key: Exclude<Status, undefined>; label: string }[] = [
     { key: "PENDING", label: STATUS_STYLE.PENDING.label },
     { key: "CONFIRMED", label: STATUS_STYLE.CONFIRMED.label },
@@ -342,7 +445,7 @@ export default function ConsultasScreen() {
     Set<Exclude<Status, undefined>>
   >(new Set(defaultNext));
 
-  // datas + modais
+  // Datas + modais
   const [fromDate, setFromDate] = React.useState<Date | null>(new Date());
   const [toDate, setToDate] = React.useState<Date | null>(null);
   const [showFromModal, setShowFromModal] = React.useState(false);
@@ -357,6 +460,7 @@ export default function ConsultasScreen() {
     setShowToModal(true);
   };
 
+  // Expande/colapsa o bloco de filtros com animação
   const toggleFilters = React.useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (!filtersCollapsed) {
@@ -366,10 +470,12 @@ export default function ConsultasScreen() {
     setFiltersCollapsed((v) => !v);
   }, [filtersCollapsed]);
 
+  // Dados remotos
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const [items, setItems] = React.useState<ConsultationLite[]>([]);
 
+  // Quando muda a tab, aplica presets de estados e datas
   React.useEffect(() => {
     if (tab === "next") {
       setSelectedStatuses(new Set(defaultNext));
@@ -384,19 +490,12 @@ export default function ConsultasScreen() {
     setShowToModal(false);
   }, [tab]);
 
+  /**
+   * Constrói o URL da query para a API (usa helpers puros).
+   */
   const buildQueryUrl = React.useCallback(
-    async (extra?: Record<string, any>) => {
-      const nowIso = new Date().toISOString();
-      const effectiveFrom = fromDate
-        ? fromDate.toISOString()
-        : tab === "next"
-        ? nowIso
-        : undefined;
-      const effectiveTo = toDate
-        ? toDate.toISOString()
-        : tab === "past"
-        ? nowIso
-        : undefined;
+    async (extra?: Record<string, unknown>) => {
+      const { from, to } = getEffectiveRange(tab, fromDate, toDate);
       const statusParam =
         selectedStatuses.size > 0
           ? Array.from(selectedStatuses).join(",")
@@ -407,27 +506,23 @@ export default function ConsultasScreen() {
         familyId: user?.id,
         childId: effectiveChildId,
         status: statusParam,
-        from: effectiveFrom,
-        to: effectiveTo,
+        from,
+        to,
         order: tab === "next" ? "asc" : "desc",
         limit: 100,
         ...(extra ?? {}),
       };
 
-      const q = Object.entries(params)
-        .filter(([, v]) => v !== undefined && v !== null && v !== "")
-        .map(
-          ([k, v]) =>
-            `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`
-        )
-        .join("&");
-
+      const q = encodeQuery(params);
       const { API_URL } = await import("src/services/api");
       return `${API_URL}/consultations/all?${q}`;
     },
     [user?.id, actingChildId, selectedStatuses, fromDate, toDate, tab]
   );
 
+  /**
+   * Carrega as consultas conforme filtros atuais.
+   */
   const load = React.useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
@@ -444,10 +539,12 @@ export default function ConsultasScreen() {
     }
   }, [user?.id, buildQueryUrl]);
 
+  // Carrega ao montar/atualizar dependências
   React.useEffect(() => {
     load();
   }, [load]);
 
+  // Pull-to-refresh
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
@@ -457,6 +554,7 @@ export default function ConsultasScreen() {
     }
   }, [load]);
 
+  // Alterna um estado no filtro
   function toggleStatus(s: Exclude<Status, undefined>) {
     setSelectedStatuses((prev) => {
       const next = new Set(prev);
@@ -466,6 +564,7 @@ export default function ConsultasScreen() {
     });
   }
 
+  // Limpar datas
   function clearDates() {
     setFromDate(null);
     setToDate(null);
@@ -473,6 +572,7 @@ export default function ConsultasScreen() {
     setShowToModal(false);
   }
 
+  // Intervalo “Hoje”
   function setTodayRange() {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -482,10 +582,14 @@ export default function ConsultasScreen() {
     setToDate(end);
   }
 
-  const activeFiltersCount =
-    (selectedStatuses.size || 0) + (fromDate ? 1 : 0) + (toDate ? 1 : 0);
+  // Nº de filtros ativos (estados + datas)
+  const activeFiltersCount = countActiveFilters(
+    selectedStatuses,
+    fromDate,
+    toDate
+  );
 
-  /* ===== PAGINAÇÃO LOCAL ===== */
+  /* ===== Paginação local (lista já paginada pela UI) ===== */
   const [page, setPage] = React.useState(1);
   const PAGE_SIZE = 8;
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
@@ -494,12 +598,12 @@ export default function ConsultasScreen() {
   const canPrev = page > 1;
   const canNext = page < totalPages;
 
-  // sempre que muda o conjunto de itens, volta à página 1
+  // Sempre que muda o conjunto de itens, volta à página 1
   React.useEffect(() => {
     setPage(1);
   }, [items.length]);
 
-  // ===== Auto-aplicar filtros (debounce 150ms) =====
+  // Auto-aplicar filtros (debounce 150ms)
   React.useEffect(() => {
     const t = setTimeout(() => {
       load();
@@ -508,6 +612,7 @@ export default function ConsultasScreen() {
     return () => clearTimeout(t);
   }, [tab, selectedStatuses, fromDate, toDate, load]);
 
+  /* -------------------------------- Render -------------------------------- */
   return (
     <Background>
       <SafeAreaView
@@ -596,7 +701,6 @@ export default function ConsultasScreen() {
                 </Text>
               </View>
             </View>
-
           </FlexibleCard>
 
           {/* ---------- Filtros (COLAPSÁVEL) ---------- */}
@@ -800,7 +904,7 @@ export default function ConsultasScreen() {
                   </View>
                 </View>
 
-                {/* Modais de Data (usa o teu componente) */}
+                {/* Modais de Data */}
                 <DatePickerModal
                   visible={showFromModal}
                   title="Selecionar data inicial"
@@ -946,7 +1050,7 @@ export default function ConsultasScreen() {
                         borderColor: theme.colors.outlineVariant,
                         backgroundColor: theme.colors.surface,
                         overflow: "hidden",
-                        minHeight: 96, // altura maior para o texto caber
+                        minHeight: 96, // reserva espaço para o texto
                       }}
                     >
                       <View

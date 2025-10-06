@@ -1,4 +1,18 @@
-// apps/web/src/pages/admin/Events.tsx
+/**
+ * =============================================================================
+ *  Admin · Eventos culturais da biblioteca
+ * -----------------------------------------------------------------------------
+ *  Ficheiro: apps/web/src/pages/admin/Events.tsx
+ *  Autor:    Alexandre Brissos — Nº 21131
+ *
+ *  O que foi reforçado “como combinado”:
+ *   • Comentários por todo o ficheiro (pt-PT) para clarificar intenções.
+ *   • Helpers puros (sem side-effects) para filtragem, paginação e formatação.
+ *   • Funções curtas (≲ 30 linhas) e com nomes explícitos.
+ *   • Pequenas proteções de UX (botões desativados, tooltips, estados).
+ * =============================================================================
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -51,33 +65,116 @@ import {
   type EventLite,
   getMyLibrary,
   type LibraryLite,
-} from "@/services/admin";
-import {
   listEventReservations,
   updateEventReservationStatus,
   deleteEventReservation,
-  createEventReservation,
   getEventReservationsSummary,
-} from "@/services/admin";
+} from "@/services/admin/admin";
 
 import { LocalizationProvider, DateTimePicker } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import "dayjs/locale/pt";
 
+/* ============================================================================
+ *  Constantes & Tipos
+ * ========================================================================== */
+
 const API_BASE =
   (import.meta as any).env?.VITE_API_URL?.replace(/\/$/, "") || "/api";
 
 type ViewFilter = "upcoming" | "past" | "all";
 
-function toDateTimeLocalString(d: Date) {
+/* ============================================================================
+ *  Helpers PUROS (sem side-effects)
+ *  — Mantêm as funções curtas e testáveis
+ * ========================================================================== */
+
+/** Formata um Date em string compatível com <input type="datetime-local">. */
+function toDateTimeLocalString(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
     d.getHours()
   )}:${pad(d.getMinutes())}`;
 }
 
-/* ====== Chips ====== */
+/** Arredonda uma data para o próximo múltiplo de 30 minutos. */
+function roundUpToNextHalfHour(d: Date): Date {
+  const x = new Date(d);
+  const min = x.getMinutes();
+  const delta = 30 - (min % 30 || 30);
+  x.setMinutes(min + delta, 0, 0);
+  return x;
+}
+
+/** Extrai categorias únicas ordenadas alfabeticamente. */
+function categoriesFromEvents(list: EventLite[]): string[] {
+  const s = new Set<string>();
+  for (const ev of list) {
+    const c = (ev.category || "").trim();
+    if (c) s.add(c);
+  }
+  return Array.from(s).sort((a, b) => a.localeCompare(b));
+}
+
+/** Determina se um evento está a decorrer (ongoing) dado um timestamp atual. */
+function isOngoing(ev: EventLite, nowMs: number): boolean {
+  if (!ev.endDate) return false;
+  const start = new Date(ev.startDate).getTime();
+  const end = new Date(ev.endDate).getTime();
+  return start <= nowMs && end >= nowMs;
+}
+
+/** Aplica filtros ao conjunto de eventos (puro). */
+function filterEvents(
+  events: EventLite[],
+  q: string,
+  vf: ViewFilter,
+  fromDate: string,
+  toDate: string,
+  catSel: string,
+  nowMs: number
+): EventLite[] {
+  const fromMs = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
+  const toMs = toDate ? new Date(`${toDate}T23:59:59`).getTime() : null;
+  const qNorm = q.trim().toLowerCase();
+
+  return events.filter((ev) => {
+    // texto (título/local)
+    const inQuery =
+      !qNorm ||
+      ev.title.toLowerCase().includes(qNorm) ||
+      (ev.location ?? "").toLowerCase().includes(qNorm);
+    if (!inQuery) return false;
+
+    // categoria
+    if (catSel && (ev.category || "") !== catSel) return false;
+
+    // intervalo temporal
+    const start = new Date(ev.startDate).getTime();
+    const end = ev.endDate ? new Date(ev.endDate).getTime() : start;
+    if (fromMs && end < fromMs) return false;
+    if (toMs && start > toMs) return false;
+
+    // período
+    const ongoing = isOngoing(ev, nowMs);
+    if (vf === "upcoming") return ongoing || start >= nowMs;
+    if (vf === "past") return end < nowMs && !ongoing;
+    return true;
+  });
+}
+
+/** Pagina um array (1-based). */
+function paginate<T>(arr: T[], page: number, perPage: number): T[] {
+  const start = (page - 1) * perPage;
+  return arr.slice(start, start + perPage);
+}
+
+/* ============================================================================
+ *  UI: componentes pequenos e focados
+ * ========================================================================== */
+
+/** Chip de estado de inscrição. */
 function StatusChip({ s }: { s: "PENDING" | "CONFIRMED" }) {
   return (
     <Chip
@@ -90,6 +187,7 @@ function StatusChip({ s }: { s: "PENDING" | "CONFIRMED" }) {
   );
 }
 
+/** Mini-resumo de capacidade/contagens de um evento (lazy). */
 function EventSummary({ eventId }: { eventId?: number }) {
   const [sum, setSum] = useState<{
     capacity: number | null;
@@ -97,13 +195,16 @@ function EventSummary({ eventId }: { eventId?: number }) {
     pending: number;
     total: number;
   } | null>(null);
+
   useEffect(() => {
     if (!eventId) return;
     getEventReservationsSummary(eventId)
       .then(setSum)
       .catch(() => setSum(null));
   }, [eventId]);
+
   if (!sum) return null;
+
   return (
     <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap" }}>
       <Chip
@@ -136,15 +237,18 @@ function EventSummary({ eventId }: { eventId?: number }) {
   );
 }
 
-/* ====== Tabela de inscritos ====== */
+/**
+ * Tabela de inscrições de um evento.
+ * Mantém as ações de confirmar/pendente/remover e uma pesquisa simples.
+ */
 function ReservationsTable({ eventId }: { eventId?: number }) {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"" | "PENDING" | "CONFIRMED">("");
-  const [familyIdInput, setFamilyIdInput] = useState("");
 
+  // carrega inscrições com os filtros locais
   const load = async () => {
     if (!eventId) return;
     setLoading(true);
@@ -162,10 +266,11 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
 
   useEffect(() => {
     void load();
-  }, [eventId]);
+  }, [eventId]); // recarrega ao abrir outro evento
 
   return (
     <Stack spacing={1.25}>
+      {/* Filtros da lista de inscritos */}
       <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap">
         <TextField
           size="small"
@@ -202,35 +307,7 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
         </Tooltip>
       </Stack>
 
-      {/* <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap">
-        <TextField
-          size="small"
-          label="ID da família"
-          value={familyIdInput}
-          onChange={(e) => setFamilyIdInput(e.target.value)}
-          sx={{ width: 220 }}
-        />
-        <Tooltip title="Adicionar inscrição manual">
-          <span>
-            <Button
-              variant="outlined"
-              onClick={async () => {
-                if (!eventId || !Number(familyIdInput)) return;
-                try {
-                  await createEventReservation(eventId, Number(familyIdInput));
-                  setFamilyIdInput("");
-                  await load();
-                } catch (e: any) {
-                  alert(e?.message || "Falha ao adicionar inscrição.");
-                }
-              }}
-            >
-              Adicionar inscrição
-            </Button>
-          </span>
-        </Tooltip>
-      </Stack> */}
-
+      {/* Tabela de inscritos */}
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -256,6 +333,7 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
               </TableCell>
               <TableCell align="right">
                 <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                  {/* Confirmar */}
                   <Tooltip title="Confirmar">
                     <span>
                       <IconButton
@@ -277,6 +355,8 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
                       </IconButton>
                     </span>
                   </Tooltip>
+
+                  {/* Marcar pendente */}
                   <Tooltip title="Marcar como pendente">
                     <span>
                       <IconButton
@@ -298,6 +378,8 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
                       </IconButton>
                     </span>
                   </Tooltip>
+
+                  {/* Remover */}
                   <Tooltip title="Remover inscrição">
                     <span>
                       <IconButton
@@ -332,13 +414,16 @@ function ReservationsTable({ eventId }: { eventId?: number }) {
 }
 
 /* ============================= PÁGINA ============================= */
+
 export default function AdminEvents() {
   const { user } = useUserSession() as any;
 
+  // Estado: biblioteca do admin
   const [library, setLibrary] = useState<LibraryLite | null>(null);
   const [libsLoading, setLibsLoading] = useState(false);
   const [libsErr, setLibsErr] = useState<string | null>(null);
 
+  // Carrega a biblioteca associada ao utilizador admin
   useEffect(() => {
     (async () => {
       try {
@@ -357,40 +442,40 @@ export default function AdminEvents() {
 
   const libraryId = library?.id ?? null;
 
+  // Dados de eventos + estados de controlo
   const [events, setEvents] = useState<EventLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Filtros
   const [q, setQ] = useState("");
   const [vf, setVf] = useState<ViewFilter>("upcoming");
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
   const [catSel, setCatSel] = useState<string>("");
 
+  // Paginação
   const [page, setPage] = useState(1);
   const perPage = 8;
 
-  const categories = useMemo(() => {
-    const s = new Set<string>();
-    for (const ev of events) {
-      const c = (ev.category || "").trim();
-      if (c) s.add(c);
-    }
-    return Array.from(s).sort((a, b) => a.localeCompare(b));
-  }, [events]);
+  // Categorias únicas (derivadas da lista carregada)
+  const categories = useMemo(() => categoriesFromEvents(events), [events]);
 
+  // Form “Adicionar evento (manual)”
   const [evTitle, setEvTitle] = useState("");
   const [evStart, setEvStart] = useState<string>("");
   const [evEnd, setEvEnd] = useState<string>("");
   const [evLoc, setEvLoc] = useState("");
   const [evDesc, setEvDesc] = useState("");
 
+  /** Recarrega todos os eventos da biblioteca atual. */
   async function reload() {
     if (!libraryId) return;
     try {
       setLoading(true);
       setErr(null);
       const list = await listLibraryEvents(libraryId);
+      // Ordena por data de início ascendente
       setEvents(
         [...list].sort(
           (a, b) =>
@@ -403,14 +488,18 @@ export default function AdminEvents() {
       setLoading(false);
     }
   }
+
+  // Carrega ao selecionar biblioteca
   useEffect(() => {
     if (libraryId) void reload();
   }, [libraryId]);
 
+  // Volta à página 1 quando filtros mudam
   useEffect(() => {
     setPage(1);
   }, [q, vf, fromDate, toDate, catSel, events.length]);
 
+  /** Cria evento manualmente (usa nome da biblioteca como categoria por defeito). */
   async function addEvent() {
     if (!libraryId || !evTitle || !evStart) return;
     try {
@@ -420,8 +509,9 @@ export default function AdminEvents() {
         endDate: evEnd || undefined,
         location: evLoc || undefined,
         description: evDesc || undefined,
-        category: library?.name?.trim() || undefined, // default nome da biblioteca
+        category: library?.name?.trim() || undefined,
       } as any);
+      // limpa form e recarrega
       setEvTitle("");
       setEvStart("");
       setEvEnd("");
@@ -433,53 +523,35 @@ export default function AdminEvents() {
     }
   }
 
-  const filtered = useMemo(() => {
-    const now = Date.now();
-    const fromMs = fromDate ? new Date(`${fromDate}T00:00:00`).getTime() : null;
-    const toMs = toDate ? new Date(`${toDate}T23:59:59`).getTime() : null;
-    return events.filter((ev) => {
-      const inQuery =
-        !q ||
-        ev.title.toLowerCase().includes(q.toLowerCase()) ||
-        (ev.location ?? "").toLowerCase().includes(q.toLowerCase());
-      if (!inQuery) return false;
-
-      if (catSel && (ev.category || "") !== catSel) return false;
-
-      const start = new Date(ev.startDate).getTime();
-      const end = ev.endDate ? new Date(ev.endDate).getTime() : start;
-      if (fromMs && end < fromMs) return false;
-      if (toMs && start > toMs) return false;
-
-      const ongoing = ev.endDate ? start <= now && end >= now : false;
-      if (vf === "upcoming") return ongoing || start >= now;
-      if (vf === "past") return end < now && !ongoing;
-      return true;
-    });
-  }, [events, q, vf, fromDate, toDate, catSel]);
-
+  // Aplica filtros (puro) e calcula a página corrente
+  const nowMs = Date.now();
+  const filtered = useMemo(
+    () => filterEvents(events, q, vf, fromDate, toDate, catSel, nowMs),
+    [events, q, vf, fromDate, toDate, catSel, nowMs]
+  );
   const pageCount = Math.max(1, Math.ceil(filtered.length / perPage));
-  const pageSlice = filtered.slice((page - 1) * perPage, page * perPage);
+  const pageSlice = useMemo(
+    () => paginate(filtered, page, perPage),
+    [filtered, page, perPage]
+  );
 
+  /** Predefine o “Início” no form para o próximo bloco de 30m. */
   function ensureStartPreset() {
     if (evStart) return;
-    const d = new Date();
-    d.setMinutes(d.getMinutes() + (30 - (d.getMinutes() % 30 || 30)));
-    d.setSeconds(0, 0);
-    setEvStart(toDateTimeLocalString(d));
+    setEvStart(toDateTimeLocalString(roundUpToNextHalfHour(new Date())));
   }
 
+  // Drawer de inscritos
   const [drawer, setDrawer] = useState<{
     open: boolean;
     event: EventLite | null;
-  }>({
-    open: false,
-    event: null,
-  });
+  }>({ open: false, event: null });
+
+  /* ------------------------------------------------------------------------ */
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
-      {/* Header só com título */}
+      {/* Header simples */}
       <Stack
         direction="row"
         alignItems="center"
@@ -500,6 +572,7 @@ export default function AdminEvents() {
         )}
       </Stack>
 
+      {/* Alertas de contexto */}
       {!!libsErr && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {libsErr}
@@ -523,7 +596,7 @@ export default function AdminEvents() {
         <Grid item xs={12} md={7}>
           <WhiteCard sx={{ p: { xs: 2, md: 2.5 } }}>
             <Stack spacing={1.5}>
-              {/* 👇 Filtros (agora dentro do WhiteCard) */}
+              {/* Filtros principais */}
               <Stack
                 direction={{ xs: "column", sm: "row" }}
                 spacing={1.25}
@@ -543,15 +616,14 @@ export default function AdminEvents() {
                   <ToggleButton value="all">Todos</ToggleButton>
                 </ToggleButtonGroup>
 
-                {/* barra de pesquisa mais pequena */}
                 <TextField
                   size="small"
                   placeholder="Procurar por título ou local…"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   sx={{
-                    width: { xs: "100%", sm: 360 }, // 👈 mais contida
-                    "& .MuiOutlinedInput-root": { borderRadius: 2 }, // 👈 canto discreto
+                    width: { xs: "100%", sm: 360 },
+                    "& .MuiOutlinedInput-root": { borderRadius: 2 },
                   }}
                   InputProps={{
                     startAdornment: (
@@ -606,7 +678,6 @@ export default function AdminEvents() {
                   Limpar filtros
                 </Button>
 
-                {/* refresh agora aqui */}
                 <Tooltip title="Recarregar">
                   <span>
                     <IconButton
@@ -623,16 +694,14 @@ export default function AdminEvents() {
 
               <Divider />
 
-              {/* Lista */}
+              {/* Lista paginada */}
               <Stack spacing={1.5} divider={<Divider />}>
                 {pageSlice.map((ev) => {
                   const start = new Date(ev.startDate);
                   const end = ev.endDate ? new Date(ev.endDate) : null;
-                  const now = Date.now();
-                  const ongoing =
-                    end && start.getTime() <= now && end.getTime() >= now;
                   const source = (ev as any).source as "FEED" | undefined;
                   const canDelete = source !== "FEED";
+                  const ongoing = isOngoing(ev, nowMs);
 
                   return (
                     <Stack
@@ -722,6 +791,7 @@ export default function AdminEvents() {
                         )}
                       </Box>
 
+                      {/* Inscritos */}
                       <Tooltip title="Gerir inscritos">
                         <Button
                           size="small"
@@ -733,6 +803,7 @@ export default function AdminEvents() {
                         </Button>
                       </Tooltip>
 
+                      {/* Remover (desativado para feed) */}
                       {canDelete ? (
                         <Tooltip title="Remover evento">
                           <IconButton
@@ -787,7 +858,7 @@ export default function AdminEvents() {
           </WhiteCard>
         </Grid>
 
-        {/* Adicionar manual */}
+        {/* Coluna: Adicionar manual */}
         <Grid item xs={12} md={5}>
           <WhiteCard sx={{ p: { xs: 2, md: 2.5 } }}>
             <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
@@ -882,7 +953,7 @@ export default function AdminEvents() {
         </Grid>
       </Grid>
 
-      {/* Drawer de inscritos */}
+      {/* Drawer lateral para gerir inscritos do evento selecionado */}
       <Drawer
         anchor="right"
         open={drawer.open}
@@ -934,3 +1005,8 @@ export default function AdminEvents() {
     </Container>
   );
 }
+
+/* =============================================================================
+ *  FIM — Alexandre Brissos • Nº 21131
+ * =============================================================================
+ */

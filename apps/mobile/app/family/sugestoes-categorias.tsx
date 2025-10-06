@@ -1,4 +1,17 @@
-// src/app/family/SugestoesCategoriasTab.tsx
+/**
+ * ============================================================================
+ * Ficheiro: src/app/family/SugestoesCategoriasTab.tsx
+ * Ecrã: Sugestões por Categorias (família)
+ * Autor: Alexandre Brissos — Nº 21131
+ * ----------------------------------------------------------------------------
+ * Melhorias aplicadas (como combinado):
+ * • Comentários detalhados (PT-PT) em todo o código.
+ * • Helpers “PUROS” (determinísticos) extraídos e documentados (≤ 30 linhas).
+ * • Funções curtas e legíveis; sem alterar comportamentos existentes.
+ * • UI polida: animações, acessibilidade e consistência de tema.
+ * ============================================================================
+ */
+
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   View,
@@ -38,7 +51,10 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { TABBAR_HEIGHT } from "src/constants/layout";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
-/* ---------- Tipos ---------- */
+/* ============================================================================
+ * Tipos de dados
+ * ========================================================================== */
+
 type BookLite = {
   isbn: string;
   title: string;
@@ -57,9 +73,14 @@ type Filters = {
   moment?: string;
 };
 
-/* ---------- Constantes ---------- */
+/* ============================================================================
+ * Constantes
+ * ========================================================================== */
+
 const LS_KEY = "mobile.categoryFilters";
+
 const AGE_OPTS = ["0-2", "3-5", "6-8", "9-12", "12-15"];
+
 const GENRE_OPTS = [
   "Aventura",
   "Fantasia",
@@ -69,13 +90,16 @@ const GENRE_OPTS = [
   "Animais",
   "Clássicos",
 ];
+
 const FORMAT_OPTS = [
   { k: "ilustrado", label: "Ilustrações" },
   { k: "curto", label: "Texto equilibrado" },
   { k: "imagens", label: "Imagens" },
   { k: "serie", label: "Série/Coleção" },
 ];
+
 const GOAL_OPTS = ["divertir", "aprender", "emocionar", "explorar"];
+
 const MOMENT_OPTS = [
   { k: "antes-de-dormir", label: "Antes de dormir" },
   { k: "pequeno-almoco", label: "Pequeno-almoço" },
@@ -83,21 +107,31 @@ const MOMENT_OPTS = [
   { k: "lazer-familiar", label: "Lazer familiar" },
 ];
 
-/* ---------- Helpers ---------- */
-function toggle(list: string[], v: string) {
+/* ============================================================================
+ * Helpers PUROS (determinísticos) — ≤ 30 linhas
+ * ========================================================================== */
+
+/** Alterna a presença de um valor numa lista (imutável). */
+function toggle(list: string[], v: string): string[] {
   return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
 }
-function momentToMood(m?: string) {
+
+/** Converte um “momento” selecionado para o equivalente “mood” do quiz. */
+function momentToMood(m?: string): string | undefined {
   if (!m) return undefined;
   return m === "antes-de-dormir" ? "antes-de-dormir" : "tempo-livre";
 }
+
+/** Aceita várias formas de payload e devolve um array normalizado de livros. */
 function normalizeBooks(payload: any): BookLite[] {
-  if (Array.isArray(payload)) return payload;
-  if (Array.isArray(payload?.data)) return payload.data;
-  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload)) return payload as BookLite[];
+  if (Array.isArray(payload?.data)) return payload.data as BookLite[];
+  if (Array.isArray(payload?.items)) return payload.items as BookLite[];
   return [];
 }
-function dedupeByIsbn(list: BookLite[]) {
+
+/** Remove duplicados por ISBN preservando a 1.ª ocorrência. */
+function dedupeByIsbn(list: BookLite[]): BookLite[] {
   const seen = new Set<string>();
   const out: BookLite[] = [];
   for (const it of list) {
@@ -108,7 +142,7 @@ function dedupeByIsbn(list: BookLite[]) {
   return out;
 }
 
-/* ---------- Ícones para chips ---------- */
+/** Mapeia chaves → ícones para chips (tema-agnóstico). */
 const chipIconFor: Record<string, string> = {
   // géneros
   Aventura: "map-marker-path",
@@ -141,7 +175,11 @@ const chipIconFor: Record<string, string> = {
   "lazer-familiar": "home-heart",
 };
 
-/* ---------- Animação ---------- */
+/* ============================================================================
+ * Micro-componentes / UI utilitária
+ * ========================================================================== */
+
+/** Animação de entrada (fade + slide) simples e reutilizável. */
 function FadeIn({
   children,
   delay = 0,
@@ -185,7 +223,7 @@ function FadeIn({
   );
 }
 
-/* Pequeno cartão reutilizável */
+/** Cartão de secção “branco” com moldura suave e sombra leve. */
 function SectionCard({
   children,
   style,
@@ -217,34 +255,34 @@ function SectionCard({
   );
 }
 
-/* ---------- Componente ---------- */
+/* ============================================================================
+ * Ecrã principal
+ * ========================================================================== */
+
 export default function SugestoesCategoriasTab() {
   const { user } = useAuth();
   const theme = useTheme();
   const pathname = usePathname();
-  const onQuiz =
-    pathname?.includes("/sugestoes") && !pathname.includes("categorias");
+  const onQuiz = pathname?.includes("/sugestoes") && !pathname.includes("categorias");
   const onCategorias = pathname?.includes("sugestoes-categorias");
   const insets = useSafeAreaInsets();
 
-  // LayoutAnimation no Android
+  // Android: habilita LayoutAnimation (para colapsáveis fluidos).
   useEffect(() => {
-    if (
-      Platform.OS === "android" &&
-      UIManager.setLayoutAnimationEnabledExperimental
-    ) {
+    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
       UIManager.setLayoutAnimationEnabledExperimental(true);
     }
   }, []);
 
+  // Contexto de criança ativa (modo criança tem prioridade).
   const actingChildId = (user as any)?.actingChild?.id
     ? Number((user as any).actingChild.id)
     : undefined;
 
   const [selectedChildId, setSelectedChildId] = useState<string | undefined>();
-  const childId =
-    actingChildId ?? (selectedChildId ? Number(selectedChildId) : undefined);
+  const childId = actingChildId ?? (selectedChildId ? Number(selectedChildId) : undefined);
 
+  // Estado dos filtros (e colapsáveis).
   const [filters, setFilters] = useState<Filters>({
     ageRange: undefined,
     genres: [],
@@ -252,8 +290,6 @@ export default function SugestoesCategoriasTab() {
     goals: [],
     moment: undefined,
   });
-
-  // colapsáveis
   const [open, setOpen] = useState({
     age: true,
     genres: true,
@@ -264,38 +300,43 @@ export default function SugestoesCategoriasTab() {
   const toggleOpen = (k: keyof typeof open) =>
     setOpen((s) => ({ ...s, [k]: !s[k] }));
 
-  // dados
+  // Dados/paginação.
   const [items, setItems] = useState<BookLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [snack, setSnack] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-
-  // paginação cumulativa (limit)
   const [page, setPage] = useState(1);
   const [perPage] = useState(12);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // reservar UI
+  // Reserva (UI).
   const [busyByIsbn, setBusyByIsbn] = useState<Record<string, boolean>>({});
   const [statusByIsbn, setStatusByIsbn] = useState<Record<string, "reserved" | "reading">>({});
 
-  // detalhe modal
+  // Modal de detalhe.
   const [detailItem, setDetailItem] = useState<BookLite | null>(null);
 
   const disableActions = !childId;
-  const subtitle = useMemo(() => "Escolhe categorias para afinar as sugestões", []);
+  const subtitle = useMemo(
+    () => "Escolhe categorias para afinar as sugestões",
+    []
+  );
 
-  // carregar filtros guardados
+  /* -------------------- Inicialização / Persistência -------------------- */
+
+  // Recupera filtros guardados localmente (AsyncStorage).
   useEffect(() => {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(LS_KEY);
         if (raw) setFilters((f) => ({ ...f, ...JSON.parse(raw) }));
-      } catch {}
+      } catch {
+        // silencioso — filtros default continuam válidos
+      }
     })();
   }, []);
 
-  // grelha inicial via perfil
+  // Carrega grelha inicial com base no perfil (sem filtros manuais).
   useEffect(() => {
     if (!childId) return;
     (async () => {
@@ -313,6 +354,9 @@ export default function SugestoesCategoriasTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId]);
 
+  /* --------------------------- Construção do quiz --------------------------- */
+
+  /** Converte o estado de filtros nas respostas esperadas pelo endpoint do quiz. */
   function answersFromFilters(): QuizAnswer[] {
     return [
       { id: "ageRange", value: filters.ageRange },
@@ -323,6 +367,9 @@ export default function SugestoesCategoriasTab() {
     ];
   }
 
+  /* ------------------------- Ações de consulta/paging ------------------------ */
+
+  /** Aplica filtros (guarda no LS) e atualiza os resultados. */
   async function applyFilters() {
     if (!childId) return;
     await AsyncStorage.setItem(LS_KEY, JSON.stringify(filters));
@@ -339,6 +386,7 @@ export default function SugestoesCategoriasTab() {
     }
   }
 
+  /** Página seguinte (cumulativa no limite para simplificar o merge). */
   async function loadMore() {
     if (!childId || loadingMore || !hasMore) return;
     setLoadingMore(true);
@@ -357,6 +405,9 @@ export default function SugestoesCategoriasTab() {
     }
   }
 
+  /* ------------------------------ Ação: reservar ----------------------------- */
+
+  /** Tenta reservar um livro para a criança selecionada (feedback robusto). */
   async function onReserve(isbn: string) {
     try {
       if (!childId) {
@@ -386,6 +437,8 @@ export default function SugestoesCategoriasTab() {
     }
   }
 
+  /* ------------------------------- Render UI -------------------------------- */
+
   const headerIcon = (
     <View
       style={{
@@ -407,32 +460,67 @@ export default function SugestoesCategoriasTab() {
       <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["top"]}>
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
-          refreshControl={<RefreshControl refreshing={loading} onRefresh={applyFilters} tintColor={theme.colors.primary} />}
-          contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + TABBAR_HEIGHT + 16 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={applyFilters}
+              tintColor={theme.colors.primary}
+            />
+          }
+          contentContainerStyle={{
+            padding: 16,
+            gap: 16,
+            paddingBottom: insets.bottom + TABBAR_HEIGHT + 16,
+          }}
         >
-          {/* CARD 1 — Header + tabs + seletor */}
+          {/* -------------------- CARD 1 — Header + tabs + seletor -------------------- */}
           <FadeIn>
             <SectionCard>
+              {/* Cabeçalho com ícone + título + refresh */}
               <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
                 {headerIcon}
                 <Text variant="headlineSmall" style={{ fontWeight: "900", flex: 1 }}>
                   Sugestões de Leitura
                 </Text>
-                <IconButton icon="refresh" disabled={loading || !childId} onPress={applyFilters} />
+                <IconButton
+                  icon="refresh"
+                  disabled={loading || !childId}
+                  onPress={applyFilters}
+                  accessibilityLabel="Atualizar sugestões"
+                />
               </View>
 
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              {/* Subtítulo + CTA rápido */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
                 <Text style={{ opacity: 0.7, flex: 1, marginRight: 8 }} numberOfLines={2}>
                   {subtitle}
                 </Text>
-                <Button mode="contained-tonal" icon="magnify" onPress={applyFilters} disabled={loading || !childId}>
+                <Button
+                  mode="contained-tonal"
+                  icon="magnify"
+                  onPress={applyFilters}
+                  disabled={loading || !childId}
+                >
                   Ver resultados
                 </Button>
               </View>
 
+              {/* Tabs “Quiz” / “Categorias” */}
               <View style={{ flexDirection: "row", alignItems: "center", columnGap: 8, marginTop: 8, marginBottom: 8 }}>
                 <Icon name="compass-outline" size={16} color={theme.colors.onSurfaceVariant} />
-                <LinkText underline size="sm" onPress={() => router.push("/family/sugestoes")} style={onQuiz ? { fontWeight: "700" } : { opacity: 0.85 }}>
+                <LinkText
+                  underline
+                  size="sm"
+                  onPress={() => router.push("/family/sugestoes")}
+                  style={onQuiz ? { fontWeight: "700" } : { opacity: 0.85 }}
+                >
                   Quiz
                 </LinkText>
                 <Text>·</Text>
@@ -446,10 +534,12 @@ export default function SugestoesCategoriasTab() {
                 </LinkText>
               </View>
 
+              {/* Seletor de criança (invisível em modo criança) */}
               {!actingChildId && (
                 <View style={{ rowGap: 10, marginBottom: 8 }}>
                   <Text variant="titleMedium" style={{ fontWeight: "bold" }}>
-                    <Icon name="account-child-outline" size={18} color={theme.colors.onSurface} /> Escolhe a criança
+                    <Icon name="account-child-outline" size={18} color={theme.colors.onSurface} />{" "}
+                    Escolhe a criança
                   </Text>
                   <SelectChild
                     label="Selecionar criança"
@@ -475,20 +565,31 @@ export default function SugestoesCategoriasTab() {
             </SectionCard>
           </FadeIn>
 
-          {/* CARD 2 — Filtros */}
+          {/* --------------------------- CARD 2 — Filtros --------------------------- */}
           <FadeIn delay={50}>
             <SectionCard>
               <View style={{ rowGap: 4 }}>
-                {/* Ações gerais */}
+                {/* Ações globais dos colapsáveis */}
                 <View style={{ flexDirection: "row", gap: 10, marginBottom: 4 }}>
-                  <Button onPress={() => setOpen({ age: true, genres: true, format: true, goals: true, moment: true })} icon="chevron-down">
+                  <Button
+                    onPress={() =>
+                      setOpen({ age: true, genres: true, format: true, goals: true, moment: true })
+                    }
+                    icon="chevron-down"
+                  >
                     Expandir tudo
                   </Button>
-                  <Button onPress={() => setOpen({ age: false, genres: false, format: false, goals: false, moment: false })} icon="chevron-up">
+                  <Button
+                    onPress={() =>
+                      setOpen({ age: false, genres: false, format: false, goals: false, moment: false })
+                    }
+                    icon="chevron-up"
+                  >
                     Fechar tudo
                   </Button>
                 </View>
 
+                {/* Grupos de filtros colapsáveis */}
                 <List.Section style={{ margin: 0, padding: 0 }}>
                   {/* Faixa Etária */}
                   <List.Accordion
@@ -505,7 +606,9 @@ export default function SugestoesCategoriasTab() {
                           style={{ marginRight: 8, marginBottom: 8 }}
                           selected={filters.ageRange === a}
                           icon={chipIconFor[a]}
-                          onPress={() => setFilters((f) => ({ ...f, ageRange: f.ageRange === a ? undefined : a }))}
+                          onPress={() =>
+                            setFilters((f) => ({ ...f, ageRange: f.ageRange === a ? undefined : a }))
+                          }
                         >
                           {a}
                         </Chip>
@@ -597,7 +700,9 @@ export default function SugestoesCategoriasTab() {
                           style={{ marginRight: 8, marginBottom: 8 }}
                           selected={filters.moment === k}
                           icon={chipIconFor[k]}
-                          onPress={() => setFilters((f) => ({ ...f, moment: f.moment === k ? undefined : k }))}
+                          onPress={() =>
+                            setFilters((f) => ({ ...f, moment: f.moment === k ? undefined : k }))
+                          }
                         >
                           {label}
                         </Chip>
@@ -606,19 +711,30 @@ export default function SugestoesCategoriasTab() {
                   </List.Accordion>
                 </List.Section>
 
-                {/* Ações dos filtros */}
+                {/* Ações de filtros */}
                 <View style={{ flexDirection: "row", gap: 10, marginTop: 6 }}>
                   <Button
                     icon="filter-off-outline"
                     onPress={async () => {
-                      const reset: Filters = { ageRange: undefined, genres: [], format: [], goals: [], moment: undefined };
+                      const reset: Filters = {
+                        ageRange: undefined,
+                        genres: [],
+                        format: [],
+                        goals: [],
+                        moment: undefined,
+                      };
                       setFilters(reset);
                       await AsyncStorage.setItem(LS_KEY, JSON.stringify(reset));
                     }}
                   >
                     Limpar filtros
                   </Button>
-                  <Button mode="contained" icon="magnify" onPress={applyFilters} disabled={loading || !childId}>
+                  <Button
+                    mode="contained"
+                    icon="magnify"
+                    onPress={applyFilters}
+                    disabled={loading || !childId}
+                  >
                     Ver resultados
                   </Button>
                 </View>
@@ -626,26 +742,48 @@ export default function SugestoesCategoriasTab() {
             </SectionCard>
           </FadeIn>
 
-          {/* CARD 3 — Resultados */}
+          {/* --------------------------- CARD 3 — Resultados --------------------------- */}
           <FadeIn delay={100}>
             <SectionCard>
+              {/* Estado vazio / carregamento */}
               {items.length === 0 ? (
                 <View style={{ paddingVertical: 8, alignItems: "center" }}>
                   <Icon name="book-off-outline" size={32} color={theme.colors.onSurfaceDisabled} />
                   <Text style={{ opacity: 0.7, marginTop: 6, textAlign: "center" }}>
-                    {childId ? "Sem resultados. Ajusta os filtros e tenta novamente." : "Seleciona uma criança para começar."}
+                    {childId
+                      ? "Sem resultados. Ajusta os filtros e tenta novamente."
+                      : "Seleciona uma criança para começar."}
                   </Text>
                 </View>
               ) : (
                 <>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+                  {/* Grelha 2 colunas com FadeIn por item */}
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      flexWrap: "wrap",
+                      justifyContent: "space-between",
+                    }}
+                  >
                     {items.map((item, idx) => {
                       const btnBusy = !!busyByIsbn[item.isbn];
-                      const serverStatus = (item as any).status as "reserved" | "reading" | "finished" | "none" | undefined;
+                      const serverStatus = (item as any)
+                        .status as "reserved" | "reading" | "finished" | "none" | undefined;
                       const localOverride = statusByIsbn[item.isbn];
-                      const effectiveStatus = (localOverride || serverStatus) as "reserved" | "reading" | "finished" | "none" | undefined;
+                      const effectiveStatus =
+                        (localOverride || serverStatus) as
+                          | "reserved"
+                          | "reading"
+                          | "finished"
+                          | "none"
+                          | undefined;
 
-                      const disabled = !childId || btnBusy || effectiveStatus === "reserved" || effectiveStatus === "reading";
+                      const disabled =
+                        !childId ||
+                        btnBusy ||
+                        effectiveStatus === "reserved" ||
+                        effectiveStatus === "reading";
+
                       const label =
                         effectiveStatus === "reserved"
                           ? "Reservado"
@@ -654,6 +792,7 @@ export default function SugestoesCategoriasTab() {
                           : effectiveStatus === "finished"
                           ? "Reservar de novo"
                           : "Reservar";
+
                       const iconForBtn =
                         effectiveStatus === "reserved"
                           ? "bookmark-check"
@@ -677,14 +816,19 @@ export default function SugestoesCategoriasTab() {
                           }}
                         >
                           <Card style={{ overflow: "hidden" }}>
-                            {/* Capa */}
+                            {/* Capa com “badge” de estado */}
                             <View>
                               <Card.Cover
-                                source={item.coverUrl ? { uri: item.coverUrl } : require("../../assets/placeholder-book.png")}
+                                source={
+                                  item.coverUrl
+                                    ? { uri: item.coverUrl }
+                                    : require("../../assets/placeholder-book.png")
+                                }
                                 resizeMode="cover"
                                 style={{ height: 200 }}
                               />
-                              {(effectiveStatus === "reserved" || effectiveStatus === "reading") && (
+                              {(effectiveStatus === "reserved" ||
+                                effectiveStatus === "reading") && (
                                 <View
                                   style={{
                                     position: "absolute",
@@ -696,14 +840,20 @@ export default function SugestoesCategoriasTab() {
                                     paddingHorizontal: 8,
                                   }}
                                 >
-                                  <Text style={{ color: theme.colors.onPrimary, fontWeight: "700", fontSize: 10 }}>
+                                  <Text
+                                    style={{
+                                      color: theme.colors.onPrimary,
+                                      fontWeight: "700",
+                                      fontSize: 10,
+                                    }}
+                                  >
                                     {effectiveStatus === "reserved" ? "RESERVADO" : "A LER"}
                                   </Text>
                                 </View>
                               )}
                             </View>
 
-                            {/* Conteúdo */}
+                            {/* Corpo: título + resumo + meta (score/lido) */}
                             <View style={{ paddingHorizontal: 12, paddingTop: 8, flex: 1 }}>
                               <Text variant="titleSmall" numberOfLines={2} style={{ fontWeight: "700" }}>
                                 {item.title}
@@ -715,11 +865,31 @@ export default function SugestoesCategoriasTab() {
                                 </Text>
                               ) : null}
 
-                              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 }}>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  marginTop: 6,
+                                }}
+                              >
                                 {typeof item.score === "number" && (
-                                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, opacity: 0.7 }}>
-                                    <Icon name="chart-line" size={14} color={theme.colors.onSurfaceVariant} />
-                                    <Text variant="labelSmall">{item.score.toFixed(3)}</Text>
+                                  <View
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      opacity: 0.7,
+                                    }}
+                                  >
+                                    <Icon
+                                      name="chart-line"
+                                      size={14}
+                                      color={theme.colors.onSurfaceVariant}
+                                    />
+                                    <Text variant="labelSmall">
+                                      {item.score.toFixed(3)}
+                                    </Text>
                                   </View>
                                 )}
                                 {serverStatus === "finished" && (
@@ -729,12 +899,18 @@ export default function SugestoesCategoriasTab() {
                                 )}
                               </View>
 
-                              {/* empurra rodapé */}
+                              {/* push flex para rodapé */}
                               <View style={{ flex: 1 }} />
                             </View>
 
-                            {/* Rodapé: Ver mais + Reservar (coluna) */}
-                            <View style={{ paddingHorizontal: 12, paddingBottom: 12, paddingTop: 2 }}>
+                            {/* Rodapé: “Ver mais” + ação de reserva */}
+                            <View
+                              style={{
+                                paddingHorizontal: 12,
+                                paddingBottom: 12,
+                                paddingTop: 2,
+                              }}
+                            >
                               <Button
                                 compact
                                 mode="text"
@@ -763,18 +939,27 @@ export default function SugestoesCategoriasTab() {
                     })}
                   </View>
 
-                  {/* Paginação */}
+                  {/* Paginação cumulativa */}
                   {hasMore ? (
                     <View style={{ alignItems: "center", marginTop: 8 }}>
-                      <Button mode="outlined" onPress={loadMore} disabled={loadingMore} icon={loadingMore ? undefined : "chevron-down"}>
-                        {loadingMore ? <ActivityIndicator animating size="small" /> : "Carregar mais"}
+                      <Button
+                        mode="outlined"
+                        onPress={loadMore}
+                        disabled={loadingMore}
+                        icon={loadingMore ? undefined : "chevron-down"}
+                      >
+                        {loadingMore ? (
+                          <ActivityIndicator animating size="small" />
+                        ) : (
+                          "Carregar mais"
+                        )}
                       </Button>
                     </View>
                   ) : null}
                 </>
               )}
 
-              {/* Snackbar */}
+              {/* Snackbar com feedback das ações */}
               <Portal>
                 <Snackbar
                   visible={!!snack}
@@ -797,7 +982,7 @@ export default function SugestoesCategoriasTab() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* Modal: detalhe da sugestão */}
+      {/* ------------------------------ Modal Detalhe ----------------------------- */}
       <Portal>
         <Modal
           visible={!!detailItem}
@@ -813,6 +998,7 @@ export default function SugestoesCategoriasTab() {
         >
           {detailItem && (
             <View style={{ gap: 10 }}>
+              {/* Header do modal */}
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Icon name="book-open-page-variant" size={20} color={theme.colors.onSurface} />
                 <Text variant="titleMedium" style={{ fontWeight: "800", flex: 1 }}>
@@ -821,20 +1007,32 @@ export default function SugestoesCategoriasTab() {
                 <IconButton icon="close" onPress={() => setDetailItem(null)} />
               </View>
 
+              {/* Capa */}
               <Card.Cover
-                source={detailItem.coverUrl ? { uri: detailItem.coverUrl } : require("../../assets/placeholder-book.png")}
+                source={
+                  detailItem.coverUrl
+                    ? { uri: detailItem.coverUrl }
+                    : require("../../assets/placeholder-book.png")
+                }
                 style={{ height: 220, borderRadius: 10 }}
               />
 
+              {/* Meta (score) */}
               {typeof (detailItem as any).score === "number" && (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <Icon name="chart-line" size={16} color={theme.colors.onSurfaceVariant} />
-                  <Text style={{ opacity: 0.7 }}>score {(detailItem as any).score.toFixed(3)}</Text>
+                  <Text style={{ opacity: 0.7 }}>
+                    score {(detailItem as any).score.toFixed(3)}
+                  </Text>
                 </View>
               )}
 
-              {!!detailItem.summary && <Text style={{ opacity: 0.9 }}>{detailItem.summary}</Text>}
+              {/* Resumo */}
+              {!!detailItem.summary && (
+                <Text style={{ opacity: 0.9 }}>{detailItem.summary}</Text>
+              )}
 
+              {/* Ações */}
               <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
                 <Button onPress={() => setDetailItem(null)}>Fechar</Button>
                 <Button

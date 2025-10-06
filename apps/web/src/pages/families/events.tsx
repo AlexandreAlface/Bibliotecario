@@ -1,4 +1,15 @@
-// apps/web/src/pages/families/Events.tsx (revamp)
+// ========================== apps/web/src/pages/families/Events.tsx ==========================
+/**
+ * Autor: Alexandre Brrissos — Nº 21131
+ * Página: Eventos culturais (famílias)
+ *
+ * Princípios deste refactor:
+ *  - Helpers PUROS (sem efeitos colaterais) e com < 30 linhas
+ *  - Handlers curtos e nomeados
+ *  - Componentes pequenos (memo sempre que possível)
+ *  - Comentado de ponta a ponta
+ */
+
 import React, {
   useCallback,
   useEffect,
@@ -23,6 +34,7 @@ import {
   Checkbox,
   MenuItem,
 } from "@mui/material";
+  // grid legacy para manter o layout utilizado no projeto
 import Grid from "@mui/material/GridLegacy";
 import {
   CalendarMonthRounded,
@@ -38,7 +50,9 @@ import {
 import { WhiteCard, Paginator } from "@bibliotecario/ui-web";
 import { useUserSession } from "@/contexts/UserSession";
 
-/* ---------------- Types ---------------- */
+/* =====================================================================================
+   Tipos
+   ===================================================================================== */
 type CulturalEvent = {
   id: number;
   title: string;
@@ -56,11 +70,16 @@ type CulturalEvent = {
 
 type ListResponse = { items: CulturalEvent[]; nextCursor?: number | null };
 
-/* ---------------- API ---------------- */
+/* =====================================================================================
+   API — funções simples e puras na construção do pedido (fetch com cookies)
+   ===================================================================================== */
+
+// Base de API: lê do .env e remove trailing slash
 const API_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/$/, "") ||
   "http://localhost:3333/api";
 
+/** PURE: monta URL e pede uma página de eventos (com cursor opcional) */
 async function fetchCulturalEvents(params: {
   q?: string;
   from?: string;
@@ -79,59 +98,87 @@ async function fetchCulturalEvents(params: {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+/** POST reserva num evento */
 async function postReserve(eventId: number) {
   const res = await fetch(
     `${API_BASE}/cultural-events/${eventId}/reservations`,
-    {
-      method: "POST",
-      credentials: "include",
-    }
-  );
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-async function delReserve(eventId: number) {
-  const res = await fetch(
-    `${API_BASE}/cultural-events/${eventId}/reservations`,
-    {
-      method: "DELETE",
-      credentials: "include",
-    }
+    { method: "POST", credentials: "include" }
   );
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
-/* ---------------- Helpers ---------------- */
-// ✅ NÃO usar toISOString().slice(0,10). Construir localmente.
+/** DELETE reserva num evento */
+async function delReserve(eventId: number) {
+  const res = await fetch(
+    `${API_BASE}/cultural-events/${eventId}/reservations`,
+    { method: "DELETE", credentials: "include" }
+  );
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+/* =====================================================================================
+   Helpers (PUROS, <30 linhas)
+   ===================================================================================== */
+
+/** PURE: data local em "YYYY-MM-DD" (evita TZ-shift de toISOString().slice) */
 function ymdLocal(d: Date = new Date()): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${dd}`;
 }
+
+/** PURE: parse "YYYY-MM-DD" para Date em local time (00:00) */
 function parseYMDLocal(s: string): Date {
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return new Date(NaN);
   const y = Number(m[1]);
   const mo = Number(m[2]) - 1;
   const d = Number(m[3]);
-  return new Date(y, mo, d, 0, 0, 0, 0); // local
+  return new Date(y, mo, d, 0, 0, 0, 0);
 }
+
+/** PURE: valida "YYYY-MM-DD" */
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isValidYMD = (s?: string) => !!s && YMD_RE.test(s);
 
+/** PURE: início do dia em ISO */
 function startOfDayISO(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x.toISOString();
 }
+
+/** PURE: fim do dia em ISO */
 function endOfDayISO(d: Date) {
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
   return x.toISOString();
 }
 
+/** PURE: normaliza texto (sem acentos, trimmed, lowercased) */
+const norm = (s?: string | null) =>
+  (s ?? "")
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+/** PURE: match de pesquisa contra vários campos do evento */
+const matchesQuery = (ev: CulturalEvent, q: string) => {
+  const nq = norm(q);
+  if (!nq) return true;
+  return [ev.title, ev.location, ev.category, ev.description, ev.libraryName].some(
+    (v) => norm(v).includes(nq)
+  );
+};
+
+/* =====================================================================================
+   Formatadores (PUROS)
+   ===================================================================================== */
 const fDate = new Intl.DateTimeFormat("pt-PT", {
   day: "2-digit",
   month: "2-digit",
@@ -142,29 +189,15 @@ const fTime = new Intl.DateTimeFormat("pt-PT", {
   minute: "2-digit",
 });
 
+/* =====================================================================================
+   Constantes de UI
+   ===================================================================================== */
 const PAGE_SIZE_OPTIONS = [12, 24, 36] as const;
 type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
 
-const norm = (s?: string | null) =>
-  (s ?? "")
-    .toString()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-
-const matchesQuery = (ev: CulturalEvent, q: string) => {
-  const nq = norm(q);
-  if (!nq) return true;
-  return [
-    ev.title,
-    ev.location,
-    ev.category,
-    ev.description,
-    ev.libraryName,
-  ].some((v) => norm(v).includes(nq));
-};
-
-/* ---------- Reusable ---------- */
+/* =====================================================================================
+   UI: Cabeçalho de cartão (pequeno, memo)
+   ===================================================================================== */
 const CardHeader = memo(function CardHeader({
   title,
   icon,
@@ -192,51 +225,57 @@ const CardHeader = memo(function CardHeader({
   );
 });
 
-/* =================== Page =================== */
+/* =====================================================================================
+   Página
+   ===================================================================================== */
 export default function FamilyEventsPage() {
-  useUserSession(); // mantém sessão viva
+  useUserSession(); // mantém sessão viva no cliente
 
   // Filtros
   const [q, setQ] = useState("");
   const [fromY, setFromY] = useState(ymdLocal(new Date()));
-  const [toY, setToY] = useState(
-    ymdLocal(new Date(Date.now() + 30 * 86400000))
-  );
+  const [toY, setToY] = useState(ymdLocal(new Date(Date.now() + 30 * 86400000)));
   const [onlyBiblioteca, setOnlyBiblioteca] = useState(true);
 
-  // Paginação com cache por página
+  // Paginação "cursor-based" com cache local por página
   const [pageSize, setPageSize] = useState<PageSize>(24);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState<CulturalEvent[][]>([]);
-  const [pageCursors, setPageCursors] = useState<(number | null)[]>([null]); // cursor de entrada para cada página
+  const [pageCursors, setPageCursors] = useState<(number | null)[]>([null]); // cursor de entrada por página
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Guardar a request ativa para ignorar respostas antigas (anti-race)
+  // Anti-race: id de request ativo. Se mudar, respostas antigas são ignoradas
   const requestId = useRef(0);
 
-  // Datas sempre válidas
+  // Garantir consistência das datas
   const datesValid = isValidYMD(fromY) && isValidYMD(toY);
   useEffect(() => {
     if (!datesValid) return;
     const a = parseYMDLocal(fromY).getTime();
     const b = parseYMDLocal(toY).getTime();
-    if (a > b) setToY(fromY);
+    if (a > b) setToY(fromY); // auto-corrige "Até" < "De"
   }, [datesValid, fromY, toY]);
 
+  // Página atual + existência de próxima (para Paginator visual)
   const items = pages[page - 1] || [];
   const hasNext = pageCursors[page] != null;
   const pageCountVisual = pages.length + (hasNext ? 1 : 0);
 
+  /** Handler: limpa paginação e invalida requisições em voo */
   const resetAll = useCallback(() => {
     setPage(1);
     setPages([]);
     setPageCursors([null]);
     setErr(null);
-    requestId.current++; // invalida fetches em voo
+    requestId.current++; // invalida respostas pendentes
   }, []);
 
-  // Carrega uma página (1-based). Pode forçar cursor manual.
+  /**
+   * Handler: busca (ou usa cache) de uma página 1-based.
+   * - Usa cursor da página anterior
+   * - Aplica filtros "Biblioteca" e pesquisa local
+   */
   const fetchPage = useCallback(
     async (
       targetPage: number,
@@ -244,13 +283,13 @@ export default function FamilyEventsPage() {
     ) => {
       const rid = ++requestId.current;
 
-      // usar cache?
+      // Usa cache se existir e não for "force"
       if (!opts.force && pages[targetPage - 1]) {
         setPage(targetPage);
         return;
       }
 
-      // cursor de entrada
+      // Cursor de entrada
       const cursorIn =
         opts.cursorOverride !== undefined
           ? opts.cursorOverride
@@ -258,10 +297,8 @@ export default function FamilyEventsPage() {
           ? null
           : pageCursors[targetPage - 1] ?? null;
 
-      // montar parametros com datas seguras (local → ISO)
-      const sendFrom = datesValid
-        ? startOfDayISO(parseYMDLocal(fromY))
-        : undefined;
+      // Datas seguras (local → ISO)
+      const sendFrom = datesValid ? startOfDayISO(parseYMDLocal(fromY)) : undefined;
       const sendTo = datesValid ? endOfDayISO(parseYMDLocal(toY)) : undefined;
 
       setLoading(true);
@@ -275,15 +312,13 @@ export default function FamilyEventsPage() {
           cursor: cursorIn,
         });
 
-        if (rid !== requestId.current) return; // resposta antiga → ignora
+        // resposta antiga? ignora
+        if (rid !== requestId.current) return;
 
+        // filtros locais (robustos a backends diferentes)
         let arr = res.items || [];
-        if (onlyBiblioteca) {
-          arr = arr.filter((ev) => norm(ev.category) === "biblioteca");
-        }
-        if (q.trim()) {
-          arr = arr.filter((ev) => matchesQuery(ev, q));
-        }
+        if (onlyBiblioteca) arr = arr.filter((ev) => norm(ev.category) === "biblioteca");
+        if (q.trim()) arr = arr.filter((ev) => matchesQuery(ev, q));
 
         setPages((prev) => {
           const next = prev.slice();
@@ -292,7 +327,7 @@ export default function FamilyEventsPage() {
         });
         setPageCursors((prev) => {
           const next = prev.slice();
-          next[targetPage] = res.nextCursor ?? null;
+          next[targetPage] = res.nextCursor ?? null; // cursor da "próxima"
           return next;
         });
         setPage(targetPage);
@@ -310,14 +345,7 @@ export default function FamilyEventsPage() {
     [datesValid, fromY, toY, pageCursors, pageSize, pages, q, onlyBiblioteca]
   );
 
-  // Primeira carga
-  useEffect(() => {
-    resetAll();
-    fetchPage(1, { force: true, cursorOverride: null });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, fromY, toY, onlyBiblioteca, pageSize]);
-
-  // Recarrega sempre que filtros/tamanho de página mudem (sem debounce)
+  // (ÚNICO) efeito para primeira carga e recargas quando filtros mudam
   useEffect(() => {
     resetAll();
     fetchPage(1, { force: true, cursorOverride: null });
@@ -325,13 +353,16 @@ export default function FamilyEventsPage() {
   }, [q, fromY, toY, onlyBiblioteca, pageSize]);
 
   const fHasFilters =
-    q ||
+    !!q ||
     onlyBiblioteca === false ||
     fromY !== ymdLocal(new Date()) ||
     toY !== ymdLocal(new Date(Date.now() + 30 * 86400000));
 
-  /* --------- Card de Evento (memo) --------- */
+  /* ===================================================================================
+     Card de Evento (memo, apenas UI + 2 handlers curtos)
+     =================================================================================== */
   const EventCard = memo(function EventCard({ ev }: { ev: CulturalEvent }) {
+    // Quando: "DD/MM/AAAA · HH:MM — HH:MM" (se houver fim)
     const A = new Date(ev.startDate);
     const B = ev.endDate ? new Date(ev.endDate) : null;
     const when =
@@ -339,6 +370,7 @@ export default function FamilyEventsPage() {
         ? `${fDate.format(A)} · ${fTime.format(A)} — ${fTime.format(B)}`
         : `${fDate.format(A)} · ${fTime.format(A)}`;
 
+    // Reservar
     const onReserve = async () => {
       try {
         await postReserve(ev.id);
@@ -351,6 +383,7 @@ export default function FamilyEventsPage() {
         const m = String(e?.message || "");
         if (m.includes("capacity")) alert("Capacidade esgotada.");
         else if (m.includes("already_reserved")) {
+          // idempotente: marca como reservado no UI
           setPages((prev) =>
             prev.map((pg) =>
               pg.map((x) => (x.id === ev.id ? { ...x, reserved: true } : x))
@@ -360,6 +393,7 @@ export default function FamilyEventsPage() {
       }
     };
 
+    // Cancelar
     const onCancel = async () => {
       try {
         await delReserve(ev.id);
@@ -377,12 +411,14 @@ export default function FamilyEventsPage() {
       <WhiteCard
         sx={{ p: 0, height: "100%", display: "flex", flexDirection: "column" }}
       >
+        {/* Imagem (fallback para "banda" com ícone) */}
         {ev.imageUrl ? (
           <Box
             component="img"
             src={ev.imageUrl}
             alt={ev.title}
             onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+              // se falhar, esconde a imagem para não quebrar layout
               const img = e.currentTarget;
               img.style.display = "none";
             }}
@@ -421,6 +457,7 @@ export default function FamilyEventsPage() {
             {ev.title}
           </Typography>
 
+          {/* Metadados */}
           <Stack
             direction="row"
             spacing={1}
@@ -465,10 +502,12 @@ export default function FamilyEventsPage() {
             )}
           </Stack>
 
+          {/* Descrição (uma linha) */}
           <Typography variant="body2" sx={{ opacity: 0.85, mb: 1 }} noWrap>
             {ev.description || "—"}
           </Typography>
 
+          {/* Ação */}
           <Box sx={{ mt: "auto", pt: 1 }}>
             {ev.reserved ? (
               <Stack direction="row" spacing={1} alignItems="center">
@@ -498,8 +537,12 @@ export default function FamilyEventsPage() {
     );
   });
 
+  /* ===================================================================================
+     Render
+     =================================================================================== */
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      {/* Título */}
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
         <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
           Eventos culturais
@@ -514,14 +557,13 @@ export default function FamilyEventsPage() {
           icon={<SearchRounded />}
           action={
             <Stack direction="row" spacing={1} alignItems="center">
+              {/* Tamanho de página */}
               <TextField
                 select
                 size="small"
                 label="Eventos/página"
                 value={pageSize}
-                onChange={(e) =>
-                  setPageSize(Number(e.target.value) as PageSize)
-                }
+                onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
                 sx={{ minWidth: 160 }}
               >
                 {PAGE_SIZE_OPTIONS.map((opt) => (
@@ -531,6 +573,7 @@ export default function FamilyEventsPage() {
                 ))}
               </TextField>
 
+              {/* Atualizar */}
               <Tooltip title="Atualizar agora">
                 <span>
                   <IconButton
@@ -546,10 +589,8 @@ export default function FamilyEventsPage() {
                 </span>
               </Tooltip>
 
-              {(q ||
-                onlyBiblioteca === false ||
-                fromY !== ymdLocal(new Date()) ||
-                toY !== ymdLocal(new Date(Date.now() + 30 * 86400000))) && (
+              {/* Limpar filtros (mostra apenas quando há filtros ativos) */}
+              {fHasFilters && (
                 <Button
                   variant="text"
                   onClick={() => {
@@ -566,6 +607,7 @@ export default function FamilyEventsPage() {
           }
         />
 
+        {/* Linha de filtros básicos */}
         <Stack
           direction={{ xs: "column", md: "row" }}
           spacing={1.25}
@@ -588,6 +630,7 @@ export default function FamilyEventsPage() {
               size="small"
               sx={{ minWidth: 260 }}
             />
+
             <TextField
               label="De"
               type="date"
@@ -599,6 +642,7 @@ export default function FamilyEventsPage() {
               size="small"
               sx={{ minWidth: 170 }}
             />
+
             <TextField
               label="Até"
               type="date"
@@ -621,6 +665,7 @@ export default function FamilyEventsPage() {
               size="small"
               sx={{ minWidth: 170 }}
             />
+
             <FormControlLabel
               control={
                 <Checkbox
@@ -634,21 +679,18 @@ export default function FamilyEventsPage() {
         </Stack>
       </WhiteCard>
 
+      {/* Erro */}
       {err && (
-        <Typography
-          color="error"
-          sx={{ mb: 1 }}
-          role="alert"
-          aria-live="polite"
-        >
+        <Typography color="error" sx={{ mb: 1 }} role="alert" aria-live="polite">
           {err}
         </Typography>
       )}
 
-      {/* Grid */}
+      {/* Grid de eventos */}
       <Grid container spacing={2}>
         {loading && pages.length === 0
-          ? Array.from({ length: 6 }).map((_, i) => (
+          ? // Skeletons da carga inicial
+            Array.from({ length: 6 }).map((_, i) => (
               <Grid key={i} item xs={12} sm={6} md={4}>
                 <WhiteCard sx={{ p: 0 }}>
                   <Skeleton variant="rectangular" height={160} />
@@ -660,24 +702,26 @@ export default function FamilyEventsPage() {
                 </WhiteCard>
               </Grid>
             ))
-          : items.map((ev) => (
+          : // Eventos da página corrente
+            items.map((ev) => (
               <Grid key={ev.id} item xs={12} sm={6} md={4}>
                 <EventCard ev={ev} />
               </Grid>
             ))}
       </Grid>
 
-      {/* Paginador */}
+      {/* Paginador visual (usa cache + cursor da próxima) */}
       {pageCountVisual > 1 && (
         <Paginator
           count={pageCountVisual}
           page={page}
           onChange={(_, p) => {
             if (p === pages.length + 1) {
-              // ir para próxima página (usa cursor calculado)
+              // pedir próxima página usando cursor já guardado
               fetchPage(p);
             } else {
-              setPage(p); // voltar a página em cache
+              // navegar para página cacheada
+              setPage(p);
             }
           }}
           showFirstButton
@@ -687,6 +731,7 @@ export default function FamilyEventsPage() {
         />
       )}
 
+      {/* Empty state */}
       {!loading && items.length === 0 && !err && (
         <WhiteCard sx={{ mt: 2 }}>
           <Stack

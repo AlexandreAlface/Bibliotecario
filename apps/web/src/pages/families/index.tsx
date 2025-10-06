@@ -1,3 +1,11 @@
+/**
+ * Alexandre Brrissos 21131
+ * Descrição: Landing page dividida em hooks e subcomponentes pequenos (<30 linhas).
+ * - Carrega leituras, consultas, eventos, badges e micro-conteúdos
+ * - Gera sugestões on-demand (com cache em localStorage)
+ * - Acessibilidade básica em carrossel e labels
+ */
+
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   WhiteCard,
@@ -6,7 +14,6 @@ import {
   RouteLink,
 } from "@bibliotecario/ui-web";
 import {
-  Avatar,
   Box,
   Chip,
   Container,
@@ -14,14 +21,14 @@ import {
   Stack,
   Typography,
   LinearProgress,
-  useTheme,
   Tooltip,
   IconButton,
   Button,
   Skeleton,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
-import { useUserSession } from "../../contexts/UserSession";
+import { useUserSession } from "@/contexts/UserSession";
+import { useTheme } from "@mui/material/styles";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
 import { StarRounded } from "@mui/icons-material";
@@ -40,45 +47,78 @@ import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import BookmarkAddRounded from "@mui/icons-material/BookmarkAddRounded";
 import LocationOnRounded from "@mui/icons-material/LocationOnRounded";
 
-import { getLeiturasAtuais } from "../../services/readings";
-import type { BookLite as ReadingBookLite } from "../../services/readings";
+import { getLeiturasAtuais } from "@/services/readings";
+import type { BookLite as ReadingBookLite } from "@/services/readings";
 
-import { getProximosEventos } from "../../services/events";
-import { getSugestoesPerfil } from "../../services/books";
-import type { BookLite as SuggestionBookLite } from "../../services/books";
-import {
-  getNextConsultas,
-  type ConsultaLite,
-} from "../../services/consultations";
-import { getBadgesRecent, type BadgeLite } from "../../services/badges";
+import { getProximosEventos } from "@/services/events";
+import { getSugestoesPerfil } from "@/services/books";
+import type { BookLite as SuggestionBookLite } from "@/services/books";
+import { getNextConsultas, type ConsultaLite } from "@/services/consultations";
+import { getBadgesRecent, type BadgeLite } from "@/services/badges";
 
-// micro-conteúdos (dicas/biblioterapia)
 import {
   listMicroContentsPublic,
   markMicroContentSeen,
 } from "@/services/microcontent";
 import type { MicroContentItem } from "@/services/microcontent";
 
-// Placeholder para eventos sem imagem
-import EVENT_PLACEHOLDER from "../../assets/placeholder-event.jpg";
+import EVENT_PLACEHOLDER from "@/assets/placeholder-event.jpg";
+
+/* ---------- Constantes & helpers pequenos ---------- */
 
 const TOP_CARD_H = "clamp(360px, 50vh, 440px)";
+const ROW_STROKE = "#00000026";
+const ROW_GAP = 1.25;
 
-/** ---------- helpers ---------- */
+const STATUS_CFG: Record<
+  string,
+  { label: string; color: "success" | "warning" | "error" | "default" }
+> = {
+  CONFIRMED: { label: "Confirmado", color: "success" },
+  PENDING: { label: "Pendente", color: "warning" },
+  DECLINED: { label: "Recusado", color: "error" },
+  CANCELLED: { label: "Cancelado", color: "default" },
+  COMPLETED: { label: "Concluída", color: "success" },
+  CONFIRMADO: { label: "Confirmado", color: "success" },
+  PENDENTE: { label: "Pendente", color: "warning" },
+  RECUSADO: { label: "Recusado", color: "error" },
+};
 
-// Cache de sugestões (manual only — sem pedidos automáticos)
-function sugKey(childId?: number) {
-  return `sug:cache:${childId ?? "anon"}`;
+function parts(iso?: string) {
+  if (!iso) return { day: "—", mon: "—", time: "" };
+  const d = new Date(iso);
+  return {
+    day: d.toLocaleDateString("pt-PT", { day: "2-digit" }),
+    mon: d.toLocaleDateString("pt-PT", { month: "short" }),
+    time: d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }),
+  };
 }
+
+const norm = (s: string) =>
+  s
+    ?.toString()
+    .replace(/\u00A0/g, " ")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase() || "";
+
+// id válido (>0)
+const validId = (v: unknown) => {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+};
+
+/* ---------- cache local para sugestões ---------- */
+const sugKey = (childId?: number) => `sug:cache:${childId ?? "anon"}`;
 function loadSugFromCache(
   childId?: number
 ): { items: any[]; ts: number } | null {
   try {
     const raw = localStorage.getItem(sugKey(childId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.items || !Array.isArray(parsed.items)) return null;
-    return parsed;
+    const j = raw ? JSON.parse(raw) : null;
+    return j?.items && Array.isArray(j.items) ? j : null;
   } catch {
     return null;
   }
@@ -90,47 +130,10 @@ function saveSugToCache(childId: number | undefined, items: any[]) {
   );
 }
 
-const STATUS_CFG: Record<
-  string,
-  { label: string; color: "success" | "warning" | "error" | "default" }
-> = {
-  // EN do backend
-  CONFIRMED: { label: "Confirmado", color: "success" },
-  PENDING: { label: "Pendente", color: "warning" },
-  DECLINED: { label: "Recusado", color: "error" },
-  CANCELLED: { label: "Cancelado", color: "default" },
-  COMPLETED: { label: "Concluída", color: "success" },
-  // PT (legacy)
-  CONFIRMADO: { label: "Confirmado", color: "success" },
-  PENDENTE: { label: "Pendente", color: "warning" },
-  RECUSADO: { label: "Recusado", color: "error" },
-};
+/* =========================================================================
+   Subcomponentes pequenos (UI)
+   ========================================================================= */
 
-/**
- * Formata partes de uma data ISO para chips/etiquetas (pt-PT)
- */
-function parts(iso?: string) {
-  if (!iso) return { day: "—", mon: "—", time: "" };
-  const d = new Date(iso);
-  return {
-    day: d.toLocaleDateString("pt-PT", { day: "2-digit" }),
-    mon: d.toLocaleDateString("pt-PT", { month: "short" }),
-    time: d.toLocaleTimeString("pt-PT", { hour: "2-digit", minute: "2-digit" }),
-  };
-}
-
-// normalizador p/ comparar categorias/locais com espaços NBSP e acentos
-const norm = (s: string) =>
-  s
-    ?.toString()
-    .replace(/\u00A0/g, " ")
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase() || "";
-
-/** ---------- Cabeçalho de card (visível) ---------- */
 const CardHeader = memo(function CardHeader({
   title,
   action,
@@ -158,7 +161,6 @@ const CardHeader = memo(function CardHeader({
   );
 });
 
-/** ---------- KPI tile ---------- */
 const StatTile = memo(function StatTile({
   label,
   value,
@@ -216,10 +218,6 @@ const StatTile = memo(function StatTile({
   );
 });
 
-const ROW_STROKE = "#00000026";
-const ROW_GAP = 1.25;
-
-/** ---------- Consultas ---------- */
 const ConsultaRow = memo(function ConsultaRow({ c }: { c: ConsultaLite }) {
   const iso = c.scheduledAt || c.date;
   const { day, mon, time } = parts(iso);
@@ -227,7 +225,6 @@ const ConsultaRow = memo(function ConsultaRow({ c }: { c: ConsultaLite }) {
     label: c.status || "",
     color: "default" as const,
   };
-
   return (
     <Box
       sx={{
@@ -238,7 +235,6 @@ const ConsultaRow = memo(function ConsultaRow({ c }: { c: ConsultaLite }) {
       }}
     >
       <Stack direction="row" alignItems="center" spacing={1.5}>
-        {/* date pill */}
         <Box
           aria-label={`Consulta a ${day} ${mon}${time ? ` às ${time}` : ""}`}
           sx={{
@@ -270,8 +266,6 @@ const ConsultaRow = memo(function ConsultaRow({ c }: { c: ConsultaLite }) {
             )}
           </Box>
         </Box>
-
-        {/* conteúdo */}
         <Box flex={1} minWidth={0}>
           <Typography fontWeight={900} noWrap title={c.title} component="h3">
             {c.title}
@@ -310,14 +304,12 @@ const ConsultaRow = memo(function ConsultaRow({ c }: { c: ConsultaLite }) {
             )}
           </Stack>
         </Box>
-
         <RouteLink href="/consultas">Ver</RouteLink>
       </Stack>
     </Box>
   );
 });
 
-/** ---------- Eventos ---------- */
 type EventItem = {
   id: number;
   title: string;
@@ -329,9 +321,8 @@ type EventItem = {
   tags?: string[];
 };
 
-const EventSlide = memo(function EventSlide({ ev }: { ev: any }) {
+const EventSlide = memo(function EventSlide({ ev }: { ev: EventItem }) {
   const poster = (ev.imageUrl && ev.imageUrl.trim()) || EVENT_PLACEHOLDER;
-
   return (
     <Box
       sx={{
@@ -364,11 +355,9 @@ const EventSlide = memo(function EventSlide({ ev }: { ev: any }) {
           display: "block",
         }}
       />
-
       <Typography variant="subtitle1" fontWeight={900} noWrap title={ev.title}>
         {ev.title}
       </Typography>
-
       <Stack
         direction="row"
         spacing={1}
@@ -395,7 +384,6 @@ const EventSlide = memo(function EventSlide({ ev }: { ev: any }) {
           />
         ) : null}
       </Stack>
-
       <Box sx={{ mt: 0.25 }}>
         <RouteLink href="/eventos">Ver eventos</RouteLink>
       </Box>
@@ -410,26 +398,22 @@ function EventCarousel({
 }: {
   items: EventItem[];
   index: number;
-  setIndex: React.Dispatch<React.SetStateAction<number>>; // ⬅️ aqui
+  setIndex: React.Dispatch<React.SetStateAction<number>>;
 }) {
   const len = items.length;
-
   const next = useCallback(
-    () => setIndex((i: number) => (i + 1) % Math.max(len, 1)),
+    () => setIndex((i) => (i + 1) % Math.max(len, 1)),
     [len, setIndex]
   );
-
   const prev = useCallback(
-    () =>
-      setIndex((i: number) => (i - 1 + Math.max(len, 1)) % Math.max(len, 1)),
+    () => setIndex((i) => (i - 1 + Math.max(len, 1)) % Math.max(len, 1)),
     [len, setIndex]
   );
 
-  if (!len) {
+  if (!len)
     return (
       <Typography sx={{ opacity: 0.7 }}>Nenhum evento encontrado.</Typography>
     );
-  }
 
   return (
     <Box
@@ -439,8 +423,6 @@ function EventCarousel({
       aria-label="Eventos em destaque"
     >
       <EventSlide ev={items[index]} />
-
-      {/* setas */}
       <Tooltip title="Anterior">
         <span>
           <IconButton
@@ -464,7 +446,6 @@ function EventCarousel({
           </IconButton>
         </span>
       </Tooltip>
-
       <Tooltip title="Seguinte">
         <span>
           <IconButton
@@ -488,8 +469,6 @@ function EventCarousel({
           </IconButton>
         </span>
       </Tooltip>
-
-      {/* dots */}
       <Stack
         direction="row"
         spacing={0.75}
@@ -519,7 +498,6 @@ function EventCarousel({
   );
 }
 
-/** ---------- Sugestões ---------- */
 type SuggestionWithMeta = SuggestionBookLite & {
   author?: string | null;
   ageRange?: string | null;
@@ -534,7 +512,6 @@ const SuggestionCard = memo(function SuggestionCard({
   onReserve: () => void;
 }) {
   const cover = book.coverUrl || "/placeholder-book.jpg";
-
   return (
     <Box
       sx={{
@@ -569,7 +546,6 @@ const SuggestionCard = memo(function SuggestionCard({
           flexShrink: 0,
         }}
       />
-
       <Box sx={{ minWidth: 0 }}>
         <Typography
           fontWeight={900}
@@ -584,7 +560,6 @@ const SuggestionCard = memo(function SuggestionCard({
         >
           {book.title}
         </Typography>
-
         {!!book.author && (
           <Typography
             variant="body2"
@@ -600,7 +575,6 @@ const SuggestionCard = memo(function SuggestionCard({
             de {book.author}
           </Typography>
         )}
-
         <Box
           sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 0.25 }}
           aria-label="Avaliação média 4 de 5"
@@ -614,7 +588,6 @@ const SuggestionCard = memo(function SuggestionCard({
           ))}
         </Box>
       </Box>
-
       <Tooltip title="Reservar este livro">
         <span>
           <PrimaryButton
@@ -631,108 +604,188 @@ const SuggestionCard = memo(function SuggestionCard({
   );
 });
 
-/** ---------- Página ---------- */
-export default function LandingPage() {
-  const theme = useTheme();
-  const { user, asChild, selectedChildId } = useUserSession();
+/* =========================================================================
+   Hooks pequenos (carregamentos)
+   ========================================================================= */
 
-  const [badges, setBadges] = useState<BadgeLite[]>([]);
+function useLoadEvents() {
   const [eventos, setEventos] = useState<EventItem[]>([]);
-  const [eventIndex, setEventIndex] = useState(0);
-  const [leituras, setLeituras] = useState<ReadingBookLite[]>([]);
-  const [sugestoes, setSugestoes] = useState<SuggestionWithMeta[]>([]);
-  const [consultas, setConsultas] = useState<ConsultaLite[]>([]);
-
-  // micro-conteúdos em destaque
-  const [tips, setTips] = useState<MicroContentItem[]>([]);
-  const [tipsSeen, setTipsSeen] = useState<Record<number, boolean>>({});
-
-  // estados de carregamento finos
-  const [loading, setLoading] = useState({
-    eventos: true,
-    leituras: true,
-    consultas: true,
-    badges: true,
-    tips: true,
-  });
-
-  // sugestões (manual only)
-  const [sugLoading, setSugLoading] = useState(false);
-  const [sugUpdatedAt, setSugUpdatedAt] = useState<number | null>(null);
-
-  // carga geral (com consultas e leituras conforme o modo)
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    let mounted = true;
+    let alive = true;
     (async () => {
-      const childIdsAll =
-        (user?.children || [])
-          .map((c) => Number(c.id))
-          .filter((n) => Number.isFinite(n)) ?? [];
-
-      const currentChildId = asChild
-        ? Number(user?.actingChild?.id)
-        : Number(selectedChildId ?? NaN);
-
-      const userIdNum = Number(user?.id);
-
-      // Leituras
-      const leiturasPromise = asChild
-        ? getLeiturasAtuais(4, { childId: currentChildId })
-        : (async () => {
-            if (!childIdsAll.length) return [] as ReadingBookLite[];
-            const perChild = await Promise.all(
-              childIdsAll.map((cid) => getLeiturasAtuais(2, { childId: cid }))
-            );
-            // junta e corta às 4 mais recentes (se o serviço já vier ordenado, perfeito)
-            return perChild.flat().slice(0, 4) as ReadingBookLite[];
-          })();
-
-      // Consultas (só família) — serviço já usa o utilizador autenticado
-      const consultasPromise =
-        asChild || !Number.isFinite(userIdNum)
-          ? Promise.resolve([] as ConsultaLite[])
-          : getNextConsultas(6, { familyId: userIdNum });
-
-      const badgesPromise = asChild
-        ? getBadgesRecent(12, { childId: currentChildId })
-        : getBadgesRecent(12, { familyId: Number(user?.id) });
-
-      const [ev, le, co, ba] = await Promise.allSettled([
-        getProximosEventos(8),
-        leiturasPromise,
-        consultasPromise,
-        badgesPromise,
-      ]);
-
-      if (!mounted) return;
-
-      if (ev.status === "fulfilled") setEventos(ev.value as any);
-      setLoading((s) => ({ ...s, eventos: false }));
-
-      if (le.status === "fulfilled") setLeituras(le.value as any);
-      setLoading((s) => ({ ...s, leituras: false }));
-
-      if (co.status === "fulfilled") setConsultas(co.value as any);
-      else if (asChild) setConsultas([]);
-      setLoading((s) => ({ ...s, consultas: false }));
-
-      if (ba.status === "fulfilled") setBadges(ba.value as any);
-      setLoading((s) => ({ ...s, badges: false }));
+      try {
+        const arr = await getProximosEventos(8);
+        if (alive) setEventos(Array.isArray(arr) ? (arr as EventItem[]) : []);
+      } finally {
+        if (alive) setLoading(false);
+      }
     })();
     return () => {
-      mounted = false;
+      alive = false;
     };
-  }, [
-    asChild,
-    selectedChildId,
-    user?.actingChild?.id,
-    user?.children?.length,
-    user?.id,
-  ]);
+  }, []);
+  return { eventos, loading };
+}
 
-  // carregar 3 micro-conteúdos (preferindo DICA/BIBLIOTERAPIA)
+/** ============== NOVO: leituras agrupadas por filho ============== */
+type GroupedLeituras = {
+  childId: number;
+  childName: string;
+  items: ReadingBookLite[];
+};
+
+function useLoadLeiturasGrouped(asChild: boolean, user?: any | null) {
+  const [groups, setGroups] = useState<GroupedLeituras[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const actingChildId = validId(user?.actingChild?.id);
+  const actingChildName =
+    user?.actingChild?.name ||
+    (user?.children || []).find((c: any) => Number(c.id) === actingChildId)
+      ?.name ||
+    "Criança";
+
   useEffect(() => {
-    let mounted = true;
+    let alive = true;
+    (async () => {
+      try {
+        if (asChild) {
+          const cid = actingChildId;
+          if (!cid) {
+            if (alive) {
+              setGroups([]);
+              setTotalCount(0);
+            }
+            return;
+          }
+          const arr = await getLeiturasAtuais(8, { childId: cid });
+          const list = Array.isArray(arr) ? (arr as ReadingBookLite[]) : [];
+          if (!alive) return;
+          setGroups([{ childId: cid, childName: actingChildName, items: list }]);
+          setTotalCount(list.length);
+          return;
+        }
+
+        // família → por todos os filhos
+        const kids: Array<{ id: number; name: string }> = (user?.children || [])
+          .map((c: any) => ({
+            id: Number(c.id),
+            name: c?.name ?? "Criança",
+          }))
+         
+        if (!kids.length) {
+          if (alive) {
+            setGroups([]);
+            setTotalCount(0);
+          }
+          return;
+        }
+
+        const results = await Promise.allSettled(
+          kids.map((k) => getLeiturasAtuais(8, { childId: k.id }))
+        );
+
+        if (!alive) return;
+
+        const built: GroupedLeituras[] = [];
+        let sum = 0;
+
+        results.forEach((res, idx) => {
+          const k = kids[idx];
+          const list =
+            res.status === "fulfilled" && Array.isArray(res.value)
+              ? (res.value as ReadingBookLite[])
+              : [];
+          sum += list.length;
+          built.push({ childId: k.id, childName: k.name, items: list });
+        });
+
+        setGroups(built);
+        setTotalCount(sum);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [asChild, actingChildId, actingChildName, JSON.stringify(user?.children || [])]);
+
+  return { groups, totalCount, loading };
+}
+
+/** ---------------- consultas (família só) ---------------- */
+function useLoadConsultas(asChild: boolean, familyId?: number | null) {
+  const [consultas, setConsultas] = useState<ConsultaLite[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const fid = validId(familyId);
+        const data =
+          !asChild && fid
+            ? await getNextConsultas(6, { familyId: fid })
+            : [];
+        if (alive) setConsultas(Array.isArray(data) ? data : []);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [asChild, familyId]);
+
+  return { consultas, loading };
+}
+
+/** ---------------- badges ---------------- */
+function useLoadBadges(
+  asChild: boolean,
+  familyId?: number | null,
+  childId?: number | null
+) {
+  const [badges, setBadges] = useState<BadgeLite[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const cid = validId(childId);
+        const fid = validId(familyId);
+        let data: BadgeLite[] = [];
+        if (asChild && cid) {
+          data = await getBadgesRecent(12, { childId: cid });
+        } else if (!asChild && fid) {
+          data = await getBadgesRecent(12, { familyId: fid });
+        } else {
+          data = [];
+        }
+        if (alive) setBadges(Array.isArray(data) ? data : []);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [asChild, familyId, childId]);
+
+  return { badges, loading };
+}
+
+/** ---------------- micro-conteúdos ---------------- */
+function useLoadTips() {
+  const [tips, setTips] = useState<MicroContentItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
     (async () => {
       try {
         const dica = await listMicroContentsPublic({
@@ -749,106 +802,456 @@ export default function LandingPage() {
           });
           items = [...items, ...(Array.isArray(bib?.items) ? bib.items : [])];
         }
-        if (mounted) setTips(items.slice(0, 3) as any);
+        if (alive) setTips(items.slice(0, 3) as MicroContentItem[]);
       } catch {
-        if (mounted) setTips([]);
+        if (alive) setTips([]);
       } finally {
-        if (mounted) setLoading((s) => ({ ...s, tips: false }));
+        if (alive) setLoading(false);
       }
     })();
     return () => {
-      mounted = false;
+      alive = false;
     };
   }, []);
 
-  // gerar sugestões on-demand
-  const generateSuggestions = useCallback(async () => {
-    if (!asChild) return;
+  return { tips, loading };
+}
 
-    const cid = asChild
-      ? Number(user?.actingChild?.id)
-      : Number(selectedChildId ?? NaN);
+/** ---------------- sugestões (on-demand) ---------------- */
+function useSuggestions(asChild: boolean, currentChildId?: number | null) {
+  const [sugestoes, setSugestoes] = useState<SuggestionWithMeta[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
 
-    if (!cid) return;
-
-    setSugLoading(true);
-    try {
-      const res = await getSugestoesPerfil(6, { childId: cid });
-      const list = Array.isArray(res) ? res : (res as any)?.items ?? [];
-      setSugestoes(list as any);
-      setSugUpdatedAt(Date.now());
-      saveSugToCache(cid, list as any);
-    } finally {
-      setSugLoading(false);
-    }
-  }, [asChild, selectedChildId, user?.actingChild?.id]);
-
-  // carregar da cache (sem auto-fetch)
   useEffect(() => {
-    const cid = Number(
-      (user?.actingChild?.id as any) ?? (selectedChildId as any)
-    );
+    const cid = Number(currentChildId || NaN);
     const cached = loadSugFromCache(cid);
     if (cached) {
       setSugestoes(cached.items as any);
-      setSugUpdatedAt(cached.ts);
+      setUpdatedAt(cached.ts);
     } else {
       setSugestoes([]);
-      setSugUpdatedAt(null);
+      setUpdatedAt(null);
     }
-  }, [asChild, selectedChildId, user?.actingChild?.id]);
+  }, [asChild, currentChildId]);
 
-  const familyName = user?.fullName ?? "Família";
+  const generate = useCallback(async () => {
+    if (!asChild || !currentChildId) return;
+    setLoading(true);
+    try {
+      const res = await getSugestoesPerfil(6, { childId: currentChildId });
+      const list = Array.isArray(res) ? res : (res as any)?.items ?? [];
+      setSugestoes(list as any);
+      setUpdatedAt(Date.now());
+      saveSugToCache(currentChildId, list as any);
+    } finally {
+      setLoading(false);
+    }
+  }, [asChild, currentChildId]);
 
-  const HeroTitle = useMemo(
-    () => (
-      <Typography
-        variant="h3"
-        fontWeight={900}
-        sx={{ letterSpacing: 0.3, mb: 2, lineHeight: 1.1 }}
-        component="h1"
+  return { sugestoes, loading, updatedAt, generate };
+}
+
+/* =========================================================================
+   Secções (peças de layout)
+   ========================================================================= */
+
+function HeaderBar({ title }: { title: React.ReactNode }) {
+  return (
+    <Box display="flex" alignItems="center" justifyContent="space-between">
+      <Box>{title}</Box>
+      <Tooltip title="Abrir notificações">
+        <NotificationBell
+          onClick={() => {}}
+          items={[]}
+          aria-label="Abrir notificações"
+        />
+      </Tooltip>
+    </Box>
+  );
+}
+
+function KpiTiles({
+  leiturasCount,
+  sugCount,
+  eventosCount,
+  loadingLeituras,
+  loadingSugestoes,
+  loadingEventos,
+}: {
+  leiturasCount: number;
+  sugCount: number;
+  eventosCount: number;
+  loadingLeituras: boolean;
+  loadingSugestoes: boolean;
+  loadingEventos: boolean;
+}) {
+  const theme = useTheme();
+  const g = (main: string, light: string) =>
+    `linear-gradient(135deg, ${main} 0%, ${light} 100%)`;
+  return (
+    <Grid container spacing={2} sx={{ mt: 1 }}>
+      <Grid item xs={12} md={4}>
+        <StatTile
+          label="Leituras concluidas"
+          value={`${leiturasCount}`}
+          sublabel="no momento"
+          gradient={g(theme.palette.primary.main, theme.palette.primary.light)}
+          icon={<BookRounded />}
+          loading={loadingLeituras}
+        />
+      </Grid>
+      <Grid item xs={12} md={4}>
+        <StatTile
+          label="Sugestões novas"
+          value={`${sugCount}`}
+          sublabel="baseadas no teu perfil"
+          gradient={g(
+            theme.palette.secondary.main,
+            theme.palette.secondary.light
+          )}
+          icon={<AutoAwesomeRounded />}
+          loading={loadingSugestoes}
+        />
+      </Grid>
+      <Grid item xs={12} md={4}>
+        <StatTile
+          label="Eventos este mês"
+          value={`${eventosCount}`}
+          sublabel="na tua biblioteca"
+          gradient={g(theme.palette.success.main, theme.palette.success.light)}
+          icon={<EventAvailableRounded />}
+          loading={loadingEventos}
+        />
+      </Grid>
+    </Grid>
+  );
+}
+
+function SuggestionsPanel({
+  sugestoes,
+  loading,
+  updatedAt,
+  onGenerate,
+}: {
+  sugestoes: SuggestionWithMeta[];
+  loading: boolean;
+  updatedAt: number | null;
+  onGenerate: () => void;
+}) {
+  return (
+    <>
+      <CardHeader
+        title="Sugestões para ti"
+        icon={<TipsAndUpdatesRounded />}
+        action={
+          <Tooltip title="Gerar novas sugestões">
+            <span>
+              <IconButton
+                size="small"
+                onClick={onGenerate}
+                disabled={loading}
+                aria-label="Gerar novas sugestões"
+              >
+                <RefreshRounded fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        }
+      />
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: "auto",
+          pr: 1,
+          "&::-webkit-scrollbar": { width: 6 },
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: "rgba(0,0,0,.15)",
+            borderRadius: 8,
+          },
+        }}
+        aria-busy={loading}
       >
-        {asChild
-          ? "Bem vindo de volta!"
-          : `Olá, ${user?.fullName?.split(" ")[0] ?? ""}`}
-      </Typography>
-    ),
-    [asChild, user?.fullName]
+        <Stack spacing={1.25}>
+          {loading && (
+            <Typography variant="body2" sx={{ opacity: 0.7 }}>
+              A gerar sugestões…
+            </Typography>
+          )}
+          {!!updatedAt && (
+            <Typography variant="caption" sx={{ opacity: 0.6 }}>
+              Última geração: {new Date(updatedAt).toLocaleString("pt-PT")}
+            </Typography>
+          )}
+          {loading && !sugestoes.length
+            ? Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} variant="rounded" height={98} />
+              ))
+            : (sugestoes || []).map((b, i) => (
+                <Box key={(b as any).isbn ?? (b as any).id ?? i}>
+                  <SuggestionCard book={b as any} onReserve={() => {}} />
+                  {i < (sugestoes?.length || 0) - 1 && (
+                    <Divider sx={{ my: 1.25, mx: 0, borderColor: "divider" }} />
+                  )}
+                </Box>
+              ))}
+          {!loading && !sugestoes.length && (
+            <Typography sx={{ opacity: 0.6 }}>
+              Sem sugestões no momento. Clica em <b>↻</b> para gerar.
+            </Typography>
+          )}
+        </Stack>
+      </Box>
+    </>
   );
+}
 
-  const gPrimary = useMemo(
-    () =>
-      `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.light} 100%)`,
-    [theme.palette.primary.light, theme.palette.primary.main]
+function ConsultasPanel({
+  consultas,
+  loading,
+}: {
+  consultas: ConsultaLite[];
+  loading: boolean;
+}) {
+  const list = Array.isArray(consultas) ? consultas : [];
+  return (
+    <>
+      <CardHeader title="Próximas Consultas" icon={<VerifiedRounded />} />
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: "auto",
+          pr: 1,
+          "&::-webkit-scrollbar": { width: 6 },
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: "rgba(0,0,0,.15)",
+            borderRadius: 8,
+          },
+        }}
+      >
+        {loading ? (
+          <Stack spacing={ROW_GAP}>
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Skeleton key={i} variant="rounded" height={96} />
+            ))}
+          </Stack>
+        ) : list.length ? (
+          <Stack
+            spacing={ROW_GAP}
+            divider={<Divider sx={{ borderColor: "divider" }} />}
+          >
+            {list.map((c) => (
+              <ConsultaRow key={c.id} c={c} />
+            ))}
+          </Stack>
+        ) : (
+          <Typography sx={{ opacity: 0.6 }}>
+            Sem consultas agendadas.
+          </Typography>
+        )}
+      </Box>
+    </>
   );
-  const gSecondary = useMemo(
-    () =>
-      `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.light} 100%)`,
-    [theme.palette.secondary.light, theme.palette.secondary.main]
-  );
-  const gSuccess = useMemo(
-    () =>
-      `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.light} 100%)`,
-    [theme.palette.success.light, theme.palette.success.main]
-  );
+}
 
+function EventosSection({
+  eventos,
+  loading,
+}: {
+  eventos: EventItem[];
+  loading: boolean;
+}) {
   const [evCat, setEvCat] = useState<
     "Biblioteca" | "Casa da Cultura" | "Centro UNESCO"
   >("Biblioteca");
+  const [eventIndex, setEventIndex] = useState(0);
 
-  const eventosFiltrados = useMemo(
+  useEffect(() => setEventIndex(0), [evCat]);
+
+  const filtrados = useMemo(
     () =>
-      eventos.filter((e: any) => {
-        const base = norm(e.category || e.location || "");
-        const alvo = norm(evCat);
-        return base.includes(alvo);
-      }),
+      eventos.filter((e) =>
+        norm(e.category || e.location || "").includes(norm(evCat))
+      ),
     [eventos, evCat]
   );
 
-  const groupedBadges = useMemo(() => {
-    if (asChild) return [] as Array<{ child: string; items: BadgeLite[] }>;
+  return (
+    <>
+      <CardHeader
+        title="Eventos em Destaque"
+        icon={<EventAvailableRounded />}
+      />
+      <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+        {[
+          {
+            label: "Biblioteca",
+            icon: <LocalLibraryRounded fontSize="small" />,
+          },
+          {
+            label: "Casa da Cultura",
+            icon: <TheaterComedyRounded fontSize="small" />,
+          },
+          { label: "Centro UNESCO", icon: <PublicRounded fontSize="small" /> },
+        ].map((c) => (
+          <Chip
+            key={c.label}
+            label={c.label}
+            icon={c.icon}
+            clickable
+            color={evCat === (c.label as any) ? "primary" : "default"}
+            onClick={() => setEvCat(c.label as any)}
+            variant={evCat === (c.label as any) ? "filled" : "outlined"}
+          />
+        ))}
+      </Stack>
+      <Box
+        sx={{
+          position: "relative",
+          overflow: "hidden",
+          flex: 1,
+          display: "flex",
+          alignItems: "flex-start",
+        }}
+      >
+        {loading ? (
+          <Skeleton variant="rounded" height={220} />
+        ) : filtrados.length ? (
+          <Box sx={{ width: "min(100%, 420px)" }}>
+            <EventCarousel
+              items={filtrados}
+              index={eventIndex}
+              setIndex={setEventIndex}
+            />
+          </Box>
+        ) : (
+          <Typography sx={{ opacity: 0.7 }}>
+            Sem eventos nessa categoria.
+          </Typography>
+        )}
+      </Box>
+    </>
+  );
+}
 
+/** ============== SECÇÃO LEITURAS (agora agrupa por filho) ============== */
+function LeiturasSection({
+  asChild,
+  groups,
+  loading,
+}: {
+  asChild: boolean;
+  groups: GroupedLeituras[];
+  loading: boolean;
+}) {
+  const childGroups = Array.isArray(groups) ? groups : [];
+
+  // modo criança → renderiza só o primeiro grupo (a criança ativa)
+  const renderList = (list: ReadingBookLite[]) => (
+    <Stack spacing={1}>
+      {(Array.isArray(list) ? list : []).map((b, idx) => (
+        <Box key={b.id ?? `${b.title}-${idx}`}>
+          <Stack
+            direction="row"
+            gap={1}
+            alignItems="center"
+            sx={{
+              px: 1,
+              py: 1,
+              borderRadius: 2,
+              "&:hover": { bgcolor: "action.hover" },
+            }}
+          >
+            <img
+              src={b.coverUrl || "/placeholder-book.jpg"}
+              alt=""
+              width={46}
+              height={62}
+              style={{ borderRadius: 8, objectFit: "cover" }}
+            />
+            <Box flex={1} minWidth={0}>
+              <Typography fontWeight={800} noWrap title={b.title}>
+                {b.title}
+              </Typography>
+            </Box>
+            <RouteLink href={asChild ? "/suggestions" : "/reading"}>
+              Abrir
+            </RouteLink>
+          </Stack>
+          {idx < (list.length || 0) - 1 && (
+            <Divider sx={{ my: 1.25, mx: 0, borderColor: "divider" }} />
+          )}
+        </Box>
+      ))}
+    </Stack>
+  );
+
+  return (
+    <>
+      <CardHeader title="Leituras" icon={<BookRounded />} />
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: "auto",
+          pr: 1,
+          "&::-webkit-scrollbar": { width: 6 },
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: "rgba(0,0,0,.15)",
+            borderRadius: 8,
+          },
+        }}
+      >
+        {loading ? (
+          <Stack spacing={1}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} variant="rounded" height={76} />
+            ))}
+          </Stack>
+        ) : asChild ? (
+          renderList(childGroups[0]?.items || [])
+        ) : (
+          <>
+            {childGroups.filter((g) => (g.items || []).length > 0).length ===
+            0 ? (
+              <Typography sx={{ opacity: 0.6 }}>
+                Sem leituras ativas nos teus filhos.
+              </Typography>
+            ) : (
+              <Stack spacing={2}>
+                {childGroups.map((g) =>
+                  (g.items || []).length ? (
+                    <Box key={g.childId}>
+                      <Typography
+                        variant="subtitle2"
+                        fontWeight={900}
+                        sx={{ mb: 0.75, opacity: 0.9 }}
+                      >
+                        {g.childName}
+                      </Typography>
+                      {renderList(g.items)}
+                    </Box>
+                  ) : null
+                )}
+              </Stack>
+            )}
+          </>
+        )}
+      </Box>
+    </>
+  );
+}
+
+function ConquistasSection({
+  badges,
+  loading,
+  asChild,
+}: {
+  badges: BadgeLite[];
+  loading: boolean;
+  asChild: boolean;
+}) {
+  const grouped = useMemo(() => {
+    if (asChild) return [] as Array<{ child: string; items: BadgeLite[] }>;
     const map = new Map<string, BadgeLite[]>();
     for (const b of badges) {
       const key = b.childName || "—";
@@ -856,9 +1259,7 @@ export default function LandingPage() {
       arr.push(b);
       map.set(key, arr);
     }
-
-    // ordenar cada grupo por data desc
-    const groups = Array.from(map.entries()).map(([child, items]) => ({
+    return Array.from(map.entries()).map(([child, items]) => ({
       child,
       items: items
         .slice()
@@ -866,383 +1267,76 @@ export default function LandingPage() {
           (a, b) =>
             new Date(b.assignedAt || 0).getTime() -
             new Date(a.assignedAt || 0).getTime()
-        ),
+        )
+        .slice(0, 4),
     }));
-
-    return groups.map((g) => ({ child: g.child, items: g.items.slice(0, 4) }));
   }, [asChild, badges]);
 
-  useEffect(() => {
-    setEventIndex(0);
-  }, [evCat]);
-
-  const kpiLoading = loading.leituras || loading.eventos; // simples
-
   return (
-    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
-      {/* Header */}
-      <Box display="flex" alignItems="center" justifyContent="space-between">
-        <Box>{HeroTitle}</Box>
-        <Tooltip title="Abrir notificações">
-          <NotificationBell
-            onClick={() => {}}
-            items={[]}
-            aria-label="Abrir notificações"
-          />
-        </Tooltip>
-      </Box>
-
-      {/* KPI tiles */}
-      <Grid container spacing={2} sx={{ mt: 1 }}>
-        <Grid item xs={12} md={4}>
-          <StatTile
-            label="Livros a ler"
-            value={`${leituras.length}`}
-            sublabel="no momento"
-            gradient={gPrimary}
-            icon={<BookRounded />}
-            loading={loading.leituras}
-          />
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <StatTile
-            label="Sugestões novas"
-            value={`${sugestoes.length}`}
-            sublabel="baseadas no teu perfil"
-            gradient={gSecondary}
-            icon={<AutoAwesomeRounded />}
-            loading={sugLoading}
-          />
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <StatTile
-            label="Eventos este mês"
-            value={`${eventos.length}`}
-            sublabel="na tua biblioteca"
-            gradient={gSuccess}
-            icon={<EventAvailableRounded />}
-            loading={loading.eventos}
-          />
-        </Grid>
-      </Grid>
-
-      {/* Secções principais */}
-      <Grid container spacing={2} sx={{ mt: 1 }}>
-        {/* Sugestões / Consultas */}
-        <Grid item xs={12} md={4} sx={{ display: "flex" }}>
-          <WhiteCard
-            sx={{
-              flex: 1,
-              height: TOP_CARD_H,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <CardHeader
-              title={asChild ? "Sugestões para ti" : "Próximas Consultas"}
-              icon={asChild ? <TipsAndUpdatesRounded /> : <VerifiedRounded />}
-              action={
-                asChild ? (
-                  <Tooltip title="Gerar novas sugestões">
-                    <span>
-                      <IconButton
-                        size="small"
-                        onClick={generateSuggestions}
-                        disabled={sugLoading}
-                        aria-label="Gerar novas sugestões"
-                      >
-                        <RefreshRounded fontSize="small" />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                ) : null
-              }
-            />
-            <Box
-              sx={{
-                flex: 1,
-                overflowY: "auto",
-                pr: 1,
-                "&::-webkit-scrollbar": { width: 6 },
-                "&::-webkit-scrollbar-thumb": {
-                  backgroundColor: "rgba(0,0,0,.15)",
-                  borderRadius: 8,
-                },
-              }}
-              aria-busy={asChild ? sugLoading : loading.consultas}
-            >
-              {asChild ? (
-                <Stack spacing={1.25}>
-                  {sugLoading && (
-                    <Typography
-                      variant="body2"
-                      sx={{ opacity: 0.7 }}
-                      aria-live="polite"
-                    >
-                      A gerar sugestões…
-                    </Typography>
-                  )}
-
-                  {!!sugUpdatedAt && (
-                    <Typography variant="caption" sx={{ opacity: 0.6 }}>
-                      Última geração:{" "}
-                      {new Date(sugUpdatedAt).toLocaleString("pt-PT")}
-                    </Typography>
-                  )}
-
-                  {sugLoading && sugestoes.length === 0 ? (
-                    <>
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <Skeleton key={i} variant="rounded" height={98} />
-                      ))}
-                    </>
-                  ) : (
-                    (Array.isArray(sugestoes) ? sugestoes : []).map((b, i) => (
-                      <Box key={(b as any).isbn ?? (b as any).id ?? i}>
-                        <SuggestionCard
-                          book={b as any}
-                          onReserve={() => {
-                            /* ... */
-                          }}
-                        />
-                        {i <
-                          (Array.isArray(sugestoes) ? sugestoes.length : 0) -
-                            1 && (
-                          <Divider
-                            sx={{ my: 1.25, mx: 0, borderColor: "divider" }}
-                          />
-                        )}
-                      </Box>
-                    ))
-                  )}
-
-                  {!sugLoading && sugestoes.length === 0 && (
-                    <Typography sx={{ opacity: 0.6 }}>
-                      Sem sugestões no momento. Clica em <b>↻</b> para gerar.
-                    </Typography>
-                  )}
-                </Stack>
-              ) : loading.consultas ? (
-                <Stack spacing={ROW_GAP}>
-                  {Array.from({ length: 2 }).map((_, i) => (
-                    <Skeleton key={i} variant="rounded" height={96} />
-                  ))}
-                </Stack>
-              ) : consultas.length ? (
-                <Stack
-                  spacing={ROW_GAP}
-                  divider={<Divider sx={{ borderColor: "divider" }} />}
-                >
-                  {consultas.map((c) => (
-                    <ConsultaRow key={c.id} c={c} />
-                  ))}
-                </Stack>
-              ) : (
-                <Typography sx={{ opacity: 0.6 }}>
-                  Sem consultas agendadas.
-                </Typography>
-              )}
-            </Box>
-          </WhiteCard>
-        </Grid>
-
-        {/* Eventos em Destaque */}
-        <Grid item xs={12} md={5} sx={{ display: "flex" }}>
-          <WhiteCard
-            sx={{
-              flex: 1,
-              height: TOP_CARD_H,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <CardHeader
-              title="Eventos em Destaque"
-              icon={<EventAvailableRounded />}
-            />
-            {/* filtros */}
-            <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-              {(
-                [
-                  {
-                    label: "Biblioteca",
-                    icon: <LocalLibraryRounded fontSize="small" />,
-                  },
-                  {
-                    label: "Casa da Cultura",
-                    icon: <TheaterComedyRounded fontSize="small" />,
-                  },
-                  {
-                    label: "Centro UNESCO",
-                    icon: <PublicRounded fontSize="small" />,
-                  },
-                ] as const
-              ).map((c) => (
+    <WhiteCard sx={{ flex: 1, minHeight: 180 }}>
+      <CardHeader
+        title="Conquistas Recentes"
+        icon={<VerifiedRounded />}
+        action={<RouteLink href="/conquistas">Ver todas</RouteLink>}
+      />
+      {loading ? (
+        <Stack direction="row" spacing={1}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} variant="rounded" width={96} height={28} />
+          ))}
+        </Stack>
+      ) : badges.length === 0 ? (
+        <Typography sx={{ opacity: 0.6 }}>
+          Ainda não há conquistas… continua a ler! 📚
+        </Typography>
+      ) : asChild ? (
+        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+          {badges.map((b, i) => {
+            const isTrophy = (b.type || "").toUpperCase().includes("TROF");
+            const Icon = isTrophy ? EmojiEventsRounded : VerifiedRounded;
+            const safeKey = `badge-${b.childId ?? "self"}-${b.name ?? "?"}-${
+              b.assignedAt ?? i
+            }-${i}`;
+            return (
+              <Tooltip
+                key={safeKey}
+                title={
+                  b.assignedAt
+                    ? new Date(b.assignedAt).toLocaleString("pt-PT")
+                    : ""
+                }
+              >
                 <Chip
-                  key={c.label}
-                  label={c.label}
-                  icon={c.icon}
-                  clickable
-                  color={evCat === c.label ? "primary" : "default"}
-                  onClick={() => setEvCat(c.label)}
-                  variant={evCat === c.label ? "filled" : "outlined"}
+                  size="small"
+                  variant={isTrophy ? "filled" : "outlined"}
+                  icon={<Icon fontSize="small" />}
+                  label={b.name}
+                  sx={{ borderRadius: 3 }}
                 />
-              ))}
-            </Stack>
-
-            {/* contentor do carrossel */}
-            <Box
-              sx={{
-                position: "relative",
-                overflow: "hidden",
-                flex: 1,
-                display: "flex",
-                alignItems: "flex-start",
-              }}
-            >
-              {loading.eventos ? (
-                <Skeleton variant="rounded" height={220} />
-              ) : eventosFiltrados.length ? (
-                <Box sx={{ width: "min(100%, 420px)" }}>
-                  <EventCarousel
-                    items={eventosFiltrados}
-                    index={eventIndex}
-                    setIndex={setEventIndex}
-                  />
-                </Box>
-              ) : (
-                <Typography sx={{ opacity: 0.7 }}>
-                  Sem eventos nessa categoria.
-                </Typography>
-              )}
-            </Box>
-          </WhiteCard>
-        </Grid>
-
-        {/* Leituras */}
-        <Grid item xs={12} md={3} sx={{ display: "flex" }}>
-          <WhiteCard
-            sx={{
-              flex: 1,
-              height: TOP_CARD_H,
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <CardHeader title="Leituras" icon={<BookRounded />} />
-            <Box
-              sx={{
-                flex: 1,
-                overflowY: "auto",
-                pr: 1,
-                "&::-webkit-scrollbar": { width: 6 },
-                "&::-webkit-scrollbar-thumb": {
-                  backgroundColor: "rgba(0,0,0,.15)",
-                  borderRadius: 8,
-                },
-              }}
-            >
-              {loading.leituras ? (
-                <Stack spacing={1}>
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <Skeleton key={i} variant="rounded" height={76} />
-                  ))}
-                </Stack>
-              ) : (
-                <Stack spacing={1}>
-                  {leituras.map((b, idx) => (
-                    <Box key={b.id}>
-                      <Stack
-                        direction="row"
-                        gap={1}
-                        alignItems="center"
-                        sx={{
-                          px: 1,
-                          py: 1,
-                          borderRadius: 2,
-                          "&:hover": { bgcolor: "action.hover" },
-                        }}
-                      >
-                        <img
-                          src={b.coverUrl || "/placeholder-book.jpg"}
-                          alt=""
-                          width={46}
-                          height={62}
-                          style={{ borderRadius: 8, objectFit: "cover" }}
-                        />
-                        <Box flex={1} minWidth={0}>
-                          <Typography fontWeight={800} noWrap title={b.title}>
-                            {b.title}
-                          </Typography>
-                          {!asChild && (b as any).childName && (
-                            <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                              de {(b as any).childName}
-                            </Typography>
-                          )}
-                          {!asChild && (
-                            <LinearProgress
-                              variant="determinate"
-                              value={35 + ((idx * 15) % 50)}
-                              sx={{
-                                height: 6,
-                                borderRadius: 999,
-                                mt: 0.5,
-                                mr: 1,
-                              }}
-                              aria-label="Progresso de leitura"
-                            />
-                          )}
-                        </Box>
-                        <RouteLink href={asChild ? "/suggestions" : "/reading"}>
-                          {asChild ? "Abrir" : "Abrir"}
-                        </RouteLink>
-                      </Stack>
-                      {idx < leituras.length - 1 && (
-                        <Divider
-                          sx={{ my: 1.25, mx: 0, borderColor: "divider" }}
-                        />
-                      )}
-                    </Box>
-                  ))}
-                </Stack>
-              )}
-            </Box>
-          </WhiteCard>
-        </Grid>
-
-        {/* Área inferior esquerda: Conquistas */}
-        <Grid item xs={12} md={6} sx={{ display: "flex" }}>
-          <WhiteCard sx={{ flex: 1, minHeight: 180 }}>
-            <CardHeader
-              title="Conquistas Recentes"
-              icon={<VerifiedRounded />}
-              action={<RouteLink href="/conquistas">Ver todas</RouteLink>}
-            />
-
-            {loading.badges ? (
-              <Stack direction="row" spacing={1}>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <Skeleton key={i} variant="rounded" width={96} height={28} />
-                ))}
-              </Stack>
-            ) : badges.length === 0 ? (
-              <Typography sx={{ opacity: 0.6 }}>
-                Ainda não há conquistas… continua a ler! 📚
+              </Tooltip>
+            );
+          })}
+        </Stack>
+      ) : (
+        <Stack spacing={1.25}>
+          {grouped.map(({ child, items }) => (
+            <Box key={child}>
+              <Typography
+                variant="subtitle2"
+                fontWeight={900}
+                sx={{ mb: 0.5, opacity: 0.9 }}
+              >
+                {child}
               </Typography>
-            ) : asChild ? (
-              // --- MODO CRIANÇA: lista simples ---
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                {badges.map((b, i) => {
+                {items.map((b, i) => {
                   const isTrophy = (b.type || "")
                     .toUpperCase()
                     .includes("TROF");
                   const Icon = isTrophy ? EmojiEventsRounded : VerifiedRounded;
-
-                  // ⚠️ usa um fallback robusto em vez do id nu
-                  const safeKey = `badge-${b.childId ?? "self"}-${
-                    b.name ?? "?"
-                  }-${b.assignedAt ?? i}-${i}`;
-
+                  const safeKey = `${child}-badge-${b.name ?? "?"}-${
+                    b.assignedAt ?? i
+                  }-${i}`;
                   return (
                     <Tooltip
                       key={safeKey}
@@ -1263,176 +1357,248 @@ export default function LandingPage() {
                   );
                 })}
               </Stack>
-            ) : (
-              // --- MODO FAMÍLIA: AGRUPADO POR CRIANÇA ---
-              <Stack spacing={1.25}>
-                {groupedBadges.map(({ child, items }) => (
-                  <Box key={child}>
-                    <Typography
-                      variant="subtitle2"
-                      fontWeight={900}
-                      sx={{ mb: 0.5, opacity: 0.9 }}
+            </Box>
+          ))}
+        </Stack>
+      )}
+    </WhiteCard>
+  );
+}
+
+function TipsSection() {
+  const { tips, loading } = useLoadTips();
+  const [tipsSeen, setTipsSeen] = useState<Record<number, boolean>>({});
+
+  return (
+    <WhiteCard
+      sx={{ flex: 1, height: 400, display: "flex", flexDirection: "column" }}
+    >
+      <CardHeader
+        title="Dicas & Biblioterapia"
+        icon={<TipsAndUpdatesRounded />}
+        action={<RouteLink href="/contents">Ver mais</RouteLink>}
+      />
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: "auto",
+          pr: 1,
+          "&::-webkit-scrollbar": { width: 6 },
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: "rgba(0,0,0,.15)",
+            borderRadius: 8,
+          },
+        }}
+      >
+        {loading ? (
+          <Stack spacing={1.25}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} variant="rounded" height={88} />
+            ))}
+          </Stack>
+        ) : !tips.length ? (
+          <Typography sx={{ opacity: 0.6 }}>
+            Sem conteúdos no momento.
+          </Typography>
+        ) : (
+          <Stack spacing={1.25} divider={<Divider />}>
+            {tips.map((mc) => {
+              const seen =
+                (mc as any).seen === true ||
+                Number((mc as any).interactionsCount || 0) > 0 ||
+                tipsSeen[mc.id];
+              return (
+                <Box key={mc.id}>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    useFlexGap
+                    flexWrap="wrap"
+                    alignItems="center"
+                    sx={{ mb: 0.5 }}
+                  >
+                    <Chip size="small" color="primary" label={mc.type} />
+                    {mc.tags.slice(0, 3).map((t) => (
+                      <Chip key={t} size="small" label={t} variant="outlined" />
+                    ))}
+                    {mc.library ? (
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={`Biblioteca: ${mc.library.name}`}
+                      />
+                    ) : null}
+                    {seen ? (
+                      <Chip size="small" color="success" label="Visto" />
+                    ) : null}
+                  </Stack>
+                  <Typography
+                    sx={{
+                      whiteSpace: "pre-wrap",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 4,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {mc.text}
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ mt: 0.75 }}>
+                    <Button
+                      size="small"
+                      onClick={async () => {
+                        if (seen) return;
+                        await markMicroContentSeen(mc.id);
+                        setTipsSeen((m) => ({ ...m, [mc.id]: true }));
+                      }}
+                      disabled={seen}
+                      startIcon={<VerifiedRounded />}
                     >
-                      {child}
-                    </Typography>
+                      {seen ? "Visto" : "Marcar como visto"}
+                    </Button>
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
+        )}
+      </Box>
+    </WhiteCard>
+  );
+}
 
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      useFlexGap
-                      flexWrap="wrap"
-                    >
-                      {items.map((b, i) => {
-                        const isTrophy = (b.type || "")
-                          .toUpperCase()
-                          .includes("TROF");
-                        const Icon = isTrophy
-                          ? EmojiEventsRounded
-                          : VerifiedRounded;
+/* =========================================================================
+   Página principal (curta)
+   ========================================================================= */
 
-                        // ⚠️ key estável por grupo + índice
-                        const safeKey = `${child}-badge-${b.name ?? "?"}-${
-                          b.assignedAt ?? i
-                        }-${i}`;
+export default function LandingPage() {
+  const { user, asChild } = useUserSession();
 
-                        return (
-                          <Tooltip
-                            key={safeKey}
-                            title={
-                              b.assignedAt
-                                ? new Date(b.assignedAt).toLocaleString("pt-PT")
-                                : ""
-                            }
-                          >
-                            <Chip
-                              size="small"
-                              variant={isTrophy ? "filled" : "outlined"}
-                              icon={<Icon fontSize="small" />}
-                              label={b.name}
-                              sx={{ borderRadius: 3 }}
-                            />
-                          </Tooltip>
-                        );
-                      })}
-                    </Stack>
-                  </Box>
-                ))}
-              </Stack>
-            )}
-          </WhiteCard>
-        </Grid>
+  const currentChildId = useMemo(
+    () => (asChild ? Number(user?.actingChild?.id) || null : null),
+    [asChild, user?.actingChild?.id]
+  );
 
-        {/* Área inferior direita: Dicas & Biblioterapia */}
-        <Grid item xs={12} md={6} sx={{ display: "flex" }}>
+  const { eventos, loading: loadingEventos } = useLoadEvents();
+
+  // 👉 leituras por filho
+  const {
+    groups: leituraGrupos,
+    totalCount: leiturasTotal,
+    loading: loadingLeituras,
+  } = useLoadLeiturasGrouped(asChild, user);
+
+  const { consultas, loading: loadingConsultas } = useLoadConsultas(
+    asChild,
+    user?.id
+  );
+  const { badges, loading: loadingBadges } = useLoadBadges(
+    asChild,
+    user?.id,
+    currentChildId
+  );
+  const {
+    sugestoes,
+    loading: loadingSug,
+    updatedAt,
+    generate,
+  } = useSuggestions(asChild, currentChildId);
+
+  const hero = useMemo(
+    () => (
+      <Typography
+        variant="h3"
+        fontWeight={900}
+        sx={{ letterSpacing: 0.3, mb: 2, lineHeight: 1.1 }}
+        component="h1"
+      >
+        {asChild
+          ? "Bem vindo de volta!"
+          : `Olá, ${user?.fullName?.split(" ")[0] ?? ""}`}
+      </Typography>
+    ),
+    [asChild, user?.fullName]
+  );
+
+  return (
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      <HeaderBar title={hero} />
+
+      <KpiTiles
+        leiturasCount={leiturasTotal}
+        sugCount={sugestoes.length}
+        eventosCount={eventos.length}
+        loadingLeituras={loadingLeituras}
+        loadingSugestoes={loadingSug}
+        loadingEventos={loadingEventos}
+      />
+
+      <Grid container spacing={2} sx={{ mt: 1 }}>
+        <Grid item xs={12} md={4} sx={{ display: "flex" }}>
           <WhiteCard
             sx={{
               flex: 1,
-              height: 400,
+              height: TOP_CARD_H,
               display: "flex",
               flexDirection: "column",
             }}
           >
-            <CardHeader
-              title="Dicas & Biblioterapia"
-              icon={<TipsAndUpdatesRounded />}
-              action={<RouteLink href="/contents">Ver mais</RouteLink>}
-            />
-
-            {/* 🔽 content area com scroll para não crescer o card */}
-            <Box
-              sx={{
-                flex: 1,
-                overflowY: "auto",
-                pr: 1,
-                "&::-webkit-scrollbar": { width: 6 },
-                "&::-webkit-scrollbar-thumb": {
-                  backgroundColor: "rgba(0,0,0,.15)",
-                  borderRadius: 8,
-                },
-              }}
-            >
-              {loading.tips ? (
-                <Stack spacing={1.25}>
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <Skeleton key={i} variant="rounded" height={88} />
-                  ))}
-                </Stack>
-              ) : tips.length === 0 ? (
-                <Typography sx={{ opacity: 0.6 }}>
-                  Sem conteúdos no momento.
-                </Typography>
-              ) : (
-                <Stack spacing={1.25} divider={<Divider />}>
-                  {tips.map((mc) => {
-                    const seen =
-                      (mc as any).seen === true ||
-                      Number((mc as any).interactionsCount || 0) > 0 ||
-                      tipsSeen[mc.id];
-
-                    return (
-                      <Box key={mc.id}>
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          useFlexGap
-                          flexWrap="wrap"
-                          alignItems="center"
-                          sx={{ mb: 0.5 }}
-                        >
-                          <Chip size="small" color="primary" label={mc.type} />
-                          {mc.tags.slice(0, 3).map((t) => (
-                            <Chip
-                              key={t}
-                              size="small"
-                              label={t}
-                              variant="outlined"
-                            />
-                          ))}
-                          {mc.library ? (
-                            <Chip
-                              size="small"
-                              variant="outlined"
-                              label={`Biblioteca: ${mc.library.name}`}
-                            />
-                          ) : null}
-                          {seen ? (
-                            <Chip size="small" color="success" label="Visto" />
-                          ) : null}
-                        </Stack>
-
-                        <Typography
-                          sx={{
-                            whiteSpace: "pre-wrap",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 4,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                          }}
-                        >
-                          {mc.text}
-                        </Typography>
-
-                        <Stack direction="row" spacing={1} sx={{ mt: 0.75 }}>
-                          <Button
-                            size="small"
-                            onClick={async () => {
-                              if (seen) return;
-                              await markMicroContentSeen(mc.id);
-                              setTipsSeen((m) => ({ ...m, [mc.id]: true }));
-                            }}
-                            disabled={seen}
-                            startIcon={<VerifiedRounded />}
-                          >
-                            {seen ? "Visto" : "Marcar como visto"}
-                          </Button>
-                        </Stack>
-                      </Box>
-                    );
-                  })}
-                </Stack>
-              )}
-            </Box>
+            {asChild ? (
+              <SuggestionsPanel
+                sugestoes={sugestoes}
+                loading={loadingSug}
+                updatedAt={updatedAt}
+                onGenerate={generate}
+              />
+            ) : (
+              <ConsultasPanel
+                consultas={consultas}
+                loading={loadingConsultas}
+              />
+            )}
           </WhiteCard>
+        </Grid>
+
+        <Grid item xs={12} md={5} sx={{ display: "flex" }}>
+          <WhiteCard
+            sx={{
+              flex: 1,
+              height: TOP_CARD_H,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <EventosSection eventos={eventos} loading={loadingEventos} />
+          </WhiteCard>
+        </Grid>
+
+        <Grid item xs={12} md={3} sx={{ display: "flex" }}>
+          <WhiteCard
+            sx={{
+              flex: 1,
+              height: TOP_CARD_H,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <LeiturasSection
+              asChild={asChild}
+              groups={leituraGrupos}
+              loading={loadingLeituras}
+            />
+          </WhiteCard>
+        </Grid>
+
+        <Grid item xs={12} md={6} sx={{ display: "flex" }}>
+          <ConquistasSection
+            badges={badges}
+            loading={loadingBadges}
+            asChild={asChild}
+          />
+        </Grid>
+
+        <Grid item xs={12} md={6} sx={{ display: "flex" }}>
+          <TipsSection />
         </Grid>
       </Grid>
     </Container>

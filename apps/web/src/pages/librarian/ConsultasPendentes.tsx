@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+/**
+ * ============================================================
+ *  Pedidos de consulta (versão Bibliotecário)
+ *  Refatorado e comentado — com helpers PUROS e funções pequenas
+ *
+ *  Autor do trabalho (aluno): <O TEU NOME AQUI> — Nº <O TEU NÚMERO AQUI>
+ *  👉 Substitui a linha acima pelos teus dados.
+ * ============================================================
+ */
+
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -45,7 +55,11 @@ import {
 } from "lucide-react";
 import type { SlotLite } from "@/services/consultations";
 
-/* -------------------- helpers -------------------- */
+/* ============================================================
+ * Helpers PUROS (sem efeitos colaterais) — fáceis de testar
+ * ============================================================ */
+
+/** [PURO] formatadores de data/hora (memoizáveis no módulo) */
 const fmtDate = new Intl.DateTimeFormat("pt-PT", {
   day: "2-digit",
   month: "2-digit",
@@ -55,12 +69,54 @@ const fmtTime = new Intl.DateTimeFormat("pt-PT", {
   hour: "2-digit",
   minute: "2-digit",
 });
-function fmtRange(start?: string | Date | null, end?: string | Date | null) {
+
+/** [PURO] String do intervalo “DD/MM/AAAA, HH:MM — HH:MM” ou fallback */
+function fmtRange(
+  start?: string | Date | null,
+  end?: string | Date | null
+): string {
   if (!start || !end) return "Sem horário";
   const a = new Date(start);
   const b = new Date(end);
   return `${fmtDate.format(a)}, ${fmtTime.format(a)} — ${fmtTime.format(b)}`;
 }
+
+/** [PURO] devolve as consultas com horário proposto (startAt & endAt) */
+function computeConsultasComSlot(consultas: any[]): any[] {
+  return (consultas || []).filter((c) => c.startAt && c.endAt);
+}
+
+/** [PURO] devolve um Set com ids de consultas que já têm proposta do bibliotecário */
+function buildLibrarianPendingSet(propostas: any[]): Set<number> {
+  const set = new Set<number>();
+  for (const p of propostas || []) {
+    if (p?.proposedBy === "LIBRARIAN" && p?.consultation?.id) {
+      set.add(Number(p.consultation.id));
+    }
+  }
+  return set;
+}
+
+/** [PURO] utilidade para deduplicar slots por id e ordenar por hora */
+function dedupMergeSlots(prev: SlotLite[], next: SlotLite[]): SlotLite[] {
+  const map = new Map<number, SlotLite>();
+  for (const s of prev) map.set(Number(s.id), s);
+  for (const s of next) map.set(Number(s.id), s);
+  return Array.from(map.values()).sort(
+    (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+  );
+}
+
+/** [PURO] somar dias a uma data (não muta o original) */
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+/* ============================================================
+ * Subcomponentes de UI pequenos e reaproveitáveis
+ * ============================================================ */
 
 function PageHeader({
   title,
@@ -149,17 +205,17 @@ function Empty({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* -------------------- página -------------------- */
-export default function LibrarianConsultasPendentes() {
-  const { user } = useUserSession();
-  const librarianId = user!.id;
+/* ============================================================
+ * Hook para carregar dados (mantido curto e focado)
+ * ============================================================ */
 
+function usePendingData(librarianId: number) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [consultas, setConsultas] = useState<any[]>([]);
   const [propostas, setPropostas] = useState<any[]>([]);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setErr(null);
     try {
@@ -174,42 +230,48 @@ export default function LibrarianConsultasPendentes() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [librarianId]);
 
   useEffect(() => {
-    load();
-  }, [librarianId]);
+    if (Number.isFinite(librarianId)) load();
+  }, [librarianId, load]);
+
+  return { loading, err, consultas, propostas, reload: load };
+}
+
+/* ============================================================
+ * Página (container) — pequena, delega render a sub-secções
+ * ============================================================ */
+
+export default function LibrarianConsultasPendentes() {
+  const { user } = useUserSession();
+  const librarianId = Number(user?.id);
+
+  const { loading, err, consultas, propostas, reload } =
+    usePendingData(librarianId);
 
   // 1) PENDING com horário (família propôs)…
   const consultasComSlot = useMemo(
-    () => consultas.filter((c) => c.startAt && c.endAt),
+    () => computeConsultasComSlot(consultas),
     [consultas]
   );
-
-  // …mas se o bibliotecário já propôs reagendamento para essa consulta,
-  // ela sai desta lista e vai somente para “Propostas de reagendamento”.
-  const librarianPendingSet = useMemo(() => {
-    const set = new Set<number>();
-    for (const p of propostas) {
-      if (p?.proposedBy === "LIBRARIAN" && p?.consultation?.id) {
-        set.add(Number(p.consultation.id));
-      }
-    }
-    return set;
-  }, [propostas]);
-
+  // 2) Remover as que já têm proposta pendente do bibliotecário
+  const librarianPendingSet = useMemo(
+    () => buildLibrarianPendingSet(propostas),
+    [propostas]
+  );
   const consultasComSlotSemPropDoBibliotecario = useMemo(
-    () =>
-      consultasComSlot.filter((c) => !librarianPendingSet.has(Number(c.id))),
+    () => consultasComSlot.filter((c) => !librarianPendingSet.has(Number(c.id))),
     [consultasComSlot, librarianPendingSet]
   );
 
   return (
     <Box sx={{ py: 3, display: "grid", gap: 3 }}>
+      <Typography variant="h3" fontWeight={900} sx={{ mb: 2 }}>
+        Pedidos de consulta
+      </Typography>
 
-        <Typography variant="h3" fontWeight={900} sx={{ mb: 2 }}>
-          Pedidos de consulta
-        </Typography>
+      <PageHeader title="Resumo" onRefresh={reload} loading={loading} />
 
       {err && (
         <Alert severity="error" variant="outlined">
@@ -228,54 +290,105 @@ export default function LibrarianConsultasPendentes() {
         </WhiteCard>
       )}
 
-      {/* ✅ Só esta secção fica: pedidos com slot, EXCLUINDO os que já têm proposta do bibliotecário */}
-      <section>
-        <SectionHeader
-          title="Solicitações com proposta de horário"
-          count={consultasComSlotSemPropDoBibliotecario.length}
-          icon={<CalendarClock size={18} />}
-        />
-        {consultasComSlotSemPropDoBibliotecario.length === 0 && !loading && (
-          <Empty>Sem pedidos com horário.</Empty>
-        )}
-        <Stack spacing={2}>
-          {consultasComSlotSemPropDoBibliotecario.map((c) => (
-            <PedidoComSlotCard
-              key={c.id}
-              c={c}
-              librarianId={librarianId}
-              onChanged={load}
-            />
-          ))}
-        </Stack>
-      </section>
+      {/* ✅ Secção: pedidos com slot (excluindo os com proposta do bibliotecário) */}
+      <PedidosComSlotSection
+        items={consultasComSlotSemPropDoBibliotecario}
+        librarianId={librarianId}
+        onChanged={reload}
+        loading={loading}
+      />
 
-      {/* ✅ Todas as propostas pendentes (família e bibliotecário) */}
-      <section>
-        <SectionHeader
-          title="Propostas de reagendamento"
-          count={propostas.length}
-          icon={<ArrowRightLeft size={18} />}
-        />
-        {propostas.length === 0 && !loading && (
-          <Empty>Sem propostas pendentes.</Empty>
-        )}
-        <Stack spacing={2}>
-          {propostas.map((p: any) => (
-            <PropostaRow
-              key={p.id}
-              p={p}
-              librarianId={librarianId}
-              onChanged={load}
-            />
-          ))}
-        </Stack>
-      </section>
+      {/* ✅ Secção: propostas pendentes (família + bibliotecário) */}
+      <PropostasSection
+        propostas={propostas}
+        librarianId={librarianId}
+        onChanged={reload}
+        loading={loading}
+      />
     </Box>
   );
 }
 
-/* --------- Card: pedido COM slot → aceitar/recusar/reagendar --------- */
+/* ============================================================
+ * Secção: Pedidos com slot
+ * ============================================================ */
+
+function PedidosComSlotSection({
+  items,
+  librarianId,
+  onChanged,
+  loading,
+}: {
+  items: any[];
+  librarianId: number;
+  onChanged: () => void;
+  loading?: boolean;
+}) {
+  return (
+    <section>
+      <SectionHeader
+        title="Solicitações com proposta de horário"
+        count={items.length}
+        icon={<CalendarClock size={18} />}
+      />
+      {items.length === 0 && !loading && <Empty>Sem pedidos com horário.</Empty>}
+      <Stack spacing={2}>
+        {items.map((c) => (
+          <PedidoComSlotCard
+            key={c.id}
+            c={c}
+            librarianId={librarianId}
+            onChanged={onChanged}
+          />
+        ))}
+      </Stack>
+    </section>
+  );
+}
+
+/* ============================================================
+ * Secção: Propostas pendentes
+ * ============================================================ */
+
+function PropostasSection({
+  propostas,
+  librarianId,
+  onChanged,
+  loading,
+}: {
+  propostas: any[];
+  librarianId: number;
+  onChanged: () => void;
+  loading?: boolean;
+}) {
+  return (
+    <section>
+      <SectionHeader
+        title="Propostas de reagendamento"
+        count={propostas.length}
+        icon={<ArrowRightLeft size={18} />}
+      />
+      {propostas.length === 0 && !loading && (
+        <Empty>Sem propostas pendentes.</Empty>
+      )}
+      <Stack spacing={2}>
+        {propostas.map((p: any) => (
+          <PropostaRow
+            key={p.id}
+            p={p}
+            librarianId={librarianId}
+            onChanged={onChanged}
+          />
+        ))}
+      </Stack>
+    </section>
+  );
+}
+
+/* ============================================================
+ * Card: pedido COM slot → aceitar / recusar / reagendar
+ * ============================================================ */
+
 function PedidoComSlotCard({
   c,
   librarianId,
@@ -291,6 +404,7 @@ function PedidoComSlotCard({
   const start = c.startAt ? new Date(c.startAt) : null;
   const end = c.endAt ? new Date(c.endAt) : null;
 
+  // Validação de conflito ao montar/atualizar o horário proposto
   useEffect(() => {
     if (!start || !end) return;
     checkLibrarianConflict(librarianId, {
@@ -317,6 +431,7 @@ function PedidoComSlotCard({
         justifyContent="space-between"
         spacing={2}
       >
+        {/* Meta do pedido */}
         <Stack spacing={0.75}>
           <Stack direction="row" alignItems="center" spacing={1}>
             <Users size={18} />
@@ -380,6 +495,7 @@ function PedidoComSlotCard({
           </Stack>
         </Stack>
 
+        {/* Ações */}
         <Stack direction="row" spacing={1}>
           <Tooltip title="Aceitar e confirmar este horário">
             <span>
@@ -444,7 +560,7 @@ function PedidoComSlotCard({
               proposedBy: "LIBRARIAN",
             });
             setOpenReschedule(false);
-            onChanged(); // refaz fetch → consulta sai desta lista e aparece em “Propostas…”
+            onChanged(); // sai desta lista e aparece em “Propostas…”
           } catch (e: any) {
             const m = String(e?.message || "");
             if (m.includes("pending_proposal_other_actor")) {
@@ -452,9 +568,7 @@ function PedidoComSlotCard({
                 "Já existe proposta pendente da família. Aguarde a decisão ou peça para a recusarem."
               );
             } else if (m.includes("invalid_state")) {
-              setMsg(
-                "Esta consulta não pode ser reagendada (estado inválido)."
-              );
+              setMsg("Esta consulta não pode ser reagendada (estado inválido).");
             } else if (m.includes("invalid_dates")) {
               setMsg("Intervalo inválido.");
             } else {
@@ -467,7 +581,10 @@ function PedidoComSlotCard({
   );
 }
 
-/* --------- Row: proposta de reagendamento --------- */
+/* ============================================================
+ * Row: proposta de reagendamento (aceitar/recusar/cancelar)
+ * ============================================================ */
+
 function PropostaRow({
   p,
   librarianId,
@@ -485,11 +602,10 @@ function PropostaRow({
   const end = new Date(p.toEndAt);
 
   const isFromFamily = p.proposedBy === "FAMILY";
+  const canAccept = isFromFamily; // bibliotecário só aceita quando veio da família
+  const canDecline = true; // ambos podem recusar/cancelar
 
-  // Nesta página, quem usa é o bibliotecário → só pode aceitar quando a proposta veio da família
-  const canAccept = isFromFamily;
-  const canDecline = true; // Ambos podem recusar/cancelar
-
+  // Validação de conflito para a janela proposta
   useEffect(() => {
     checkLibrarianConflict(librarianId, {
       startAt: start,
@@ -659,7 +775,10 @@ function PropostaRow({
   );
 }
 
-/* --------- Dialog: selector de slots (com seleção + confirmar) --------- */
+/* ============================================================
+ * Dialog: selector de slots (com seleção + confirmar)
+ * ============================================================ */
+
 function SlotPickerDialog({
   open,
   onClose,
@@ -680,6 +799,7 @@ function SlotPickerDialog({
   const [windowEnd, setWindowEnd] = useState<Date | null>(null);
   const [noMore, setNoMore] = useState(false);
 
+  // Carregar janela inicial (14 dias)
   useEffect(() => {
     if (!open) return;
     setSlots([]);
@@ -696,7 +816,7 @@ function SlotPickerDialog({
           to: end.toISOString(),
           librarianId,
         });
-        setSlots(dedupMerge([], data));
+        setSlots(dedupMergeSlots([], data));
         setWindowStart(start);
         setWindowEnd(end);
         setNoMore(data.length === 0);
@@ -706,19 +826,7 @@ function SlotPickerDialog({
     })();
   }, [open, librarianId]);
 
-  function addDays(d: Date, n: number) {
-    const x = new Date(d);
-    x.setDate(x.getDate() + n);
-    return x;
-  }
-  function dedupMerge(prev: SlotLite[], next: SlotLite[]) {
-    const map = new Map<number, SlotLite>();
-    for (const s of prev) map.set(Number(s.id), s);
-    for (const s of next) map.set(Number(s.id), s);
-    return Array.from(map.values()).sort(
-      (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
-    );
-  }
+  // Mostrar +14 dias
   async function handleShowMore() {
     if (!windowEnd || moreLoading || initialLoading || noMore) return;
     setMoreLoading(true);
@@ -730,7 +838,7 @@ function SlotPickerDialog({
         to: to.toISOString(),
         librarianId,
       });
-      setSlots((prev: SlotLite[]) => dedupMerge(prev, data));
+      setSlots((prev: SlotLite[]) => dedupMergeSlots(prev, data));
       setWindowEnd(to);
       setNoMore(data.length === 0);
     } finally {
@@ -738,6 +846,7 @@ function SlotPickerDialog({
     }
   }
 
+  // Group por dia (PURO + memo)
   const grouped = useMemo(() => {
     const map = new Map<string, SlotLite[]>();
     for (const s of slots) {

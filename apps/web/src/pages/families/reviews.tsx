@@ -1,4 +1,14 @@
-// apps/web/src/pages/reviews.tsx
+// ============================== apps/web/src/pages/reviews.tsx ==============================
+/**
+ * Autor: Alexandre Brrissos — Nº 21131
+ * Página: Avaliar leituras (terminadas)
+ *
+ * Notas do refactor:
+ * - Comentários detalhados por secções para leitura rápida
+ * - Funções/“métodos” utilitários PUROS e pequenos (≤ 30 linhas)
+ * - Mesma lógica/UX do original (sem alterações funcionais)
+ */
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Container,
@@ -41,6 +51,10 @@ import {
 import { useUserSession } from "@/contexts/UserSession";
 import { listPendingRatings, submitRating } from "../../services/readings";
 
+/* =========================================================================================
+   Tipos
+   ========================================================================================= */
+
 type Row = {
   isbn: string;
   title: string;
@@ -50,6 +64,16 @@ type Row = {
   comment?: string | null;
   ratedAt?: string | null;
 };
+
+/* =========================================================================================
+   Constantes de página
+   ========================================================================================= */
+
+const PAGE_SIZE = 12;
+
+/* =========================================================================================
+   UI: cartão “skeleton” (carregamento)
+   ========================================================================================= */
 
 function SkeletonCard() {
   return (
@@ -74,20 +98,73 @@ function SkeletonCard() {
   );
 }
 
+/* =========================================================================================
+   Helpers PUROS (≤ 30 linhas)
+   ========================================================================================= */
+
+/** Devolve apenas leituras terminadas */
+function onlyFinished(rows: Row[]): Row[] {
+  return rows.filter((r) => r.status === "finished");
+}
+
+/** Aplica filtro “rating” (rated / unrated) aos terminados */
+function filterByRating(rows: Row[], ratingSel: string[]): Row[] {
+  if (ratingSel.length === 0 || ratingSel.length === 2) return rows;
+  const wantRated = ratingSel.includes("rated");
+  return rows.filter((r) =>
+    wantRated ? typeof r.stars === "number" : typeof r.stars !== "number"
+  );
+}
+
+/** Paginação simples */
+function paginate<T>(arr: T[], page: number, perPage: number): T[] {
+  const start = (page - 1) * perPage;
+  return arr.slice(start, start + perPage);
+}
+
+/** Semeia mapas de estrelas/comentários a partir de leituras terminadas */
+function seedStarsAndComments(rows: Row[]): {
+  stars: Record<string, number>;
+  comment: Record<string, string>;
+} {
+  const stars: Record<string, number> = {};
+  const comment: Record<string, string> = {};
+  for (const r of rows) {
+    if (typeof r.stars === "number") stars[r.isbn] = r.stars;
+    if (r.comment) comment[r.isbn] = r.comment;
+  }
+  return { stars, comment };
+}
+
+/** Constrói opções para o AvatarSelect a partir do utilizador */
+function buildChildOptions(
+  user: any
+): { id: string; nome: string; avatar?: string }[] {
+  return (user?.children || []).map((c: any) => ({
+    id: String(c.id),
+    nome: c.name ?? "Criança",
+    avatar: (c as any).avatarUrl || undefined,
+  }));
+}
+
+/* =========================================================================================
+   Página
+   ========================================================================================= */
+
 export default function ReviewsPage() {
   const { user, asChild } = useUserSession();
 
-  // 🎯 Em modo família, o seletor é LOCAL (não altera o active user)
+  // 🎯 Em modo família, o seletor é LOCAL (não altera o “active user” global)
   const [localChildId, setLocalChildId] = useState<string>("");
 
-  // childId efetivo para chamadas: actingChild em modo criança; localChildId em família
+  // ID efetivo: actingChild em modo criança; localChildId em família
   const childId = asChild
     ? Number(user?.actingChild?.id as any)
     : localChildId
     ? Number(localChildId)
     : undefined;
 
-  // header de auth para reviews (igual ao mobile)
+  // Header de auth (compatível com mobile / x-user-id)
   const familyIdForAuth =
     Number((user as any)?.family?.id) ||
     Number((user as any)?.families?.[0]?.id) ||
@@ -96,6 +173,7 @@ export default function ReviewsPage() {
 
   const mustPickChild = !asChild && !childId;
 
+  // Estado de dados/UI
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -121,31 +199,29 @@ export default function ReviewsPage() {
     rating: [],
   });
 
-  const finished = useMemo(
-    () => rows.filter((r) => r.status === "finished"),
-    [rows]
+  // Apenas terminados (memoizado)
+  const finished = useMemo(() => onlyFinished(rows), [rows]);
+
+  // Filtro “rating” (rated/unrated)
+  const filtered = useMemo(
+    () => filterByRating(finished, filters.rating || []),
+    [finished, filters]
   );
 
-  const filtered = useMemo(() => {
-    const sel = filters.rating || [];
-    if (sel.length === 0 || sel.length === 2) return finished;
-    const wantRated = sel.includes("rated");
-    return finished.filter((r) =>
-      wantRated ? typeof r.stars === "number" : typeof r.stars !== "number"
-    );
-  }, [finished, filters]);
-
+  // Paginação
   const [page, setPage] = useState(1);
-  const PAGE_SIZE = 12;
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, page]);
+  const pageItems = useMemo(
+    () => paginate(filtered, page, PAGE_SIZE),
+    [filtered, page]
+  );
+
+  // Reset de página quando mudam filtros ou dataset
   useEffect(() => setPage(1), [JSON.stringify(filters), finished.length]);
 
+  /** Carrega leituras pendentes de rating (limit 200) e semeia stars/comments */
   async function load() {
-    if (!childId) return; // não disparamos sem criança (família)
+    if (!childId) return; // (família) não disparamos sem criança
     setLoading(true);
     try {
       const data = await listPendingRatings({
@@ -154,36 +230,27 @@ export default function ReviewsPage() {
         limit: 200,
       });
 
-      const onlyFinished = (data as any[]).filter(
-        (r) => r.status === "finished"
-      ) as Row[];
+      const onlyFin = onlyFinished(data as Row[]);
+      const seeds = seedStarsAndComments(onlyFin);
 
-      const seedStars: Record<string, number> = {};
-      const seedComment: Record<string, string> = {};
-      for (const r of onlyFinished) {
-        if (typeof r.stars === "number") seedStars[r.isbn] = r.stars;
-        if (r.comment) seedComment[r.isbn] = r.comment;
-      }
-      setStars(seedStars);
-      setComment(seedComment);
-      setRows(onlyFinished);
+      setStars(seeds.stars);
+      setComment(seeds.comment);
+      setRows(onlyFin);
     } finally {
       setLoading(false);
     }
   }
 
+  // Carregar ao trocar criança/família
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [childId, familyIdForAuth]);
 
-  const childOptions =
-    (user?.children || []).map((c: any) => ({
-      id: String(c.id),
-      nome: c.name ?? "Criança",
-      avatar: (c as any).avatarUrl || undefined,
-    })) ?? [];
+  // Opções para seletor de criança (família)
+  const childOptions = buildChildOptions(user);
 
+  /* ----------------------------- GATE: escolher criança (família) ----------------------------- */
   if (mustPickChild) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -213,6 +280,7 @@ export default function ReviewsPage() {
     );
   }
 
+  /* ----------------------------------------- UI ----------------------------------------- */
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       {/* Contexto em modo família (filtro LOCAL; não muda active user) */}
@@ -244,6 +312,7 @@ export default function ReviewsPage() {
       )}
 
       <WhiteCard>
+        {/* Cabeçalho + refresh */}
         <Stack
           direction="row"
           justifyContent="space-between"
@@ -260,13 +329,18 @@ export default function ReviewsPage() {
           </Typography>
           <Tooltip title="Atualizar lista">
             <span>
-              <IconButton onClick={load} aria-label="Atualizar" disabled={!childId || loading}>
+              <IconButton
+                onClick={load}
+                aria-label="Atualizar"
+                disabled={!childId || loading}
+              >
                 <RefreshRounded />
               </IconButton>
             </span>
           </Tooltip>
         </Stack>
 
+        {/* Filtros */}
         <Stack
           direction="row"
           alignItems="center"
@@ -296,6 +370,7 @@ export default function ReviewsPage() {
           </Stack>
         )}
 
+        {/* Vazio / sem resultados */}
         {!loading && pageItems.length === 0 ? (
           <Typography sx={{ opacity: 0.75 }}>
             {childId
@@ -304,12 +379,13 @@ export default function ReviewsPage() {
           </Typography>
         ) : null}
 
+        {/* Lista de cartões */}
         {!loading && pageItems.length > 0 && (
           <>
             <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap">
               {pageItems.map((r) => {
-                const currentStars = stars[r.isbn] ?? r.stars ?? 0;
-                const hasExisting = typeof r.stars === "number" && r.stars > 0;
+                const currentStars = stars[r.isbn] ?? r.stars ?? 0; // rating visível
+                const hasExisting = typeof r.stars === "number" && r.stars > 0; // já avaliado?
                 const isBusy = busy === r.isbn;
 
                 return (
@@ -332,11 +408,13 @@ export default function ReviewsPage() {
                         }
                       }}
                     />
+
                     <CardContent sx={{ pb: 1 }}>
                       <Typography fontWeight={900} noWrap title={r.title}>
                         {r.title}
                       </Typography>
 
+                      {/* Meta: “Avaliado” / “Por avaliar” + data de rating */}
                       <Stack
                         direction="row"
                         spacing={0.5}
@@ -371,6 +449,7 @@ export default function ReviewsPage() {
                         )}
                       </Stack>
 
+                      {/* Rating (controlado/local) */}
                       <Rating
                         value={currentStars}
                         onChange={(_, v) =>
@@ -381,6 +460,7 @@ export default function ReviewsPage() {
                         aria-label={`Avaliar ${r.title}`}
                       />
 
+                      {/* Comentário (opcional) */}
                       <TextField
                         size="small"
                         placeholder="Comentário (opcional)"
@@ -403,6 +483,8 @@ export default function ReviewsPage() {
                         }}
                       />
                     </CardContent>
+
+                    {/* Ação: guardar / atualizar avaliação */}
                     <CardActions sx={{ p: 1.25, pt: 1 }}>
                       <Button
                         variant="contained"
@@ -414,6 +496,7 @@ export default function ReviewsPage() {
                         onClick={async () => {
                           try {
                             setBusy(r.isbn);
+
                             const starsToSend = stars[r.isbn] ?? r.stars ?? 0;
                             const commentToSend =
                               (comment[r.isbn] ?? r.comment ?? "").trim() ||
@@ -427,12 +510,15 @@ export default function ReviewsPage() {
                               },
                               { childId, familyId: familyIdForAuth } // header x-user-id
                             );
+
                             setToast({
                               msg: hasExisting
                                 ? "Avaliação atualizada!"
                                 : "Avaliação guardada!",
                               type: "success",
                             });
+
+                            // Recarrega dados para refletir estado no servidor
                             await load();
                           } catch (e) {
                             console.error(e);
@@ -457,6 +543,7 @@ export default function ReviewsPage() {
               })}
             </Stack>
 
+            {/* Paginação */}
             <Paginator
               count={totalPages}
               page={page}
@@ -469,6 +556,7 @@ export default function ReviewsPage() {
         )}
       </WhiteCard>
 
+      {/* Toast global */}
       {toast && (
         <Snackbar
           open
