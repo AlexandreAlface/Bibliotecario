@@ -60,7 +60,8 @@ import PersonRounded from "@mui/icons-material/PersonRounded";
 
 import { useUserSession } from "../../contexts/UserSession";
 import {
-  getNextConsultas,
+  getConsultationsHistory,
+  type ConsultationFull,
   type ConsultaLite,
   listFamilyProposals,
   acceptProposal,
@@ -69,8 +70,10 @@ import {
   createProposalForConsultation,
   cancelConsultation,
   getConsultation,
+  type SlotLite,
 } from "@/services/consultations";
-import type { SlotLite } from "../../services/consultations";
+import ConsultationRoom from "@/components/consultations/ConsultationRoom";
+import RescheduleDialog from "@/components/consultations/RescheduleDialog";
 
 /* =========================================================================================
    STATUS → LABEL / COR / ÍCONE (PURO, <30)
@@ -91,11 +94,29 @@ const STATUS_CFG: Record<string, StatusCfg> = {
   PENDING: { label: "Pendente", color: "warning", Icon: ScheduleRounded },
   DECLINED: { label: "Recusado", color: "error", Icon: CancelRounded },
   CANCELLED: { label: "Cancelado", color: "default", Icon: BlockRounded },
+  COMPLETED: { label: "Concluída", color: "default" },
+  OVERDUE: { label: "Por concluir", color: "error" }, // derivado
 };
 
 /* =========================================================================================
    HELPERS DE DATA / FORMATAÇÃO (PUROS, <30)
    ========================================================================================= */
+
+function canReschedule(status?: string) {
+  const s = String(status || "")
+    .trim()
+    .toUpperCase();
+  // só pode reagendar enquanto está pendente
+  return s === "PENDING";
+}
+
+function canCancel(status?: string) {
+  const s = String(status || "")
+    .trim()
+    .toUpperCase();
+  // podes cancelar PENDING e CONFIRMED
+  return s === "PENDING" || s === "CONFIRMED";
+}
 
 /** PURE: início do dia (local) */
 function startOfDay(d: Date) {
@@ -140,6 +161,27 @@ function fmtRange(a?: string, b?: string) {
   const A = new Date(a);
   const B = new Date(b);
   return `${fDate.format(A)}, ${fTime.format(A)} — ${fTime.format(B)}`;
+}
+
+/** PURE: intervalo [from,to] do mês visível */
+function monthRange(ref: Date) {
+  const from = new Date(ref);
+  from.setDate(1);
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from);
+  to.setMonth(to.getMonth() + 1);
+  to.setDate(0);
+  to.setHours(23, 59, 59, 999);
+  return { from, to };
+}
+
+/** PURE: estado derivado (OVERDUE para passadas não concluídas/canceladas/recusadas) */
+function deriveStatus(c: { status?: string; scheduledAt?: string | null }) {
+  const s = String(c.status || "").toUpperCase();
+  if (["COMPLETED", "CANCELLED", "DECLINED"].includes(s)) return s;
+  const t = c.scheduledAt ? new Date(c.scheduledAt).getTime() : NaN;
+  if (Number.isFinite(t) && t < Date.now()) return "OVERDUE";
+  return s; // PENDING/CONFIRMED futuras
 }
 
 /* =========================================================================================
@@ -187,6 +229,14 @@ function ConsultaRow({ c, onClick }: { c: ConsultaLite; onClick: () => void }) {
   return (
     <Box
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      role="button"
+      tabIndex={0}
       sx={{
         p: 1.25,
         border: "1px solid",
@@ -269,11 +319,15 @@ function ConsultaRow({ c, onClick }: { c: ConsultaLite; onClick: () => void }) {
             )}
           </Stack>
         </Box>
-
-        <RouteLink href="/consultas">
-          Ver{" "}
-          <LaunchRounded style={{ verticalAlign: "middle", marginLeft: 4 }} />
-        </RouteLink>
+        <Stack
+          direction="row"
+          spacing={0.5}
+          alignItems="center"
+          sx={{ ml: 1, opacity: 0.8, flexShrink: 0 }}
+        >
+          <Typography variant="body2">Ver detalhes</Typography>
+          <LaunchRounded fontSize="small" />
+        </Stack>
       </Stack>
     </Box>
   );
@@ -293,6 +347,8 @@ export default function AgendasPage() {
   const [consultasRaw, setConsultasRaw] = useState<ConsultaLite[]>([]); // consultas carregadas
   const [selectedDate, setSelectedDate] = useState<string>(fmtYMD(new Date())); // dia destacado
   const [focused, setFocused] = useState<ConsultaLite | null>(null); // detalhe selecionado
+  const [roomOpen, setRoomOpen] = useState(false);
+  const [roomId, setRoomId] = useState<number | null>(null);
 
   // Propostas de reagendamento (família)
   const [proposals, setProposals] = useState<any[]>([]);
@@ -315,19 +371,29 @@ export default function AgendasPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<ConsultaLite | null>(null);
 
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleData, setRescheduleData] = useState<{
+    id: number;
+    status: "PENDING" | "CONFIRMED" | "DECLINED" | "CANCELLED" | "COMPLETED";
+    startAt?: string | null;
+    endAt?: string | null;
+    librarianId?: number | null;
+  } | null>(null);
+
   /** UI: decide cor do “dot” diário por estado (usa tema → não puro) */
+
   const dotColor = useCallback(
-    (status?: string) => {
-      const s = (status || "").toUpperCase();
+    (status?: string, scheduledAt?: string) => {
+      const s = deriveStatus({ status, scheduledAt });
       if (s === "CONFIRMED") return theme.palette.success.main;
       if (s === "PENDING") return theme.palette.warning.main;
-      if (s === "DECLINED") return theme.palette.error.main;
-      if (s === "CANCELLED") return theme.palette.grey[400];
+      if (s === "OVERDUE") return theme.palette.error.main;
+      if (s === "COMPLETED" || s === "CANCELLED" || s === "DECLINED")
+        return theme.palette.grey[400];
       return theme.palette.divider;
     },
     [theme.palette]
   );
-
   /** Abrir dialog de contra-proposta (mantém ordem de hooks estável) */
   const openRescheduleDialog = useCallback(
     (
@@ -356,31 +422,73 @@ export default function AgendasPage() {
   }, [asChild, user?.id]);
 
   /** Carrega consultas consoante modo criança/família */
+  /** Carrega histórico do mês (passado+futuro) com COMPLETED */
   const reloadConsultas = useCallback(async () => {
     try {
-      let items: ConsultaLite[] = [];
+      const { from, to } = monthRange(monthRef);
+      const mapFullToLite = (rows: ConsultationFull[]): ConsultaLite[] =>
+        (rows || []).map((c) => ({
+          id: c.id,
+          title: c.title || "Consulta",
+          scheduledAt: c.startAt || undefined,
+          status: c.status,
+          familyId: c.family?.id,
+          familyName: c.family?.fullName,
+          childId: c.child?.id,
+          librarianId: c.librarian?.id,
+          librarianName: c.librarian?.fullName,
+          libraryId: c.library?.id,
+          libraryName: c.library?.name,
+        }));
+
+      let rows: ConsultationFull[] = [];
       if (asChild) {
         const cid = Number((user?.actingChild?.id as any) ?? NaN);
         if (!Number.isFinite(cid)) return setConsultasRaw([]);
-        items = await getNextConsultas(60, { childId: cid });
+        rows = await getConsultationsHistory({
+          limit: 500,
+          order: "asc",
+          from: from.toISOString(),
+          to: to.toISOString(),
+          status: [
+            "PENDING",
+            "CONFIRMED",
+            "COMPLETED",
+            "CANCELLED",
+            "DECLINED",
+          ],
+          childId: cid,
+        });
       } else {
         const famId = Number(user?.id);
         if (!Number.isFinite(famId)) return setConsultasRaw([]);
-        const opts: { familyId: number; childId?: number } = {
+        rows = await getConsultationsHistory({
+          limit: 500,
+          order: "asc",
+          from: from.toISOString(),
+          to: to.toISOString(),
+          status: [
+            "PENDING",
+            "CONFIRMED",
+            "COMPLETED",
+            "CANCELLED",
+            "DECLINED",
+          ],
           familyId: famId,
-        };
-        if (localChildId && localChildId !== "") {
-          const cid = Number(localChildId);
-          if (Number.isFinite(cid)) opts.childId = cid;
-        }
-        items = await getNextConsultas(60, opts);
+          childId:
+            localChildId &&
+            localChildId !== "" &&
+            Number.isFinite(Number(localChildId))
+              ? Number(localChildId)
+              : undefined,
+        });
       }
-      setConsultasRaw(items);
+      setConsultasRaw(mapFullToLite(rows));
     } catch (e) {
       console.error("Falha a carregar consultas:", e);
       setConsultasRaw([]);
     }
-  }, [asChild, user?.actingChild?.id, user?.id, localChildId]);
+  }, [asChild, user?.actingChild?.id, user?.id, localChildId, monthRef]);
 
   /* ---------- EFEITO: carregar propostas ao montar / trocar utilizador ---------- */
   useEffect(() => {
@@ -426,8 +534,8 @@ export default function AgendasPage() {
 
   /* ---------- EFEITO: carregar consultas em alterações relevantes ---------- */
   useEffect(() => {
-    reloadConsultas();
-  }, [reloadConsultas]);
+    void reloadConsultas();
+  }, [monthRef, localChildId, asChild, user?.id, user?.actingChild?.id]);
 
   /* ---------- Agrupar consultas por dia ---------- */
   const byDay = useMemo(() => {
@@ -441,24 +549,6 @@ export default function AgendasPage() {
     }
     return map;
   }, [consultasRaw]);
-
-  /* ---------- Ajustar dia selecionado para 1.º com itens, se necessário ---------- */
-  useEffect(() => {
-    if (!consultasRaw.length) return;
-    const sorted = [...consultasRaw].sort(
-      (a, b) =>
-        new Date(a.scheduledAt || a.date || 0).getTime() -
-        new Date(b.scheduledAt || b.date || 0).getTime()
-    );
-    const firstISO = sorted[0]?.scheduledAt || sorted[0]?.date;
-    if (!firstISO) return;
-    const ymd = fmtYMD(firstISO);
-    const hasTodayItems = (byDay.get(selectedDate) || []).length > 0;
-    if (!hasTodayItems) {
-      setSelectedDate(ymd);
-      setMonthRef(startOfDay(new Date(ymd)));
-    }
-  }, [consultasRaw, byDay, selectedDate]);
 
   /* ---------- Construir grelha mensal (local) ---------- */
   const month = useMemo(() => {
@@ -891,7 +981,7 @@ export default function AgendasPage() {
 
                     {/* Bolinhas por estado */}
                     {items.slice(0, 2).map((it, idx) => {
-                      const ccor = dotColor(it.status);
+                      const ccor = dotColor(it.status, it.scheduledAt);
                       return (
                         <Box
                           key={idx}
@@ -907,8 +997,16 @@ export default function AgendasPage() {
                             opacity: 0.9,
                           }}
                           title={`${it.title} — ${
-                            STATUS_CFG[(it.status || "").toUpperCase()]
-                              ?.label ?? it.status
+                            STATUS_CFG[
+                              deriveStatus({
+                                status: it.status,
+                                scheduledAt: it.scheduledAt,
+                              })
+                            ]?.label ??
+                            deriveStatus({
+                              status: it.status,
+                              scheduledAt: it.scheduledAt,
+                            })
                           }`}
                         />
                       );
@@ -971,7 +1069,11 @@ export default function AgendasPage() {
                     <ConsultaRow
                       key={c.id}
                       c={c}
-                      onClick={() => setFocused(c)}
+                      onClick={() => {
+                        setFocused(c);
+                        setRoomId(c.id);
+                        setRoomOpen(true);
+                      }}
                     />
                   ))}
                 </Stack>
@@ -1022,7 +1124,10 @@ export default function AgendasPage() {
                   />
                   {!!focused.status &&
                     (() => {
-                      const raw = (focused.status || "").toUpperCase();
+                      const raw = deriveStatus({
+                        status: focused.status,
+                        scheduledAt: focused.scheduledAt,
+                      });
                       const cfg = STATUS_CFG[raw];
                       const Ico = cfg?.Icon;
                       return (
@@ -1041,11 +1146,8 @@ export default function AgendasPage() {
                     Bibliotecário: <b>{(focused as any).librarianName}</b>
                   </Typography>
                 )}
-
-                {["CONFIRMED", "PENDING"].includes(
-                  String(focused.status || "").toUpperCase()
-                ) && (
-                  <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+                <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+                  {canReschedule(focused.status) && (
                     <Button
                       type="button"
                       variant="contained"
@@ -1063,40 +1165,50 @@ export default function AgendasPage() {
                           return;
                         }
 
-                        let libId =
-                          (focused as any).librarianId ??
-                          (focused as any)?.librarian?.id ??
-                          null;
-
-                        if (!libId) {
-                          try {
-                            setBusyDetail("reschedule");
-                            const full = await getConsultation(focused!.id);
-                            libId = full?.librarian?.id ?? null;
-                          } catch (e: any) {
-                            console.warn(
-                              "Falha a obter consulta completa:",
-                              e?.message || e
+                        try {
+                          setBusyDetail("reschedule");
+                          const full = await getConsultation(focused!.id);
+                          const libId =
+                            full?.librarian?.id ??
+                            (focused as any).librarianId ??
+                            (focused as any)?.librarian?.id ??
+                            null;
+                          if (!libId) {
+                            alert(
+                              "Não foi possível identificar o bibliotecário desta consulta."
                             );
-                          } finally {
-                            setBusyDetail(null);
+                            return;
                           }
-                        }
-
-                        if (!libId) {
-                          alert(
-                            "Não foi possível identificar o bibliotecário desta consulta."
+                          setRescheduleData({
+                            id: focused!.id,
+                            status: (full?.status ??
+                              focused!.status ??
+                              "PENDING") as any,
+                            startAt:
+                              full?.startAt ??
+                              (focused!.scheduledAt as any) ??
+                              null,
+                            endAt: full?.endAt ?? null,
+                            librarianId: libId,
+                          });
+                          setRescheduleOpen(true);
+                        } catch (e: any) {
+                          console.warn(
+                            "Falha a obter consulta completa:",
+                            e?.message || e
                           );
-                          return;
+                          alert("Não foi possível abrir o reagendamento.");
+                        } finally {
+                          setBusyDetail(null);
                         }
-
-                        openRescheduleDialog(focused!.id, Number(libId));
                       }}
                       disabled={busyDetail === "reschedule"}
                     >
                       Reagendar
                     </Button>
+                  )}
 
+                  {canCancel(focused.status) && (
                     <Button
                       type="button"
                       variant="outlined"
@@ -1110,20 +1222,12 @@ export default function AgendasPage() {
                     >
                       Cancelar consulta
                     </Button>
-                  </Stack>
-                )}
-
-                <RouteLink href="/consultas">
-                  Abrir página de consultas{" "}
-                  <LaunchRounded
-                    fontSize="small"
-                    style={{ verticalAlign: "middle" }}
-                  />
-                </RouteLink>
+                  )}
+                </Stack>
               </>
             ) : (
               <Typography sx={{ opacity: 0.7 }}>
-                Selecione uma consulta.
+                Sem consultas neste dia.
               </Typography>
             )}
           </WhiteCard>
@@ -1138,6 +1242,40 @@ export default function AgendasPage() {
         busy={busyDetail === "cancel"}
         onClose={() => setCancelOpen(false)}
         onConfirm={(reason?: string) => handleConfirmCancel(reason)}
+      />
+
+      {rescheduleOpen && rescheduleData && (
+        <RescheduleDialog
+          open
+          onClose={() => setRescheduleOpen(false)}
+          consultation={{
+            id: rescheduleData.id,
+            status: rescheduleData.status,
+            startAt: rescheduleData.startAt ?? undefined,
+            endAt: rescheduleData.endAt ?? undefined,
+            librarianId: rescheduleData.librarianId ?? undefined,
+          }}
+          // refresca listas após reschedule/pedido
+          onDone={async () => {
+            await reloadConsultas();
+            await reloadFamilyProposals();
+          }}
+          // podes trocar por snackbar; por agora fica simples:
+          notify={(text) => alert(text)}
+        />
+      )}
+
+      <ConsultationRoom
+        open={roomOpen}
+        onClose={() => {
+          setRoomOpen(false);
+          setRoomId(null);
+          reloadConsultas();
+        }}
+        consultationId={roomId ?? 0}
+        allowComplete={false}
+        readOnlyNotes={true}
+        allowAttach={false}
       />
     </Container>
   );

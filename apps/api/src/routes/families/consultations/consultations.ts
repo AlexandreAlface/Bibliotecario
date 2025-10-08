@@ -102,7 +102,7 @@ async function svcCreateConsultation(input: {
     return prisma.$transaction(async (tx) => {
       const slot = await tx.consultationSlot.findUnique({
         where: { id: slotId },
-        include: { consultation: true },
+        include: { consultation: true, library: { select: { id: true } } },
       });
       if (!slot) throw new Error("slot_not_found");
       if (slot.status !== $Enums.SlotStatus.OPEN)
@@ -112,22 +112,23 @@ async function svcCreateConsultation(input: {
       const c = await tx.consultation.create({
         data: {
           familyId,
-          librarianId,
+          // ⚠️ usar SEMPRE o dono do slot
+          librarianId: slot.librarianId,
           childId: childId ?? null,
-          libraryId: libraryId ?? null,
-          // 🔹 novos
+          // herdar libraryId do slot se não vier explícito
+          libraryId: libraryId ?? slot.library?.id ?? null,
+
           title: title ?? null,
           purpose: purpose ?? null,
           description: description ?? null,
           modeEnum: modeEnum ?? null,
           meetingUrl: meetingUrl ?? null,
-          // legacy (mantém por compat se front antigo ainda manda)
           mode: modeEnum
             ? modeEnum === $Enums.ConsultationMode.ONLINE
               ? "ONLINE"
               : "IN_PERSON"
             : null,
-          location: libraryId ? "LIBRARY" : null,
+          location: libraryId ?? slot.library?.id ? "LIBRARY" : null,
 
           startAt: slot.startAt,
           endAt: slot.endAt,
@@ -136,7 +137,6 @@ async function svcCreateConsultation(input: {
           notes,
           events: { create: [{ type: "REQUESTED" }] },
 
-          // anexos
           books: {
             create: bookIsbns.map((isbn) => ({ book: { connect: { isbn } } })),
           },
@@ -292,6 +292,87 @@ async function svcListNext(q: {
     libraryId: c.library?.id ?? undefined,
     libraryName: c.library?.name ?? undefined,
   }));
+}
+
+async function svcRescheduleConsultation(
+  id: number,
+  newSlotId: number,
+  req: Authed,
+  reason?: string
+) {
+  return prisma.$transaction(async (tx) => {
+    const c = await tx.consultation.findUnique({
+      where: { id },
+      include: { slot: true }, // slot atual (se houver)
+    });
+    if (!c) throw new Error("not_found");
+    if (
+      !isAdmin(req) &&
+      !isActor(req, { librarianId: c.librarianId, familyId: c.familyId })
+    )
+      throw new Error("forbidden");
+    if (c.status !== $Enums.ConsultationStatus.PENDING)
+      throw new Error("only_pending"); // 👈 só reagenda “imediato” quando está PENDING
+
+    const newSlot = await tx.consultationSlot.findUnique({
+      where: { id: newSlotId },
+      include: { consultation: true, library: { select: { id: true } } },
+    });
+    if (!newSlot) throw new Error("slot_not_found");
+    if (newSlot.status !== $Enums.SlotStatus.OPEN)
+      throw new Error("slot_not_open");
+    if (newSlot.consultation) throw new Error("slot_already_linked");
+
+    // se a consulta é presencial, exige slot com biblioteca
+    if (
+      c.modeEnum === $Enums.ConsultationMode.IN_PERSON &&
+      !newSlot.library?.id
+    )
+      throw new Error("library_required_for_in_person");
+
+    // 1) reabrir slot antigo (se existia)
+    if (c.slotId) {
+      await tx.consultationSlot.update({
+        where: { id: c.slotId },
+        data: { status: $Enums.SlotStatus.OPEN },
+      });
+    }
+
+    // 2) marcar novo slot como BOOKED
+    await tx.consultationSlot.update({
+      where: { id: newSlotId },
+      data: { status: $Enums.SlotStatus.BOOKED },
+    });
+
+    // 3) atualizar consulta (fica PENDING)
+    const updated = await tx.consultation.update({
+      where: { id: c.id },
+      data: {
+        slotId: newSlotId,
+        startAt: newSlot.startAt,
+        endAt: newSlot.endAt,
+        librarianId: newSlot.librarianId, // pode mudar de bibliotecário
+        libraryId: newSlot.library?.id ?? null, // herda biblioteca do slot
+        // status mantém PENDING
+      },
+    });
+
+    // 4) registar evento (se o enum tiver de incluir, adiciona "RESCHEDULED")
+    await tx.consultationEvent.create({
+      data: {
+        consultationId: c.id,
+        type: "RESCHEDULED",
+        actorId: req.user?.id ?? null,
+        payload: {
+          fromSlotId: c.slotId,
+          toSlotId: newSlotId,
+          reason: reason ?? null,
+        },
+      },
+    });
+
+    return updated;
+  });
 }
 
 // Lista bibliotecários (roleId=2) e, opcionalmente, da biblioteca X.
@@ -517,71 +598,10 @@ async function svcGetById(id: number) {
 
 /* ============================== Handlers (<= 30 linhas) ============================== */
 
-r.post(
-  "/:id/attachments",
-  withUser as RequestHandler,
-  requireFamilyOrLibrarian as RequestHandler,
-  async (req: Request, res: Response) => {
-    const authed = req as Authed;
-    const id = asInt(req.params.id);
-    if (!id) return res.status(400).json({ error: "invalid_id" });
-
-    const {
-      bookIsbns = [],
-      microContentIds = [],
-      eventIds = [],
-    } = req.body ?? {};
-
-    try {
-      const data: any = {};
-      if (Array.isArray(bookIsbns) && bookIsbns.length) {
-        data.books = {
-          createMany: {
-            data: bookIsbns.map((isbn: string) => ({ bookIsbn: isbn })),
-          },
-        };
-      }
-      if (Array.isArray(microContentIds) && microContentIds.length) {
-        data.microContents = {
-          createMany: {
-            data: microContentIds.map((mid: number) => ({
-              microContentId: mid,
-            })),
-          },
-        };
-      }
-      if (Array.isArray(eventIds) && eventIds.length) {
-        data.culturalEvents = {
-          createMany: {
-            data: eventIds.map((eid: number) => ({ eventId: eid })),
-          },
-        };
-      }
-
-      const out = await prisma.consultation.update({
-        where: { id },
-        data: {
-          ...data,
-          events: {
-            create: [
-              { type: "ATTACHMENT_ADDED", payload: (req as any).body ?? {} },
-            ],
-          },
-        },
-        include: { books: true, microContents: true, culturalEvents: true },
-      });
-
-      res.json(out);
-    } catch (e: any) {
-      res.status(400).json({ error: e?.message ?? "failed_to_attach" });
-    }
-  }
-);
-
 r.get(
   "/:id/details",
   withUser as RequestHandler,
-  requireRole(ROLES.LIBRARIAN, ROLES.ADMIN) as RequestHandler,
+  requireRole(ROLES.LIBRARIAN, ROLES.ADMIN, ROLES.FAMILY) as RequestHandler,
   async (req: Request, res: Response) => {
     const authed = req as Authed;
     const id = asInt(req.params.id);
@@ -688,7 +708,7 @@ r.get(
         child: c.child ? { id: c.child.id, name: c.child.name } : undefined,
         family: c.family,
         library: c.library ?? undefined,
-        notes: c.notes ?? "", 
+        notes: c.notes ?? "",
         attachments: {
           books: c.books.map((b) => ({
             isbn: b.book.isbn,
@@ -1115,7 +1135,7 @@ r.patch(
 r.get(
   "/:id/summary.pdf",
   withUser as RequestHandler,
-  requireRole(ROLES.LIBRARIAN, ROLES.ADMIN) as RequestHandler,
+  requireRole(ROLES.LIBRARIAN, ROLES.ADMIN, ROLES.FAMILY) as RequestHandler,
   async (req: Request, res: Response) => {
     const id = asInt(req.params.id);
     if (!id) return res.status(400).send("invalid_id");
@@ -1133,28 +1153,60 @@ r.get(
     });
     if (!c) return res.status(404).send("not_found");
 
+    const primary = "#0B7285";
+    const gray = "#666";
+
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename=consulta-${id}.pdf`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="consulta-${id}.pdf"; filename*=UTF-8''consulta-${id}.pdf`
+    );
+    res.setHeader("Cache-Control", "no-store");
 
     const doc = new PDFDocument({ size: "A4", margin: 48 });
+
+    // 👇 ISTO FALTAVA
     doc.pipe(res);
 
-    // Cabeçalho
+    doc.on("error", (err) => {
+      console.error("pdfkit error", err);
+      try {
+        res.end();
+      } catch {}
+    });
+
+    // --- desenhar conteúdo ---
+    doc.rect(48, 48, doc.page.width - 96, 36).fill(primary);
     doc
-      .fontSize(18)
-      .text(c.title || "Resumo da consulta", { align: "left" })
-      .moveDown(0.5);
+      .fillColor("#fff")
+      .fontSize(16)
+      .text(c.title || "Resumo da consulta", 56, 58);
+    doc.fillColor("#000").moveDown(1.5);
+
     doc
       .fontSize(10)
-      .fillColor("#666")
+      .fillColor(gray)
       .text(`ID: ${c.id}`)
-      .text(`Data: ${c.startAt ? new Date(c.startAt).toLocaleString() : "-"}`)
+      .text(
+        `Data: ${c.startAt ? new Date(c.startAt).toLocaleString("pt-PT") : "-"}`
+      )
       .text(`Estado: ${c.status}`)
-      .moveDown();
+      .moveDown(0.8);
     doc.fillColor("#000");
 
-    // Família/criança
-    doc.fontSize(12).text("Família", { underline: true });
+    const section = (title: string) => {
+      doc.moveDown(0.6);
+      doc.fontSize(12).fillColor(primary).text(title.toUpperCase());
+      doc
+        .moveTo(48, doc.y + 2)
+        .lineTo(doc.page.width - 48, doc.y + 2)
+        .strokeColor(primary)
+        .lineWidth(1)
+        .stroke();
+      doc.moveDown(0.6).fillColor("#000");
+    };
+
+    section("Família");
     if (c.family)
       doc
         .fontSize(11)
@@ -1165,46 +1217,166 @@ r.get(
         );
     if (c.child) doc.text(`Criança: ${c.child.name}`);
     if (c.library) doc.text(`Biblioteca: ${c.library.name}`);
-    doc.moveDown();
+    doc.moveDown(0.5);
 
-    // Resumo
-    doc.fontSize(12).text("Resumo", { underline: true });
-    doc
-      .fontSize(11)
-      .text(c.purpose || c.description || "(sem descrição)")
-      .moveDown();
+    section("Resumo");
+    doc.fontSize(11).text(c.purpose || c.description || "(sem descrição)");
 
-    // Notas
-    doc.fontSize(12).text("Notas", { underline: true });
-    doc
-      .fontSize(11)
-      .text(c.notes || "(sem notas)")
-      .moveDown();
+    section("Notas");
+    doc.fontSize(11).text(c.notes || "(sem notas)");
 
-    // Anexos
     const bookTitles = c.books
       .map((cb) => cb.book?.title)
       .filter(Boolean) as string[];
     const microTexts = c.microContents
-      .map((cm) => cm.microContent?.text)
+      .map((m) => m.microContent?.text)
       .filter(Boolean) as string[];
     const eventTitles = c.culturalEvents
       .map((ce) => ce.event?.title)
       .filter(Boolean) as string[];
 
-    doc.fontSize(12).text("Anexos", { underline: true });
-    doc.fontSize(11);
-    doc.text(`Livros (${bookTitles.length}): ${bookTitles.join("; ") || "-"}`);
-    doc.text(
-      `Micro-conteúdos (${microTexts.length}): ${
-        microTexts.join(" | ").slice(0, 1000) || "-"
-      }`
-    );
-    doc.text(
-      `Eventos (${eventTitles.length}): ${eventTitles.join("; ") || "-"}`
-    );
+    section("Anexos");
+    doc
+      .fontSize(11)
+      .text(`Livros (${bookTitles.length})`)
+      .fontSize(10)
+      .fillColor(gray)
+      .text(bookTitles.length ? "• " + bookTitles.join("\n• ") : "—")
+      .fillColor("#000")
+      .moveDown(0.6)
+      .fontSize(11)
+      .text(`Micro-conteúdos (${microTexts.length})`)
+      .fontSize(10)
+      .fillColor(gray)
+      .text(microTexts.length ? "• " + microTexts.join("\n• ") : "—")
+      .fillColor("#000")
+      .moveDown(0.6)
+      .fontSize(11)
+      .text(`Eventos (${eventTitles.length})`)
+      .fontSize(10)
+      .fillColor(gray)
+      .text(eventTitles.length ? "• " + eventTitles.join("\n• ") : "—")
+      .fillColor("#000");
 
+    doc.on("pageAdded", () => {
+      doc
+        .fontSize(9)
+        .fillColor(gray)
+        .text(
+          `Gerado em ${new Date().toLocaleString("pt-PT")}`,
+          48,
+          doc.page.height - 40,
+          { width: doc.page.width - 96, align: "right" }
+        )
+        .fillColor("#000");
+    });
+
+    // 👇 Fecha o stream e a response
     doc.end();
+  }
+);
+
+r.post(
+  "/",
+  withUser as RequestHandler,
+  requireFamilyOrLibrarian as RequestHandler,
+  async (req: Request, res: Response) => {
+    try {
+      const body = (req.body ?? {}) as any;
+
+      // tenta ler ids do body
+      let familyId = Number(body.familyId) || undefined;
+      let librarianId = Number(body.librarianId) || undefined;
+      const slotId = Number(body.slotId) || undefined;
+
+      // roles do utilizador autenticado
+      const roles = ((req as Authed).user?.roles || []) as string[];
+      const isFamily = roles.includes(ROLES.FAMILY);
+
+      // fallback: se é FAMILY e não veio familyId, usa o seu próprio id
+      if (!familyId && isFamily) {
+        familyId = (req as Authed).user?.id;
+      }
+
+      // fallback: se veio slotId mas não veio librarianId, descobre pelo slot
+      if (!librarianId && slotId) {
+        const slot = await prisma.consultationSlot.findUnique({
+          where: { id: slotId },
+          select: { librarianId: true },
+        });
+        librarianId = slot?.librarianId;
+      }
+
+      if (!Number(familyId) || !Number(librarianId)) {
+        return res
+          .status(400)
+          .json({ error: "familyId e librarianId são obrigatórios" });
+      }
+
+      const created = await svcCreateConsultation({
+        familyId: Number(familyId),
+        librarianId: Number(librarianId),
+        childId: body.childId ? Number(body.childId) : undefined,
+        libraryId: body.libraryId ? Number(body.libraryId) : undefined,
+        slotId,
+        startAt: body.startAt,
+        endAt: body.endAt,
+        title: body.title,
+        purpose: body.purpose,
+        description: body.description,
+        modeEnum: body.modeEnum,
+        meetingUrl: body.meetingUrl,
+        notes: body.notes,
+        bookIsbns: Array.isArray(body.bookIsbns) ? body.bookIsbns : [],
+        microContentIds: Array.isArray(body.microContentIds)
+          ? body.microContentIds
+          : [],
+        eventIds: Array.isArray(body.eventIds) ? body.eventIds : [],
+      });
+
+      return res.status(201).json(created);
+    } catch (e: any) {
+      const msg = String(e?.message || "");
+      const codeByMsg: Record<string, number> = {
+        slot_not_found: 404,
+        slot_not_open: 409,
+        slot_already_linked: 409,
+        meeting_url_required_for_online: 400,
+        library_required_for_in_person: 400,
+        time_required: 400,
+      };
+      const code = codeByMsg[msg] ?? 400;
+      return res.status(code).json({ error: msg || "failed_to_create" });
+    }
+  }
+);
+
+r.post(
+  "/:id/reschedule",
+  withUser as RequestHandler,
+  requireFamilyOrLibrarian as RequestHandler,
+  async (req: Request, res: Response) => {
+    const id = asInt(req.params.id);
+    const slotId = asInt((req.body as any)?.slotId);
+    const reason = String((req.body as any)?.reason ?? "") || undefined;
+    if (!id || !slotId) return res.status(400).json({ error: "invalid_id_or_slot" });
+
+    try {
+      const out = await svcRescheduleConsultation(id, slotId, req as Authed, reason);
+      res.json(out);
+    } catch (e: any) {
+      const msg = String(e?.message || "");
+      const codeByMsg: Record<string, number> = {
+        not_found: 404,
+        forbidden: 403,
+        only_pending: 409,                 // tentativa fora de PENDING
+        slot_not_found: 404,
+        slot_not_open: 409,
+        slot_already_linked: 409,
+        library_required_for_in_person: 400,
+      };
+      res.status(codeByMsg[msg] ?? 400).json({ error: msg || "failed_to_reschedule" });
+    }
   }
 );
 

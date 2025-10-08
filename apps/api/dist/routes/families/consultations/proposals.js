@@ -29,12 +29,14 @@ const isActorFamily = (req, familyId) => req.user?.id === familyId;
 const isActorLibrarian = (req, librarianId) => req.user?.id === librarianId;
 const parseProposalStatus = (s) => {
     const up = String(s || "").toUpperCase();
-    return Object.values(client_1.ProposalStatus).includes(up) ? up : undefined;
+    return Object.values(client_1.ProposalStatus).includes(up)
+        ? up
+        : undefined;
 };
 /* ============================== Serviços (DB) ============================== */
 // Conflito do bibliotecário em [start,end)
-async function svcFindLibrarianConflict(librarianId, startAt, endAt, excludeId) {
-    return prisma.consultation.findFirst({
+async function svcFindLibrarianConflict(librarianId, startAt, endAt, excludeId, db = prisma) {
+    return db.consultation.findFirst({
         where: {
             librarianId,
             status: client_1.ConsultationStatus.CONFIRMED,
@@ -48,10 +50,15 @@ async function svcFindLibrarianConflict(librarianId, startAt, endAt, excludeId) 
 // Cancelar consulta (autorizações + libertar slot + expirar propostas + evento)
 async function svcCancelConsultation(id, req, reason) {
     return prisma.$transaction(async (tx) => {
-        const c = await tx.consultation.findUnique({ where: { id }, include: { slot: true } });
+        const c = await tx.consultation.findUnique({
+            where: { id },
+            include: { slot: true },
+        });
         if (!c)
             throw new ApiError(404, "not_found");
-        const allowed = isAdmin(req) || isActorLibrarian(req, c.librarianId) || isActorFamily(req, c.familyId);
+        const allowed = isAdmin(req) ||
+            isActorLibrarian(req, c.librarianId) ||
+            isActorFamily(req, c.familyId);
         if (!allowed)
             throw new ApiError(403, "forbidden");
         if (c.status === client_1.ConsultationStatus.CANCELLED)
@@ -61,7 +68,10 @@ async function svcCancelConsultation(id, req, reason) {
         if (c.status === client_1.ConsultationStatus.DECLINED)
             throw new ApiError(409, "invalid_state");
         if (c.slotId)
-            await tx.consultationSlot.update({ where: { id: c.slotId }, data: { status: client_1.SlotStatus.OPEN } });
+            await tx.consultationSlot.update({
+                where: { id: c.slotId },
+                data: { status: client_1.SlotStatus.OPEN },
+            });
         const updated = await tx.consultation.update({
             where: { id: c.id },
             data: { status: client_1.ConsultationStatus.CANCELLED, slotId: null },
@@ -84,11 +94,14 @@ async function svcCancelConsultation(id, req, reason) {
 }
 // Upsert de proposta (valida estado/ator; cria evento de created/updated)
 async function svcUpsertProposal(consultationId, proposedBy, toStartAt, toEndAt, message, actorId) {
-    const c = await prisma.consultation.findUnique({ where: { id: consultationId } });
+    const c = await prisma.consultation.findUnique({
+        where: { id: consultationId },
+    });
     if (!c)
         throw new ApiError(404, "not_found");
     // ⚠️ Fix TS: comparar com || evita o erro de includes() com enum
-    if (c.status === client_1.ConsultationStatus.CANCELLED || c.status === client_1.ConsultationStatus.COMPLETED) {
+    if (c.status === client_1.ConsultationStatus.CANCELLED ||
+        c.status === client_1.ConsultationStatus.COMPLETED) {
         throw new ApiError(409, "invalid_state");
     }
     if (isNaN(+toStartAt) || isNaN(+toEndAt) || !(toStartAt < toEndAt)) {
@@ -102,7 +115,10 @@ async function svcUpsertProposal(consultationId, proposedBy, toStartAt, toEndAt,
             throw new ApiError(409, "pending_proposal_other_actor");
         if (+existing.toStartAt === +toStartAt && +existing.toEndAt === +toEndAt)
             return existing;
-        const prev = { prevToStartAt: existing.toStartAt, prevToEndAt: existing.toEndAt };
+        const prev = {
+            prevToStartAt: existing.toStartAt,
+            prevToEndAt: existing.toEndAt,
+        };
         const upd = await prisma.consultationProposal.update({
             where: { id: existing.id },
             data: {
@@ -136,14 +152,22 @@ async function svcUpsertProposal(consultationId, proposedBy, toStartAt, toEndAt,
         },
     });
     await prisma.consultationEvent.create({
-        data: { consultationId, type: "RESCHEDULE_PROPOSED", actorId, payload: { proposalId: p.id } },
+        data: {
+            consultationId,
+            type: "RESCHEDULE_PROPOSED",
+            actorId,
+            payload: { proposalId: p.id },
+        },
     });
     return p;
 }
 // Aceitar proposta (autorização por ator; conflito; reservar slot; atualizar estados)
 async function svcAcceptProposal(proposalId, req) {
     return prisma.$transaction(async (tx) => {
-        const p = await tx.consultationProposal.findUnique({ where: { id: proposalId }, include: { consultation: true } });
+        const p = await tx.consultationProposal.findUnique({
+            where: { id: proposalId },
+            include: { consultation: true },
+        });
         if (!p || p.status !== client_1.ProposalStatus.PENDING)
             throw new ApiError(400, "invalid proposal");
         const c = p.consultation;
@@ -159,56 +183,104 @@ async function svcAcceptProposal(proposalId, req) {
             throw new ApiError(403, "forbidden");
         const startAt = new Date(p.toStartAt);
         const endAt = new Date(p.toEndAt);
-        const conflict = await svcFindLibrarianConflict(c.librarianId, startAt, endAt, c.id);
+        // ✅ usar o MESMO client (tx) no check de conflitos
+        const conflict = await svcFindLibrarianConflict(c.librarianId, startAt, endAt, c.id, tx);
         if (conflict)
             throw new ApiError(409, "conflict", { conflict });
-        // libertar slot antigo (se existir)
-        if (c.slotId)
-            await tx.consultationSlot.update({ where: { id: c.slotId }, data: { status: client_1.SlotStatus.OPEN } });
-        // garantir slot OPEN para o novo intervalo (cria se não existir)
-        let slot = await tx.consultationSlot.findFirst({ where: { librarianId: c.librarianId, startAt, endAt } });
+        if (c.slotId) {
+            await tx.consultationSlot.update({
+                where: { id: c.slotId },
+                data: { status: client_1.SlotStatus.OPEN },
+            });
+        }
+        let slot = await tx.consultationSlot.findFirst({
+            where: { librarianId: c.librarianId, startAt, endAt },
+        });
         if (!slot) {
             slot = await tx.consultationSlot.create({
-                data: { librarianId: c.librarianId, libraryId: c.libraryId ?? null, startAt, endAt, status: client_1.SlotStatus.OPEN },
+                data: {
+                    librarianId: c.librarianId,
+                    libraryId: c.libraryId ?? null,
+                    startAt,
+                    endAt,
+                    status: client_1.SlotStatus.OPEN,
+                },
             });
         }
         if (slot.status !== client_1.SlotStatus.OPEN)
             throw new ApiError(409, "slot not open", { slotStatus: slot.status });
-        await tx.consultationSlot.update({ where: { id: slot.id }, data: { status: client_1.SlotStatus.BOOKED } });
+        await tx.consultationSlot.update({
+            where: { id: slot.id },
+            data: { status: client_1.SlotStatus.BOOKED },
+        });
         const updated = await tx.consultation.update({
             where: { id: c.id },
-            data: { status: client_1.ConsultationStatus.CONFIRMED, startAt, endAt, slot: { connect: { id: slot.id } } },
+            data: {
+                status: client_1.ConsultationStatus.CONFIRMED,
+                startAt,
+                endAt,
+                slot: { connect: { id: slot.id } },
+            },
         });
         const now = new Date();
         await tx.consultationProposal.update({
             where: { id: proposalId },
-            data: { status: client_1.ProposalStatus.ACCEPTED, decidedAt: now, decidedById: req.user?.id ?? null },
+            data: {
+                status: client_1.ProposalStatus.ACCEPTED,
+                decidedAt: now,
+                decidedById: req.user?.id ?? null,
+            },
         });
         await tx.consultationProposal.updateMany({
-            where: { consultationId: c.id, id: { not: proposalId }, status: client_1.ProposalStatus.PENDING },
+            where: {
+                consultationId: c.id,
+                id: { not: proposalId },
+                status: client_1.ProposalStatus.PENDING,
+            },
             data: { status: client_1.ProposalStatus.EXPIRED, decidedAt: now },
         });
-        await prisma.consultationEvent.create({
-            data: { consultationId: c.id, type: "RESCHEDULE_ACCEPTED", actorId: req.user?.id, payload: { proposalId } },
+        // ❌ antes: prisma.consultationEvent.create (fora da transação)
+        // ✅ agora: usa o tx (não deixa a transação ociosa)
+        await tx.consultationEvent.create({
+            data: {
+                consultationId: c.id,
+                type: "RESCHEDULE_ACCEPTED",
+                actorId: req.user?.id,
+                payload: { proposalId },
+            },
         });
         return updated;
-    });
+    } /*, { timeout: 15000, maxWait: 5000 } opcional */);
 }
 // Rejeitar proposta (marca DECLINED + evento)
 async function svcDeclineProposal(proposalId, req) {
-    const p = await prisma.consultationProposal.findUnique({ where: { id: proposalId }, include: { consultation: true } });
+    const p = await prisma.consultationProposal.findUnique({
+        where: { id: proposalId },
+        include: { consultation: true },
+    });
     if (!p)
         throw new ApiError(404, "not found");
     const c = p.consultation;
-    const allowed = isAdmin(req) || isActorLibrarian(req, c.librarianId) || isActorFamily(req, c.familyId);
+    const allowed = isAdmin(req) ||
+        isActorLibrarian(req, c.librarianId) ||
+        isActorFamily(req, c.familyId);
     if (!allowed)
         throw new ApiError(403, "forbidden");
     const upd = await prisma.consultationProposal.update({
         where: { id: proposalId },
-        data: { status: client_1.ProposalStatus.DECLINED, decidedAt: new Date(), decidedById: req.user?.id ?? null },
+        data: {
+            status: client_1.ProposalStatus.DECLINED,
+            decidedAt: new Date(),
+            decidedById: req.user?.id ?? null,
+        },
     });
     await prisma.consultationEvent.create({
-        data: { consultationId: c.id, type: "RESCHEDULE_DECLINED", actorId: req.user?.id, payload: { proposalId } },
+        data: {
+            consultationId: c.id,
+            type: "RESCHEDULE_DECLINED",
+            actorId: req.user?.id,
+            payload: { proposalId },
+        },
     });
     return upd;
 }
@@ -283,7 +355,12 @@ r.post("/consultations/:id/cancel", auth_1.withUser, (0, auth_1.requireRole)(aut
     }
     catch (e) {
         if (e instanceof ApiError)
-            return res.status(e.code).json({ error: e.message, ...(e.payload ? { payload: e.payload } : {}) });
+            return res
+                .status(e.code)
+                .json({
+                error: e.message,
+                ...(e.payload ? { payload: e.payload } : {}),
+            });
         const msg = String(e?.message || "");
         if (/unique|constraint|slotId|startAt.*endAt/i.test(msg))
             return res.status(409).json({ error: "concurrency" });
@@ -353,7 +430,12 @@ r.post("/proposals/:proposalId/accept", auth_1.withUser, (0, auth_1.requireRole)
     }
     catch (e) {
         if (e instanceof ApiError)
-            return res.status(e.code).json({ error: e.message, ...(e.payload ? { payload: e.payload } : {}) });
+            return res
+                .status(e.code)
+                .json({
+                error: e.message,
+                ...(e.payload ? { payload: e.payload } : {}),
+            });
         const msg = String(e?.message || "");
         if (/unique|constraint|slotId|startAt.*endAt/i.test(msg))
             return res.status(409).json({ error: "concurrency" });

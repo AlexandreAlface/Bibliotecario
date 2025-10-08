@@ -256,13 +256,16 @@ export default function LibrarianConsultasPendentes() {
     [consultas]
   );
   // 2) Remover as que já têm proposta pendente do bibliotecário
-  const librarianPendingSet = useMemo(
-    () => buildLibrarianPendingSet(propostas),
-    [propostas]
-  );
-  const consultasComSlotSemPropDoBibliotecario = useMemo(
-    () => consultasComSlot.filter((c) => !librarianPendingSet.has(Number(c.id))),
-    [consultasComSlot, librarianPendingSet]
+  const anyPendingSet = useMemo(() => {
+    const s = new Set<number>();
+    for (const p of propostas || []) {
+      if (p?.consultation?.id) s.add(Number(p.consultation.id));
+    }
+    return s;
+  }, [propostas]);
+  const consultasComSlotSemProposta = useMemo(
+    () => consultasComSlot.filter((c) => !anyPendingSet.has(Number(c.id))),
+    [consultasComSlot, anyPendingSet]
   );
 
   return (
@@ -292,7 +295,7 @@ export default function LibrarianConsultasPendentes() {
 
       {/* ✅ Secção: pedidos com slot (excluindo os com proposta do bibliotecário) */}
       <PedidosComSlotSection
-        items={consultasComSlotSemPropDoBibliotecario}
+        items={consultasComSlotSemProposta}
         librarianId={librarianId}
         onChanged={reload}
         loading={loading}
@@ -331,7 +334,9 @@ function PedidosComSlotSection({
         count={items.length}
         icon={<CalendarClock size={18} />}
       />
-      {items.length === 0 && !loading && <Empty>Sem pedidos com horário.</Empty>}
+      {items.length === 0 && !loading && (
+        <Empty>Sem pedidos com horário.</Empty>
+      )}
       <Stack spacing={2}>
         {items.map((c) => (
           <PedidoComSlotCard
@@ -568,7 +573,9 @@ function PedidoComSlotCard({
                 "Já existe proposta pendente da família. Aguarde a decisão ou peça para a recusarem."
               );
             } else if (m.includes("invalid_state")) {
-              setMsg("Esta consulta não pode ser reagendada (estado inválido).");
+              setMsg(
+                "Esta consulta não pode ser reagendada (estado inválido)."
+              );
             } else if (m.includes("invalid_dates")) {
               setMsg("Intervalo inválido.");
             } else {

@@ -78,6 +78,20 @@ export default function ConsultationWizard(p: Props) {
   };
 
   useEffect(() => {
+    if (!p.open) return;
+    setForm({
+      familyId: p.defaultFamilyId,
+      librarianId: p.defaultLibrarianId!, // <-- aqui
+      slotId: p.defaultSlotId,
+      modeEnum: "ONLINE",
+    });
+    setStep(0);
+    setSelectedBooks([]);
+    setSelectedMC([]);
+    setSelectedEV([]);
+  }, [p.open, p.defaultFamilyId, p.defaultLibrarianId, p.defaultSlotId]);
+
+  useEffect(() => {
     if (
       p.open &&
       form.modeEnum === "IN_PERSON" &&

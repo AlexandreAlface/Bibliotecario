@@ -76,16 +76,6 @@ function sameDayKey(d: Date): string {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toDateString();
 }
 
-/** Conjunto de dias que já têm 1+ slot, para “saltar” esses dias. */
-function computeDaysWithSlots(existing: SlotLite[]): Set<string> {
-  const set = new Set<string>();
-  for (const s of existing || []) {
-    const d = new Date(s.startAt);
-    set.add(sameDayKey(d));
-  }
-  return set;
-}
-
 /** Devolve se o dia respeita o filtro de weekdays. getDay(): 0=Dom..6=Sáb */
 function shouldUseWeekday(d: Date, weekdays: boolean[]): boolean {
   return !!weekdays[d.getDay()];
@@ -170,6 +160,60 @@ function rangeFromMode(
   return { from: startOfDay(lo), to: endOfDay(hi) };
 }
 
+/* ====================== Helpers puros — extensões ======================= */
+
+type Interval = { startAt: Date; endAt: Date };
+type HMWindow = { start: string; end: string };
+
+/** Overlap simples entre intervalos. */
+function overlapsI(a: Interval, b: Interval) {
+  return a.startAt < b.endAt && b.startAt < a.endAt;
+}
+
+/** Filtra candidatos que colidem com “busy”. */
+function filterNonOverlapping(candidates: Interval[], busy: Interval[]) {
+  if (!busy.length) return candidates;
+  return candidates.filter((c) => !busy.some((b) => overlapsI(c, b)));
+}
+
+/** Mapa “dia → intervalos existentes” (não só flag do dia). */
+function existingByDay(existing: SlotLite[]): Map<string, Interval[]> {
+  const map = new Map<string, Interval[]>();
+  for (const s of existing || []) {
+    const key = sameDayKey(new Date(s.startAt));
+    const arr = map.get(key) || [];
+    arr.push({ startAt: new Date(s.startAt), endAt: new Date(s.endAt) });
+    map.set(key, arr);
+  }
+  return map;
+}
+
+/** Conjunto de datas a excluir (CSV, espaços ou vírgulas) em YYYY-MM-DD. */
+function parseSkipDates(csv: string) {
+  const set = new Set<string>();
+  for (const raw of csv.split(/[,\s]+/)) {
+    const s = raw.trim();
+    if (!s) continue;
+    const d = new Date(s + "T00:00:00");
+    if (!isNaN(+d)) set.add(d.toISOString().slice(0, 10));
+  }
+  return set;
+}
+
+/** Gera intervalos a partir de múltiplas janelas (ex.: manhã/tarde). */
+function intervalsForWindows(
+  day: Date,
+  windows: HMWindow[],
+  slotMinutes: number,
+  gapMinutes: number
+): Interval[] {
+  const out: Interval[] = [];
+  for (const w of windows) {
+    out.push(...generateIntervalsForDay(day, w.start, w.end, slotMinutes, gapMinutes));
+  }
+  return out.sort((a, b) => +a.startAt - +b.startAt);
+}
+
 /* ============================================================================
  *  COMPONENTE — página de gestão de slots
  * ========================================================================== */
@@ -197,15 +241,28 @@ export default function LibrarianSlots() {
     false,
   ]);
 
-  // ------- Passo 2: janela e granularidade
-  const [dayStart, setDayStart] = useState("09:00");
-  const [dayEnd, setDayEnd] = useState("17:00");
+  // ------- Passo 2: janelas e granularidade
+  // Manhã
+  const [useMorning, setUseMorning] = useState(true);
+  const [morningStart, setMorningStart] = useState("09:00");
+  const [morningEnd, setMorningEnd] = useState("12:30");
+  // Tarde (por defeito desligada → “tarde livre”)
+  const [useAfternoon, setUseAfternoon] = useState(false);
+  const [afternoonStart, setAfternoonStart] = useState("14:00");
+  const [afternoonEnd, setAfternoonEnd] = useState("17:00");
+  // Granularidade
   const [slotMinutes, setSlotMinutes] = useState(30);
   const [gapMinutes, setGapMinutes] = useState(0);
 
   // ------- Passo 3: bibliotecas do bibliotecário
   const [libs, setLibs] = useState<Array<{ id: number; name: string }>>([]);
   const [libraryId, setLibraryId] = useState<number | "">(""); // "" → sem biblioteca
+
+  // ------- Regras avançadas
+  const [fillGapsOnBusyDays, setFillGapsOnBusyDays] = useState(false); // false = saltar dias com 1+ slot
+  const [maxPerDay, setMaxPerDay] = useState<number | "">("");
+  const [skipDatesCsv, setSkipDatesCsv] = useState("");
+  // const [autoBlockUnused, setAutoBlockUnused] = useState(false); // (opcional)
 
   // ------- Estado: existentes, loading & feedback
   const [existing, setExisting] = useState<SlotLite[]>([]);
@@ -234,7 +291,7 @@ export default function LibrarianSlots() {
     [mode, date, dateTo]
   );
 
-  // Slots já existentes no intervalo (para saltar dias com 1+ slot)
+  // Slots já existentes no intervalo (para preencher lacunas / saltar dias)
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -256,28 +313,64 @@ export default function LibrarianSlots() {
     // dependências por valor (getTime) para evitar loops
   }, [librarianId, from.getTime(), to.getTime()]);
 
-  // Pré-visualização dos slots a criar (saltando dias com slots)
+  // Pré-visualização dos slots a criar (com novas opções)
   const preview = useMemo(() => {
-    const out: { startAt: Date; endAt: Date }[] = [];
-    const daysWithSlots = computeDaysWithSlots(existing); // puro
+    // Janelas ativas para cada dia
+    const windows: HMWindow[] = [];
+    if (useMorning) windows.push({ start: morningStart, end: morningEnd });
+    if (useAfternoon) windows.push({ start: afternoonStart, end: afternoonEnd });
+    if (!windows.length || slotMinutes <= 0) return [];
+
+    const out: Interval[] = [];
+    const busyMap = existingByDay(existing); // “ocupação” por dia (intervalos)
+    const skipDates = parseSkipDates(skipDatesCsv);
 
     // Itera dia a dia no intervalo e aplica filtros/granularidade
     for (let d = startOfDay(from); d <= to; d = addDays(d, 1)) {
       if (!shouldUseWeekday(d, weekdays)) continue; // filtro por dia útil
-      if (daysWithSlots.has(sameDayKey(d))) continue; // já existe slot: salta
+      if (skipDates.has(d.toISOString().slice(0, 10))) continue; // datas a excluir
 
-      // gera segmentos para o dia
-      const parts = generateIntervalsForDay(
-        d,
-        dayStart,
-        dayEnd,
-        slotMinutes,
-        gapMinutes
-      );
-      out.push(...parts);
+      const dayKey = sameDayKey(d);
+      const busy = busyMap.get(dayKey) || [];
+
+      // gera segmentos candidatos para o dia
+      let candidates = intervalsForWindows(d, windows, slotMinutes, gapMinutes);
+
+      // comportamento: preencher lacunas vs saltar o dia
+      if (fillGapsOnBusyDays) {
+        candidates = filterNonOverlapping(candidates, busy);
+      } else if (busy.length) {
+        candidates = []; // legado: se já há 1+, não cria mais
+      }
+
+      // cap diário
+      if (maxPerDay !== "" && Number(maxPerDay) >= 0) {
+        candidates = candidates.slice(0, Number(maxPerDay));
+      }
+
+      out.push(...candidates);
     }
     return out;
-  }, [existing, from, to, weekdays, dayStart, dayEnd, slotMinutes, gapMinutes]);
+  }, [
+    existing,
+    from,
+    to,
+    weekdays,
+    // janelas:
+    useMorning,
+    morningStart,
+    morningEnd,
+    useAfternoon,
+    afternoonStart,
+    afternoonEnd,
+    // granularidade:
+    slotMinutes,
+    gapMinutes,
+    // regras:
+    fillGapsOnBusyDays,
+    maxPerDay,
+    skipDatesCsv,
+  ]);
 
   /** Criação em massa dos slots (mantida < 30 linhas). */
   async function handleCreate() {
@@ -300,7 +393,7 @@ export default function LibrarianSlots() {
       } else {
         const res = await bulkCreateSlots(librarianId, payload);
         setDoneMsg(`Criados ${res?.created ?? payload.length} slots.`);
-        // Recarrega existentes para atualizar “saltos”
+        // Recarrega existentes para atualizar “saltos/lacunas”
         const items = await listLibrarianSlots(librarianId, {
           from: toIso(from),
           to: toIso(to),
@@ -412,29 +505,84 @@ export default function LibrarianSlots() {
         </Stack>
       </WhiteCard>
 
-      {/* ========== Passo 2: janela diária e granularidade ========== */}
+      {/* ========== Passo 2: janelas do dia e granularidade ========== */}
       <WhiteCard>
         <Typography variant="subtitle1" sx={{ mb: 2 }}>
           2) Janela do dia e duração
         </Typography>
 
+        {/* Manhã & Tarde (tarde desmarcada por defeito → “tarde livre”) */}
+        <Stack direction={{ xs: "column", md: "row" }} spacing={3}>
+          <Box>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={useMorning}
+                  onChange={(e) => setUseMorning(e.target.checked)}
+                />
+              }
+              label="Usar manhã"
+            />
+            <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                type="time"
+                size="small"
+                label="Início (manhã)"
+                value={morningStart}
+                onChange={(e) => setMorningStart(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+              <TextField
+                type="time"
+                size="small"
+                label="Fim (manhã)"
+                value={morningEnd}
+                onChange={(e) => setMorningEnd(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Stack>
+          </Box>
+
+          <Box>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={useAfternoon}
+                  onChange={(e) => setUseAfternoon(e.target.checked)}
+                />
+              }
+              label="Usar tarde (desmarcado = tarde livre)"
+            />
+            <Stack
+              direction="row"
+              spacing={2}
+              sx={{ mt: 1, opacity: useAfternoon ? 1 : 0.5 }}
+            >
+              <TextField
+                type="time"
+                size="small"
+                label="Início (tarde)"
+                value={afternoonStart}
+                onChange={(e) => setAfternoonStart(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                disabled={!useAfternoon}
+              />
+              <TextField
+                type="time"
+                size="small"
+                label="Fim (tarde)"
+                value={afternoonEnd}
+                onChange={(e) => setAfternoonEnd(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                disabled={!useAfternoon}
+              />
+            </Stack>
+          </Box>
+        </Stack>
+
+        <Divider sx={{ my: 2 }} />
+
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <TextField
-            type="time"
-            size="small"
-            label="Início do dia"
-            value={dayStart}
-            onChange={(e) => setDayStart(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-          />
-          <TextField
-            type="time"
-            size="small"
-            label="Fim do dia"
-            value={dayEnd}
-            onChange={(e) => setDayEnd(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-          />
           <TextField
             type="number"
             size="small"
@@ -459,6 +607,60 @@ export default function LibrarianSlots() {
               endAdornment: <InputAdornment position="end">min</InputAdornment>,
             }}
           />
+        </Stack>
+      </WhiteCard>
+
+      {/* ========== Regras avançadas (novo) ========== */}
+      <WhiteCard>
+        <Typography variant="subtitle1" sx={{ mb: 2 }}>
+          Regras avançadas
+        </Typography>
+
+        <Stack direction={{ xs: "column", md: "row" }} spacing={3}>
+          <Box>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={fillGapsOnBusyDays}
+                  onChange={(e) => setFillGapsOnBusyDays(e.target.checked)}
+                />
+              }
+              label="Preencher lacunas em dias com slots (em vez de saltar o dia todo)"
+            />
+            <Typography variant="caption" sx={{ display: "block", opacity: 0.7 }}>
+              Desmarcado = comportamento atual (se houver 1+ slot, não cria mais nesse dia)
+            </Typography>
+          </Box>
+
+          <TextField
+            type="number"
+            size="small"
+            label="Máx. slots por dia"
+            value={maxPerDay}
+            onChange={(e) => {
+              const v = e.target.value;
+              setMaxPerDay(v === "" ? "" : Math.max(0, Number(v)));
+            }}
+            sx={{ width: 180 }}
+            helperText="Vazio = sem limite"
+          />
+        </Stack>
+
+        <Stack spacing={1.5} sx={{ mt: 2 }}>
+          <TextField
+            size="small"
+            label="Datas a excluir (CSV de YYYY-MM-DD)"
+            placeholder="2025-10-14, 2025-10-21"
+            value={skipDatesCsv}
+            onChange={(e) => setSkipDatesCsv(e.target.value)}
+            fullWidth
+          />
+          {/* Opcional: auto-bloquear janelas não usadas
+          <FormControlLabel
+            control={<Checkbox checked={autoBlockUnused} onChange={(e) => setAutoBlockUnused(e.target.checked)} />}
+            label="Bloquear automaticamente as janelas não usadas (gera BLOCKED)"
+          />
+          */}
         </Stack>
       </WhiteCard>
 
@@ -525,7 +727,7 @@ export default function LibrarianSlots() {
               ).length
             }
           </b>{" "}
-          (serão saltados)
+          {fillGapsOnBusyDays ? "(serão preenchidas as lacunas)" : "(serão saltados)"}
         </Typography>
 
         <Typography variant="body2" sx={{ mb: 2 }}>

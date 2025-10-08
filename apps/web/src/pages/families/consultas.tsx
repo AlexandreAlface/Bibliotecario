@@ -292,19 +292,16 @@ export default function ConsultasPage() {
   /* ------------------------- Dados auxiliares p/ Wizard ------------------------- */
 
   // bibliotecas disponíveis a partir dos slots carregados
-  const libraryOptions = useMemo(
-    () => {
-      const seen = new Set<number>();
-      const arr: Array<{ id: number; name: string }> = [];
-      for (const s of slotsAll) {
-        if (!s.libraryId || seen.has(s.libraryId)) continue;
-        seen.add(s.libraryId);
-        arr.push({ id: s.libraryId, name: s.libraryName || "Biblioteca" });
-      }
-      return arr;
-    },
-    [slotsAll]
-  );
+  const libraryOptions = useMemo(() => {
+    const seen = new Set<number>();
+    const arr: Array<{ id: number; name: string }> = [];
+    for (const s of slotsAll) {
+      if (!s.libraryId || seen.has(s.libraryId)) continue;
+      seen.add(s.libraryId);
+      arr.push({ id: s.libraryId, name: s.libraryName || "Biblioteca" });
+    }
+    return arr;
+  }, [slotsAll]);
 
   // abre o wizard (requer slot selecionado)
   const openWizard = useCallback(() => {
@@ -576,7 +573,10 @@ export default function ConsultasPage() {
                   </PrimaryButton>
                   {/* dica: selecionar criança antes (opcional) */}
                   {!localChildId && (
-                    <Typography variant="caption" sx={{ mt: 0.5, opacity: 0.75 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ mt: 0.5, opacity: 0.75 }}
+                    >
                       (Opcional) escolhe a criança acima antes de continuar.
                     </Typography>
                   )}
@@ -608,18 +608,20 @@ export default function ConsultasPage() {
       </Grid>
 
       {/* ===== Wizard ===== */}
-      <ConsultationWizard
-        open={wizardOpen}
-        onClose={() => setWizardOpen(false)}
-        defaultFamilyId={Number(user?.id)}
-        defaultLibrarianId={selectedSlot?.librarianId}
-        defaultSlotId={selectedSlot?.id}
-        libraries={libraryOptions}
-        onCreated={(id) => {
-          setWizardOpen(false);
-          onWizardCreated(id);
-        }}
-      />
+      {wizardOpen && selectedSlot && (
+        <ConsultationWizard
+          open
+          onClose={() => setWizardOpen(false)}
+          defaultFamilyId={Number(user?.id)}
+          defaultLibrarianId={selectedSlot.librarianId}
+          defaultSlotId={selectedSlot.id}
+          libraries={libraryOptions}
+          onCreated={(id) => {
+            setWizardOpen(false);
+            onWizardCreated(id);
+          }}
+        />
+      )}
     </Container>
   );
 }

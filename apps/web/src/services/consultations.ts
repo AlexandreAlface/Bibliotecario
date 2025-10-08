@@ -656,11 +656,59 @@ export async function completeConsultation(id: number) {
 
 export async function addConsultationAttachments(
   id: number,
-  payload: { books?: string[]; microContents?: number[]; events?: number[]; files?: { name: string; url: string }[] }
+  payload: {
+    books?: string[];
+    microContents?: number[];
+    events?: number[];
+    files?: { name: string; url: string }[];
+  }
 ) {
   return http<{ ok: boolean }>({
     url: `/consultations/${id}/attachments`,
     method: "POST",
     data: payload,
+  });
+}
+
+// services/consultations.ts
+export async function downloadConsultationPdf(id: number) {
+  const url = `/api/consultations/${id}/summary.pdf`;
+  const ctrl = new AbortController();
+  const tm = setTimeout(() => ctrl.abort(), 20000);
+
+  const res = await fetch(url, {
+    method: "GET",
+    credentials: "include",
+    signal: ctrl.signal,
+  });
+  clearTimeout(tm);
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Falha a gerar PDF (${res.status}) ${txt}`);
+  }
+  const blob = await res.blob();
+  if (!blob.size) throw new Error("PDF vazio.");
+
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = `consulta-${id}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(href);
+}
+
+// apps/web/src/services/consultations.ts
+export async function rescheduleConsultation(
+  consultationId: number,
+  slotId: number,
+  reason?: string
+) {
+  return http<any>({
+    url: `/consultations/${consultationId}/reschedule`,
+    method: "POST",
+    data: { slotId, reason },
   });
 }

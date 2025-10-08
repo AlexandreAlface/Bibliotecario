@@ -3,7 +3,12 @@
 // listar propostas (por bibliotecário/família) e pré-check de conflitos.
 // Estilo: helpers PUROS → serviços curtos (DB) → handlers Express (≤ 30 linhas)
 
-import { Router, type Request, type Response, type RequestHandler } from "express";
+import {
+  Router,
+  type Request,
+  type Response,
+  type RequestHandler,
+} from "express";
 import {
   PrismaClient,
   ConsultationStatus,
@@ -41,19 +46,29 @@ const asDate = (v: unknown) => {
 };
 
 const isAdmin = (req: Authed) => (req.user?.roles || []).includes(ROLES.ADMIN);
-const isActorFamily = (req: Authed, familyId: number) => req.user?.id === familyId;
-const isActorLibrarian = (req: Authed, librarianId: number) => req.user?.id === librarianId;
+const isActorFamily = (req: Authed, familyId: number) =>
+  req.user?.id === familyId;
+const isActorLibrarian = (req: Authed, librarianId: number) =>
+  req.user?.id === librarianId;
 
 const parseProposalStatus = (s?: string): ProposalStatus | undefined => {
   const up = String(s || "").toUpperCase();
-  return (Object.values(ProposalStatus) as string[]).includes(up) ? (up as ProposalStatus) : undefined;
+  return (Object.values(ProposalStatus) as string[]).includes(up)
+    ? (up as ProposalStatus)
+    : undefined;
 };
 
 /* ============================== Serviços (DB) ============================== */
 
 // Conflito do bibliotecário em [start,end)
-async function svcFindLibrarianConflict(librarianId: number, startAt: Date, endAt: Date, excludeId?: number) {
-  return prisma.consultation.findFirst({
+async function svcFindLibrarianConflict(
+  librarianId: number,
+  startAt: Date,
+  endAt: Date,
+  excludeId?: number,
+  db: PrismaClient | Prisma.TransactionClient = prisma
+) {
+  return db.consultation.findFirst({
     where: {
       librarianId,
       status: ConsultationStatus.CONFIRMED,
@@ -68,17 +83,30 @@ async function svcFindLibrarianConflict(librarianId: number, startAt: Date, endA
 // Cancelar consulta (autorizações + libertar slot + expirar propostas + evento)
 async function svcCancelConsultation(id: number, req: Authed, reason?: string) {
   return prisma.$transaction(async (tx) => {
-    const c = await tx.consultation.findUnique({ where: { id }, include: { slot: true } });
+    const c = await tx.consultation.findUnique({
+      where: { id },
+      include: { slot: true },
+    });
     if (!c) throw new ApiError(404, "not_found");
 
-    const allowed = isAdmin(req) || isActorLibrarian(req, c.librarianId) || isActorFamily(req, c.familyId);
+    const allowed =
+      isAdmin(req) ||
+      isActorLibrarian(req, c.librarianId) ||
+      isActorFamily(req, c.familyId);
     if (!allowed) throw new ApiError(403, "forbidden");
 
-    if (c.status === ConsultationStatus.CANCELLED) throw new ApiError(409, "already_cancelled");
-    if (c.status === ConsultationStatus.COMPLETED) throw new ApiError(409, "completed");
-    if (c.status === ConsultationStatus.DECLINED) throw new ApiError(409, "invalid_state");
+    if (c.status === ConsultationStatus.CANCELLED)
+      throw new ApiError(409, "already_cancelled");
+    if (c.status === ConsultationStatus.COMPLETED)
+      throw new ApiError(409, "completed");
+    if (c.status === ConsultationStatus.DECLINED)
+      throw new ApiError(409, "invalid_state");
 
-    if (c.slotId) await tx.consultationSlot.update({ where: { id: c.slotId }, data: { status: SlotStatus.OPEN } });
+    if (c.slotId)
+      await tx.consultationSlot.update({
+        where: { id: c.slotId },
+        data: { status: SlotStatus.OPEN },
+      });
 
     const updated = await tx.consultation.update({
       where: { id: c.id },
@@ -113,11 +141,16 @@ async function svcUpsertProposal(
   message: string | null,
   actorId: number | null
 ) {
-  const c = await prisma.consultation.findUnique({ where: { id: consultationId } });
+  const c = await prisma.consultation.findUnique({
+    where: { id: consultationId },
+  });
   if (!c) throw new ApiError(404, "not_found");
 
   // ⚠️ Fix TS: comparar com || evita o erro de includes() com enum
-  if (c.status === ConsultationStatus.CANCELLED || c.status === ConsultationStatus.COMPLETED) {
+  if (
+    c.status === ConsultationStatus.CANCELLED ||
+    c.status === ConsultationStatus.COMPLETED
+  ) {
     throw new ApiError(409, "invalid_state");
   }
   if (isNaN(+toStartAt) || isNaN(+toEndAt) || !(toStartAt < toEndAt)) {
@@ -129,10 +162,15 @@ async function svcUpsertProposal(
   });
 
   if (existing) {
-    if (existing.proposedBy !== proposedBy) throw new ApiError(409, "pending_proposal_other_actor");
-    if (+existing.toStartAt === +toStartAt && +existing.toEndAt === +toEndAt) return existing;
+    if (existing.proposedBy !== proposedBy)
+      throw new ApiError(409, "pending_proposal_other_actor");
+    if (+existing.toStartAt === +toStartAt && +existing.toEndAt === +toEndAt)
+      return existing;
 
-    const prev = { prevToStartAt: existing.toStartAt, prevToEndAt: existing.toEndAt };
+    const prev = {
+      prevToStartAt: existing.toStartAt,
+      prevToEndAt: existing.toEndAt,
+    };
     const upd = await prisma.consultationProposal.update({
       where: { id: existing.id },
       data: {
@@ -170,7 +208,12 @@ async function svcUpsertProposal(
   });
 
   await prisma.consultationEvent.create({
-    data: { consultationId, type: "RESCHEDULE_PROPOSED", actorId, payload: { proposalId: p.id } },
+    data: {
+      consultationId,
+      type: "RESCHEDULE_PROPOSED",
+      actorId,
+      payload: { proposalId: p.id },
+    },
   });
 
   return p;
@@ -178,85 +221,154 @@ async function svcUpsertProposal(
 
 // Aceitar proposta (autorização por ator; conflito; reservar slot; atualizar estados)
 async function svcAcceptProposal(proposalId: number, req: Authed) {
-  return prisma.$transaction(async (tx) => {
-    const p = await tx.consultationProposal.findUnique({ where: { id: proposalId }, include: { consultation: true } });
-    if (!p || p.status !== ProposalStatus.PENDING) throw new ApiError(400, "invalid proposal");
-
-    const c = p.consultation!;
-    const admin = isAdmin(req);
-    const isLib = isActorLibrarian(req, c.librarianId);
-    const isFam = isActorFamily(req, c.familyId);
-
-    // Regras: LIBRARIAN propõe → FAMÍLIA aceita; FAMILY propõe → LIBRARIAN aceita; SYSTEM → ambos
-    const allowed =
-      admin ||
-      (p.proposedBy === ProposalActor.LIBRARIAN && isFam) ||
-      (p.proposedBy === ProposalActor.FAMILY && isLib) ||
-      (p.proposedBy === ProposalActor.SYSTEM && (isLib || isFam));
-    if (!allowed) throw new ApiError(403, "forbidden");
-
-    const startAt = new Date(p.toStartAt);
-    const endAt = new Date(p.toEndAt);
-
-    const conflict = await svcFindLibrarianConflict(c.librarianId, startAt, endAt, c.id);
-    if (conflict) throw new ApiError(409, "conflict", { conflict });
-
-    // libertar slot antigo (se existir)
-    if (c.slotId) await tx.consultationSlot.update({ where: { id: c.slotId }, data: { status: SlotStatus.OPEN } });
-
-    // garantir slot OPEN para o novo intervalo (cria se não existir)
-    let slot = await tx.consultationSlot.findFirst({ where: { librarianId: c.librarianId, startAt, endAt } });
-    if (!slot) {
-      slot = await tx.consultationSlot.create({
-        data: { librarianId: c.librarianId, libraryId: c.libraryId ?? null, startAt, endAt, status: SlotStatus.OPEN },
+  return prisma.$transaction(
+    async (tx) => {
+      const p = await tx.consultationProposal.findUnique({
+        where: { id: proposalId },
+        include: { consultation: true },
       });
-    }
-    if (slot.status !== SlotStatus.OPEN) throw new ApiError(409, "slot not open", { slotStatus: slot.status });
+      if (!p || p.status !== ProposalStatus.PENDING)
+        throw new ApiError(400, "invalid proposal");
 
-    await tx.consultationSlot.update({ where: { id: slot.id }, data: { status: SlotStatus.BOOKED } });
+      const c = p.consultation!;
+      const admin = isAdmin(req);
+      const isLib = isActorLibrarian(req, c.librarianId);
+      const isFam = isActorFamily(req, c.familyId);
 
-    const updated = await tx.consultation.update({
-      where: { id: c.id },
-      data: { status: ConsultationStatus.CONFIRMED, startAt, endAt, slot: { connect: { id: slot.id } } },
-    });
+      // Regras: LIBRARIAN propõe → FAMÍLIA aceita; FAMILY propõe → LIBRARIAN aceita; SYSTEM → ambos
+      const allowed =
+        admin ||
+        (p.proposedBy === ProposalActor.LIBRARIAN && isFam) ||
+        (p.proposedBy === ProposalActor.FAMILY && isLib) ||
+        (p.proposedBy === ProposalActor.SYSTEM && (isLib || isFam));
+      if (!allowed) throw new ApiError(403, "forbidden");
 
-    const now = new Date();
-    await tx.consultationProposal.update({
-      where: { id: proposalId },
-      data: { status: ProposalStatus.ACCEPTED, decidedAt: now, decidedById: req.user?.id ?? null },
-    });
-    await tx.consultationProposal.updateMany({
-      where: { consultationId: c.id, id: { not: proposalId }, status: ProposalStatus.PENDING },
-      data: { status: ProposalStatus.EXPIRED, decidedAt: now },
-    });
-    await prisma.consultationEvent.create({
-      data: { consultationId: c.id, type: "RESCHEDULE_ACCEPTED", actorId: req.user?.id, payload: { proposalId } },
-    });
+      const startAt = new Date(p.toStartAt);
+      const endAt = new Date(p.toEndAt);
 
-    return updated;
-  });
+      // ✅ usar o MESMO client (tx) no check de conflitos
+      const conflict = await svcFindLibrarianConflict(
+        c.librarianId,
+        startAt,
+        endAt,
+        c.id,
+        tx
+      );
+      if (conflict) throw new ApiError(409, "conflict", { conflict });
+
+      if (c.slotId) {
+        await tx.consultationSlot.update({
+          where: { id: c.slotId },
+          data: { status: SlotStatus.OPEN },
+        });
+      }
+
+      let slot = await tx.consultationSlot.findFirst({
+        where: { librarianId: c.librarianId, startAt, endAt },
+      });
+      if (!slot) {
+        slot = await tx.consultationSlot.create({
+          data: {
+            librarianId: c.librarianId,
+            libraryId: c.libraryId ?? null,
+            startAt,
+            endAt,
+            status: SlotStatus.OPEN,
+          },
+        });
+      }
+      if (slot.status !== SlotStatus.OPEN)
+        throw new ApiError(409, "slot not open", { slotStatus: slot.status });
+
+      await tx.consultationSlot.update({
+        where: { id: slot.id },
+        data: { status: SlotStatus.BOOKED },
+      });
+
+      const updated = await tx.consultation.update({
+        where: { id: c.id },
+        data: {
+          status: ConsultationStatus.CONFIRMED,
+          startAt,
+          endAt,
+          slot: { connect: { id: slot.id } },
+        },
+      });
+
+      const now = new Date();
+      await tx.consultationProposal.update({
+        where: { id: proposalId },
+        data: {
+          status: ProposalStatus.ACCEPTED,
+          decidedAt: now,
+          decidedById: req.user?.id ?? null,
+        },
+      });
+      await tx.consultationProposal.updateMany({
+        where: {
+          consultationId: c.id,
+          id: { not: proposalId },
+          status: ProposalStatus.PENDING,
+        },
+        data: { status: ProposalStatus.EXPIRED, decidedAt: now },
+      });
+
+      // ❌ antes: prisma.consultationEvent.create (fora da transação)
+      // ✅ agora: usa o tx (não deixa a transação ociosa)
+      await tx.consultationEvent.create({
+        data: {
+          consultationId: c.id,
+          type: "RESCHEDULE_ACCEPTED",
+          actorId: req.user?.id,
+          payload: { proposalId },
+        },
+      });
+
+      return updated;
+    } /*, { timeout: 15000, maxWait: 5000 } opcional */
+  );
 }
 
 // Rejeitar proposta (marca DECLINED + evento)
 async function svcDeclineProposal(proposalId: number, req: Authed) {
-  const p = await prisma.consultationProposal.findUnique({ where: { id: proposalId }, include: { consultation: true } });
+  const p = await prisma.consultationProposal.findUnique({
+    where: { id: proposalId },
+    include: { consultation: true },
+  });
   if (!p) throw new ApiError(404, "not found");
   const c = p.consultation!;
-  const allowed = isAdmin(req) || isActorLibrarian(req, c.librarianId) || isActorFamily(req, c.familyId);
+  const allowed =
+    isAdmin(req) ||
+    isActorLibrarian(req, c.librarianId) ||
+    isActorFamily(req, c.familyId);
   if (!allowed) throw new ApiError(403, "forbidden");
 
   const upd = await prisma.consultationProposal.update({
     where: { id: proposalId },
-    data: { status: ProposalStatus.DECLINED, decidedAt: new Date(), decidedById: req.user?.id ?? null },
+    data: {
+      status: ProposalStatus.DECLINED,
+      decidedAt: new Date(),
+      decidedById: req.user?.id ?? null,
+    },
   });
   await prisma.consultationEvent.create({
-    data: { consultationId: c.id, type: "RESCHEDULE_DECLINED", actorId: req.user?.id, payload: { proposalId } },
+    data: {
+      consultationId: c.id,
+      type: "RESCHEDULE_DECLINED",
+      actorId: req.user?.id,
+      payload: { proposalId },
+    },
   });
   return upd;
 }
 
 // Listar propostas do bibliotecário (paginado, status opcional)
-async function svcListProposalsForLibrarian(librarianId: number, status?: ProposalStatus, page = 1, limit = 20) {
+async function svcListProposalsForLibrarian(
+  librarianId: number,
+  status?: ProposalStatus,
+  page = 1,
+  limit = 20
+) {
   const skip = (page - 1) * limit;
   const where: Prisma.ConsultationProposalWhereInput = {
     ...(status ? { status } : {}),
@@ -286,7 +398,12 @@ async function svcListProposalsForLibrarian(librarianId: number, status?: Propos
 }
 
 // Listar propostas da família (paginado, status opcional)
-async function svcListProposalsForFamily(familyId: number, status?: ProposalStatus, page = 1, limit = 20) {
+async function svcListProposalsForFamily(
+  familyId: number,
+  status?: ProposalStatus,
+  page = 1,
+  limit = 20
+) {
   const skip = (page - 1) * limit;
   const where: Prisma.ConsultationProposalWhereInput = {
     ...(status ? { status } : {}),
@@ -327,12 +444,23 @@ r.post(
     const id = asInt(aReq.params.id);
     if (!id) return res.status(400).json({ error: "invalid_id" });
     try {
-      const out = await svcCancelConsultation(id, aReq, (aReq.body as any)?.reason);
+      const out = await svcCancelConsultation(
+        id,
+        aReq,
+        (aReq.body as any)?.reason
+      );
       res.json(out);
     } catch (e: any) {
-      if (e instanceof ApiError) return res.status(e.code).json({ error: e.message, ...(e.payload ? { payload: e.payload } : {}) });
+      if (e instanceof ApiError)
+        return res
+          .status(e.code)
+          .json({
+            error: e.message,
+            ...(e.payload ? { payload: e.payload } : {}),
+          });
       const msg = String(e?.message || "");
-      if (/unique|constraint|slotId|startAt.*endAt/i.test(msg)) return res.status(409).json({ error: "concurrency" });
+      if (/unique|constraint|slotId|startAt.*endAt/i.test(msg))
+        return res.status(409).json({ error: "concurrency" });
       res.status(400).json({ error: e?.message ?? "error" });
     }
   }) as RequestHandler
@@ -347,15 +475,25 @@ r.post(
     const id = asInt(aReq.params.id);
     if (!id) return res.status(400).json({ error: "invalid_id" });
     try {
-      const proposedBy: ProposalActor = (aReq.body?.proposedBy as ProposalActor) ?? ProposalActor.LIBRARIAN;
+      const proposedBy: ProposalActor =
+        (aReq.body?.proposedBy as ProposalActor) ?? ProposalActor.LIBRARIAN;
       const start = asDate(aReq.body?.toStartAt);
       const end = asDate(aReq.body?.toEndAt);
-      if (!start || !end) return res.status(400).json({ error: "invalid_dates" });
+      if (!start || !end)
+        return res.status(400).json({ error: "invalid_dates" });
 
-      const p = await svcUpsertProposal(id, proposedBy, start, end, aReq.body?.message ?? null, aReq.user?.id ?? null);
+      const p = await svcUpsertProposal(
+        id,
+        proposedBy,
+        start,
+        end,
+        aReq.body?.message ?? null,
+        aReq.user?.id ?? null
+      );
       res.json(p);
     } catch (e: any) {
-      if (e instanceof ApiError) return res.status(e.code).json({ error: e.message });
+      if (e instanceof ApiError)
+        return res.status(e.code).json({ error: e.message });
       res.status(400).json({ error: e?.message ?? "error" });
     }
   }) as RequestHandler
@@ -371,13 +509,19 @@ r.get(
     const librarianId = asInt(aReq.params.librarianId);
     if (!librarianId) return res.status(400).json({ error: "invalid_id" });
     const admin = isAdmin(aReq);
-    if (!admin && !isActorLibrarian(aReq, librarianId)) return res.status(403).json({ error: "forbidden" });
+    if (!admin && !isActorLibrarian(aReq, librarianId))
+      return res.status(403).json({ error: "forbidden" });
 
     const status = parseProposalStatus(String(aReq.query.status || "PENDING"));
     const page = Math.max(1, Number(aReq.query.page || 1));
     const limit = Math.min(50, Math.max(1, Number(aReq.query.limit || 20)));
 
-    const { items, total } = await svcListProposalsForLibrarian(librarianId, status, page, limit);
+    const { items, total } = await svcListProposalsForLibrarian(
+      librarianId,
+      status,
+      page,
+      limit
+    );
     res.json({
       page,
       limit,
@@ -410,9 +554,16 @@ r.post(
       const out = await svcAcceptProposal(proposalId, aReq);
       res.json(out);
     } catch (e: any) {
-      if (e instanceof ApiError) return res.status(e.code).json({ error: e.message, ...(e.payload ? { payload: e.payload } : {}) });
+      if (e instanceof ApiError)
+        return res
+          .status(e.code)
+          .json({
+            error: e.message,
+            ...(e.payload ? { payload: e.payload } : {}),
+          });
       const msg = String(e?.message || "");
-      if (/unique|constraint|slotId|startAt.*endAt/i.test(msg)) return res.status(409).json({ error: "concurrency" });
+      if (/unique|constraint|slotId|startAt.*endAt/i.test(msg))
+        return res.status(409).json({ error: "concurrency" });
       res.status(400).json({ error: e?.message ?? "error" });
     }
   }) as RequestHandler
@@ -431,7 +582,8 @@ r.post(
       const upd = await svcDeclineProposal(proposalId, aReq);
       res.json(upd);
     } catch (e: any) {
-      if (e instanceof ApiError) return res.status(e.code).json({ error: e.message });
+      if (e instanceof ApiError)
+        return res.status(e.code).json({ error: e.message });
       res.status(400).json({ error: e?.message ?? "error" });
     }
   }) as RequestHandler
@@ -447,13 +599,19 @@ r.get(
     const familyId = asInt(aReq.params.familyId);
     if (!familyId) return res.status(400).json({ error: "invalid_id" });
     const admin = isAdmin(aReq);
-    if (!admin && !isActorFamily(aReq, familyId)) return res.status(403).json({ error: "forbidden" });
+    if (!admin && !isActorFamily(aReq, familyId))
+      return res.status(403).json({ error: "forbidden" });
 
     const status = parseProposalStatus(String(aReq.query.status || "PENDING"));
     const page = Math.max(1, Number(aReq.query.page || 1));
     const limit = Math.min(50, Math.max(1, Number(aReq.query.limit || 20)));
 
-    const { items, total } = await svcListProposalsForFamily(familyId, status, page, limit);
+    const { items, total } = await svcListProposalsForFamily(
+      familyId,
+      status,
+      page,
+      limit
+    );
     res.json({
       page,
       limit,
@@ -485,12 +643,19 @@ r.get(
     const endAt = asDate(aReq.query.endAt);
     const excludeId = asInt(aReq.query.excludeConsultationId);
     if (!librarianId) return res.status(400).json({ error: "invalid_id" });
-    if (!startAt || !endAt || !(startAt < endAt)) return res.status(400).json({ error: "invalid dates" });
+    if (!startAt || !endAt || !(startAt < endAt))
+      return res.status(400).json({ error: "invalid dates" });
 
     const admin = isAdmin(aReq);
-    if (!admin && !isActorLibrarian(aReq, librarianId)) return res.status(403).json({ error: "forbidden" });
+    if (!admin && !isActorLibrarian(aReq, librarianId))
+      return res.status(403).json({ error: "forbidden" });
 
-    const conflict = await svcFindLibrarianConflict(librarianId, startAt, endAt, excludeId);
+    const conflict = await svcFindLibrarianConflict(
+      librarianId,
+      startAt,
+      endAt,
+      excludeId
+    );
     res.json({ conflict: conflict || null });
   }) as RequestHandler
 );

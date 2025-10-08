@@ -37,12 +37,19 @@ import {
   completeConsultation,
   addConsultationAttachments,
   type ConsultationDetail,
+  downloadConsultationPdf,
 } from "@/services/consultations";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   consultationId: number;
+  /** se o botão “Concluir consulta” aparece */
+  allowComplete?: boolean; // default: true
+  /** notas editáveis? (família = false) */
+  readOnlyNotes?: boolean; // default: false
+  /** permitir anexar livros/micro/eventos/ficheiros */
+  allowAttach?: boolean; // default: true
 };
 
 function a11yProps(index: number) {
@@ -120,6 +127,9 @@ export default function ConsultationRoom({
   open,
   onClose,
   consultationId,
+  allowComplete = true,
+  readOnlyNotes = false,
+  allowAttach = true,
 }: Props) {
   const [data, setData] = useState<ConsultationDetail | null>(null);
   const [notes, setNotes] = useState("");
@@ -212,6 +222,8 @@ export default function ConsultationRoom({
   const timeline: TimelineItem[] = Array.isArray((data as any)?.timeline)
     ? ((data as any).timeline as TimelineItem[])
     : [];
+
+  const [downloading, setDownloading] = useState(false);
 
   return (
     <Dialog
@@ -394,72 +406,80 @@ export default function ConsultationRoom({
 
               {/* Ações “Anexar …” por tab */}
               <Box sx={{ position: "absolute", right: 16, top: 10 }}>
-                {tab === 0 && (
-                  <Button
-                    size="small"
-                    onClick={async () => {
-                      const isbn = prompt("ISBN do livro a anexar:");
-                      if (!isbn) return;
-                      await addConsultationAttachments(c!.id, {
-                        books: [isbn.trim()],
-                      });
-                      const d = await getConsultationDetails(c!.id);
-                      setData(d);
-                    }}
-                  >
-                    Anexar livro
-                  </Button>
-                )}
-                {tab === 1 && (
-                  <Button
-                    size="small"
-                    onClick={async () => {
-                      const idStr = prompt("ID do micro-conteúdo a anexar:");
-                      const mid = Number(idStr);
-                      if (!Number.isFinite(mid)) return;
-                      await addConsultationAttachments(c!.id, {
-                        microContents: [mid],
-                      });
-                      const d = await getConsultationDetails(c!.id);
-                      setData(d);
-                    }}
-                  >
-                    Anexar micro
-                  </Button>
-                )}
-                {tab === 2 && (
-                  <Button
-                    size="small"
-                    onClick={async () => {
-                      const idStr = prompt("ID do evento cultural a anexar:");
-                      const eid = Number(idStr);
-                      if (!Number.isFinite(eid)) return;
-                      await addConsultationAttachments(c!.id, {
-                        events: [eid],
-                      });
-                      const d = await getConsultationDetails(c!.id);
-                      setData(d);
-                    }}
-                  >
-                    Anexar evento
-                  </Button>
-                )}
-                {tab === 3 && (
-                  <Button
-                    size="small"
-                    onClick={async () => {
-                      const name = prompt("Nome do ficheiro:");
-                      const url = prompt("URL do ficheiro:");
-                      if (!name || !url) return;
-                      await addConsultationAttachments(c!.id, {
-                        files: [{ name, url }],
-                      });
-                      const d = await getConsultationDetails(c!.id);
-                      setData(d);
-                    }}
-                  >
-                    Anexar ficheiro
-                  </Button>
+                {allowAttach && (
+                  <>
+                    {tab === 0 && (
+                      <Button
+                        size="small"
+                        onClick={async () => {
+                          const isbn = prompt("ISBN do livro a anexar:");
+                          if (!isbn) return;
+                          await addConsultationAttachments(c!.id, {
+                            books: [isbn.trim()],
+                          });
+                          const d = await getConsultationDetails(c!.id);
+                          setData(d);
+                        }}
+                      >
+                        Anexar livro
+                      </Button>
+                    )}
+                    {tab === 1 && (
+                      <Button
+                        size="small"
+                        onClick={async () => {
+                          const idStr = prompt(
+                            "ID do micro-conteúdo a anexar:"
+                          );
+                          const mid = Number(idStr);
+                          if (!Number.isFinite(mid)) return;
+                          await addConsultationAttachments(c!.id, {
+                            microContents: [mid],
+                          });
+                          const d = await getConsultationDetails(c!.id);
+                          setData(d);
+                        }}
+                      >
+                        Anexar micro
+                      </Button>
+                    )}
+                    {tab === 2 && (
+                      <Button
+                        size="small"
+                        onClick={async () => {
+                          const idStr = prompt(
+                            "ID do evento cultural a anexar:"
+                          );
+                          const eid = Number(idStr);
+                          if (!Number.isFinite(eid)) return;
+                          await addConsultationAttachments(c!.id, {
+                            events: [eid],
+                          });
+                          const d = await getConsultationDetails(c!.id);
+                          setData(d);
+                        }}
+                      >
+                        Anexar evento
+                      </Button>
+                    )}
+                    {tab === 3 && (
+                      <Button
+                        size="small"
+                        onClick={async () => {
+                          const name = prompt("Nome do ficheiro:");
+                          const url = prompt("URL do ficheiro:");
+                          if (!name || !url) return;
+                          await addConsultationAttachments(c!.id, {
+                            files: [{ name, url }],
+                          });
+                          const d = await getConsultationDetails(c!.id);
+                          setData(d);
+                        }}
+                      >
+                        Anexar ficheiro
+                      </Button>
+                    )}
+                  </>
                 )}
               </Box>
 
@@ -766,16 +786,19 @@ export default function ConsultationRoom({
                 fullWidth
                 placeholder="O que ficou decidido, próximos passos, preferências…"
                 sx={{ mt: 1 }}
+                disabled={readOnlyNotes}
               />
               <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<SaveRounded />}
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  Guardar
-                </Button>
+                {!readOnlyNotes && (
+                  <Button
+                    variant="contained"
+                    startIcon={<SaveRounded />}
+                    onClick={handleSave}
+                    disabled={saving}
+                  >
+                    Guardar
+                  </Button>
+                )}
                 <Button
                   variant="outlined"
                   startIcon={<ContentCopyRounded />}
@@ -783,9 +806,11 @@ export default function ConsultationRoom({
                 >
                   Copiar
                 </Button>
-                <Button variant="text" onClick={() => setNotes("")}>
-                  Limpar
-                </Button>
+                {!readOnlyNotes && (
+                  <Button variant="text" onClick={() => setNotes("")}>
+                    Limpar
+                  </Button>
+                )}
               </Stack>
             </Box>
 
@@ -833,7 +858,7 @@ export default function ConsultationRoom({
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2 }}>
-        {canComplete && (
+        {canComplete && allowComplete && (
           <Button
             variant="contained"
             color="success"
@@ -852,12 +877,19 @@ export default function ConsultationRoom({
           <Button
             variant="outlined"
             startIcon={<PictureAsPdfRounded />}
-            component={Link as any}
-            href={`/consultations/${c.id}/summary.pdf`}
-            target="_blank"
-            rel="noreferrer"
+            disabled={downloading}
+            onClick={async () => {
+              setDownloading(true);
+              try {
+                await downloadConsultationPdf(c!.id);
+              } catch (e: any) {
+                alert(e?.message || "Não foi possível descarregar o PDF.");
+              } finally {
+                setDownloading(false);
+              }
+            }}
           >
-            Exportar PDF
+            {downloading ? "A gerar…" : "Exportar PDF"}
           </Button>
         )}
 

@@ -53,8 +53,7 @@ import AddTaskRounded from "@mui/icons-material/AddTaskRounded";
 
 import { useUserSession } from "../../contexts/UserSession";
 import {
-  getNextConsultas,
-  type ConsultaLite,
+  getConsultationsHistory,
   listLibrarianSlots,
   type SlotLite,
   confirmConsultation,
@@ -79,6 +78,15 @@ function startOfDay(d: Date) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
+}
+
+function deriveStatus(it: DayItem): string {
+  if (it.kind !== "CONSULTA") return it.status;
+  const s = String(it.status || "").toUpperCase();
+  if (["COMPLETED", "CANCELLED", "DECLINED"].includes(s)) return s;
+  const start = new Date(it.startAt).getTime();
+  if (Number.isFinite(start) && start < Date.now()) return "OVERDUE";
+  return s; // PENDING / CONFIRMED (futuras)
 }
 
 /** YYYY-MM-DD (local). */
@@ -152,6 +160,8 @@ const STATUS_CFG: Record<
   PENDING: { label: "Pendente", color: "warning" },
   DECLINED: { label: "Recusado", color: "error" },
   CANCELLED: { label: "Cancelado", color: "default" },
+  COMPLETED: { label: "Concluída", color: "default" },
+  OVERDUE: { label: "Por concluir", color: "error" }, // derivado
 };
 
 type DayItem =
@@ -357,27 +367,25 @@ function DayItemRow({
   const iso = item.startAt;
   const { day, mon, time: timeStr } = parts(iso);
 
-  const isConfirmedConsult =
+  const derived = item.kind === "CONSULTA" ? deriveStatus(item) : item.status;
+  const isConsultClickable =
     item.kind === "CONSULTA" &&
-    String(item.status).toUpperCase() === "CONFIRMED";
+    ["CONFIRMED", "OVERDUE", "COMPLETED"].includes(derived);
 
   // --------- Consulta ----------
   if (item.kind === "CONSULTA") {
-    const cfg = STATUS_CFG[(item.status || "").toUpperCase()] || {
-      label: item.status,
-      color: "default",
-    };
+    const cfg = STATUS_CFG[derived] || { label: item.status, color: "default" };
     const isBusy = busyId === item.id;
 
     return (
       <Box
-        onClick={isConfirmedConsult ? () => onOpenRoom?.(item) : undefined}
+        onClick={isConsultClickable ? () => onOpenRoom?.(item) : undefined}
         sx={{
-          cursor: isConfirmedConsult ? "pointer" : "default",
           p: 1.25,
           border: "1px solid",
           borderColor: "divider",
           borderRadius: 2.5,
+          cursor: isConsultClickable ? "pointer" : "default",
         }}
       >
         <Stack direction="row" alignItems="center" spacing={1.5}>
@@ -591,7 +599,20 @@ export default function LibrarianAgenda() {
   const [selectedDate, setSelectedDate] = useState<string>(fmtYMD(new Date()));
 
   // Dados carregados
-  const [consultas, setConsultas] = useState<ConsultaLite[]>([]);
+  const [consultas, setConsultas] = useState<
+    Array<{
+      id: number;
+      title: string;
+      scheduledAt?: string;
+      status: string;
+      familyId?: number;
+      childId?: number;
+      librarianId?: number;
+      librarianName?: string;
+      libraryId?: number;
+      libraryName?: string;
+    }>
+  >([]);
   const [slots, setSlots] = useState<SlotLite[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -607,6 +628,7 @@ export default function LibrarianAgenda() {
   const [query, setQuery] = useState("");
   const [showPending, setShowPending] = useState(true);
   const [showConfirmed, setShowConfirmed] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(true);
   const [showSlotsOpen, setShowSlotsOpen] = useState(true);
   const [showSlotsBlocked, setShowSlotsBlocked] = useState(false);
   const [showSlotsBooked, setShowSlotsBooked] = useState(false);
@@ -624,10 +646,9 @@ export default function LibrarianAgenda() {
   );
 
   function handleOpenRoom(it: DayItem) {
-    if (
-      it.kind === "CONSULTA" &&
-      String(it.status).toUpperCase() === "CONFIRMED"
-    ) {
+    if (it.kind !== "CONSULTA") return;
+    const s = deriveStatus(it); // CONFIRMED | OVERDUE | COMPLETED | ...
+    if (["CONFIRMED", "OVERDUE", "COMPLETED"].includes(s)) {
       setRoomConsultationId(it.id);
       setRoomOpen(true);
     }
@@ -652,12 +673,32 @@ export default function LibrarianAgenda() {
   async function reloadAll() {
     if (!Number.isFinite(librarianId)) return;
     setLoading(true);
-    try {
-      // Consultas futuras
-      const cons = await getNextConsultas(120, { librarianId });
 
-      // Slots do mês corrente
-      const { from, to } = monthRange(monthRef);
+    const { from, to } = monthRange(monthRef);
+    try {
+      // Consultas do mês (passado+futuro), incluindo COMPLETED
+      const hist = await getConsultationsHistory({
+        limit: 500,
+        order: "asc",
+        from: from.toISOString(),
+        to: to.toISOString(),
+        status: ["PENDING", "CONFIRMED", "COMPLETED"],
+        librarianId,
+      });
+      const cons =
+        (hist || []).map((c) => ({
+          id: c.id,
+          title: c.title || "Consulta",
+          scheduledAt: c.startAt || undefined,
+          status: c.status,
+          familyId: c.family?.id,
+          childId: c.child?.id,
+          librarianId: c.librarian?.id,
+          librarianName: c.librarian?.fullName,
+          libraryId: c.library?.id,
+          libraryName: c.library?.name,
+        })) || [];
+
       const rawSlots = await listLibrarianSlots(librarianId, {
         from: from.toISOString(),
         to: to.toISOString(),
@@ -692,13 +733,13 @@ export default function LibrarianAgenda() {
 
     // consultas -> DayItem
     for (const c of consultas) {
-      const key = fmtYMD(c.scheduledAt || c.date);
+      const key = fmtYMD(c.scheduledAt);
       if (!key) continue;
       const it: DayItem = {
         kind: "CONSULTA",
         id: c.id,
         title: c.title,
-        startAt: String(c.scheduledAt || c.date),
+        startAt: String(c.scheduledAt),
         status: String(c.status || ""),
         familyId: typeof c.familyId === "number" ? c.familyId : undefined,
         childId: typeof c.childId === "number" ? c.childId : undefined,
@@ -764,11 +805,12 @@ export default function LibrarianAgenda() {
   /** Cor do “dot” consoante tipo/estado (puro). */
   const dotColor = (it: DayItem) => {
     if (it.kind === "CONSULTA") {
-      const s = (it.status || "").toUpperCase();
+      const s = deriveStatus(it);
       if (s === "CONFIRMED") return theme.palette.success.main;
       if (s === "PENDING") return theme.palette.warning.main;
-      if (s === "DECLINED") return theme.palette.error.main;
-      if (s === "CANCELLED") return theme.palette.grey[400];
+      if (s === "OVERDUE") return theme.palette.error.main;
+      if (s === "COMPLETED") return theme.palette.grey[400];
+      if (s === "DECLINED" || s === "CANCELLED") return theme.palette.grey[400];
       return theme.palette.divider;
     }
     if (it.status === "OPEN") return theme.palette.info.main;
@@ -810,6 +852,7 @@ export default function LibrarianAgenda() {
     toggles: {
       pending: boolean;
       confirmed: boolean;
+      completed: boolean;
       open: boolean;
       blocked: boolean;
       booked: boolean;
@@ -817,11 +860,12 @@ export default function LibrarianAgenda() {
   ): DayItem[] {
     return arr.filter((it) => {
       if (it.kind === "CONSULTA") {
-        const s = (it.status || "").toUpperCase();
+        const s = deriveStatus(it);
         if (s === "PENDING" && !toggles.pending) return false;
-        if (s === "CONFIRMED" && !toggles.confirmed) return false;
-        if (!["PENDING", "CONFIRMED", "DECLINED", "CANCELLED"].includes(s))
+        if ((s === "CONFIRMED" || s === "OVERDUE") && !toggles.confirmed)
           return false;
+        if (s === "COMPLETED" && !toggles.completed) return false;
+        if (["DECLINED", "CANCELLED"].includes(s)) return false;
         return true;
       }
       if (it.status === "OPEN" && !toggles.open) return false;
@@ -835,6 +879,7 @@ export default function LibrarianAgenda() {
     const toggles = {
       pending: showPending,
       confirmed: showConfirmed,
+      completed: showCompleted,
       open: showSlotsOpen,
       blocked: showSlotsBlocked,
       booked: showSlotsBooked,
@@ -847,6 +892,7 @@ export default function LibrarianAgenda() {
     itemsForSelected,
     query,
     showPending,
+    showCompleted,
     showConfirmed,
     showSlotsOpen,
     showSlotsBlocked,
@@ -855,12 +901,20 @@ export default function LibrarianAgenda() {
 
   /* -------------------------- Contadores rápidos -------------------------- */
   const counts = useMemo(() => {
-    const c = { pending: 0, confirmed: 0, open: 0, blocked: 0, booked: 0 };
+    const c = {
+      pending: 0,
+      confirmed: 0,
+      completed: 0,
+      open: 0,
+      blocked: 0,
+      booked: 0,
+    };
     for (const it of itemsForSelected) {
       if (it.kind === "CONSULTA") {
-        const s = (it.status || "").toUpperCase();
+        const s = deriveStatus(it);
         if (s === "PENDING") c.pending++;
-        else if (s === "CONFIRMED") c.confirmed++;
+        else if (s === "CONFIRMED" || s === "OVERDUE") c.confirmed++;
+        else if (s === "COMPLETED") c.completed++;
       } else {
         if (it.status === "OPEN") c.open++;
         else if (it.status === "BLOCKED") c.blocked++;
@@ -1021,6 +1075,17 @@ export default function LibrarianAgenda() {
               />
               <Chip
                 size="small"
+                label="Consulta concluída"
+                variant="outlined"
+              />
+              <Chip
+                size="small"
+                label="Por concluir"
+                color="error"
+                variant="outlined"
+              />
+              <Chip
+                size="small"
                 label="Slot aberto"
                 color="info"
                 variant="outlined"
@@ -1083,8 +1148,8 @@ export default function LibrarianAgenda() {
                         title={
                           it.kind === "CONSULTA"
                             ? `${it.title} — ${
-                                STATUS_CFG[(it.status || "").toUpperCase()]
-                                  ?.label ?? it.status
+                                STATUS_CFG[deriveStatus(it)]?.label ??
+                                deriveStatus(it)
                               }`
                             : `Slot ${it.status.toLowerCase()}`
                         }
@@ -1181,6 +1246,12 @@ export default function LibrarianAgenda() {
                   label={`Confirmadas (${counts.confirmed})`}
                   color="success"
                   icon={<CheckCircleRounded fontSize="small" />}
+                />
+                <ToggleChip
+                  active={showCompleted}
+                  onToggle={() => setShowCompleted((v) => !v)}
+                  label={`Concluídas (${counts.completed})`}
+                  color="default"
                 />
                 <ToggleChip
                   active={showSlotsOpen}
@@ -1312,7 +1383,10 @@ export default function LibrarianAgenda() {
       />
       <ConsultationRoom
         open={roomOpen}
-        onClose={() => setRoomOpen(false)}
+        onClose={() => {
+          setRoomOpen(false);
+          reloadAll();
+        }}
         consultationId={roomConsultationId ?? 0}
       />
     </Container>
