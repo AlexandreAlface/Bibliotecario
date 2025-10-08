@@ -26,26 +26,26 @@ const node_cron_1 = __importDefault(require("node-cron"));
  * — Alexandre Brissos 21131 — 2025-10-02
  */
 const rssService_1 = require("./services/rssService");
-const events_1 = __importDefault(require("./routes/events"));
-const books_1 = __importDefault(require("./routes/books"));
-const auth_1 = __importDefault(require("./routes/auth"));
-const auth_child_1 = __importDefault(require("./routes/auth-child"));
-const badge_assignments_1 = __importDefault(require("./routes/badge-assignments"));
-const recommendations_1 = __importDefault(require("./routes/recommendations"));
-const reservations_1 = __importDefault(require("./routes/reservations"));
-const readings_1 = __importDefault(require("./routes/readings"));
-const ratings_1 = __importDefault(require("./routes/ratings"));
+const events_1 = __importDefault(require("./routes/families/events"));
+const books_1 = __importDefault(require("./routes/families/books"));
+const auth_1 = __importDefault(require("./routes/families/auth"));
+const auth_child_1 = __importDefault(require("./routes/families/auth-child"));
+const badge_assignments_1 = __importDefault(require("./routes/families/badge-assignments"));
+const recommendations_1 = __importDefault(require("./routes/families/recommendations"));
+const reservations_1 = __importDefault(require("./routes/families/reservations"));
+const readings_1 = __importDefault(require("./routes/families/readings"));
+const ratings_1 = __importDefault(require("./routes/families/ratings"));
 const consultations_1 = __importDefault(require("./routes/families/consultations"));
 const slots_1 = __importDefault(require("./routes/families/consultations/slots"));
 const proposals_1 = __importDefault(require("./routes/families/consultations/proposals"));
-const badges_engine_1 = __importDefault(require("./routes/badges-engine"));
+const badges_engine_1 = __importDefault(require("./routes/families/badges-engine"));
 const auth_2 = require("./middlewares/auth");
 const badgesEngine_1 = require("./services/badgesEngine");
-const badges_1 = __importDefault(require("./routes/badges"));
-const users_1 = __importDefault(require("./routes/users"));
-const children_1 = __importDefault(require("./routes/children"));
-const families_1 = __importDefault(require("./routes/families"));
-const libraries_1 = __importDefault(require("./routes/libraries"));
+const badges_1 = __importDefault(require("./routes/families/badges"));
+const users_1 = __importDefault(require("./routes/families/users"));
+const children_1 = __importDefault(require("./routes/families/children"));
+const families_1 = __importDefault(require("./routes/families/families"));
+const libraries_1 = __importDefault(require("./routes/families/libraries"));
 const adminFeeds_1 = __importDefault(require("./routes/admin/adminFeeds"));
 const adminEvents_1 = __importDefault(require("./routes/admin/adminEvents"));
 const adminConsultations_1 = __importDefault(require("./routes/admin/adminConsultations"));
@@ -55,10 +55,10 @@ const adminBlocks_1 = __importDefault(require("./routes/admin/adminBlocks"));
 const adminFamilies_1 = __importDefault(require("./routes/admin/adminFamilies"));
 const admin_librarian_1 = __importDefault(require("./routes/admin/admin.librarian"));
 const adminMetrics_1 = require("./routes/admin/adminMetrics");
-const culturalEvents_1 = __importDefault(require("./routes/culturalEvents"));
+const culturalEvents_1 = __importDefault(require("./routes/families/culturalEvents"));
 const adminBooks_1 = __importDefault(require("./routes/admin/adminBooks"));
-const public_js_1 = __importDefault(require("./routes/public.js"));
-const microContent_1 = __importDefault(require("./routes/microContent"));
+const public_js_1 = __importDefault(require("./routes/families/public.js"));
+const microContent_1 = __importDefault(require("./routes/families/microContent"));
 /**
  * Validação mínima de ambiente crítico para arrancar o servidor.
  * Falha cedo se faltar DATABASE_URL.

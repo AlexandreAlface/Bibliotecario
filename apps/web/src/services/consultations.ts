@@ -15,6 +15,7 @@ export type ConsultaLite = {
   scheduledAt?: string;
   status?: string;
   familyId?: number;
+  familyName?: string; // 👈 novo
   librarianId?: number | null;
   librarianName?: string;
   childId?: number;
@@ -49,6 +50,108 @@ export type SlotLite = {
   libraryName?: string;
 };
 
+export type CreateConsultationDTO = {
+  familyId: number;
+  librarianId: number;
+  childId?: number;
+  libraryId?: number;
+  slotId?: number;
+  startAt?: string | Date;
+  endAt?: string | Date;
+  title?: string;
+  purpose?: string;
+  description?: string;
+  modeEnum?: "ONLINE" | "IN_PERSON";
+  meetingUrl?: string;
+  bookIsbns?: string[];
+  microContentIds?: number[];
+  eventIds?: number[];
+  notes?: string | null;
+};
+
+export type ConsultationEventLite = {
+  id: number;
+  type: string;
+  at: string;
+  actor?: { id: number; fullName: string };
+  payload?: any;
+};
+
+export type ConsultationMode = "ONLINE" | "IN_PERSON";
+export type ConsultationStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "DECLINED"
+  | "CANCELLED"
+  | "COMPLETED";
+export type MicroContentType = "BIBLIOTERAPIA" | "DICA" | "FACTO" | "OUTRO";
+
+export type ConsultationDetail = {
+  consultation: {
+    id: number;
+    title?: string;
+    purpose?: string;
+    description?: string;
+
+    /** 👇 Novo: notas escritas pelo bibliotecário */
+    notes?: string;
+
+    modeEnum?: ConsultationMode;
+    meetingUrl?: string;
+    startAt?: string;
+    endAt?: string;
+    status: ConsultationStatus;
+
+    child?: { id: number; name: string };
+    family: { id: number; fullName: string; email: string };
+    library?: { id: number; name: string; address?: string };
+
+    /** Anexos já associados à consulta */
+    attachments: {
+      books: { isbn: string; title: string; coverUrl?: string }[];
+      microContents: {
+        id: number;
+        type: MicroContentType;
+        text: string;
+        tags: string[];
+      }[];
+      events: { id: number; title: string; startDate: string }[];
+
+      /** opcional — se vierem anexos de ficheiros no futuro */
+      files?: { id: number; name: string; url: string }[];
+    };
+  };
+
+  history: {
+    consultations: {
+      id: number;
+      title?: string;
+      purpose?: string;
+      startAt?: string;
+      status: ConsultationStatus;
+    }[];
+
+    readings: {
+      childId: number;
+      childName?: string;
+      bookIsbn: string;
+      bookTitle?: string;
+      /** 👇 Útil para capas no UI */
+      bookCoverUrl?: string;
+      finishedAt?: string;
+
+      /** 👇 Novo: rating agregado (se existir) */
+      rating?: {
+        stars: number; // 1..5
+        comment?: string;
+        ratedAt: string; // ISO
+      };
+    };
+    timeline?: ConsultationEventLite[];
+    events: { id: number; title: string; startDate: string }[];
+  };
+};
+
 /* ----------------------- Helpers ------------------------ */
 
 const validId = (v: unknown) => {
@@ -65,31 +168,64 @@ function paramsOf(p: Record<string, unknown>) {
 }
 
 /** Normaliza lista de consultas e ordena por scheduledAt asc. */
-function normalizeConsultas(arr: any[], limit?: number): ConsultaLite[] {
+function normalizeConsultas(
+  arr: any[],
+  limit?: number,
+  viewer?: "librarian" | "family" | "child"
+): ConsultaLite[] {
   const list = (Array.isArray(arr) ? arr : [])
-    .map((c: any) => ({
-      id: Number(c?.id),
-      title:
-        c?.title ||
-        `Consulta de ${c?.child?.name ?? "criança"}${
-          c?.library?.name ? ` — ${c.library.name}` : ""
-        }`,
-      date: c?.startAt ?? c?.date ?? c?.scheduledAt ?? null,
-      scheduledAt: c?.scheduledAt ?? c?.startAt ?? c?.date ?? null,
-      status: c?.status,
-      familyId: c?.familyId ?? c?.family?.id,
-      childId: c?.childId ?? c?.child?.id,
-      librarianId: c?.librarianId ?? c?.librarian?.id ?? null,
-      librarianName: c?.librarianName ?? c?.librarian?.fullName ?? undefined,
-      libraryId: c?.libraryId ?? c?.library?.id,
-      libraryName: c?.libraryName ?? c?.library?.name,
-    }))
+    .map((c: any) => {
+      const familyName: string | undefined =
+        c?.familyName ?? c?.family?.fullName ?? c?.family?.name ?? undefined;
+      const childName: string | undefined =
+        c?.child?.name ?? c?.childName ?? undefined;
+      const librarianName: string | undefined =
+        c?.librarianName ?? c?.librarian?.fullName ?? undefined;
+      const libName: string | undefined =
+        c?.libraryName ?? c?.library?.name ?? undefined;
+
+      // 🧠 Regras de título por contexto
+      let title: string;
+      if (viewer === "librarian") {
+        // bibliotecário quer ver sempre com que família é
+        title = familyName
+          ? `Consulta com ${familyName}`
+          : childName
+          ? `Consulta de ${childName}`
+          : "Consulta";
+      } else {
+        // família/criança mantêm comportamento atual
+        title =
+          c?.title ||
+          (childName
+            ? `Consulta de ${childName}${libName ? ` — ${libName}` : ""}`
+            : librarianName
+            ? `Consulta com ${librarianName}`
+            : "Consulta");
+      }
+
+      return {
+        id: Number(c?.id),
+        title,
+        date: c?.startAt ?? c?.date ?? c?.scheduledAt ?? null,
+        scheduledAt: c?.scheduledAt ?? c?.startAt ?? c?.date ?? null,
+        status: c?.status,
+        familyId: c?.familyId ?? c?.family?.id,
+        familyName,
+        childId: c?.childId ?? c?.child?.id,
+        librarianId: c?.librarianId ?? c?.librarian?.id ?? null,
+        librarianName,
+        libraryId: c?.libraryId ?? c?.library?.id,
+        libraryName: libName,
+      } as ConsultaLite;
+    })
     .filter((c) => !!c.scheduledAt)
     .sort(
       (a, b) =>
         new Date(a.scheduledAt as string).getTime() -
         new Date(b.scheduledAt as string).getTime()
     );
+
   return typeof limit === "number" ? list.slice(0, limit) : list;
 }
 
@@ -103,13 +239,19 @@ export async function getNextConsultas(
   limit = 6,
   opts?: { familyId?: number; childId?: number; librarianId?: number }
 ): Promise<ConsultaLite[]> {
-  // ✅ só considera IDs > 0 e aceita childId também
   const fid = validId(opts?.familyId);
   const cid = validId(opts?.childId);
   const lid = validId(opts?.librarianId);
 
-  const hasKey = !!(fid || cid || lid);
-  if (!hasKey) return [];
+  const viewer: "librarian" | "family" | "child" | undefined = lid
+    ? "librarian"
+    : cid
+    ? "child"
+    : fid
+    ? "family"
+    : undefined;
+
+  if (!fid && !cid && !lid) return [];
 
   const baseParams = paramsOf({
     limit,
@@ -118,19 +260,17 @@ export async function getNextConsultas(
     librarianId: lid,
   });
 
-  // 1) tenta /next e normaliza
   try {
     const items = await http<any[]>({
       url: "/consultations/next",
       method: "GET",
       params: baseParams,
     });
-    if (Array.isArray(items)) return normalizeConsultas(items, limit);
+    if (Array.isArray(items)) return normalizeConsultas(items, limit, viewer);
   } catch {
-    // continua para fallback
+    /* fallback */
   }
 
-  // 2) fallback /all desde início do mês
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const full = await http<any[]>({
@@ -145,7 +285,7 @@ export async function getNextConsultas(
   });
 
   const useful = new Set(["PENDING", "CONFIRMED"]);
-  return normalizeConsultas(full, limit).filter((c) =>
+  return normalizeConsultas(full, limit, viewer).filter((c) =>
     useful.has(String(c.status || "").toUpperCase())
   );
 }
@@ -275,9 +415,9 @@ export async function listPendingConsultationsForLibrarian(
 export async function getConsultationsHistory(params: {
   limit?: number;
   order?: "asc" | "desc";
-  from?: string; // ISO
-  to?: string; // ISO
-  status?: string[]; // ConsultationStatus[]
+  from?: string;
+  to?: string;
+  status?: string[];
   familyId?: number;
   librarianId?: number;
   childId?: number;
@@ -299,14 +439,36 @@ export async function getConsultationsHistory(params: {
     params: q,
   });
 
-  return (Array.isArray(raw) ? raw : []).map(
-    (c: any): ConsultationFull => ({
+  const viewer: "librarian" | "family" | "child" | undefined =
+    params.librarianId
+      ? "librarian"
+      : params.childId
+      ? "child"
+      : params.familyId
+      ? "family"
+      : undefined;
+
+  return (Array.isArray(raw) ? raw : []).map((c: any): ConsultationFull => {
+    const fam = c?.family?.fullName ?? c?.familyName;
+    const child = c?.child?.name;
+    const lib = c?.librarian?.fullName;
+
+    const title =
+      viewer === "librarian"
+        ? fam
+          ? `Consulta com ${fam}`
+          : child
+          ? `Consulta de ${child}`
+          : "Consulta"
+        : child
+        ? `Consulta de ${child}`
+        : lib
+        ? `Consulta com ${lib}`
+        : "Consulta";
+
+    return {
       id: c?.id,
-      title: c?.child?.name
-        ? `Consulta de ${c.child.name}`
-        : c?.librarian?.fullName
-        ? `Consulta com ${c.librarian.fullName}`
-        : "Consulta",
+      title,
       status: c?.status,
       requestedAt: c?.requestedAt ?? undefined,
       startAt: c?.startAt ?? undefined,
@@ -317,8 +479,8 @@ export async function getConsultationsHistory(params: {
       library: c?.library ?? undefined,
       slot: c?.slot ?? null,
       events: c?.events ?? [],
-    })
-  );
+    };
+  });
 }
 
 /* --------------------- Ações na consulta -------------------- */
@@ -441,5 +603,64 @@ export async function listFamilyProposals(
     url: `/consultations/families/${familyId}/proposals`,
     method: "GET",
     params: { status, page, limit },
+  });
+}
+
+export async function createConsultation(payload: CreateConsultationDTO) {
+  const c = await http<any>({
+    url: "/consultations",
+    method: "POST",
+    data: payload,
+  });
+  return getConsultation(c?.id ?? c?.consultationId ?? c?.id); // reutiliza normalização existente se quiseres
+}
+
+export async function attachToConsultation(
+  id: number,
+  payload: {
+    bookIsbns?: string[];
+    microContentIds?: number[];
+    eventIds?: number[];
+  }
+) {
+  return http<any>({
+    url: `/consultations/${id}/attachments`,
+    method: "POST",
+    data: payload,
+  });
+}
+
+export async function getConsultationDetails(
+  id: number
+): Promise<ConsultationDetail> {
+  return http<ConsultationDetail>({
+    url: `/consultations/${id}/details`,
+    method: "GET",
+  });
+}
+
+export async function updateConsultationNotes(id: number, notes: string) {
+  return http<{ ok: boolean; id: number; notes: string }>({
+    url: `/consultations/${id}/notes`,
+    method: "PATCH",
+    data: { notes },
+  });
+}
+
+export async function completeConsultation(id: number) {
+  return http<{ ok: boolean; id: number; status: string; endAt?: string }>({
+    url: `/consultations/${id}/complete`,
+    method: "PATCH",
+  });
+}
+
+export async function addConsultationAttachments(
+  id: number,
+  payload: { books?: string[]; microContents?: number[]; events?: number[]; files?: { name: string; url: string }[] }
+) {
+  return http<{ ok: boolean }>({
+    url: `/consultations/${id}/attachments`,
+    method: "POST",
+    data: payload,
   });
 }

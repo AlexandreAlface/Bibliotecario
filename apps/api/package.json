@@ -10,8 +10,9 @@
     "build": "rimraf dist && tsc -p . && node -e \"require('fs').mkdirSync('dist',{recursive:true}); require('fs').writeFileSync('dist/package.json', JSON.stringify({type:'commonjs'}, null, 2));\"",
     "seed:csv": "node prisma/csvSeed.js",
     "seed:compile": "rimraf prisma/.seed-build && tsc -p prisma/tsconfig.seed.build.json && node -e \"require('fs').mkdirSync('prisma/.seed-build', {recursive:true}); require('fs').writeFileSync('prisma/.seed-build/package.json', JSON.stringify({type:'commonjs'}, null, 2));\"",
-    "seed:run": "node prisma/.seed-build/seed.js",
+    "seed:run": "node prisma/.seed-build/seeds/seed.js",
     "seed": "npm run seed:compile && npm run seed:run",
+    "db:reset": "prisma migrate reset --force --schema=prisma/schema.prisma --skip-seed && npm run seed",
     "seed:badges": "node prisma/seedBadges.js",
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "prisma:push": "prisma db push --schema=prisma/schema.prisma",
@@ -36,6 +37,7 @@
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "openai": "^5.15.0",
+    "pdfkit": "^0.17.2",
     "pgvector": "^0.2.1",
     "rss-parser": "^3.13.0",
     "xlsx": "^0.18.5",
@@ -48,15 +50,16 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.5.2",
+    "@types/pdfkit": "^0.17.3",
     "bcryptjs": "^3.0.2",
     "nodemon": "^3.1.10",
     "prisma": "^6.16.2",
+    "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.2",
-    "rimraf": "^6.0.1"
+    "typescript": "^5.9.2"
   },
   "prisma": {
-    "seed": "npm run seed"
+    "seed": "node prisma/.seed-build/seeds/seed.js"
   },
   "overrides": {}
 }

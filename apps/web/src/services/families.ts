@@ -97,6 +97,12 @@ export async function listFamilies(search = "", limit = 25, cursor?: number) {
   });
 }
 
+export async function listFamiliesLite(search = "", limit = 100) {
+  const { items } = await listFamilies(search, limit);
+  // Se só precisares de id + fullName para o select:
+  return items.map(({ id, fullName }) => ({ id, fullName }));
+}
+
 /**
  * Obtém o detalhe completo de uma família.
  * @param id ID da família.

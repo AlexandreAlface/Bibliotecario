@@ -24,26 +24,26 @@ import cron from "node-cron";
  * — Alexandre Brissos 21131 — 2025-10-02
  */
 import { fetchAndUpsertAllFeeds } from "./services/rssService";
-import eventsRouter from "./routes/events";
-import booksRouter from "./routes/books";
-import authRouter from "./routes/auth";
-import authChildRouter from "./routes/auth-child";
-import badgeAssignmentsRouter from "./routes/badge-assignments";
-import recommendationsRouter from "./routes/recommendations";
-import reservationsRouter from "./routes/reservations";
-import readingsRouter from "./routes/readings";
-import ratingsRouter from "./routes/ratings";
+import eventsRouter from "./routes/families/events";
+import booksRouter from "./routes/families/books";
+import authRouter from "./routes/families/auth";
+import authChildRouter from "./routes/families/auth-child";
+import badgeAssignmentsRouter from "./routes/families/badge-assignments";
+import recommendationsRouter from "./routes/families/recommendations";
+import reservationsRouter from "./routes/families/reservations";
+import readingsRouter from "./routes/families/readings";
+import ratingsRouter from "./routes/families/ratings";
 import consultations from "./routes/families/consultations";
 import slots from "./routes/families/consultations/slots";
 import proposals from "./routes/families/consultations/proposals";
-import badgesEngineRouter from "./routes/badges-engine";
+import badgesEngineRouter from "./routes/families/badges-engine";
 import { withUser } from "./middlewares/auth";
 import { recomputeAllChildren } from "./services/badgesEngine";
-import badgesRouter from "./routes/badges";
-import usersRouter from "./routes/users";
-import childrenRouter from "./routes/children";
-import librarianFamilies from "./routes/families"; 
-import librariesRouter from "./routes/libraries";
+import badgesRouter from "./routes/families/badges";
+import usersRouter from "./routes/families/users";
+import childrenRouter from "./routes/families/children";
+import librarianFamilies from "./routes/families/families"; 
+import librariesRouter from "./routes/families/libraries";
 import adminFeedsRouter from "./routes/admin/adminFeeds";
 import adminEventsRouter from "./routes/admin/adminEvents";
 import adminConsultationsRoutes from "./routes/admin/adminConsultations";
@@ -53,10 +53,10 @@ import adminBlocksRoutes from "./routes/admin/adminBlocks";
 import adminFamiliesRoutes from "./routes/admin/adminFamilies";
 import adminLibrariansRouter from "./routes/admin/admin.librarian";
 import { adminMetricsRouter } from "./routes/admin/adminMetrics";
-import culturalEventsRouter from "./routes/culturalEvents";
+import culturalEventsRouter from "./routes/families/culturalEvents";
 import adminBooksRouter from "./routes/admin/adminBooks";
-import publicRouter from "./routes/public.js";
-import microContentRoutes from "./routes/microContent";
+import publicRouter from "./routes/families/public.js";
+import microContentRoutes from "./routes/families/microContent";
 
 /**
  * Validação mínima de ambiente crítico para arrancar o servidor.

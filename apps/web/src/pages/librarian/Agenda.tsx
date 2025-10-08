@@ -7,6 +7,8 @@
  * - Comentários claros por secções (layout, estado, efeitos, handlers)
  * - Helpers PUROS (sem efeitos colaterais) e com máx. 30 linhas
  * - Preserva a funcionalidade/UX original
+ * - ✨ Integra ConsultationWizard para marcar consultas a partir de slots OPEN
+ * - ✨ Seleção de família por NOME (select), não por ID
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -29,6 +31,7 @@ import {
   useTheme,
   InputAdornment,
   Tooltip,
+  MenuItem,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 
@@ -45,6 +48,8 @@ import SearchRounded from "@mui/icons-material/SearchRounded";
 import PendingActionsRounded from "@mui/icons-material/PendingActionsRounded";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import FilterListRounded from "@mui/icons-material/FilterListRounded";
+import PersonRounded from "@mui/icons-material/PersonRounded";
+import AddTaskRounded from "@mui/icons-material/AddTaskRounded";
 
 import { useUserSession } from "../../contexts/UserSession";
 import {
@@ -57,6 +62,13 @@ import {
   cancelConsultation,
   updateSlotStatus,
 } from "../../services/consultations";
+
+// ✨ Wizard
+import ConsultationWizard from "@/components/consultations/ConsultationWizard";
+
+// ✨ Serviço simples para listar famílias (id + nome)
+import { listFamiliesLite } from "@/services/families";
+import ConsultationRoom from "@/components/consultations/ConsultationRoom";
 
 /* =========================================================================================
    Utils/format — Helpers PUROS (≤ 30 linhas)
@@ -326,17 +338,28 @@ function DayItemRow({
   onDecline,
   onAskCancel,
   onToggleSlot,
+  onStartWizard, // ✨
+  canStartWizard, // ✨
   busyId,
+  onOpenRoom,
 }: {
   item: DayItem;
   onConfirm: (id: number) => void;
   onDecline: (id: number) => void;
   onAskCancel: (id: number) => void;
   onToggleSlot: (id: number, next: "OPEN" | "BLOCKED") => void;
+  onStartWizard?: (slotId: number) => void;
+
+  canStartWizard?: boolean;
   busyId: number | null;
+  onOpenRoom?: (it: DayItem) => void;
 }) {
   const iso = item.startAt;
   const { day, mon, time: timeStr } = parts(iso);
+
+  const isConfirmedConsult =
+    item.kind === "CONSULTA" &&
+    String(item.status).toUpperCase() === "CONFIRMED";
 
   // --------- Consulta ----------
   if (item.kind === "CONSULTA") {
@@ -348,7 +371,9 @@ function DayItemRow({
 
     return (
       <Box
+        onClick={isConfirmedConsult ? () => onOpenRoom?.(item) : undefined}
         sx={{
+          cursor: isConfirmedConsult ? "pointer" : "default",
           p: 1.25,
           border: "1px solid",
           borderColor: "divider",
@@ -475,6 +500,16 @@ function DayItemRow({
   const isOpen = item.status === "OPEN";
   const isBusy = busyId === item.id;
 
+  const marcarBtn = (
+    <PrimaryButton
+      startIcon={<AddTaskRounded />}
+      onClick={() => onStartWizard?.(item.id)}
+      disabled={isBusy || !canStartWizard}
+    >
+      Marcar
+    </PrimaryButton>
+  );
+
   return (
     <Box
       sx={{
@@ -485,7 +520,7 @@ function DayItemRow({
         bgcolor: isOpen ? "action.hover" : "transparent",
       }}
     >
-      <Stack direction="row" alignItems="center" spacing={1.5}>
+      <Stack direction="row" alignItems="center" spacing={1.25}>
         <Chip
           size="small"
           label={`Slot ${
@@ -504,6 +539,17 @@ function DayItemRow({
           {timeRange} {!!item.libraryName && <>— {item.libraryName}</>}
         </Typography>
 
+        {/* ✨ Novo: Marcar a partir do slot (desativa se não houver família escolhida) */}
+        {isOpen &&
+          (canStartWizard ? (
+            marcarBtn
+          ) : (
+            <Tooltip title="Escolhe a família acima para marcar">
+              <span>{marcarBtn}</span>
+            </Tooltip>
+          ))}
+
+        {/* Abrir / Bloquear */}
         {item.status !== "BOOKED" && (
           <Stack direction="row" spacing={1}>
             {isOpen ? (
@@ -565,6 +611,28 @@ export default function LibrarianAgenda() {
   const [showSlotsBlocked, setShowSlotsBlocked] = useState(false);
   const [showSlotsBooked, setShowSlotsBooked] = useState(false);
 
+  // ✨ Wizard (família alvo + slot selecionado)
+  type FamilyOption = { id: number; fullName: string };
+  const [families, setFamilies] = useState<FamilyOption[]>([]);
+  const [selectedFamilyId, setSelectedFamilyId] = useState<string>("");
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardSlotId, setWizardSlotId] = useState<number | null>(null);
+
+  const [roomOpen, setRoomOpen] = useState(false);
+  const [roomConsultationId, setRoomConsultationId] = useState<number | null>(
+    null
+  );
+
+  function handleOpenRoom(it: DayItem) {
+    if (
+      it.kind === "CONSULTA" &&
+      String(it.status).toUpperCase() === "CONFIRMED"
+    ) {
+      setRoomConsultationId(it.id);
+      setRoomOpen(true);
+    }
+  }
+
   /* -------------------------- Navegação temporal -------------------------- */
   const goPrev = () =>
     setMonthRef(
@@ -606,10 +674,17 @@ export default function LibrarianAgenda() {
     }
   }
 
+  // ✨ Carregar famílias (uma vez)
+  useEffect(() => {
+    (async () => {
+      const rows = await listFamiliesLite();
+      setFamilies(rows);
+    })();
+  }, []);
+
   useEffect(() => {
     reloadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [librarianId, monthRef]);
+  }, [librarianId, monthRef]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* -------------------------- Mapear dados do dia (PURO) -------------------------- */
   const dayItems = useMemo(() => {
@@ -795,6 +870,18 @@ export default function LibrarianAgenda() {
     return c;
   }, [itemsForSelected]);
 
+  /* -------------------------- Bibliotecas p/ Wizard -------------------------- */
+  const wizardLibraries = useMemo(() => {
+    const seen = new Set<number>();
+    const arr: Array<{ id: number; name: string }> = [];
+    for (const s of slots) {
+      if (!s.libraryId || seen.has(s.libraryId)) continue;
+      seen.add(s.libraryId);
+      arr.push({ id: s.libraryId, name: s.libraryName || "Biblioteca" });
+    }
+    return arr;
+  }, [slots]);
+
   /* -------------------------- Handlers (ações) -------------------------- */
   const handleConfirm = async (id: number) => {
     try {
@@ -846,6 +933,17 @@ export default function LibrarianAgenda() {
     } finally {
       setBusyId(null);
     }
+  };
+
+  // ✨ começar marcação via Wizard a partir de um slot OPEN
+  const handleStartWizard = (slotId: number) => {
+    const fid = Number(selectedFamilyId);
+    if (!Number.isFinite(fid) || fid <= 0) {
+      alert("Escolhe a família para quem vais marcar.");
+      return;
+    }
+    setWizardSlotId(slotId);
+    setWizardOpen(true);
   };
 
   /* --------------------------------- Render --------------------------------- */
@@ -1037,7 +1135,7 @@ export default function LibrarianAgenda() {
               }
             />
 
-            {/* Toolbar: pesquisa + toggles */}
+            {/* Toolbar: pesquisa + toggles + ✨ família alvo p/ wizard */}
             <Stack
               direction={{ xs: "column", md: "row" }}
               spacing={1}
@@ -1105,6 +1203,30 @@ export default function LibrarianAgenda() {
                   icon={<CalendarMonthRounded fontSize="small" />}
                 />
               </Stack>
+
+              {/* ✨ Select de família (por nome) */}
+              <TextField
+                select
+                label="Família para marcar"
+                size="small"
+                value={selectedFamilyId}
+                onChange={(e) => setSelectedFamilyId(e.target.value)}
+                sx={{ width: { xs: "100%", md: 280 } }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PersonRounded fontSize="small" />
+                    </InputAdornment>
+                  ),
+                }}
+              >
+                <MenuItem value="">— Escolher família —</MenuItem>
+                {families.map((f) => (
+                  <MenuItem key={f.id} value={String(f.id)}>
+                    {f.fullName}
+                  </MenuItem>
+                ))}
+              </TextField>
             </Stack>
 
             {/* Lista / loading */}
@@ -1138,7 +1260,14 @@ export default function LibrarianAgenda() {
                       onDecline={handleDecline}
                       onAskCancel={handleAskCancel}
                       onToggleSlot={handleToggleSlot}
+                      onStartWizard={
+                        it.kind === "SLOT" && it.status === "OPEN"
+                          ? handleStartWizard
+                          : undefined
+                      }
+                      canStartWizard={Number(selectedFamilyId) > 0}
                       busyId={busyId}
+                      onOpenRoom={handleOpenRoom} // 👈 novo
                     />
                   ))}
                 </Stack>
@@ -1163,6 +1292,28 @@ export default function LibrarianAgenda() {
         }}
         onConfirm={handleDoCancel}
         busy={cancelBusy}
+      />
+
+      {/* ✨ Consultation Wizard */}
+      <ConsultationWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        defaultFamilyId={
+          Number(selectedFamilyId) > 0 ? Number(selectedFamilyId) : 0
+        }
+        defaultLibrarianId={librarianId}
+        defaultSlotId={wizardSlotId ?? undefined}
+        libraries={wizardLibraries}
+        onCreated={async () => {
+          setWizardOpen(false);
+          setWizardSlotId(null);
+          await reloadAll();
+        }}
+      />
+      <ConsultationRoom
+        open={roomOpen}
+        onClose={() => setRoomOpen(false)}
+        consultationId={roomConsultationId ?? 0}
       />
     </Container>
   );

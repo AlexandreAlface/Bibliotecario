@@ -233,12 +233,21 @@ async function reembedWhereNull(opts) {
 }
 // -------------------- Leitores (CSV/XLS) --------------------
 /** Lê CSV para linhas (header=true). — Alexandre Brissos — 2025-10-02 */
+function decodeBest(buffer) {
+    const utf8 = buffer.toString("utf-8");
+    const bad = (utf8.match(/\uFFFD/g) || []).length;
+    const pctBad = bad / Math.max(utf8.length, 1);
+    return pctBad > 0.01 ? buffer.toString("latin1") : utf8;
+}
 function readCsv(buffer) {
-    return (0, sync_1.parse)(buffer.toString("utf-8"), {
+    const text = decodeBest(buffer);
+    return (0, sync_1.parse)(text, {
         columns: true,
         skip_empty_lines: true,
         bom: true,
         trim: true,
+        delimiter: [",", ";", "\t"], // 👈 ponto-e-vírgula
+        relax_column_count: true,
     });
 }
 /** Lê Excel e tenta extrair hyperlinks. — Alexandre Brissos — 2025-10-02 */
@@ -669,7 +678,7 @@ function filesToRows(files) {
         if (!prev)
             byIsbn.set(isbn, row);
         else
-            byIsbn.set(isbn, { ...row, ...prev, ISBN: isbn });
+            byIsbn.set(isbn, { ...prev, ...row, ISBN: isbn });
     }
     return Array.from(byIsbn.values());
 }
@@ -782,8 +791,9 @@ r.post("/admin/libraries/:libraryId/books/pipeline", (req, res, next) => {
     const options = {
         concurrency: Math.max(1, Math.min(8, Number(body.concurrency ?? 4))),
     };
+    const all = req.files ?? [];
     const recalc = String(body.recalc || "").toLowerCase() === "true";
-    const files = req.files ?? [];
+    const files = all.filter((f) => f.fieldname === "files" || f.fieldname === "files[]");
     if (files.length === 0)
         return res.status(400).json({ error: "missing_files" });
     const combined = filesToRows(files);

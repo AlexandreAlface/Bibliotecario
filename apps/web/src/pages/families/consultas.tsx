@@ -28,9 +28,7 @@ import {
   Stack,
   Typography,
   Tooltip,
-  TextField,
   Skeleton,
-  InputAdornment,
 } from "@mui/material";
 import Grid from "@mui/material/GridLegacy";
 import TodayRounded from "@mui/icons-material/TodayRounded";
@@ -50,8 +48,10 @@ import {
   type ConsultaLite,
   type SlotLite,
   listOpenSlots,
-  createConsultationWithSlot,
 } from "@/services/consultations";
+
+// 👇 novo wizard
+import ConsultationWizard from "@/components/consultations/ConsultationWizard";
 
 /* =====================================================================================
    HELPERS (PUROS / <30 linhas)
@@ -153,8 +153,10 @@ export default function ConsultasPage() {
   const [slotsAll, setSlotsAll] = useState<SlotLite[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<SlotLite | null>(null);
-  const [justBooked, setJustBooked] = useState<ConsultaLite | null>(null);
-  const [notes, setNotes] = useState("");
+
+  // ✅ Novo: abrir/fechar wizard + info de sucesso
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [bookedWithName, setBookedWithName] = useState<string | null>(null);
 
   // Filtro por bibliotecário
   const [selectedLibrarianId, setSelectedLibrarianId] = useState<string>("");
@@ -180,7 +182,7 @@ export default function ConsultasPage() {
     (async () => {
       setLoading(true);
       setSelectedSlot(null);
-      setJustBooked(null);
+      setBookedWithName(null);
       try {
         const from = startOfDay(dayRef).toISOString();
         const to = endOfDay(dayRef).toISOString();
@@ -287,64 +289,43 @@ export default function ConsultasPage() {
   /** Handler: vai para hoje */
   const goToday = useCallback(() => setDayRef(startOfDay(new Date())), []);
 
-  /* ------------------------- Reservar slot ------------------------- */
+  /* ------------------------- Dados auxiliares p/ Wizard ------------------------- */
 
-  /**
-   * Handler: reserva o slot selecionado para a criança escolhida
-   * - valida sessão/família
-   * - exige criança selecionada
-   * - envia notas (limpas) e atualiza UI
-   */
-  const reservar = useCallback(async () => {
+  // bibliotecas disponíveis a partir dos slots carregados
+  const libraryOptions = useMemo(
+    () => {
+      const seen = new Set<number>();
+      const arr: Array<{ id: number; name: string }> = [];
+      for (const s of slotsAll) {
+        if (!s.libraryId || seen.has(s.libraryId)) continue;
+        seen.add(s.libraryId);
+        arr.push({ id: s.libraryId, name: s.libraryName || "Biblioteca" });
+      }
+      return arr;
+    },
+    [slotsAll]
+  );
+
+  // abre o wizard (requer slot selecionado)
+  const openWizard = useCallback(() => {
     if (!selectedSlot) return;
-    const familyId = Number(user?.id);
-    const childIdNum =
-      localChildId && String(localChildId).length
-        ? Number(localChildId)
-        : undefined;
+    // Se quiseres forçar seleção de criança antes de abrir:
+    // if (!localChildId) { alert("Escolhe a criança para quem queres marcar."); return; }
+    setWizardOpen(true);
+  }, [selectedSlot]);
 
-    if (!Number.isFinite(familyId)) {
-      alert("Sessão inválida.");
-      return;
-    }
-    if (!childIdNum) {
-      alert("Escolhe a criança para quem queres marcar.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const booked = await createConsultationWithSlot({
-        familyId,
-        librarianId: selectedSlot.librarianId,
-        childId: childIdNum,
-        libraryId: selectedSlot.libraryId,
-        slotId: selectedSlot.id,
-        notes: notes.trim() || undefined,
-      });
-      setJustBooked(booked);
-      setSlotsAll((old) => old.filter((s) => s.id !== selectedSlot.id));
-      setSelectedSlot(null);
-      setNotes("");
-    } catch (e: any) {
-      alert(e?.message || "Falha a reservar o slot.");
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedSlot, user?.id, localChildId, notes]);
-
-  /* ------------------------- Notas (sanitização/limite) ------------------------- */
-
-  const MAX_NOTES = 280;
-
-  /** Handler: sanitize de notas (remove control chars e normaliza espaços) */
-  const onNotesChange = useCallback((v: string) => {
-    const cleaned = v
-      .replace(/[\u0000-\u001F\u007F]/g, " ")
-      .replace(/\s{2,}/g, " ")
-      .slice(0, MAX_NOTES);
-    setNotes(cleaned);
-  }, []);
+  // quando a consulta for criada pelo wizard
+  const onWizardCreated = useCallback(
+    (newId: number) => {
+      if (selectedSlot) {
+        // remove slot usado da lista
+        setSlotsAll((old) => old.filter((s) => s.id !== selectedSlot.id));
+        setBookedWithName(selectedSlot.librarianName || "bibliotecário");
+        setSelectedSlot(null);
+      }
+    },
+    [selectedSlot]
+  );
 
   const title = "Consultas";
 
@@ -585,59 +566,23 @@ export default function ConsultasPage() {
                   />
                 )}
 
-                {/* Notas / descrição opcional */}
-                <TextField
-                  label="Notas para o bibliotecário (opcional)"
-                  placeholder="Ex.: Tenho dúvidas sobre pesquisa para um trabalho escolar…"
-                  value={notes}
-                  onChange={(e) => onNotesChange(e.target.value)}
-                  size="small"
-                  fullWidth
-                  multiline
-                  minRows={2}
-                  sx={{ mb: 1 }}
-                  inputProps={{ maxLength: MAX_NOTES }}
-                  helperText={`${notes.length}/${MAX_NOTES}`}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <EditNoteRounded fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-
-                {!!localChildId ? (
-                  <>
-                    <Typography sx={{ mb: 1 }}>
-                      Marcar para:{" "}
-                      <b>
-                        {childOptions.find((c) => c.id === localChildId)?.nome}
-                      </b>
+                {/* Ação: abrir wizard */}
+                <Stack sx={{ mt: 1 }}>
+                  <PrimaryButton
+                    onClick={openWizard}
+                    aria-label="Continuar para detalhes"
+                  >
+                    Continuar
+                  </PrimaryButton>
+                  {/* dica: selecionar criança antes (opcional) */}
+                  {!localChildId && (
+                    <Typography variant="caption" sx={{ mt: 0.5, opacity: 0.75 }}>
+                      (Opcional) escolhe a criança acima antes de continuar.
                     </Typography>
-                    <PrimaryButton
-                      onClick={reservar}
-                      disabled={loading}
-                      aria-label="Reservar consulta"
-                    >
-                      Reservar
-                    </PrimaryButton>
-                  </>
-                ) : (
-                  <Tooltip title="Escolhe a criança acima para reservar">
-                    <span>
-                      <PrimaryButton
-                        onClick={reservar}
-                        disabled
-                        aria-label="Reservar consulta"
-                      >
-                        Reservar
-                      </PrimaryButton>
-                    </span>
-                  </Tooltip>
-                )}
+                  )}
+                </Stack>
               </>
-            ) : justBooked ? (
+            ) : bookedWithName ? (
               <>
                 <Stack
                   direction="row"
@@ -649,7 +594,7 @@ export default function ConsultasPage() {
                   <Typography fontWeight={900}>Reserva efetuada!</Typography>
                 </Stack>
                 <Typography sx={{ mb: 1 }}>
-                  Consulta marcada com <b>{justBooked.librarianName}</b>
+                  Consulta marcada com <b>{bookedWithName}</b>
                 </Typography>
                 <RouteLink href="/agenda">Ver na Agenda</RouteLink>
               </>
@@ -661,6 +606,20 @@ export default function ConsultasPage() {
           </WhiteCard>
         </Grid>
       </Grid>
+
+      {/* ===== Wizard ===== */}
+      <ConsultationWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        defaultFamilyId={Number(user?.id)}
+        defaultLibrarianId={selectedSlot?.librarianId}
+        defaultSlotId={selectedSlot?.id}
+        libraries={libraryOptions}
+        onCreated={(id) => {
+          setWizardOpen(false);
+          onWizardCreated(id);
+        }}
+      />
     </Container>
   );
 }

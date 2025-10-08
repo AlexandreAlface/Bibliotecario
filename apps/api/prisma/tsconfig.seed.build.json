@@ -4,11 +4,11 @@
     "module": "CommonJS",
     "moduleResolution": "Node",
     "target": "ES2020",
-    "outDir": "./.seed-build", // <- relativo a prisma/
+    "outDir": "./.seed-build",
     "rootDir": ".",
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true
   },
-  "include": ["./seed.ts"] // <- relativo a prisma/
+  "include": ["./seeds/seed.ts"]
 }

@@ -44,6 +44,11 @@ enum MicroContentType {
   OUTRO
 }
 
+enum ConsultationMode {
+  ONLINE
+  IN_PERSON
+}
+
 model Role {
   id        Int        @id @default(autoincrement())
   name      String     @unique
@@ -170,7 +175,8 @@ model Book {
   /**
    * 👇 NOVO: ponte N:N com micro-conteúdos
    */
-  microContents MicroContentBook[]
+  microContents    MicroContentBook[]
+  ConsultationBook ConsultationBook[]
 }
 
 model Origin {
@@ -304,10 +310,16 @@ model Consultation {
   child   Child? @relation(fields: [childId], references: [id], onDelete: SetNull)
   childId Int?
 
-  library   Library? @relation(fields: [libraryId], references: [id])
-  libraryId Int?
-  mode      String?
-  location  String?
+  library      Library?          @relation(fields: [libraryId], references: [id])
+  libraryId    Int?
+  title        String?
+  purpose      String? // “pretexto/motivo” curto
+  description  String? // brief detalhado
+  modeEnum     ConsultationMode? // substitui gradualmente o legacy `mode`
+  meetingUrl   String?
+  meetingNotes String?
+  mode         String?
+  location     String?
 
   requestedAt DateTime           @default(now())
   startAt     DateTime?
@@ -322,11 +334,48 @@ model Consultation {
   proposals ConsultationProposal[]
   events    ConsultationEvent[]
 
+  books          ConsultationBook[]
+  microContents  ConsultationMicroContent[]
+  culturalEvents ConsultationCulturalEvent[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([librarianId, startAt])
   @@index([familyId, startAt])
+}
+
+model ConsultationBook {
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  consultationId Int
+  book           Book         @relation(fields: [bookIsbn], references: [isbn], onDelete: Cascade)
+  bookIsbn       String
+  addedAt        DateTime     @default(now())
+
+  @@id([consultationId, bookIsbn])
+  @@index([bookIsbn])
+}
+
+model ConsultationMicroContent {
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  consultationId Int
+  microContent   MicroContent @relation(fields: [microContentId], references: [id], onDelete: Cascade)
+  microContentId Int
+  addedAt        DateTime     @default(now())
+
+  @@id([consultationId, microContentId])
+  @@index([microContentId])
+}
+
+model ConsultationCulturalEvent {
+  consultation   Consultation  @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  consultationId Int
+  event          CulturalEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId        Int
+  addedAt        DateTime      @default(now())
+
+  @@id([consultationId, eventId])
+  @@index([eventId])
 }
 
 model ConsultationEvent {
@@ -409,7 +458,8 @@ model CulturalEvent {
   library   Library? @relation(fields: [libraryId], references: [id])
   libraryId Int?
 
-  reservations EventReservation[]
+  reservations              EventReservation[]
+  ConsultationCulturalEvent ConsultationCulturalEvent[]
 
   @@index([libraryId, startDate])
 }
@@ -486,8 +536,9 @@ model MicroContent {
 
   interactions MicroInteraction[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  ConsultationMicroContent ConsultationMicroContent[]
 
   @@index([libraryId, isPublished])
   @@index([publishedAt])

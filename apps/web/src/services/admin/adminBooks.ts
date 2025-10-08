@@ -68,19 +68,17 @@ export async function importBooksCsv(
 export async function runBooksPipeline(
   libraryId: number,
   files: File[],
-  opts: { concurrency?: number; recalc?: boolean }
+  opts: { concurrency?: number; recalc?: boolean } = {}
 ): Promise<ImportResult> {
-  const data = fdOf({
-    files,
-    ...(opts.concurrency != null
-      ? { concurrency: String(opts.concurrency) }
-      : {}),
-    ...(opts.recalc ? { recalc: "true" } : {}),
-  });
+  const fd = new FormData();
+  files.forEach(f => fd.append("files", f, f.name)); // 👈 "files" (sem [])
+  if (opts.concurrency != null) fd.append("concurrency", String(opts.concurrency));
+  if (opts.recalc != null) fd.append("recalc", String(opts.recalc));
+
   return http<ImportResult>({
     url: `/admin/libraries/${libraryId}/books/pipeline`,
     method: "POST",
-    data,
+    data: fd,
   });
 }
 

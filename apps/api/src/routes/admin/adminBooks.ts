@@ -261,12 +261,22 @@ async function reembedWhereNull(opts?: {
 
 // -------------------- Leitores (CSV/XLS) --------------------
 /** Lê CSV para linhas (header=true). — Alexandre Brissos — 2025-10-02 */
+function decodeBest(buffer: Buffer) {
+  const utf8 = buffer.toString("utf-8");
+  const bad = (utf8.match(/\uFFFD/g) || []).length;
+  const pctBad = bad / Math.max(utf8.length, 1);
+  return pctBad > 0.01 ? buffer.toString("latin1") : utf8;
+}
+
 function readCsv(buffer: Buffer): any[] {
-  return parseCsvSync(buffer.toString("utf-8"), {
+  const text = decodeBest(buffer);
+  return parseCsvSync(text, {
     columns: true,
     skip_empty_lines: true,
     bom: true,
     trim: true,
+    delimiter: [",", ";", "\t"], // 👈 ponto-e-vírgula
+    relax_column_count: true,
   }) as any[];
 }
 
@@ -719,7 +729,7 @@ function filesToRows(files: Express.Multer.File[]): FinalCsvRow[] {
     if (!isbn) continue;
     const prev = byIsbn.get(isbn);
     if (!prev) byIsbn.set(isbn, row);
-    else byIsbn.set(isbn, { ...row, ...prev, ISBN: isbn });
+    else byIsbn.set(isbn, { ...prev, ...row, ISBN: isbn });
   }
   return Array.from(byIsbn.values());
 }
@@ -837,8 +847,13 @@ r.post(
     const options: PipelineOptions = {
       concurrency: Math.max(1, Math.min(8, Number(body.concurrency ?? 4))),
     };
+
+    const all = (req.files as Express.Multer.File[] | undefined) ?? [];
+
     const recalc = String(body.recalc || "").toLowerCase() === "true";
-    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    const files = all.filter(
+      (f) => f.fieldname === "files" || f.fieldname === "files[]"
+    );
     if (files.length === 0)
       return res.status(400).json({ error: "missing_files" });
 

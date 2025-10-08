@@ -1,3 +1,4 @@
+// prisma/seed.ts (ou onde tiveres o teu seeder)
 import {
   PrismaClient,
   ConsultationStatus,
@@ -5,8 +6,11 @@ import {
   ProposalStatus,
   ProposalActor,
   MicroContentType,
+  ConsultationMode, // ✨ novo enum
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
+
+import "dotenv/config";
 
 const prisma = new PrismaClient();
 const ROUNDS = 12;
@@ -40,28 +44,43 @@ async function seedRoles() {
 }
 
 async function seedLibraryAndFeed() {
-  // Biblioteca Municipal de Beja
-  const lib = await prisma.library.upsert({
-    where: { id: 1 }, // força id=1 para ficares com isto estável em dev
-    create: {
-      id: 1,
-      name: "Biblioteca Municipal de Beja",
-      address: "Largo do Lidador, Beja",
-      contact: "biblioteca@cm-beja.pt",
-    },
-    update: {},
+  // Biblioteca Municipal de Beja (sem forçar ID)
+  let lib = await prisma.library.findFirst({
+    where: { name: "Biblioteca Municipal de Beja" },
   });
+  if (!lib) {
+    lib = await prisma.library.create({
+      data: {
+        name: "Biblioteca Municipal de Beja",
+        address: "Largo do Lidador, Beja",
+        contact: "biblioteca@cm-beja.pt",
+      },
+    });
+  } else {
+    // atualiza info base, se quiseres manter estável em dev
+    await prisma.library.update({
+      where: { id: lib.id },
+      data: {
+        address: "Largo do Lidador, Beja",
+        contact: "biblioteca@cm-beja.pt",
+      },
+    });
+  }
 
-  // Feed RSS (agenda) — sem criar eventos; o teu cron vai buscar
-  await prisma.feedRss.upsert({
-    where: { id: 1 },
-    create: {
-      id: 1,
-      libraryId: lib.id,
-      url: "https://cm-beja.pt/feeds/agenda",
-    },
-    update: { url: "https://cm-beja.pt/feeds/agenda", libraryId: lib.id },
+  // Feed RSS (agenda) — um por biblioteca
+  const existingFeed = await prisma.feedRss.findFirst({
+    where: { libraryId: lib.id },
   });
+  if (!existingFeed) {
+    await prisma.feedRss.create({
+      data: { libraryId: lib.id, url: "https://cm-beja.pt/feeds/agenda" },
+    });
+  } else {
+    await prisma.feedRss.update({
+      where: { id: existingFeed.id },
+      data: { url: "https://cm-beja.pt/feeds/agenda" },
+    });
+  }
 
   return lib;
 }
@@ -91,12 +110,11 @@ async function upsertUserWithRoles(payload: {
     update: {
       fullName: payload.fullName,
       phone: payload.phone,
-      // se mudares password em dev, também atualiza
-      passwordHash: pwd,
+      passwordHash: pwd, // mantém em dev
     },
   });
 
-  // ligar roles
+  // ligar roles (limpa e recria para ficar estável em dev)
   const roleIds = await Promise.all(payload.roles.map(getRoleIdByName));
   await prisma.userRole.deleteMany({ where: { userId: user.id } });
   await prisma.userRole.createMany({
@@ -105,6 +123,28 @@ async function upsertUserWithRoles(payload: {
   });
 
   return user;
+}
+
+async function ensureChild(payload: {
+  name: string;
+  birthDate: Date;
+  gender: "M" | "F";
+  readerProfile?: string;
+}) {
+  let child = await prisma.child.findFirst({
+    where: { name: payload.name, birthDate: payload.birthDate },
+  });
+  if (!child) {
+    child = await prisma.child.create({
+      data: {
+        name: payload.name,
+        birthDate: payload.birthDate,
+        gender: payload.gender,
+        readerProfile: payload.readerProfile,
+      },
+    });
+  }
+  return child;
 }
 
 async function seedUsersAndFamilies(libraryId: number) {
@@ -137,28 +177,18 @@ async function seedUsersAndFamilies(libraryId: number) {
     roles: ["FAMÍLIA"],
   });
 
-  // Filhos da família #1
-  const ines = await prisma.child.upsert({
-    where: { id: 1 },
-    create: {
-      id: 1,
-      name: "Inês Silva",
-      birthDate: new Date("2016-05-12"),
-      gender: "F",
-      readerProfile: "Gosta de fantasia e mistério",
-    },
-    update: {},
+  // Filhos da família #1 (sem forçar IDs)
+  const ines = await ensureChild({
+    name: "Inês Silva",
+    birthDate: new Date("2016-05-12"),
+    gender: "F",
+    readerProfile: "Gosta de fantasia e mistério",
   });
-  const tiago = await prisma.child.upsert({
-    where: { id: 2 },
-    create: {
-      id: 2,
-      name: "Tiago Silva",
-      birthDate: new Date("2012-11-03"),
-      gender: "M",
-      readerProfile: "Adora aventura e BD",
-    },
-    update: {},
+  const tiago = await ensureChild({
+    name: "Tiago Silva",
+    birthDate: new Date("2012-11-03"),
+    gender: "M",
+    readerProfile: "Adora aventura e BD",
   });
 
   await prisma.childFamily.upsert({
@@ -172,23 +202,18 @@ async function seedUsersAndFamilies(libraryId: number) {
     update: {},
   });
 
-  // Família #2 (para ter variedade)
+  // Família #2 (variedade)
   const family2 = await upsertUserWithRoles({
     email: "maria.costa@familia.com",
     fullName: "Maria Costa",
     password: "maria123",
     roles: ["FAMÍLIA"],
   });
-  const ana = await prisma.child.upsert({
-    where: { id: 3 },
-    create: {
-      id: 3,
-      name: "Ana Costa",
-      birthDate: new Date("2018-03-20"),
-      gender: "F",
-      readerProfile: "Histórias curtas e ilustradas",
-    },
-    update: {},
+  const ana = await ensureChild({
+    name: "Ana Costa",
+    birthDate: new Date("2018-03-20"),
+    gender: "F",
+    readerProfile: "Histórias curtas e ilustradas",
   });
   await prisma.childFamily.upsert({
     where: { childId_familyId: { childId: ana.id, familyId: family2.id } },
@@ -338,7 +363,7 @@ async function seedMicroContents(libraryId: number, authorId: number) {
         isPublished: true,
         libraryId,
         authorId,
-        // books: []  // (vais associar depois de importares livros)
+        // books: []  // associa depois se quiseres
       },
     });
   }
@@ -360,10 +385,9 @@ async function seedAgenda(
     { startAt: at(daysFromNow(10), 14, 0), endAt: at(daysFromNow(10), 14, 30) },
   ];
 
-  const created: number[] = [];
   for (const s of slots) {
     try {
-      const slot = await prisma.consultationSlot.create({
+      await prisma.consultationSlot.create({
         data: {
           librarianId,
           libraryId,
@@ -372,13 +396,12 @@ async function seedAgenda(
           status: SlotStatus.OPEN,
         },
       });
-      created.push(slot.id);
     } catch {
-      // se já existir, ignora
+      // se já existir (unique por intervalo), ignora
     }
   }
 
-  // marca uma consulta confirmada no primeiro slot
+  // marca uma consulta confirmada no primeiro slot OPEN
   const firstSlot = await prisma.consultationSlot.findFirst({
     where: { librarianId, status: SlotStatus.OPEN },
     orderBy: { startAt: "asc" },
@@ -387,16 +410,21 @@ async function seedAgenda(
 
   const consultation = await prisma.consultation.create({
     data: {
-      family: { connect: { id: familyId } },
-      librarian: { connect: { id: librarianId } },
-      child: { connect: { id: childId } },
-      library: { connect: { id: libraryId } },
+      familyId,
+      librarianId,
+      childId,
+      libraryId,
       startAt: firstSlot.startAt,
       endAt: firstSlot.endAt,
       status: ConsultationStatus.CONFIRMED,
-      slot: { connect: { id: firstSlot.id } },
-      mode: "PRESENCIAL",
-      location: "Biblioteca Municipal de Beja",
+      slotId: firstSlot.id,
+      // ✨ novos campos
+      modeEnum: ConsultationMode.IN_PERSON,
+      meetingUrl: null,
+      title: "Consulta inicial",
+      purpose: "Apoio à leitura",
+      description: "Sessão de arranque para conhecer o perfil do leitor.",
+      // (campos legacy 'mode'/'location' podem existir; se já removeste, ignora)
     },
   });
 
@@ -438,7 +466,7 @@ async function main() {
 
   await seedAgenda(librarian.id, family1.id, ines.id, lib.id);
 
-  // pontos e afins (opcional, só um registo simbólico)
+  // pontos (exemplo simbólico)
   await prisma.pointsHistory.createMany({
     data: [
       { userId: family1.id, action: "signup_bonus", points: 50 },
@@ -449,10 +477,10 @@ async function main() {
 
   console.log("✓ Seed concluído.");
   console.log("Credenciais DEV:");
-  console.log("  Admin       → admin@bibliotecario.com / admin123");
+  console.log("  Admin         → admin@bibliotecario.com / admin123");
   console.log("  Bibliotecário → rita.bibliotecaria@beja.com / rita123");
-  console.log("  Família #1  → joao.silva@familia.com / joao123");
-  console.log("  Família #2  → maria.costa@familia.com / maria123");
+  console.log("  Família #1    → joao.silva@familia.com / joao123");
+  console.log("  Família #2    → maria.costa@familia.com / maria123");
 }
 
 main()
