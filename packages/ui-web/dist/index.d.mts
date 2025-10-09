@@ -85,15 +85,28 @@ interface WhiteCardProps extends CardProps {
 }
 declare function WhiteCard(props: WhiteCardProps): react_jsx_runtime.JSX.Element;
 
+/** ---------- Base ---------- */
 interface GradientProps extends BoxProps {
-    /** cor inicial (qualquer CSS color) – default theme.palette.secondary.main (verde) */
     from?: string;
-    /** cor final – default theme.palette.primary.main (roxo) */
     to?: string;
-    /** ângulo do gradiente em deg – default 135 */
     angle?: number;
 }
-declare const GradientBackground: _emotion_styled.StyledComponent<_mui_system.BoxOwnProps<_mui_material.Theme> & Omit<React$1.DetailedHTMLProps<React$1.HTMLAttributes<HTMLDivElement>, HTMLDivElement>, keyof _mui_system.BoxOwnProps<_mui_material.Theme>> & _mui_system.MUIStyledCommonProps<_mui_material.Theme> & GradientProps, {}, {}>;
+type GradientWithShapesProps = GradientProps & {
+    /** ativa/define quantidade de formas; true=10 (default) */
+    decorations?: boolean | number;
+    /** semente para posições/rotações determinísticas */
+    seed?: number;
+    /** tamanho mínimo/máximo (px) das formas */
+    minSize?: number;
+    maxSize?: number;
+    /** cor das formas (default = branco com alpha) */
+    shapeColor?: string;
+    /** animação de “flutuar” vertical */
+    floating?: boolean;
+    /** rotação contínua; true = aleatória (default), número = duração (s), false = sem spin */
+    spin?: boolean | number;
+};
+declare function GradientBackgroundWithShapes({ children, decorations, seed, minSize, maxSize, shapeColor, floating, spin, from, to, angle, sx, ...rest }: GradientWithShapesProps): react_jsx_runtime.JSX.Element;
 
 interface InfoStepCardProps {
     step: number | string;
@@ -134,11 +147,19 @@ interface HowItWorksSectionProps {
 }
 declare const HowItWorksSection: React__default.FC<HowItWorksSectionProps>;
 
-interface LogoProps extends BoxProps {
-    width?: string | number;
-    height?: string | number;
+type LogoVariant = "biblio" | "bf";
+interface LogoProps extends Omit<BoxProps, "component"> {
+    /** texto alternativo do <img> */
+    alt?: string;
+    /** qual logo usar por omissão (podes sobrepor com `src`) */
+    variant?: LogoVariant;
+    /** se quiseres forçar um SVG/URL específico */
+    src?: string;
 }
-declare const Logo: React__default.FC<LogoProps>;
+declare const Logo: React$1.FC<LogoProps>;
+/** atalhos convenientes, caso queiras importar direto */
+declare const BiblioLogo: React$1.FC<Omit<LogoProps, "variant">>;
+declare const FamilyLogo: React$1.FC<Omit<LogoProps, "variant">>;
 
 type Option = {
     value: string | number;
@@ -418,4 +439,4 @@ interface SearchBarProps {
 }
 declare const SearchBar: React__default.FC<SearchBarProps>;
 
-export { type Action, AgendaFeed, type AgendaFeedProps, AgendaLargeCard, type AgendaLargeCardProps, AvatarListItem, type AvatarListItemProps, type AvatarOption, AvatarSelect, type AvatarSelectProps, AvatarUpload, type AvatarUploadProps, BaseTextField, BibliotecarioThemeProvider, BookCard, type BookCardProps, type BookCardVariant, type DataColumn, EmailField, FilterBar, type FilterBarProps, type FilterDefinition, type FilterOption, GradientBackground, HowItWorksSection, InfoStepCard, Logo, type LogoProps, type MenuItem, NotificationBell, type NotificationBellProps, type NotificationItem, NumericField, type Option, Paginator, type PaginatorProps, PasswordField, PrimaryButton, type QuizOption, QuizProgressBar, type QuizProgressBarProps, QuizQuestion, type QuizQuestionProps, RouteLink, SearchBar, type SearchBarProps, SecondaryButton, SectionDivider, SelectableOptions, type SelectableOptionsProps, SidebarMenu, type SidebarMenuProps, SimpleDataTable, type SimpleDataTableProps, WhiteCard, theme };
+export { type Action, AgendaFeed, type AgendaFeedProps, AgendaLargeCard, type AgendaLargeCardProps, AvatarListItem, type AvatarListItemProps, type AvatarOption, AvatarSelect, type AvatarSelectProps, AvatarUpload, type AvatarUploadProps, BaseTextField, BiblioLogo, BibliotecarioThemeProvider, BookCard, type BookCardProps, type BookCardVariant, type DataColumn, EmailField, FamilyLogo, FilterBar, type FilterBarProps, type FilterDefinition, type FilterOption, GradientBackgroundWithShapes, HowItWorksSection, InfoStepCard, Logo, type LogoProps, type MenuItem, NotificationBell, type NotificationBellProps, type NotificationItem, NumericField, type Option, Paginator, type PaginatorProps, PasswordField, PrimaryButton, type QuizOption, QuizProgressBar, type QuizProgressBarProps, QuizQuestion, type QuizQuestionProps, RouteLink, SearchBar, type SearchBarProps, SecondaryButton, SectionDivider, SelectableOptions, type SelectableOptionsProps, SidebarMenu, type SidebarMenuProps, SimpleDataTable, type SimpleDataTableProps, WhiteCard, theme };

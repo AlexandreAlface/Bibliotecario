@@ -1,20 +1,13 @@
-const path = require('path');
-const { getDefaultConfig } = require('@expo/metro-config');
+// ✅ ficheiro limpo e válido
+const { getDefaultConfig } = require("expo/metro-config");
 
-const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '../..');
+const config = getDefaultConfig(__dirname);
 
-const config = getDefaultConfig(projectRoot);
-
-config.resolver.unstable_enablePackageExports = true;
-config.watchFolders = [workspaceRoot];
-config.resolver.nodeModulesPaths = [
-  path.join(projectRoot, 'node_modules'),
-  path.join(workspaceRoot, 'node_modules'),
-];
-config.resolver.disableHierarchicalLookup = true;
-if (!config.resolver.sourceExts.includes('cjs')) {
-  config.resolver.sourceExts.push('cjs');
-}
+// importar .svg como componente com react-native-svg-transformer
+config.transformer.babelTransformerPath = require.resolve(
+  "react-native-svg-transformer"
+);
+config.resolver.assetExts = config.resolver.assetExts.filter((ext) => ext !== "svg");
+config.resolver.sourceExts = [...config.resolver.sourceExts, "svg"];
 
 module.exports = config;

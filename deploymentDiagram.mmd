@@ -1,0 +1,42 @@
+%% Deployment diagram (Mermaid flowchart style) - single API
+flowchart LR
+  %% Clients
+  subgraph Clients
+    Browser["Web App (React/Vite) <br/> Navegador"]
+    Mobile["App Mobile (Expo/React Native)"]
+  end
+
+  %% Internet and DNS/TLS
+  Internet[(Internet/DNS)]
+  Clients --> Internet
+
+  %% Cloud / Host
+  subgraph Cloud["Servidor/VPS ou Cloud"]
+    subgraph DockerHost["Docker Host"]
+      Proxy["Reverse Proxy + Static Hosting (Nginx/Caddy) <br/> TLS termination: 443 to 80 <br/> WAF / Rate limit <br/> Serve SPA assets"]
+      API["API Service <br/>(Node.js + Express + Prisma) <br/> Port: 3333 <br/> Cron jobs (node-cron) <br/> CORS (origens permitidas) <br/> Healthcheck: /api/health"]
+      DB[("PostgreSQL <br/>(Docker container) <br/> Port: 5432 <br/> Volume: /var/lib/postgresql/data")]
+      Backups["Backups BD <br/>(cron ou snapshots geridos)"]
+      Migrate["Prisma Migrate / Seed Job <br/>(executado por CI/CD ou container API)"]
+      Secrets["Segredos e Config <br/>(.env / Vault / Secrets Manager)"]
+    end
+  end
+
+  %% External services
+  RSS["Fontes externas (RSS/HTTP)"]
+
+  %% Flows
+  Internet -->|HTTPS 443| Proxy
+  Browser -->|Static files| Proxy
+  Browser -->|REST JSON /api/*| Proxy
+  Mobile -->|REST JSON /api/*| Proxy
+  Proxy -->|HTTP 80/3333 internal net| API
+  API -->|Prisma 5432 internal net| DB
+  API -->|Fetch RSS| RSS
+
+  %% Ops & aux flows
+  Backups -.->|dump snapshot| DB
+  Migrate -.->|migrations seed| DB
+  Secrets -.->|DATABASE_URL, JWT_SECRET| API
+  Secrets -.->|certificados TLS| Proxy
+

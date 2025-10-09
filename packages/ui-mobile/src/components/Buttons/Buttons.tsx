@@ -1,18 +1,16 @@
 import * as React from "react";
 import { StyleSheet } from "react-native";
 import { Button as PaperButton, useTheme } from "react-native-paper";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 type PaperBtnProps = React.ComponentProps<typeof PaperButton>;
-type CommonProps = Omit<PaperBtnProps, "mode"> & {
-  /** texto opcional se não quiseres usar children */
-  label?: string;
-  /** ocupa 100% da largura do container */
+
+// Nota: retiramos children — agora os botões usam sempre `label`.
+//       podes ainda sobrepor `compact`, mas por defeito fica true (pequeno).
+type CommonProps = Omit<PaperBtnProps, "mode" | "children"> & {
+  label: string;
   fullWidth?: boolean;
+  compact?: boolean; // default: true
 };
 
 function ScaleOnPress({
@@ -26,7 +24,6 @@ function ScaleOnPress({
   const anim = useAnimatedStyle(() => ({
     transform: [{ scale: withTiming(pressed.value ? 0.98 : 1, { duration: 90 }) }],
   }));
-
   return (
     <Animated.View
       style={anim}
@@ -39,53 +36,54 @@ function ScaleOnPress({
   );
 }
 
-export const PrimaryButton: React.FC<CommonProps> = ({
-  children,
+export function PrimaryButton({
   label,
   style,
   contentStyle,
   labelStyle,
   fullWidth = true,
+  compact = true,
   ...rest
-}) => {
+}: CommonProps) {
   const theme = useTheme();
   return (
     <ScaleOnPress disabled={rest.disabled}>
       <PaperButton
         mode="contained"
         uppercase={false}
+        compact={compact}
         {...rest}
         style={[fullWidth && styles.fullWidth, styles.button, style]}
-        contentStyle={[styles.content, contentStyle]}
+        contentStyle={[compact ? styles.contentSm : styles.content, contentStyle]}
         labelStyle={[
-          styles.label,
+          compact ? styles.labelSm : styles.label,
           { color: theme.colors.onPrimary },
           labelStyle,
         ]}
       >
-        {children ?? label}
+        {label}
       </PaperButton>
     </ScaleOnPress>
   );
-};
+}
 
-export const SecondaryButton: React.FC<CommonProps> = ({
-  children,
+export function SecondaryButton({
   label,
   style,
   contentStyle,
   labelStyle,
   fullWidth = true,
+  compact = true,
   ...rest
-}) => {
+}: CommonProps) {
   const theme = useTheme();
   return (
     <ScaleOnPress disabled={rest.disabled}>
       <PaperButton
         mode="outlined"
         uppercase={false}
+        compact={compact}
         textColor={theme.colors.primary}
-        // alguns temas precisam disto para a cor da borda
         theme={{ colors: { outline: theme.colors.primary } }}
         {...rest}
         style={[
@@ -94,18 +92,24 @@ export const SecondaryButton: React.FC<CommonProps> = ({
           { borderColor: theme.colors.primary, borderWidth: 2 },
           style,
         ]}
-        contentStyle={[styles.content, contentStyle]}
-        labelStyle={[styles.label, { color: theme.colors.primary }, labelStyle]}
+        contentStyle={[compact ? styles.contentSm : styles.content, contentStyle]}
+        labelStyle={[
+          compact ? styles.labelSm : styles.label,
+          { color: theme.colors.primary },
+          labelStyle,
+        ]}
       >
-        {children ?? label}
+        {label}
       </PaperButton>
     </ScaleOnPress>
   );
-};
+}
 
 const styles = StyleSheet.create({
   fullWidth: { alignSelf: "stretch" },
-  button: { borderRadius: 28 },
-  content: { height: 56, borderRadius: 28 },
+  button: { borderRadius: 22 },
+  content: { height: 56, borderRadius: 22 },
+  contentSm: { height: 44, borderRadius: 22 }, // default (compact)
   label: { fontFamily: "Poppins_600SemiBold", fontSize: 16, letterSpacing: 0.3 },
+  labelSm: { fontFamily: "Poppins_600SemiBold", fontSize: 14, letterSpacing: 0.2 },
 });

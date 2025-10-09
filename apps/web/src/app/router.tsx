@@ -1,32 +1,58 @@
-// apps/web/src/app/router.tsx
 import { createBrowserRouter, Outlet } from "react-router-dom";
 import AppLayout from "../layouts/AppLayout";
 import { UserSessionProvider } from "../contexts/UserSession";
+import { RequireRole } from "@/routes/RequireRole";
+import { RequireAuth } from "@/routes/RequireAuth";
 
-// páginas app
-import LandingPage from "../pages";
-import FamiliaPage from "@/pages/familia";
-import SuggestionsPage from "@/pages/suggestions";
-import AchievementsPage from "@/pages/achievements";
-import AgendasPage from "@/pages/agenda";
-import ConsultasPage from "@/pages/consultas";
+// páginas app (família)
+import LandingPage from "../pages/families";
+import FamiliaPage from "@/pages/families/familia";
+import SuggestionsPage from "@/pages/families/suggestions";
+import AchievementsPage from "@/pages/families/achievements";
+import AgendasPage from "@/pages/families/agenda";
+import ConsultasPage from "@/pages/families/consultas";
+import ReviewsPage from "@/pages/families/reviews";
+import ReadingsPage from "@/pages/families/readings";
+import SuggestionsByCategoriesPage from "@/pages/families/suggestions-categories";
+import FamilyEventsPage from "@/pages/families/events";
+import FamilyContentsPage from "@/pages/families/contents"; // 👈 NOVO
 
-// páginas auth
+// auth
 import Login from "@/pages/auth/Login";
 import CreateAccount from "@/pages/auth/CreateAccount";
 import CreateProfilesPage from "@/pages/auth/CreateProfilesPage";
-import SuggestionsByCategoriesPage from "@/pages/suggestions-categories";
-import ReviewsPage from "@/pages/reviews";
-import ReadingsPage from "@/pages/readings";
+import Logout from "@/pages/families/Logout";
 
-// Layout simples para as rotas de auth (sem sidebar)
-// (se quiseres, troca por um componente em src/layouts/AuthLayout.tsx)
+// perfis
+import ProfilesPage from "@/pages/profiles";
+
+// Bibliotecário
+import LibrarianHome from "@/pages/librarian/Home";
+import LibrarianConsultasPendentes from "@/pages/librarian/ConsultasPendentes";
+import LibrarianAgenda from "@/pages/librarian/Agenda";
+import LibrarianFamilias from "@/pages/librarian/Familias";
+import LibrarianSlots from "@/pages/librarian/Slots";
+import HistoricoConsultasPage from "@/pages/librarian/historico";
+
+// Admin
+import AdminHome from "@/pages/admin/Home";
+import AdminLibrarians from "@/pages/admin/Librarians";
+import AdminFamilies from "@/pages/admin/Families";
+import AdminSlotsGlobal from "@/pages/admin/Slots";
+import AdminEvents from "@/pages/admin/Events";
+import AdminBacklog from "@/pages/admin/Backlog";
+import AdminMetrics from "@/pages/admin/Metrics";
+import AdminFeeds from "@/pages/admin/Feeds";
+import AdminImportBooks from "@/pages/admin/ImportarLivros";
+import AdminMicroContentsPage from "@/pages/admin/micro-contents"; // já adicionado
+import LibrarianBooksSearch from "@/pages/librarian/BooksSearch";
+
 function AuthLayout() {
   return <Outlet />;
 }
 
 export const router = createBrowserRouter([
-  // Rotas de autenticação (sem AppLayout / sem menu)
+  // ---- Auth (sem AppLayout) ----
   {
     path: "/auth",
     element: <AuthLayout />,
@@ -34,29 +60,95 @@ export const router = createBrowserRouter([
       { path: "login", element: <Login /> },
       { path: "create-account", element: <CreateAccount /> },
       { path: "create-profiles", element: <CreateProfilesPage /> },
+      { path: "logout", element: <Logout /> },
     ],
   },
 
-  // Rotas da aplicação (com AppLayout e menu)
+  // ---- Escolha de perfis (Família autenticada) ----
   {
     element: (
       <UserSessionProvider>
-        <AppLayout />
+        <RequireRole roles={["FAMILY", "FAMÍLIA"]}>
+          <Outlet />
+        </RequireRole>
+      </UserSessionProvider>
+    ),
+    children: [{ path: "/profiles", element: <ProfilesPage /> }],
+  },
+
+  // ---- App (autenticado) ----
+  {
+    element: (
+      <UserSessionProvider>
+        <RequireAuth>
+          <AppLayout />
+        </RequireAuth>
       </UserSessionProvider>
     ),
     children: [
+      // Família
       { index: true, element: <LandingPage /> },
       { path: "suggestions", element: <SuggestionsPage /> },
       { path: "reviews", element: <ReviewsPage /> },
       { path: "reading", element: <ReadingsPage /> },
-      { path: "suggestions-categories", element: <SuggestionsByCategoriesPage /> },
+      {
+        path: "suggestions-categories",
+        element: <SuggestionsByCategoriesPage />,
+      },
+      { path: "contents", element: <FamilyContentsPage /> }, // 👈 NOVO (rota família/criança)
       { path: "achievements", element: <AchievementsPage /> },
       { path: "agenda", element: <AgendasPage /> },
       { path: "consultas", element: <ConsultasPage /> },
       { path: "familia", element: <FamiliaPage /> },
+      { path: "eventos", element: <FamilyEventsPage /> },
+
+      // Bibliotecário
+      {
+        path: "librarian",
+        element: (
+          <RequireRole
+            roles={["LIBRARIAN", "BIBLIOTECÁRIO", "BIBLIOTECARIO", "ADMIN"]}
+          >
+            <Outlet />
+          </RequireRole>
+        ),
+        children: [
+          { index: true, element: <LibrarianHome /> },
+          {
+            path: "consultas/pendentes",
+            element: <LibrarianConsultasPendentes />,
+          },
+           { path: "livros", element: <LibrarianBooksSearch /> },
+          { path: "agenda", element: <LibrarianAgenda /> },
+          { path: "familias", element: <LibrarianFamilias /> },
+          { path: "slots", element: <LibrarianSlots /> },
+          { path: "historico", element: <HistoricoConsultasPage /> },
+        ],
+      },
+
+      // Admin
+      {
+        path: "admin",
+        element: (
+          <RequireRole roles={["ADMIN", "ADMINISTRATOR", "ADMINISTRADOR"]}>
+            <Outlet />
+          </RequireRole>
+        ),
+        children: [
+          { index: true, element: <AdminHome /> },
+          { path: "bibliotecarios", element: <AdminLibrarians /> },
+          { path: "familias", element: <AdminFamilies /> },
+          { path: "slots", element: <AdminSlotsGlobal /> },
+          { path: "livros", element: <LibrarianBooksSearch /> },
+          { path: "propostas", element: <AdminBacklog /> },
+          { path: "eventos", element: <AdminEvents /> },
+          { path: "feeds", element: <AdminFeeds /> },
+          { path: "micro-contents", element: <AdminMicroContentsPage /> },
+          { path: "livros/import", element: <AdminImportBooks /> },
+          { path: "metricas", element: <AdminMetrics /> },
+          { path: "bibliotecarios/novo", element: <AdminLibrarians /> },
+        ],
+      },
     ],
   },
-
-  // (opcional) 404
-  // { path: "*", element: <NotFoundPage /> },
 ]);

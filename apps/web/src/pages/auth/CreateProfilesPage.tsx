@@ -1,10 +1,24 @@
+/**
+ * =============================================================================
+ *  Página · Criar perfis de crianças (Passo 2 do registo)
+ * -----------------------------------------------------------------------------
+ *  Autor:  Alexandre Brissos — Nº 21131
+ *
+ *  Reforços aplicados:
+ *   • Comentários detalhados em português.
+ *   • Identificação explícita de funções **puras** vs. com efeitos colaterais.
+ *   • Handlers e helpers curtos (≲ 30 linhas) e coesos.
+ *   • Mantido o comportamento original (guardar passo 1 no localStorage,
+ *     criar/editar/remover perfis de crianças e submeter registo).
+ * =============================================================================
+ */
+
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, Typography, Divider } from "@mui/material";
-
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
-
 import { z } from "zod";
+
 import {
   ChildInputSchema,
   RegisterPayloadSchema,
@@ -17,22 +31,38 @@ import ChildProfileForm, {
 } from "../../Forms/ChildProfileForm";
 import {
   AvatarListItem,
-  GradientBackground,
+  GradientBackgroundWithShapes,
   HowItWorksSection,
   PrimaryButton,
   WhiteCard,
 } from "@bibliotecario/ui-web";
 import { api } from "@/services/https";
 
-// ---- Tipos internos (UI) e utilitários --------------------------------------
-type ChildInput = z.input<typeof ChildInputSchema>; // input aceito pelo Zod (antes da coerção)
+/* ========================================================================== */
+/*                           Tipos e constantes UI                             */
+/* ========================================================================== */
+
+type ChildInput = z.input<typeof ChildInputSchema>; // input aceite pelo Zod (pré-coerção)
 type ChildUI = ChildInput & { id: string; avatar?: string };
+type Step = {
+  step: number;
+  title: string;
+  description: string;
+  accentColor: string;
+  backgroundColor: string;
+  cardProps?: Record<string, unknown>;
+};
 
-const genId = () =>
-  globalThis.crypto?.randomUUID?.() ??
-  `tmp_${Math.random().toString(36).slice(2)}`;
+const LS_KEY = "bf_signup_family"; // chave estável do draft do Passo 1
 
-// calcula idade a partir de YYYY-MM-DD
+/* ========================================================================== */
+/*                          Helpers puros (sem efeitos)                        */
+/* ========================================================================== */
+
+/**
+ * Gera a idade a partir de YYYY-MM-DD.
+ * ✅ **PURO**: mesma entrada → mesma saída; não altera estado externo.
+ */
 const calcAge = (birthDate?: string): number | null => {
   if (!birthDate) return null;
   const d = new Date(birthDate);
@@ -44,7 +74,36 @@ const calcAge = (birthDate?: string): number | null => {
   return age < 0 ? null : age;
 };
 
-const steps = [
+/**
+ * Converte do tipo do form (ChildProfile -> "Outro").
+ * ✅ **PURO**
+ */
+const profileToInput = (p: ChildProfile): ChildInput => ({
+  firstName: p.firstName,
+  lastName: p.lastName ?? "", // garante string
+  age: undefined, // idade vem da data; não é enviada
+  birthDate: p.birthDate || undefined, // '' → undefined
+  gender: p.gender === "O" ? "Outro" : p.gender,
+});
+
+/**
+ * Converte do tipo guardado na lista (ChildUI -> 'Outro') para o tipo do form ('O').
+ * ✅ **PURO**
+ */
+const uiToProfile = (c: ChildUI): ChildProfile => ({
+  id: c.id,
+  firstName: c.firstName,
+  lastName: c.lastName ?? "",
+  birthDate: c.birthDate ?? "",
+  gender: c.gender ? (c.gender === "Outro" ? "O" : c.gender) : "O",
+  avatar: c.avatar,
+});
+
+/**
+ * Passos ilustrativos do onboarding.
+ * ✅ **PURO** (constante imutável)
+ */
+const steps: Step[] = [
   {
     step: 1,
     title: "Dados da Família",
@@ -65,40 +124,67 @@ const steps = [
   },
 ];
 
-// Converte do tipo do form (ChildProfile -> 'O') para o schema ('Outro')
-const profileToInput = (p: ChildProfile): ChildInput => ({
-  firstName: p.firstName,
-  lastName: p.lastName ?? "", // garantir string
-  age: undefined, // não usamos idade no payload (deriva da data)
-  birthDate: p.birthDate || undefined, // '' -> undefined
-  gender: p.gender === "O" ? "Outro" : p.gender,
-});
+/* ========================================================================== */
+/*                      Helpers NÃO puros (efeitos colaterais)                 */
+/* ========================================================================== */
 
-// Converte do que guardas na lista (ChildUI -> 'Outro') para o tipo do form ('O')
-const uiToProfile = (c: ChildUI): ChildProfile => ({
-  id: c.id,
-  firstName: c.firstName,
-  lastName: c.lastName ?? "",
-  birthDate: c.birthDate ?? "",
-  gender: c.gender ? (c.gender === "Outro" ? "O" : c.gender) : "O",
-  avatar: c.avatar,
-});
+/**
+ * Gera um ID estável para cada entrada de criança.
+ * ⚠️ **NÃO PURO** (usa aleatoriedade/crypto).
+ * Curto e resiliente: tenta crypto.randomUUID, faz fallback.
+ */
+const genId = () =>
+  globalThis.crypto?.randomUUID?.() ??
+  `tmp_${Math.random().toString(36).slice(2)}`;
+
+/**
+ * Lê o draft do Passo 1 do localStorage.
+ * ⚠️ **NÃO PURO** (acesso a storage).
+ * Pequeno e robusto: devolve null se não existir ou JSON inválido.
+ */
+function readFamilyDraft(): FamilySignupDraft | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? (JSON.parse(raw) as FamilySignupDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Redireciona para uma rota (navegação client-side simples).
+ * ⚠️ **NÃO PURO**
+ */
+function goTo(path: string) {
+  window.location.href = path;
+}
+
+/* ========================================================================== */
+/*                                 Componente                                  */
+/* ========================================================================== */
 
 const CreateProfilesPage: React.FC = () => {
+  // Estado local: lista de crianças e registo em edição
   const [children, setChildren] = useState<ChildUI[]>([]);
-  const [editing, setEditing] = useState<ChildProfile | null>(null); // o form espera ChildProfile
+  const [editing, setEditing] = useState<ChildProfile | null>(null);
 
-  // Gate: sem passo 1 volta atrás
+  // Gate: se o Passo 1 não foi preenchido, regressa a "Criar Conta"
   useEffect(() => {
-    const exists = localStorage.getItem("bf_signup_family");
-    if (!exists) window.location.href = "/criar-conta";
+    const exists = localStorage.getItem(LS_KEY);
+    if (!exists) goTo("/criar-conta");
   }, []);
 
-  // Guardar (novo/editar) vindo do ChildProfileForm — assinatura EXACTA do form
+  /**
+   * Guarda (novo/editar) vindo do ChildProfileForm.
+   * 1) Normaliza o objeto para o schema Zod.
+   * 2) Valida (segurança e UX).
+   * 3) Aplica no estado (add/update).
+   */
   const saveChild = (child: ChildProfile, isEdit: boolean) => {
-    // Validar com Zod (usa o input antes da coerção)
+    // 1) Normalizar para o input do schema
     const parsed = ChildInputSchema.safeParse(profileToInput(child));
     if (!parsed.success) {
+      // 2) Mensagem amigável (usa o 1º erro para concisão)
       const msg =
         parsed.error.issues[0]?.message || "Dados do perfil inválidos.";
       alert(msg);
@@ -106,6 +192,7 @@ const CreateProfilesPage: React.FC = () => {
     }
     const clean = parsed.data; // birthDate validada, gender normalizado
 
+    // 3) Atualizar estado: substitui se edição, caso contrário acrescenta
     setChildren((prev) => {
       if (isEdit) {
         const targetId = child.id ?? editing?.id ?? "";
@@ -116,35 +203,60 @@ const CreateProfilesPage: React.FC = () => {
     setEditing(null);
   };
 
+  /** Remove uma criança da lista (id local — não persistido no backend). */
   const removeChild = (id: string) =>
     setChildren((prev) => prev.filter((c) => c.id !== id));
 
+  /** Botão principal fica ativo apenas com ≥1 criança. */
   const canSubmit = useMemo(() => children.length > 0, [children.length]);
 
-  // Submeter conta: valida payload completo e envia
+  /**
+   * Submete a conta (registo final):
+   *  - Lê o draft do Passo 1 do localStorage.
+   *  - Valida o payload completo com o Zod (RegisterPayloadSchema).
+   *  - POST /auth/register com tratamento de erros comuns (409).
+   *  - Redireciona para login em caso de sucesso.
+   */
   const handleCreateAccount = async () => {
     try {
-      const family = JSON.parse(
-        localStorage.getItem("bf_signup_family") || "{}"
-      ) as FamilySignupDraft;
+      const family = readFamilyDraft();
+      if (!family) {
+        alert("Dados da família em falta. Regressa ao passo anterior.");
+        goTo("/criar-conta");
+        return;
+      }
 
-      // Retira campos só de UI e valida tudo
+      // Retira campos só de UI (id/avatar) e valida tudo com o schema final
       const payload: RegisterPayload = RegisterPayloadSchema.parse({
         ...family,
         children: children.map(({ id, avatar, ...rest }) => rest),
       });
 
-      await api.post("/auth/register", payload);
+      try {
+        await api.post("/auth/register", payload);
+      } catch (e: any) {
+        // 409 → email já usado: UX direta
+        if (e?.response?.status === 409) {
+          alert(
+            "Esse e-mail já está registado. Tenta iniciar sessão ou usa outro e-mail."
+          );
+          return;
+        }
+        // Outros erros devolvidos pela API
+        alert(e?.response?.data?.error || "Falha ao registar.");
+        return;
+      }
 
       alert("Conta criada! Verifica o teu e-mail para confirmar.");
-      window.location.href = "/login";
+      goTo("/auth/login");
     } catch (e: any) {
-      alert(e.message || "Ocorreu um erro ao criar a conta.");
+      // Falhas de validação ou exceções inesperadas
+      alert(e?.message || "Ocorreu um erro ao criar a conta.");
     }
   };
 
   return (
-    <GradientBackground
+    <GradientBackgroundWithShapes
       sx={{ height: "100vh" }}
       display="flex"
       justifyContent={"center"}
@@ -158,7 +270,7 @@ const CreateProfilesPage: React.FC = () => {
         flexDirection={{ xs: "column", md: "row" }}
         gap={{ xs: 6, md: 8 }}
       >
-        {/* Esquerda */}
+        {/* Coluna esquerda: explicação do processo */}
         <WhiteCard sx={{ flex: "1 1 380px", maxWidth: 420, py: 4, px: 3 }}>
           <Typography pb={4} variant="h4" align="center">
             Como Funciona?
@@ -166,7 +278,7 @@ const CreateProfilesPage: React.FC = () => {
           <HowItWorksSection steps={steps} />
         </WhiteCard>
 
-        {/* Direita */}
+        {/* Coluna direita: form de perfil + lista + submit */}
         <WhiteCard
           sx={{
             flex: "1 1 480px",
@@ -180,10 +292,10 @@ const CreateProfilesPage: React.FC = () => {
             Criar Perfil Criança
           </Typography>
 
-          {/* Mantém o teu componente e layout antigos */}
+          {/* Mantém o teu componente e layout original */}
           <ChildProfileForm
             onSave={saveChild} // (child: ChildProfile, isEdit: boolean) => void
-            editing={editing} // ChildProfile | null
+            editing={editing} // ChildProfile | null (preenche o formulário em modo edição)
           />
 
           <Divider sx={{ my: 3 }} />
@@ -192,6 +304,7 @@ const CreateProfilesPage: React.FC = () => {
             Perfis Criados:
           </Typography>
 
+          {/* Lista compacta com scroll suave */}
           <Box
             maxHeight={160}
             overflow="auto"
@@ -211,7 +324,7 @@ const CreateProfilesPage: React.FC = () => {
                     {
                       icon: <EditIcon fontSize="small" />,
                       tooltip: "Editar",
-                      onClick: () => setEditing(uiToProfile(c)), // converter para o tipo do form
+                      onClick: () => setEditing(uiToProfile(c)), // converter para o tipo esperado pelo form
                     },
                     {
                       icon: <DeleteIcon fontSize="small" />,
@@ -234,8 +347,14 @@ const CreateProfilesPage: React.FC = () => {
           </PrimaryButton>
         </WhiteCard>
       </Box>
-    </GradientBackground>
+    </GradientBackgroundWithShapes>
   );
 };
 
 export default CreateProfilesPage;
+
+/**
+ * =============================================================================
+ *  FIM — Alexandre Brissos • Nº 21131
+ * =============================================================================
+ */

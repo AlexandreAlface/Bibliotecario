@@ -1,30 +1,39 @@
 {
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+
     "target": "ES2022",
-    "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "skipLibCheck": true,
 
-    /* Bundler mode */
+    "skipLibCheck": true,
+    "strict": true,
+
+    /* Bundler mode (Vite + TS 5) */
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Linting */
-    "strict": true,
+    /* Qualidade/limpeza */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
+    "erasableSyntaxOnly": true,
+
+    /* Vite / aliases */
+    "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
+
+      /* ✅ Recomendado: usar o pacote compilado (sem apontar a /src)
+         Se quiseres manter hot-link ao código fonte, podes voltar
+         a pôr as duas linhas antigas, mas preferível é compilar o pacote. */
+      // "@bibliotecario/ui-web": ["../../packages/ui-web"],
+      // "@bibliotecario/ui-web/*": ["../../packages/ui-web/*"]
     }
   },
   "include": ["src"]

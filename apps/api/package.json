@@ -6,10 +6,13 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts",
-    "build": "tsc -p .",
+    "dev": "nodemon --watch src --ext ts --exec \"node --loader ts-node/esm src/index.ts\"",
+    "build": "rimraf dist && tsc -p . && node -e \"require('fs').mkdirSync('dist',{recursive:true}); require('fs').writeFileSync('dist/package.json', JSON.stringify({type:'commonjs'}, null, 2));\"",
     "seed:csv": "node prisma/csvSeed.js",
-    "seed": "node prisma/seed.js",
+    "seed:compile": "rimraf prisma/.seed-build && tsc -p prisma/tsconfig.seed.build.json && node -e \"require('fs').mkdirSync('prisma/.seed-build', {recursive:true}); require('fs').writeFileSync('prisma/.seed-build/package.json', JSON.stringify({type:'commonjs'}, null, 2));\"",
+    "seed:run": "node prisma/.seed-build/seeds/seed.js",
+    "seed": "npm run seed:compile && npm run seed:run",
+    "db:reset": "prisma migrate reset --force --schema=prisma/schema.prisma --skip-seed && npm run seed",
     "seed:badges": "node prisma/seedBadges.js",
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "prisma:push": "prisma db push --schema=prisma/schema.prisma",
@@ -21,33 +24,42 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "axios": "^1.11.0",
-    "bcryptjs": "^3.0.2",
+    "axios": "^1.12.2",
     "cheerio": "^1.1.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "csv-parse": "^6.1.0",
     "csv-parser": "^3.2.0",
-    "dotenv": "^17.2.1",
+    "dotenv": "^17.2.2",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "openai": "^5.15.0",
+    "pdfkit": "^0.17.2",
     "pgvector": "^0.2.1",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
     "rss-parser": "^3.13.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@prisma/client": "^6.15.0",
+    "@prisma/client": "^6.16.2",
     "@types/cookie-parser": "^1.4.9",
+    "@types/cors": "^2.8.19",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.5.2",
+    "@types/pdfkit": "^0.17.3",
+    "bcryptjs": "^3.0.2",
     "nodemon": "^3.1.10",
-    "prisma": "^6.15.0"
+    "prisma": "^6.16.2",
+    "rimraf": "^6.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.2"
   },
   "prisma": {
-    "seed": "node prisma/seed.js"
+    "seed": "node prisma/.seed-build/seeds/seed.js"
   },
   "overrides": {}
 }
