@@ -16,6 +16,7 @@ import {
   TextField,
   Typography,
   Avatar,
+  Rating,
 } from "@mui/material";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import EventRounded from "@mui/icons-material/EventRounded";
@@ -721,44 +722,92 @@ export default function ConsultationRoom({
               <Divider sx={{ my: 1.5 }} />
 
               <Typography variant="caption" sx={{ opacity: 0.7 }}>
-                Leituras da família
+                Leituras da família (últimas {readings.length})
               </Typography>
-              <Stack sx={{ mt: 0.5 }}>
-                {readings.map((r) => (
-                  <Stack
-                    key={r.bookIsbn + String(r.childId)}
-                    direction="row"
-                    spacing={1}
-                    alignItems="center"
-                  >
-                    {r.bookCoverUrl ? (
-                      <Avatar
-                        src={r.bookCoverUrl}
-                        variant="rounded"
-                        sx={{ width: 26, height: 36, borderRadius: 0.5 }}
-                      />
-                    ) : (
-                      <Avatar
-                        variant="rounded"
-                        sx={{ width: 26, height: 36, borderRadius: 0.5 }}
-                      >
-                        <BookRounded fontSize="small" />
-                      </Avatar>
-                    )}
-                    <Typography
-                      variant="body2"
-                      noWrap
-                      title={`${r.childName}: ${r.bookTitle}`}
+              <Stack sx={{ mt: 0.5 }} spacing={1}>
+                {readings.length === 0 && (
+                  <Typography sx={{ opacity: 0.7 }}>
+                    Sem leituras registadas.
+                  </Typography>
+                )}
+
+                {readings.map((r) => {
+                  const finished =
+                    r.finishedAt &&
+                    new Date(r.finishedAt).toLocaleDateString("pt-PT", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    });
+
+                  return (
+                    <Stack
+                      key={`${r.bookIsbn}-${r.childId}-${
+                        r.finishedAt || "open"
+                      }`}
+                      direction="row"
+                      spacing={1}
+                      alignItems="center"
+                      sx={{
+                        p: 1,
+                        border: 1,
+                        borderColor: "divider",
+                        borderRadius: 1,
+                      }}
                     >
-                      {r.childName}: {r.bookTitle}
-                    </Typography>
-                    <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                      {r?.rating?.stars
-                        ? " — " + "★".repeat(r.rating.stars)
-                        : ""}
-                    </Typography>
-                  </Stack>
-                ))}
+                      {r.bookCoverUrl ? (
+                        <Avatar
+                          src={r.bookCoverUrl}
+                          variant="rounded"
+                          sx={{ width: 26, height: 36, borderRadius: 0.5 }}
+                        />
+                      ) : (
+                        <Avatar
+                          variant="rounded"
+                          sx={{ width: 26, height: 36, borderRadius: 0.5 }}
+                        >
+                          <BookRounded fontSize="small" />
+                        </Avatar>
+                      )}
+
+                      <Box minWidth={0} flex={1}>
+                        <Typography
+                          variant="body2"
+                          fontWeight={700}
+                          noWrap
+                          title={r.bookTitle || "Livro"}
+                        >
+                          {r.bookTitle || "Livro"}
+                        </Typography>
+
+                        <Typography variant="caption" sx={{ opacity: 0.7 }}>
+                          {r.childName ? `${r.childName} • ` : ""}
+                          {finished ?? "em curso"}
+                        </Typography>
+
+                        {!!r.rating?.comment && (
+                          <Typography
+                            variant="caption"
+                            sx={{ display: "block", opacity: 0.85, mt: 0.25 }}
+                          >
+                            {r.rating.comment}
+                          </Typography>
+                        )}
+                      </Box>
+
+                      {typeof r.rating?.stars === "number" ? (
+                        <Rating value={r.rating.stars} readOnly size="small" />
+                      ) : (
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={finished ? "sem avaliação" : "a ler"}
+                          sx={{ ml: 1 }}
+                        />
+                      )}
+                    </Stack>
+                  );
+                })}
               </Stack>
             </Box>
 

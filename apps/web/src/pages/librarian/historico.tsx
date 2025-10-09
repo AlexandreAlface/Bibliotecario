@@ -4,12 +4,6 @@
  * -----------------------------------------------------------------------------
  *  Ficheiro: src/pages/families/HistoricoConsultas.tsx
  *  Autor:    Alexandre Brissos  (nº 21131)
- *
- *  Notas de reforço:
- *  - Comentários em TODO o código.
- *  - Helpers "puros" (sem efeitos colaterais) separados para testes fáceis.
- *  - Funções auxiliares curtas (< 30 linhas).
- *  - Mantido padrão de UI do projeto (MUI + ui-web).
  * =============================================================================
  */
 
@@ -30,7 +24,7 @@ import Grid from "@mui/material/GridLegacy";
 import TodayRounded from "@mui/icons-material/TodayRounded";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import AccessTimeRounded from "@mui/icons-material/AccessTimeRounded";
-import { WhiteCard, AvatarSelect, RouteLink } from "@bibliotecario/ui-web";
+import { WhiteCard, AvatarSelect } from "@bibliotecario/ui-web";
 import type { AvatarOption } from "@bibliotecario/ui-web";
 
 import { useUserSession } from "../../contexts/UserSession";
@@ -38,12 +32,13 @@ import {
   getConsultationsHistory,
   type ConsultationFull,
 } from "../../services/consultations";
+import ConsultationRoom from "@/components/consultations/ConsultationRoom";
 
 /* =================================================================================
- *  Helpers "PUROS" (sem efeitos colaterais) — simples de testar e reutilizar
+ *  Helpers "PUROS"
  * ================================================================================= */
 
-/** Mapa de estados para rótulo/cor de Chip. */
+/** Mapa de estados para rótulo/cor de Chip (inclui derivado OVERDUE). */
 const STATUS_CFG: Record<
   string,
   { label: string; color: "success" | "warning" | "error" | "default" }
@@ -53,7 +48,17 @@ const STATUS_CFG: Record<
   DECLINED: { label: "Recusado", color: "error" },
   CANCELLED: { label: "Cancelado", color: "default" },
   COMPLETED: { label: "Concluído", color: "success" },
+  OVERDUE: { label: "Por concluir", color: "error" }, // 👈 derivado
 };
+
+/** Status derivado: OVERDUE para passadas que não foram concluídas/canceladas/recusadas. */
+function deriveStatus(c: { status?: string; startAt?: string | null }) {
+  const s = String(c.status || "").toUpperCase();
+  if (["COMPLETED", "CANCELLED", "DECLINED"].includes(s)) return s;
+  const t = c.startAt ? new Date(c.startAt).getTime() : NaN;
+  if (Number.isFinite(t) && t < Date.now()) return "OVERDUE";
+  return s; // PENDING/CONFIRMED futuras
+}
 
 /** Início do dia (00:00:00.000) — evita bugs de TZ ao filtrar. */
 function startOfDay(d: Date) {
@@ -73,7 +78,6 @@ function endOfDay(d: Date) {
 function fmtYMD(d?: string | Date | null) {
   if (!d) return "";
   const x = typeof d === "string" ? new Date(d) : d;
-  // Mantemos formato local (não UTC) para estabilidade nos inputs.
   const y = x.getFullYear();
   const m = String(x.getMonth() + 1).padStart(2, "0");
   const day = String(x.getDate()).padStart(2, "0");
@@ -119,25 +123,49 @@ function groupByDay(items: ConsultationFull[]) {
     }));
 }
 
+/** Calcula a lista de estados "reais" a enviar à API, dado o conjunto selecionado no UI. */
+function effectiveApiStatuses(sel: Set<string>): string[] {
+  const base = new Set<string>();
+  // estados reais
+  ["COMPLETED", "CANCELLED", "DECLINED", "CONFIRMED", "PENDING"].forEach(
+    (s) => {
+      if (sel.has(s)) base.add(s);
+    }
+  );
+  // OVERDUE é derivado → para o obter precisamos de PENDING/CONFIRMED
+  if (sel.has("OVERDUE")) {
+    base.add("PENDING");
+    base.add("CONFIRMED");
+  }
+  return Array.from(base);
+}
+
 /** Constrói query para a API a partir do contexto/estado. */
 function buildHistoryQuery(params: {
   fromYmd: string;
   toYmd: string;
-  status: Set<string>;
+  apiStatuses: string[];
   isLibrarian: boolean;
   asChild: boolean;
   user: any;
   localChildId?: string;
 }) {
-  const { fromYmd, toYmd, status, isLibrarian, asChild, user, localChildId } =
-    params;
+  const {
+    fromYmd,
+    toYmd,
+    apiStatuses,
+    isLibrarian,
+    asChild,
+    user,
+    localChildId,
+  } = params;
 
   const q: any = {
     limit: 200,
     order: "desc",
     from: new Date(fromYmd).toISOString(),
     to: endOfDay(new Date(toYmd)).toISOString(),
-    status: Array.from(status),
+    status: apiStatuses,
   };
 
   if (isLibrarian) {
@@ -158,7 +186,7 @@ function buildHistoryQuery(params: {
 }
 
 /* =================================================================================
- *  Item da lista (Componente curto e reutilizável)
+ *  Item da lista
  * ================================================================================= */
 
 function HistoryRow({
@@ -171,10 +199,9 @@ function HistoryRow({
   const theme = useTheme();
   const iso = c.startAt || c.requestedAt || undefined;
   const { day, mon, hhmm } = parts(iso);
-  const cfg = STATUS_CFG[(c.status || "").toUpperCase()] || {
-    label: c.status || "",
-    color: "default",
-  };
+
+  const st = deriveStatus({ status: c.status, startAt: c.startAt });
+  const cfg = STATUS_CFG[st] || { label: c.status || "", color: "default" };
 
   const subtitle = c.child?.name
     ? `Consulta de ${c.child.name} • com ${c.librarian?.fullName ?? "—"}`
@@ -264,7 +291,7 @@ function HistoryRow({
                 label={hhmm}
               />
             )}
-            {!!c.status && (
+            {!!st && (
               <Chip
                 size="small"
                 color={cfg.color}
@@ -276,7 +303,9 @@ function HistoryRow({
           </Stack>
         </Box>
 
-        <RouteLink href="/consultas">Ver</RouteLink>
+        <Button size="small" onClick={onClick}>
+          Ver detalhe
+        </Button>
       </Stack>
     </Box>
   );
@@ -307,6 +336,10 @@ export default function HistoricoConsultasPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // -------- Modal ConsultationRoom --------
+  const [roomOpen, setRoomOpen] = useState(false);
+  const [roomId, setRoomId] = useState<number | null>(null);
+
   // -------- Opções do seletor por criança (apenas famílias) --------
   const childBaseOptions: AvatarOption[] = (user?.children || []).map(
     (c: { id: any; name: any }) => ({
@@ -325,17 +358,28 @@ export default function HistoricoConsultasPage() {
     try {
       setLoading(true);
       setErr(null);
+
+      const apiStatuses = effectiveApiStatuses(statusSet);
       const query = buildHistoryQuery({
         fromYmd,
         toYmd,
-        status: statusSet,
+        apiStatuses,
         isLibrarian: !!isLibrarian,
         asChild: !!asChild,
         user,
         localChildId,
       });
+
       const res = await getConsultationsHistory(query);
-      setItems(res || []);
+
+      // Filtro LOCAL por estados selecionados, incluindo o derivado OVERDUE.
+      const filtered = (res || []).filter((c) => {
+        const raw = String(c.status || "").toUpperCase();
+        const der = deriveStatus({ status: c.status, startAt: c.startAt });
+        return statusSet.has(raw) || statusSet.has(der);
+      });
+
+      setItems(filtered);
     } catch (e: any) {
       setErr(e?.message || "Falha a carregar histórico");
       setItems([]);
@@ -347,9 +391,7 @@ export default function HistoricoConsultasPage() {
   // Dispara reload quando filtros mudam
   useEffect(() => {
     reload();
-  }, [
-    reload, // memoizada
-  ]);
+  }, [reload]);
 
   /** Lista agrupada por dia (memoizada). */
   const grouped = useMemo<GroupedDay[]>(() => groupByDay(items), [items]);
@@ -458,26 +500,31 @@ export default function HistoricoConsultasPage() {
           useFlexGap
           flexWrap="wrap"
         >
-          {["COMPLETED", "CANCELLED", "DECLINED", "CONFIRMED", "PENDING"].map(
-            (s) => {
-              const active = statusSet.has(s);
-              const cfg = STATUS_CFG[s] || {
-                label: s,
-                color: "default" as const,
-              };
-              return (
-                <Chip
-                  key={s}
-                  clickable
-                  color={active ? cfg.color : "default"}
-                  variant={active ? "filled" : "outlined"}
-                  label={cfg.label}
-                  onClick={() => toggleStatus(s)}
-                  aria-pressed={active}
-                />
-              );
-            }
-          )}
+          {[
+            "COMPLETED",
+            "CANCELLED",
+            "DECLINED",
+            "CONFIRMED",
+            "PENDING",
+            "OVERDUE",
+          ].map((s) => {
+            const active = statusSet.has(s);
+            const cfg = STATUS_CFG[s] || {
+              label: s,
+              color: "default" as const,
+            };
+            return (
+              <Chip
+                key={s}
+                clickable
+                color={active ? cfg.color : "default"}
+                variant={active ? "filled" : "outlined"}
+                label={cfg.label}
+                onClick={() => toggleStatus(s)}
+                aria-pressed={active}
+              />
+            );
+          })}
         </Stack>
       </WhiteCard>
 
@@ -512,13 +559,35 @@ export default function HistoricoConsultasPage() {
                 divider={<Divider sx={{ borderColor: "divider" }} />}
               >
                 {g.items.map((c) => (
-                  <HistoryRow key={c.id} c={c} />
+                  <HistoryRow
+                    key={c.id}
+                    c={c}
+                    onClick={() => {
+                      setRoomId(c.id);
+                      setRoomOpen(true);
+                    }}
+                  />
                 ))}
               </Stack>
             </WhiteCard>
           </Grid>
         ))}
       </Grid>
+
+      {/* ConsultationRoom (detalhe) */}
+      <ConsultationRoom
+        open={roomOpen}
+        onClose={() => {
+          setRoomOpen(false);
+          setRoomId(null);
+          // refresca após possíveis alterações (ex.: concluir)
+          reload();
+        }}
+        consultationId={roomId ?? 0}
+        allowComplete={!!isLibrarian}
+        readOnlyNotes={!isLibrarian}
+        allowAttach={!!isLibrarian}
+      />
     </Container>
   );
 }
