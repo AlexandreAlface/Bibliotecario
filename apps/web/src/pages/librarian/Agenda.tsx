@@ -1005,7 +1005,7 @@ export default function LibrarianAgenda() {
   if (!Number.isFinite(librarianId)) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant="h5" fontWeight={900} sx={{ mb: 2 }}>
+        <Typography variant="h4" fontWeight={900} sx={{ mb: 2 }}>
           Agenda do bibliotecário
         </Typography>
         <WhiteCard>

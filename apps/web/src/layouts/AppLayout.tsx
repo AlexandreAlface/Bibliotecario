@@ -92,22 +92,25 @@ function buildMenu(opts: {
     items.push(
       { to: "/", label: "Início", icon: <HomeRounded /> },
       { to: "/familia", label: "Família", icon: <FamilyRestroomRounded /> },
-      { to: "/consultas", label: "Consultas", icon: <PeopleAltRounded /> },
+      {
+        to: "/consultas/agendar",
+        label: "Consultas",
+        icon: <PeopleAltRounded />,
+      },
       { to: "/eventos", label: "Eventos", icon: <EventAvailableRounded /> },
       { to: "/reading", label: "Leituras", icon: <LibraryBooksRounded /> },
       { to: "/suggestions", label: "Sugestões", icon: <EmojiEventsRounded /> },
-      {
-        to: "/suggestions-categories",
-        label: "Sug. por categorias",
-        icon: <CategoryRounded />,
-      },
+      // {
+      //   to: "/suggestions-categories",
+      //   label: "Sug. por categorias",
+      //   icon: <CategoryRounded />,
+      // },
       { to: "/contents", label: "Conteúdos", icon: <LightbulbRounded /> }, // 👈 NOVO (família)
       {
         to: "/achievements",
         label: "Conquistas",
         icon: <EmojiEventsRounded />,
       },
-      { to: "/agenda", label: "Agenda", icon: <CalendarMonthRounded /> },
       { to: "/reviews", label: "Opiniões", icon: <RateReviewRounded /> }
     );
   }
@@ -120,34 +123,19 @@ function buildMenu(opts: {
         icon: <DashboardCustomizeRounded />,
       },
       {
-        to: "/librarian/livros",
-        label: "Livros",
-        icon: <LibraryBooksRounded />,
-      },
-      {
-        to: "/librarian/consultas/pendentes",
-        label: "Pendentes",
-        icon: <EventAvailableRounded />,
-      },
-      {
-        to: "/librarian/agenda",
-        label: "Agenda",
+        to: "/librarian/consultas",
+        label: "Consultas",
         icon: <CalendarMonthRounded />,
-      },
+      }, // ✅ único item
       {
         to: "/librarian/familias",
         label: "Famílias",
         icon: <PeopleAltRounded />,
       },
       {
-        to: "/librarian/slots",
-        label: "Slots",
-        icon: <ScheduleRounded />,
-      },
-      {
-        to: "/librarian/historico",
-        label: "Histórico",
-        icon: <HistoryRounded />,
+        to: "/librarian/livros",
+        label: "Livros",
+        icon: <LibraryBooksRounded />,
       }
     );
   }

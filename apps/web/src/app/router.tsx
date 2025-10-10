@@ -1,4 +1,4 @@
-import { createBrowserRouter, Outlet } from "react-router-dom";
+import { createBrowserRouter, Outlet, Navigate } from "react-router-dom";
 import AppLayout from "../layouts/AppLayout";
 import { UserSessionProvider } from "../contexts/UserSession";
 import { RequireRole } from "@/routes/RequireRole";
@@ -46,6 +46,9 @@ import AdminFeeds from "@/pages/admin/Feeds";
 import AdminImportBooks from "@/pages/admin/ImportarLivros";
 import AdminMicroContentsPage from "@/pages/admin/micro-contents"; // já adicionado
 import LibrarianBooksSearch from "@/pages/librarian/BooksSearch";
+import ConsultasTabs from "@/pages/families/ConsultasTabs";
+import HistoricoConsultasFamilia from "@/pages/families/HistoricoConsultasFamilia";
+import LibrarianConsultasTabs from "@/pages/librarian/ConsultasTabs";
 
 function AuthLayout() {
   return <Outlet />;
@@ -97,8 +100,18 @@ export const router = createBrowserRouter([
       },
       { path: "contents", element: <FamilyContentsPage /> }, // 👈 NOVO (rota família/criança)
       { path: "achievements", element: <AchievementsPage /> },
-      { path: "agenda", element: <AgendasPage /> },
-      { path: "consultas", element: <ConsultasPage /> },
+      {
+        path: "consultas",
+        element: <ConsultasTabs />,
+        children: [
+          { index: true, element: <Navigate to="agendar" replace /> },
+          { path: "agendar", element: <ConsultasPage /> },
+          { path: "agenda", element: <AgendasPage /> },
+          { path: "historico", element: <HistoricoConsultasFamilia /> },
+        ],
+      },
+      // Redireção da rota antiga
+      { path: "agenda", element: <Navigate to="/consultas/agenda" replace /> },
       { path: "familia", element: <FamiliaPage /> },
       { path: "eventos", element: <FamilyEventsPage /> },
 
@@ -114,15 +127,41 @@ export const router = createBrowserRouter([
         ),
         children: [
           { index: true, element: <LibrarianHome /> },
+
+          // 🔁 Nova rota agrupadora com tabs
+          {
+            path: "consultas",
+            element: <LibrarianConsultasTabs />,
+            children: [
+              { index: true, element: <Navigate to="pendentes" replace /> },
+              { path: "pendentes", element: <LibrarianConsultasPendentes /> },
+              { path: "agenda", element: <LibrarianAgenda /> },
+              { path: "slots", element: <LibrarianSlots /> },
+              { path: "historico", element: <HistoricoConsultasPage /> },
+            ],
+          },
+
+          // 📚 Mantém outras páginas do bibliotecário
+          { path: "livros", element: <LibrarianBooksSearch /> },
+          { path: "familias", element: <LibrarianFamilias /> },
+
+          // ↪️ Redirects das rotas antigas para evitar 404 / links quebrados
+          {
+            path: "agenda",
+            element: <Navigate to="/librarian/consultas/agenda" replace />,
+          },
+          {
+            path: "slots",
+            element: <Navigate to="/librarian/consultas/slots" replace />,
+          },
+          {
+            path: "historico",
+            element: <Navigate to="/librarian/consultas/historico" replace />,
+          },
           {
             path: "consultas/pendentes",
-            element: <LibrarianConsultasPendentes />,
+            element: <Navigate to="/librarian/consultas/pendentes" replace />,
           },
-           { path: "livros", element: <LibrarianBooksSearch /> },
-          { path: "agenda", element: <LibrarianAgenda /> },
-          { path: "familias", element: <LibrarianFamilias /> },
-          { path: "slots", element: <LibrarianSlots /> },
-          { path: "historico", element: <HistoricoConsultasPage /> },
         ],
       },
 
