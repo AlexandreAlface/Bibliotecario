@@ -400,7 +400,11 @@ function DatePickerModal({
  * Ecrã: Consultas — lista de marcações (próximas/anteriores) com filtros.
  * Mantém o comportamento original; reforça acessibilidade, comentários e guards.
  */
-export default function ConsultasScreen() {
+
+// 👇 Novo: presets para tabs fininhas
+type Preset = "pendentes" | "agenda" | "historico";
+
+export default function ConsultasScreen({ preset }: { preset?: Preset } = {}) {
   const theme = useTheme();
   const router = useRouter();
   const { user } = useAuth();
@@ -475,8 +479,42 @@ export default function ConsultasScreen() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [items, setItems] = React.useState<ConsultationLite[]>([]);
 
-  // Quando muda a tab, aplica presets de estados e datas
+  // ---------------------------------------------------------------------------
+  // PRESET: aplicar 1x no arranque (e não ser atropelado pelo efeito da tab)
+  // ---------------------------------------------------------------------------
+  const firstMount = React.useRef(true);
+  const presetApplied = React.useRef(false);
+
   React.useEffect(() => {
+    if (!preset || presetApplied.current) return;
+
+    if (preset === "pendentes") {
+      setTab("next");
+      setSelectedStatuses(new Set(["PENDING"]));
+      setFromDate(new Date());
+      setToDate(null);
+    } else if (preset === "agenda") {
+      setTab("next");
+      setSelectedStatuses(new Set(["CONFIRMED"]));
+      setFromDate(new Date());
+      setToDate(null);
+    } else if (preset === "historico") {
+      setTab("past");
+      setSelectedStatuses(new Set(["COMPLETED", "CANCELLED", "DECLINED"]));
+      setFromDate(null);
+      setToDate(new Date());
+    }
+
+    presetApplied.current = true;
+  }, [preset]);
+
+  // Quando muda a tab, aplica presets padrão dessa tab
+  // (mas ignora o 1º render para não sobrepor o preset acima)
+  React.useEffect(() => {
+    if (firstMount.current) {
+      firstMount.current = false;
+      return;
+    }
     if (tab === "next") {
       setSelectedStatuses(new Set(defaultNext));
       setFromDate(new Date());
@@ -615,10 +653,6 @@ export default function ConsultasScreen() {
   /* -------------------------------- Render -------------------------------- */
   return (
     <Background>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
-        edges={["top"]}
-      >
         <ScrollView
           contentContainerStyle={{ padding: 16, gap: 16 }}
           refreshControl={
@@ -1164,7 +1198,6 @@ export default function ConsultasScreen() {
             )}
           </FlexibleCard>
         </ScrollView>
-      </SafeAreaView>
     </Background>
   );
 }

@@ -48,6 +48,9 @@ import { useAuth } from "src/contexts/AuthContext";
 import { consultationsApi, Slot } from "src/services/consultations";
 import { usersApi, SimpleUser } from "src/services/users";
 
+
+
+
 /* ============================== Validação =============================== */
 /** Schema: valida os filtros/inputs do formulário de agendamento. */
 const schema = z
@@ -507,10 +510,6 @@ export default function AgendaScreen() {
   /* ================================== Render ================================== */
   return (
     <Background>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
-        edges={["top"]}
-      >
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
           {/* Título página */}
           <FlexibleCard
@@ -1070,7 +1069,6 @@ export default function AgendaScreen() {
             </View>
           </FlexibleCard>
         </ScrollView>
-      </SafeAreaView>
     </Background>
   );
 }

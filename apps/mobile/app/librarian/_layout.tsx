@@ -22,6 +22,21 @@ import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useAuth } from "src/contexts/AuthContext";
 
 /* =============================================================================
+ * Tipos de rota (Bibliotecário)
+ * ========================================================================== */
+
+/** Nomes de rotas suportadas no Tab Navigator do bibliotecário. */
+type RouteNameLibrarian =
+  | "Home"
+  | "consultas"
+  | "Familias"
+  | "Slots"
+  // rotas “legadas” que continuam no navigator mas fora do bottom
+  | "ConsultasPendentes"
+  | "Agenda"
+  | "historico";
+
+/* =============================================================================
  * Role / Permissões
  * ========================================================================== */
 
@@ -48,55 +63,27 @@ function isLibrarian(u: any): boolean {
  * Tabs — configuração (ordem, ícones, rótulos)
  * ========================================================================== */
 
-type RouteName =
-  | "Home"
-  | "ConsultasPendentes"
-  | "Agenda"
-  | "Slots"
-  | "historico"
-  | "Familias";
-
-/** Ordem fixa das tabs (evita reordenações por navegação dinâmica). */
-const ORDER: RouteName[] = [
-  "Home",
-  "ConsultasPendentes",
-  "Agenda",
-  "Slots",
-  "historico",
-  "Familias",
-];
+/** Ordem fixa do bottom (apenas estas 4 aparecem na TabBar). */
+const ORDER: RouteNameLibrarian[] = ["Home", "consultas", "Familias", "Slots"];
 
 /** Ícones e labels por rota (ativo/inativo). */
 const ICONS: Record<
-  RouteName,
+  RouteNameLibrarian,
   {
     active: React.ComponentProps<typeof Icon>["name"];
     inactive: React.ComponentProps<typeof Icon>["name"];
     label: string;
   }
 > = {
-  Home: {
-    active: "home-variant",
-    inactive: "home-variant-outline",
-    label: "Início",
-  },
-  ConsultasPendentes: {
-    active: "calendar-clock",
-    inactive: "calendar-clock-outline",
-    label: "Pedidos",
-  },
-  Agenda: {
-    active: "calendar-month",
-    inactive: "calendar-month-outline",
-    label: "Agenda",
-  },
+  Home: { active: "home", inactive: "home-outline", label: "Home" },
+  consultas: { active: "stethoscope", inactive: "stethoscope", label: "Consultas" },
+  Familias: { active: "account-group", inactive: "account-group-outline", label: "Famílias" },
   Slots: { active: "calendar-plus", inactive: "calendar-plus", label: "Slots" },
+
+  // Legadas (não aparecem no bottom)
+  ConsultasPendentes: { active: "inbox", inactive: "inbox-outline", label: "Pedidos" },
+  Agenda: { active: "calendar-month", inactive: "calendar-month-outline", label: "Agenda" },
   historico: { active: "history", inactive: "history", label: "Histórico" },
-  Familias: {
-    active: "account-group",
-    inactive: "account-group-outline",
-    label: "Famílias",
-  },
 };
 
 /* =============================================================================
@@ -106,7 +93,7 @@ const ICONS: Record<
 /**
  * MyTabBar — Barra inferior customizada (usa cores/espessuras do tema).
  * Notas:
- * • Mantém apenas rotas declaradas em ORDER.
+ * • Mostra apenas rotas definidas em ORDER.
  * • Acessibilidade: role/label/selected + hitSlop generoso.
  */
 function MyTabBar(props: BottomTabBarProps) {
@@ -116,8 +103,9 @@ function MyTabBar(props: BottomTabBarProps) {
   // Mapeia as rotas do estado para a ordem fixa definida em ORDER.
   const routes = React.useMemo(
     () =>
-      ORDER.map((name) => props.state.routes.find((r) => r.name === name))
-        .filter(Boolean) as typeof props.state.routes,
+      ORDER.map((name: RouteNameLibrarian) =>
+        props.state.routes.find((r) => r.name === name)
+      ).filter(Boolean) as typeof props.state.routes,
     [props.state.routes]
   );
 
@@ -132,15 +120,13 @@ function MyTabBar(props: BottomTabBarProps) {
         borderTopWidth: 0.5,
         borderTopColor: theme.colors.outlineVariant,
       }}
-      // Evita que leitores de ecrã interpretem como conteúdo.
       accessibilityRole="tablist"
     >
       {routes.map((route) => {
         const index = props.state.routes.findIndex((r) => r.key === route.key);
         const isFocused = props.state.index === index;
-        const meta = ICONS[route.name as RouteName];
+        const meta = ICONS[route.name as RouteNameLibrarian];
 
-        // Navega para a tab (respeita listeners de tabPress).
         const onPress = () => {
           const event = props.navigation.emit({
             type: "tabPress",
@@ -224,10 +210,7 @@ export default function LibrarianLayout() {
 
   // 4) Autenticado + Bibliotecário → Tabs.
   return (
-    <Tabs
-      tabBar={(p) => <MyTabBar {...p} />}
-      screenOptions={{ headerShown: false }}
-    >
+    <Tabs tabBar={(p) => <MyTabBar {...p} />} screenOptions={{ headerShown: false }}>
       {/* IMPORTANTE: Estes nomes devem bater certo com os ficheiros em /librarian */}
       <Tabs.Screen name="Home" />
       <Tabs.Screen name="ConsultasPendentes" />

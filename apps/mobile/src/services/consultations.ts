@@ -13,13 +13,20 @@
 
 import { request } from "./api";
 
+export type ConsultationStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "DECLINED"
+  | "CANCELLED"
+  | "COMPLETED";
+
 /** Consulta “light” para listagens no mobile. */
 export type ConsultationLite = {
   id: number;
   title?: string | null;
   startAt?: string | null;
   endAt?: string | null;
-  status?: "PENDING" | "CONFIRMED" | "DECLINED" | "CANCELLED" | "COMPLETED";
+  status?: ConsultationStatus | null;
   childName?: string | null;
   librarianName?: string | null;
   libraryName?: string | null;
@@ -75,34 +82,14 @@ export const consultationsApi = {
   listAll: (params: {
     familyId?: number;
     childId?: number;
-    status?: string;
+    librarianId?: number;
+    status?: ConsultationStatus | ConsultationStatus[];
     from?: string;
     to?: string;
     order?: "asc" | "desc";
     limit?: number;
-    librarianId?: number;
-  }) =>
-    request<ConsultationLite[]>(`/consultations/all${toQuery(params)}`, {
-      method: "GET",
-    }),
-
-  /**
-   * Procura slots **marcáveis** no intervalo (força `onlyBookable=true`),
-   * com filtros opcionais por bibliotecário e biblioteca.
-   *
-   * @param params Intervalo obrigatório `from`/`to` (ISO), e filtros extra.
-   * @returns Lista de slots disponíveis/visíveis no período.
-   */
-  searchSlots: (params: {
-    from: string;
-    to: string;
-    librarianId?: number;
-    libraryId?: number;
-  }) =>
-    request<Slot[]>(
-      `/consultations/slots${toQuery({ ...params, onlyBookable: true })}`,
-      { method: "GET" }
-    ),
+    offset?: number;
+  }) => request(`/consultations/all?${toQuery(params)}`, { method: "GET" }),
 
   /**
    * Obtém os slots de um bibliotecário específico num intervalo.
@@ -135,7 +122,42 @@ export const consultationsApi = {
     slotId: number;
     librarianId: number;
   }) => request("/consultations", { method: "POST", json: data }),
+
+  next: (params: { familyId?: number; librarianId?: number }) =>
+    request(`/consultations/next?${toQuery(params)}`, { method: "GET" }),
+
+  details: (id: number) =>
+    request(`/consultations/${id}`, { method: "GET" }),
+
+  confirm: (id: number) =>
+    request(`/consultations/${id}/confirm`, { method: "POST" }),
+
+  decline: (id: number) =>
+    request(`/consultations/${id}/decline`, { method: "POST" }),
+
+  cancel: (id: number) =>
+    request(`/consultations/${id}/cancel`, { method: "POST" }),
+
+  complete: (id: number) =>
+    request(`/consultations/${id}/complete`, { method: "POST" }),
+
+  reschedule: (id: number, data: { slotId: number }) =>
+    request(`/consultations/${id}/reschedule`, { method: "POST", json: data }),
+
+  searchSlots: (params: {
+    from: string; to: string; librarianId?: number; libraryId?: number; onlyBookable?: boolean;
+  }) => request(`/consultations/slots?${toQuery({ onlyBookable: true, ...params })}`, { method: "GET" }),
+
+  // Opcional: propostas (se quiseres alinhar 100% com a web)
+  proposalsByFamily: (familyId: number) =>
+    request(`/consultations/families/${familyId}/proposals`, { method: "GET" }),
+
+  proposalsByLibrarian: (librarianId: number) =>
+    request(`/consultations/librarians/${librarianId}/proposals`, { method: "GET" }),
+
 };
+
+
 
 /* ============================== Fim do módulo ===============================
  *  Alexandre Brissos — Nº 21131
