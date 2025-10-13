@@ -1,24 +1,29 @@
-// apps/mobile/app/librarian/consultas/_layout.tsx
-import * as React from "react";
-import { withLayoutContext } from "expo-router";
-import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
+import { Stack } from "expo-router";
+import ConsultasTopSwitch from "./ConsultasTopSwitch";
 
+export default function ConsultasLayout() {
+  const common = {
+    headerTitle: () => <ConsultasTopSwitch />,
+    headerBackVisible: false,   // <- esconde o back
+    headerLeft: () => null,     // <- garante que não aparece nada à esquerda
+  } as const;
 
-
-const { Navigator } = createMaterialTopTabNavigator();
-export const TopTabs = withLayoutContext(Navigator);
-
-export default function LibrarianConsultasTabsLayout() {
   return (
-    <TopTabs
-      screenOptions={{
-        tabBarIndicatorStyle: { height: 3 },
-        tabBarLabelStyle: { fontWeight: "600" },
-      }}
-    >
-      <TopTabs.Screen name="pendentes" options={{ title: "Pendentes" }} />
-      <TopTabs.Screen name="agenda" options={{ title: "Agenda" }} />
-      <TopTabs.Screen name="historico" options={{ title: "Histórico" }} />
-    </TopTabs>
+    <Stack>
+      <Stack.Screen name="index" options={{ title: "Consultas" }} />
+      <Stack.Screen name="agenda"    options={common} />
+      <Stack.Screen name="pendentes" options={common} />
+      <Stack.Screen name="slots"     options={common} />
+      <Stack.Screen name="historico" options={common} />
+
+      <Stack.Screen
+        name="[id]"
+        options={{
+          headerShown: false,
+          presentation: "transparentModal",
+          animation: "fade",
+        }}
+      />
+    </Stack>
   );
 }

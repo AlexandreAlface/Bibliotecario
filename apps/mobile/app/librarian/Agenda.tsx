@@ -25,10 +25,11 @@ import {
   Platform,
   StyleSheet,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTheme, Text, IconButton } from "react-native-paper";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
@@ -43,7 +44,6 @@ import {
   listLibrarianSlots,
   updateSlotStatus,
 } from "src/services/librarian/consultations";
-import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
 /* =============================================================================
  * Helpers de data/tempo — PUROS e curtos (≤ 30 linhas)
@@ -116,6 +116,8 @@ type Slot = {
   // Quando reservado, quem reservou e para que criança:
   reservedByName?: string | null;
   reservedChildName?: string | null;
+  // ID da consulta associada (quando BOOKED)
+  consultationId?: number | null;
 };
 
 /* =============================================================================
@@ -169,9 +171,6 @@ function Pill({
 
 /* =============================================================================
  * Modal: Criar Slot
- *  - Componente com estado local para data/hora/duração
- *  - Uso de DateTimePicker (Android/iOS)
- *  - onConfirm devolve Date de início e duração (min)
  * ========================================================================== */
 
 const DURATION_OPTIONS = [30, 45, 60, 90] as const;
@@ -187,10 +186,8 @@ function CreateSlotModal({
 }) {
   const theme = useTheme();
 
-  // “Agora” usado para limitar datas
   const now = React.useMemo(() => new Date(), []);
 
-  // Hora base: arredonda para a hora atual (entre 9h e 18h), minutos a 00
   const defaultStart = React.useMemo(() => {
     const d = new Date();
     d.setMinutes(0, 0, 0);
@@ -198,12 +195,10 @@ function CreateSlotModal({
     return d;
   }, []);
 
-  // Estado interno do modal
   const [day, setDay] = React.useState<Date>(startOfDay(defaultStart));
   const [time, setTime] = React.useState<Date>(defaultStart);
   const [duration, setDuration] = React.useState<number>(30);
 
-  // Reset do formulário quando o modal abre
   React.useEffect(() => {
     if (visible) {
       setDay(startOfDay(defaultStart));
@@ -212,7 +207,6 @@ function CreateSlotModal({
     }
   }, [visible, defaultStart]);
 
-  // Combina data + hora para construir o início final
   const startCombined = React.useMemo(() => {
     const s = new Date(day);
     s.setHours(time.getHours(), time.getMinutes(), 0, 0);
@@ -226,7 +220,6 @@ function CreateSlotModal({
       animationType="fade"
       onRequestClose={onCancel}
     >
-      {/* Backdrop que permite fechar ao tocar fora */}
       <Pressable
         onPress={onCancel}
         style={{
@@ -236,7 +229,6 @@ function CreateSlotModal({
           padding: 20,
         }}
       >
-        {/* Cartão do modal (toque dentro não fecha) */}
         <Pressable
           onPress={() => {}}
           style={{
@@ -249,9 +241,7 @@ function CreateSlotModal({
           accessibilityViewIsModal
           accessibilityLabel="Criar horário"
         >
-          {/* Corpo do modal */}
           <View style={{ paddingHorizontal: 14, paddingVertical: 10, gap: 12 }}>
-            {/* Campo: Data */}
             <View>
               <Text
                 style={{
@@ -270,7 +260,6 @@ function CreateSlotModal({
               />
             </View>
 
-            {/* Campo: Hora de início */}
             <View>
               <Text
                 style={{
@@ -288,7 +277,6 @@ function CreateSlotModal({
               />
             </View>
 
-            {/* Campo: Duração (chips) */}
             <View>
               <Text
                 style={{
@@ -332,7 +320,6 @@ function CreateSlotModal({
                 ))}
               </View>
 
-              {/* Preview legível do intervalo */}
               <Text style={{ marginTop: 6, opacity: 0.7 }}>
                 {fmtDate(startCombined)} • {fmtTime(startCombined)} ({duration}{" "}
                 min)
@@ -340,7 +327,6 @@ function CreateSlotModal({
             </View>
           </View>
 
-          {/* Footer com ações */}
           <View
             style={{
               flexDirection: "row",
@@ -389,9 +375,6 @@ function CreateSlotModal({
 
 /* =============================================================================
  * Página: Agenda do Bibliotecário
- *  - Filtros de intervalo (Hoje, Amanhã, +3, +7, Todos)
- *  - Lista de slots com estado e ações (bloquear/desbloquear)
- *  - Modal para criar novo horário (opcional)
  * ========================================================================== */
 
 type RangeKey = "today" | "tomorrow" | "next3" | "next7" | "all";
@@ -399,26 +382,24 @@ type RangeKey = "today" | "tomorrow" | "next3" | "next7" | "all";
 export default function AgendaPage() {
   const theme = useTheme();
   const { user } = useAuth();
+  const router = useRouter();
 
-  // Estado de carregamento/lista
   const [loading, setLoading] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const [slots, setSlots] = React.useState<Slot[]>([]);
   const [busyId, setBusyId] = React.useState<number | null>(null);
 
-  // Filtro de intervalo temporal selecionado
+  // busy ao abrir consulta por slot (quando não há consultationId no payload)
+  const [openingSlotId, setOpeningSlotId] = React.useState<number | null>(null);
+
   const [range, setRange] = React.useState<RangeKey>("today");
 
-  /**
-   * Calcula o intervalo [fromIso, toIso] a consultar, em função do filtro.
-   * “Hoje” começa AGORA para não mostrar horários já passados.
-   */
   const { fromIso, toIso } = React.useMemo(() => {
     const now = new Date();
 
     if (range === "today") {
       return {
-        fromIso: now.toISOString(), // começa no instante atual
+        fromIso: now.toISOString(),
         toIso: endOfDay(now).toISOString(),
       };
     }
@@ -438,17 +419,12 @@ export default function AgendaPage() {
         toIso: endOfDay(addDays(now, 7)).toISOString(),
       };
     }
-    // “Todos” → próximo 180 dias
     return {
       fromIso: now.toISOString(),
       toIso: endOfDay(addDays(now, 180)).toISOString(),
     };
   }, [range]);
 
-  /**
-   * load — busca os slots do bibliotecário para o intervalo atual.
-   * Nota: curta e sem efeitos colaterais externos (além de setState).
-   */
   const load = React.useCallback(async () => {
     if (!user?.id) {
       setSlots([]);
@@ -461,7 +437,6 @@ export default function AgendaPage() {
         to: toIso,
       });
 
-      // Normaliza a resposta em Slot[]
       const rows: Slot[] = (Array.isArray(data) ? data : []).map((s: any) => ({
         id: Number(s.id),
         startAt: s.startAt,
@@ -470,9 +445,14 @@ export default function AgendaPage() {
         librarianId: s.librarianId ?? user.id,
         librarianName: s.librarianName ?? s.librarian?.fullName ?? null,
         libraryName: s.libraryName ?? s.library?.name ?? null,
-        // Se o serviço já trouxer estes campos, preserva-os:
         reservedByName: s.reservedByName ?? null,
         reservedChildName: s.reservedChildName ?? null,
+        consultationId:
+          s.consultationId != null
+            ? Number(s.consultationId)
+            : s.consultation?.id != null
+            ? Number(s.consultation.id)
+            : null,
       }));
 
       setSlots(rows);
@@ -483,19 +463,16 @@ export default function AgendaPage() {
     }
   }, [user?.id, fromIso, toIso]);
 
-  // Carrega ao montar/alterar range
   React.useEffect(() => {
     load();
   }, [load]);
 
-  // Recarrega ao voltar ao ecrã (focus)
   useFocusEffect(
     React.useCallback(() => {
       load();
     }, [load])
   );
 
-  // Pull-to-refresh
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     try {
@@ -505,13 +482,8 @@ export default function AgendaPage() {
     }
   }, [load]);
 
-  // Modal de criação (opcional — botão comentado mais abaixo)
   const [showCreate, setShowCreate] = React.useState(false);
 
-  /**
-   * createSlot — cria um slot simples (início + duração → fim).
-   * Método curto, com validação de sessão e feedback via Alert.
-   */
   const createSlot = React.useCallback(
     async (start: Date, durationMinutes: number) => {
       if (!user?.id) return;
@@ -541,10 +513,6 @@ export default function AgendaPage() {
     [user?.id, load]
   );
 
-  /**
-   * blockSlot — confirma e bloqueia um slot OPEN e futuro.
-   * Mantém UI responsiva (busyId) e trata erros.
-   */
   const blockSlot = React.useCallback((id: number) => {
     Alert.alert("Bloquear horário", "Queres bloquear este horário?", [
       { text: "Cancelar", style: "cancel" },
@@ -571,9 +539,6 @@ export default function AgendaPage() {
     ]);
   }, []);
 
-  /**
-   * unblockSlot — confirma e reabre um slot BLOCKED (futuro).
-   */
   const unblockSlot = React.useCallback((id: number) => {
     Alert.alert("Desbloquear horário", "Queres desbloquear este horário?", [
       { text: "Cancelar", style: "cancel" },
@@ -598,6 +563,61 @@ export default function AgendaPage() {
       },
     ]);
   }, []);
+
+  /** Descobrir consulta por slot (fallback quando não veio consultationId). */
+  const findConsultationIdForSlot = React.useCallback(
+    async (slotId: number): Promise<number | null> => {
+      const tryPaths = [
+        `/consultations/slots/${slotId}`, // comum
+        `/consultations/by-slot/${slotId}`, // alternativa frequente
+        `/consultations?slotId=${slotId}`, // listagem com filtro
+      ];
+      for (const path of tryPaths) {
+        try {
+          const res = await fetch(`${API_URL}${path}`, {
+            method: "GET",
+            credentials: "include",
+            headers: { Accept: "application/json" },
+          });
+          if (!res.ok) continue;
+          const json = await res.json();
+          const id =
+            json?.id ??
+            json?.consultation?.id ??
+            (Array.isArray(json?.items) && json.items[0]?.id) ??
+            (Array.isArray(json) && json[0]?.id);
+          if (id) return Number(id);
+        } catch {
+          /* tenta o próximo */
+        }
+      }
+      return null;
+    },
+    []
+  );
+
+  /** Abre modal da consulta associada ao slot BOOKED (com ou sem id à partida). */
+  const openConsultationForSlot = React.useCallback(
+    async (slot: Slot) => {
+      if (!slot) return;
+      try {
+        setOpeningSlotId(slot.id);
+        const id =
+          slot.consultationId ?? (await findConsultationIdForSlot(slot.id));
+        if (id) {
+          router.push(`/librarian/consultas/${id}`);
+        } else {
+          Alert.alert(
+            "Sem consulta associada",
+            "Não foi possível localizar a consulta deste horário."
+          );
+        }
+      } finally {
+        setOpeningSlotId(null);
+      }
+    },
+    [router, findConsultationIdForSlot]
+  );
 
   /**
    * StatusPill — etiqueta colorida para o estado do slot.
@@ -631,145 +651,152 @@ export default function AgendaPage() {
 
   return (
     <Background>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
-        edges={["top"]}
+      <ScrollView
+        contentContainerStyle={{ padding: 16, gap: 16 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 16 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+        {/* Header */}
+        <FlexibleCard
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={16}
+          style={{
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme.colors.outlineVariant,
+          }}
         >
-          {/* Header: Título + ícone */}
-          <FlexibleCard
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={16}
-            style={{
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: theme.colors.outlineVariant,
-            }}
-          >
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-            >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: theme.colors.primaryContainer,
-                }}
-              >
-                <Icon
-                  name="calendar-month"
-                  size={22}
-                  color={theme.colors.onPrimaryContainer}
-                />
-              </View>
-              <Text
-                style={{
-                  fontSize: 24,
-                  fontWeight: "900",
-                  color: theme.colors.onSurface,
-                }}
-              >
-                Agenda
-              </Text>
-            </View>
-          </FlexibleCard>
-
-          {/* Filtros (intervalos rápidos) + criar (opcional) */}
-          <FlexibleCard
-            title="Filtros"
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={14}
-            style={{ borderRadius: 12 }}
-          >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <View
               style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: 8,
-                marginTop: 2,
+                width: 40,
+                height: 40,
+                borderRadius: 10,
                 alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: theme.colors.primaryContainer,
               }}
             >
-              <Pill
-                label="Hoje"
-                active={range === "today"}
-                onPress={() => setRange("today")}
-              />
-              <Pill
-                label="Amanhã"
-                active={range === "tomorrow"}
-                onPress={() => setRange("tomorrow")}
-              />
-              <Pill
-                label="Próx. 3 dias"
-                active={range === "next3"}
-                onPress={() => setRange("next3")}
-              />
-              <Pill
-                label="Próx. 7 dias"
-                active={range === "next7"}
-                onPress={() => setRange("next7")}
-              />
-              <Pill
-                label="Todos"
-                active={range === "all"}
-                onPress={() => setRange("all")}
+              <Icon
+                name="calendar-month"
+                size={22}
+                color={theme.colors.onPrimaryContainer}
               />
             </View>
+            <Text
+              style={{
+                fontSize: 24,
+                fontWeight: "900",
+                color: theme.colors.onSurface,
+              }}
+            >
+              Agenda
+            </Text>
+          </View>
+        </FlexibleCard>
 
-            {/* Botão de criação de horário — manter comentado se não usado */}
-            {/* <View style={{ marginTop: 12 }}>
-              <PrimaryButton label="Novo horário" onPress={() => setShowCreate(true)} />
-            </View> */}
-          </FlexibleCard>
-
-          {/* Lista de slots */}
-          <FlexibleCard
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={12}
-            style={{ borderRadius: 12 }}
+        {/* Filtros */}
+        <FlexibleCard
+          title="Filtros"
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={14}
+          style={{ borderRadius: 12 }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: 8,
+              marginTop: 2,
+              alignItems: "center",
+            }}
           >
-            {loading ? (
-              <ActivityIndicator style={{ marginTop: 16 }} />
-            ) : slots.length === 0 ? (
-              <View style={{ alignItems: "center", paddingVertical: 24 }}>
-                <Text
-                  style={{
-                    color: theme.colors.onSurfaceVariant,
-                    textAlign: "center",
-                  }}
-                >
-                  Sem horários para o intervalo selecionado.
-                </Text>
-              </View>
-            ) : (
-              <View style={{ gap: 8 }}>
-                {slots.map((s) => {
-                  // Regras: bloquear/desbloquear apenas no futuro
-                  const isFuture = new Date(s.startAt).getTime() > Date.now();
-                  const canBlock = s.status === "OPEN" && isFuture;
-                  const canUnblock = s.status === "BLOCKED" && isFuture;
+            <Pill
+              label="Hoje"
+              active={range === "today"}
+              onPress={() => setRange("today")}
+            />
+            <Pill
+              label="Amanhã"
+              active={range === "tomorrow"}
+              onPress={() => setRange("tomorrow")}
+            />
+            <Pill
+              label="Próx. 3 dias"
+              active={range === "next3"}
+              onPress={() => setRange("next3")}
+            />
+            <Pill
+              label="Próx. 7 dias"
+              active={range === "next7"}
+              onPress={() => setRange("next7")}
+            />
+            <Pill
+              label="Todos"
+              active={range === "all"}
+              onPress={() => setRange("all")}
+            />
+          </View>
+        </FlexibleCard>
 
-                  return (
+        {/* Lista de slots */}
+        <FlexibleCard
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={12}
+          style={{ borderRadius: 12 }}
+        >
+          {loading ? (
+            <ActivityIndicator style={{ marginTop: 16 }} />
+          ) : slots.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 24 }}>
+              <Text
+                style={{
+                  color: theme.colors.onSurfaceVariant,
+                  textAlign: "center",
+                }}
+              >
+                Sem horários para o intervalo selecionado.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: 8 }}>
+              {slots.map((s) => {
+                const isFuture = new Date(s.startAt).getTime() > Date.now();
+                const canBlock = s.status === "OPEN" && isFuture;
+                const canUnblock = s.status === "BLOCKED" && isFuture;
+
+                // BOOKED -> cartão clicável e mostra botão "Começar"
+                const clickable = s.status === "BOOKED";
+                const isOpening = openingSlotId === s.id;
+
+                const Wrapper = ({ children }: { children: React.ReactNode }) =>
+                  clickable ? (
+                    <TouchableOpacity
+                      onPress={() => openConsultationForSlot(s)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Abrir consulta (Começar)"
+                      activeOpacity={0.9}
+                    >
+                      {children}
+                    </TouchableOpacity>
+                  ) : (
+                    <View>{children}</View>
+                  );
+
+                return (
+                  <Wrapper key={s.id}>
                     <View
-                      key={s.id}
                       style={{
                         borderRadius: 12,
                         borderWidth: 1,
                         borderColor: theme.colors.outlineVariant,
                         backgroundColor: theme.colors.surface,
                         overflow: "hidden",
+                        opacity: isOpening ? 0.6 : 1,
                       }}
                     >
                       <View style={{ padding: 12, gap: 6 }}>
@@ -790,14 +817,21 @@ export default function AgendaPage() {
                           >
                             {fmtRange(s.startAt, s.endAt)}
                           </Text>
-                          <StatusPill status={s.status} />
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            {isOpening && <ActivityIndicator size="small" />}
+                            <StatusPill status={s.status} />
+                          </View>
                         </View>
 
                         {/* Biblioteca / Bibliotecário */}
                         {!!(s.libraryName || s.librarianName) && (
-                          <Text
-                            style={{ color: theme.colors.onSurfaceVariant }}
-                          >
+                          <Text style={{ color: theme.colors.onSurfaceVariant }}>
                             {[s.librarianName, s.libraryName]
                               .filter(Boolean)
                               .join(" • ")}
@@ -834,15 +868,17 @@ export default function AgendaPage() {
                           </View>
                         ) : null}
 
-                        {/* Ações (bloquear/desbloquear) */}
+                        {/* Ações */}
                         <View
                           style={{
                             flexDirection: "row",
                             gap: 6,
                             marginTop: 6,
                             alignItems: "center",
+                            justifyContent: "flex-end",
                           }}
                         >
+                          {/* Botões de bloqueio/desbloqueio (quando aplicável) */}
                           <IconButton
                             icon="lock"
                             mode="outlined"
@@ -857,16 +893,27 @@ export default function AgendaPage() {
                             onPress={() => unblockSlot(s.id)}
                             accessibilityLabel="Desbloquear horário"
                           />
+
+                          {/* NOVO: “Começar” visível quando BOOKED */}
+                          {s.status === "BOOKED" && (
+                            <View style={{ marginLeft: "auto" }}>
+                              <PrimaryButton
+                                label="Começar"
+                                onPress={() => openConsultationForSlot(s)}
+                                disabled={isOpening}
+                              />
+                            </View>
+                          )}
                         </View>
                       </View>
                     </View>
-                  );
-                })}
-              </View>
-            )}
-          </FlexibleCard>
-        </ScrollView>
-      </SafeAreaView>
+                  </Wrapper>
+                );
+              })}
+            </View>
+          )}
+        </FlexibleCard>
+      </ScrollView>
 
       {/* Modal de criação de horário */}
       <CreateSlotModal

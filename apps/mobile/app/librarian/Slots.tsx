@@ -569,10 +569,6 @@ export default function SlotsPage() {
 
   return (
     <Background>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
-        edges={["top"]}
-      >
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
           {/* ===== Header (ícone + título) ===== */}
           <FlexibleCard
@@ -1117,7 +1113,6 @@ export default function SlotsPage() {
             )}
           </FlexibleCard>
         </ScrollView>
-      </SafeAreaView>
     </Background>
   );
 }

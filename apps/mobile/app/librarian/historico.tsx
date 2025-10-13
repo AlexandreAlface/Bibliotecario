@@ -30,6 +30,7 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "@react-navigation/native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+import { useRouter } from "expo-router"; // 🆕 Navegação para detalhe
 
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
@@ -355,9 +356,12 @@ function getItemKey(it: ConsultationLite): string {
 /**
  * Cartão “branco” com metadados resumidos da consulta.
  * Aceita o shape mínimo (ConsultationLite + alguns campos opcionais dens).
+ * 👉 Alteração: se existir `item.id`, o cartão torna-se clicável e abre o detalhe.
  */
 function ConsultationCard({ item }: { item: ConsultationLite }) {
   const theme = useTheme();
+  const router = useRouter(); // 🆕 para navegar
+  const hasId = !!item?.id;
 
   // Dados auxiliares com fallback defensivo (não quebra UI).
   const anyItem = item as any;
@@ -370,107 +374,128 @@ function ConsultationCard({ item }: { item: ConsultationLite }) {
     item.title ?? (childName ? `Consulta de ${childName}` : "Consulta");
   const meta = statusMeta(item.status as Status);
 
+  // Container condicional: Touchable quando tem id; View caso contrário.
+  const Container = ({ children }: { children: React.ReactNode }) =>
+    hasId ? (
+      <TouchableOpacity
+        onPress={() => router.push(`/librarian/consultas/${item.id}`)}
+        accessibilityRole="button"
+        accessibilityLabel="Abrir consulta"
+        activeOpacity={0.9}
+      >
+        {children}
+      </TouchableOpacity>
+    ) : (
+      <View>{children}</View>
+    );
+
   return (
-    <FlexibleCard
-      backgroundColor={theme.colors.surface}
-      elevation={1}
-      padding={12}
-      style={{
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: theme.colors.outlineVariant,
-      }}
-    >
-      {/* Título + Estado */}
-      <View
+    <Container>
+      <FlexibleCard
+        backgroundColor={theme.colors.surface}
+        elevation={1}
+        padding={12}
         style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          gap: 8,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: theme.colors.outlineVariant,
         }}
       >
+        {/* Título + Estado */}
         <View
           style={{
             flexDirection: "row",
-            alignItems: "center",
+            justifyContent: "space-between",
             gap: 8,
-            flex: 1,
           }}
         >
-          <Icon
-            name="clipboard-text-clock-outline"
-            size={18}
-            color={theme.colors.onSurface}
-          />
-          <Text
+          <View
             style={{
-              fontSize: 16,
-              fontWeight: "600",
-              color: theme.colors.onSurface,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
               flex: 1,
             }}
-            numberOfLines={2}
           >
-            {title}
-          </Text>
+            <Icon
+              name="clipboard-text-clock-outline"
+              size={18}
+              color={theme.colors.onSurface}
+            />
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: "600",
+                color: theme.colors.onSurface,
+                flex: 1,
+              }}
+              numberOfLines={2}
+            >
+              {title}
+            </Text>
+          </View>
+          <View
+            style={{
+              paddingVertical: 4,
+              paddingHorizontal: 10,
+              borderRadius: 999,
+              backgroundColor: meta.bg,
+              alignSelf: "flex-start",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <Icon name={meta.icon as any} size={14} color={meta.fg} />
+            <Text style={{ color: meta.fg, fontSize: 12 }}>{meta.label}</Text>
+          </View>
         </View>
-        <View
-          style={{
-            paddingVertical: 4,
-            paddingHorizontal: 10,
-            borderRadius: 999,
-            backgroundColor: meta.bg,
-            alignSelf: "flex-start",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <Icon name={meta.icon as any} size={14} color={meta.fg} />
-          <Text style={{ color: meta.fg, fontSize: 12 }}>{meta.label}</Text>
-        </View>
-      </View>
 
-      {/* Metadados */}
-      <View style={{ marginTop: 8, gap: 4 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Icon
-            name="calendar-month-outline"
-            size={16}
-            color={theme.colors.onSurfaceVariant}
-          />
-          <Text style={{ color: theme.colors.onSurfaceVariant }}>
-            {fmtDateTime(item.startAt)}
-          </Text>
-        </View>
-
-        {(librarianName || libraryName) && (
+        {/* Metadados */}
+        <View style={{ marginTop: 8, gap: 4 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Icon
-              name="office-building"
+              name="calendar-month-outline"
               size={16}
               color={theme.colors.onSurfaceVariant}
             />
             <Text style={{ color: theme.colors.onSurfaceVariant }}>
-              {[librarianName, libraryName].filter(Boolean).join(" • ")}
+              {fmtDateTime(item.startAt)}
             </Text>
           </View>
-        )}
 
-        {!!childName && (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Icon
-              name="account-child-outline"
-              size={16}
-              color={theme.colors.onSurfaceVariant}
-            />
-            <Text style={{ color: theme.colors.onSurfaceVariant }}>
-              Criança: {childName}
-            </Text>
-          </View>
-        )}
-      </View>
-    </FlexibleCard>
+          {(librarianName || libraryName) && (
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Icon
+                name="office-building"
+                size={16}
+                color={theme.colors.onSurfaceVariant}
+              />
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                {[librarianName, libraryName].filter(Boolean).join(" • ")}
+              </Text>
+            </View>
+          )}
+
+          {!!childName && (
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <Icon
+                name="account-child-outline"
+                size={16}
+                color={theme.colors.onSurfaceVariant}
+              />
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                Criança: {childName}
+              </Text>
+            </View>
+          )}
+        </View>
+      </FlexibleCard>
+    </Container>
   );
 }
 
@@ -621,381 +646,79 @@ export default function HistoricoPage() {
 
   return (
     <Background>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
-        edges={["top"]}
+      <ScrollView
+        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 24 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 24 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+        {/* -------------------- Header (ícone + título) -------------------- */}
+        <FlexibleCard
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={14}
+          style={{ borderRadius: 12 }}
         >
-          {/* -------------------- Header (ícone + título) -------------------- */}
-          <FlexibleCard
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={14}
-            style={{ borderRadius: 12 }}
-          >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: theme.colors.primaryContainer,
+              }}
             >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: theme.colors.primaryContainer,
-                }}
-              >
-                <Icon
-                  name="history"
-                  size={22}
-                  color={theme.colors.onPrimaryContainer}
-                />
-              </View>
+              <Icon
+                name="history"
+                size={22}
+                color={theme.colors.onPrimaryContainer}
+              />
+            </View>
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: "900",
+                color: theme.colors.onSurface,
+              }}
+            >
+              Histórico de consultas
+            </Text>
+          </View>
+        </FlexibleCard>
+
+        {/* ------------------------------ Filtros ------------------------------ */}
+        <FlexibleCard
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={14}
+          style={{ borderRadius: 12 }}
+        >
+          {/* Header dos filtros */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Icon
+                name="filter-variant"
+                size={18}
+                color={theme.colors.onSurface}
+              />
               <Text
                 style={{
-                  fontSize: 22,
-                  fontWeight: "900",
+                  fontSize: 18,
+                  fontWeight: "800",
                   color: theme.colors.onSurface,
                 }}
               >
-                Histórico de consultas
+                Filtros
               </Text>
-            </View>
-          </FlexibleCard>
-
-          {/* ------------------------------ Filtros ------------------------------ */}
-          <FlexibleCard
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={14}
-            style={{ borderRadius: 12 }}
-          >
-            {/* Header dos filtros */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
-                <Icon
-                  name="filter-variant"
-                  size={18}
-                  color={theme.colors.onSurface}
-                />
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "800",
-                    color: theme.colors.onSurface,
-                  }}
-                >
-                  Filtros
-                </Text>
-                {!!activeFiltersCount && (
-                  <View
-                    style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 2,
-                      borderRadius: 999,
-                      backgroundColor: theme.colors.secondaryContainer,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: theme.colors.onSecondaryContainer,
-                        fontWeight: "700",
-                        fontSize: 12,
-                      }}
-                    >
-                      {activeFiltersCount}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <IconButton
-                icon={filtersCollapsed ? "chevron-down" : "chevron-up"}
-                onPress={() => setFiltersCollapsed((v) => !v)}
-                accessibilityLabel={
-                  filtersCollapsed ? "Expandir filtros" : "Recolher filtros"
-                }
-              />
-            </View>
-
-            {/* Corpo dos filtros (condicional) */}
-            {!filtersCollapsed && (
-              <View style={{ marginTop: 10 }}>
-                {/* Estados */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    marginBottom: 6,
-                  }}
-                >
-                  <Icon
-                    name="checkbox-marked-circle-outline"
-                    size={16}
-                    color={theme.colors.onSurfaceVariant}
-                  />
-                  <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                    Estados
-                  </Text>
-                </View>
-
-                <View
-                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
-                >
-                  {(["COMPLETED", "CANCELLED", "DECLINED"] as Status[]).map(
-                    (s) => (
-                      <StatusPill
-                        key={s}
-                        status={s}
-                        active={selectedStatuses.has(s)}
-                        onPress={() => toggleStatus(s)}
-                      />
-                    )
-                  )}
-                </View>
-
-                <View
-                  style={{
-                    flexDirection: "row",
-                    gap: 8,
-                    marginTop: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <SecondaryButton
-                    label="Limpar estados"
-                    onPress={() => setSelectedStatuses(new Set())}
-                  />
-                  <SecondaryButton
-                    label="Selecionar todos"
-                    onPress={() => setSelectedStatuses(new Set(HIST_STATUSES))}
-                  />
-                </View>
-
-                {/* Divider visual */}
-                <View
-                  style={{
-                    height: 1,
-                    backgroundColor: theme.colors.outlineVariant,
-                    opacity: 0.6,
-                    marginVertical: 12,
-                  }}
-                />
-
-                {/* Datas */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    marginBottom: 6,
-                  }}
-                >
-                  <Icon
-                    name="calendar-range"
-                    size={16}
-                    color={theme.colors.onSurfaceVariant}
-                  />
-                  <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                    Intervalo de datas
-                  </Text>
-                </View>
-
-                {/* Selecção de datas (From/To) */}
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {/* FROM */}
-                  <View style={{ flex: 1 }}>
-                    <TouchableOpacity
-                      onPress={openFrom}
-                      style={{
-                        paddingVertical: 10,
-                        paddingHorizontal: 12,
-                        borderRadius: 10,
-                        borderWidth: 1,
-                        borderColor: theme.colors.outlineVariant,
-                        backgroundColor: theme.colors.surface,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel="Selecionar data inicial"
-                    >
-                      <Icon
-                        name="calendar-start"
-                        size={18}
-                        color={theme.colors.onSurface}
-                      />
-                      <Text style={{ color: theme.colors.onSurface }}>
-                        {new Intl.DateTimeFormat("pt-PT", {
-                          dateStyle: "medium",
-                        }).format(fromDate)}
-                      </Text>
-                    </TouchableOpacity>
-                    <Text
-                      style={{
-                        color: theme.colors.onSurfaceVariant,
-                        marginTop: 4,
-                        fontSize: 12,
-                      }}
-                    >
-                      {new Intl.DateTimeFormat("pt-PT", {
-                        dateStyle: "medium",
-                      }).format(fromDate)}
-                    </Text>
-
-                    <DatePickerModal
-                      visible={showFrom}
-                      title="Selecionar data inicial"
-                      value={fromDate}
-                      maximumDate={toDate}
-                      onCancel={() => setShowFrom(false)}
-                      onConfirm={(d) => {
-                        const v = startOfDay(d);
-                        setFromDate(v);
-                        if (v > toDate) setToDate(endOfDay(v)); // Guard: mantém coerência.
-                        setShowFrom(false);
-                      }}
-                    />
-                  </View>
-
-                  {/* TO */}
-                  <View style={{ flex: 1 }}>
-                    <TouchableOpacity
-                      onPress={openTo}
-                      style={{
-                        paddingVertical: 10,
-                        paddingHorizontal: 12,
-                        borderRadius: 10,
-                        borderWidth: 1,
-                        borderColor: theme.colors.outlineVariant,
-                        backgroundColor: theme.colors.surface,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel="Selecionar data final"
-                    >
-                      <Icon
-                        name="calendar-end"
-                        size={18}
-                        color={theme.colors.onSurface}
-                      />
-                      <Text style={{ color: theme.colors.onSurface }}>
-                        {new Intl.DateTimeFormat("pt-PT", {
-                          dateStyle: "medium",
-                        }).format(toDate)}
-                      </Text>
-                    </TouchableOpacity>
-                    <Text
-                      style={{
-                        color: theme.colors.onSurfaceVariant,
-                        marginTop: 4,
-                        fontSize: 12,
-                      }}
-                    >
-                      {new Intl.DateTimeFormat("pt-PT", {
-                        dateStyle: "medium",
-                      }).format(toDate)}
-                    </Text>
-
-                    <DatePickerModal
-                      visible={showTo}
-                      title="Selecionar data final"
-                      value={toDate}
-                      minimumDate={fromDate}
-                      onCancel={() => setShowTo(false)}
-                      onConfirm={(d) => {
-                        const v = endOfDay(d);
-                        setToDate(v < fromDate ? endOfDay(fromDate) : v); // Guard: nunca antes do FROM.
-                        setShowTo(false);
-                      }}
-                    />
-                  </View>
-                </View>
-
-                {/* Presets rápidos */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    gap: 8,
-                    marginTop: 8,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <SecondaryButton
-                    label="Hoje"
-                    onPress={() => {
-                      const now = new Date();
-                      setFromDate(startOfDay(now));
-                      setToDate(endOfDay(now));
-                    }}
-                  />
-                  <SecondaryButton
-                    label="Última semana"
-                    onPress={() => quickPreset(7)}
-                  />
-                  <SecondaryButton
-                    label="Último mês"
-                    onPress={() => quickPreset(30)}
-                  />
-                  <SecondaryButton
-                    label="Últimos 3 meses"
-                    onPress={() => quickPreset(90)}
-                  />
-                </View>
-              </View>
-            )}
-          </FlexibleCard>
-
-          {/* -------------------- Resultados + Paginação -------------------- */}
-          <FlexibleCard
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={14}
-            style={{ borderRadius: 12 }}
-          >
-            {/* Header */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 8,
-              }}
-            >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
-                <Icon
-                  name="clipboard-list-outline"
-                  size={18}
-                  color={theme.colors.onSurface}
-                />
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "800",
-                    color: theme.colors.onSurface,
-                  }}
-                >
-                  Resultados
-                </Text>
+              {!!activeFiltersCount && (
                 <View
                   style={{
                     paddingHorizontal: 8,
@@ -1011,58 +734,347 @@ export default function HistoricoPage() {
                       fontSize: 12,
                     }}
                   >
-                    {items.length}
+                    {activeFiltersCount}
                   </Text>
+                </View>
+              )}
+            </View>
+            <IconButton
+              icon={filtersCollapsed ? "chevron-down" : "chevron-up"}
+              onPress={() => setFiltersCollapsed((v) => !v)}
+              accessibilityLabel={
+                filtersCollapsed ? "Expandir filtros" : "Recolher filtros"
+              }
+            />
+          </View>
+
+          {/* Corpo dos filtros (condicional) */}
+          {!filtersCollapsed && (
+            <View style={{ marginTop: 10 }}>
+              {/* Estados */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  marginBottom: 6,
+                }}
+              >
+                <Icon
+                  name="checkbox-marked-circle-outline"
+                  size={16}
+                  color={theme.colors.onSurfaceVariant}
+                />
+                <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                  Estados
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {(["COMPLETED", "CANCELLED", "DECLINED"] as Status[]).map(
+                  (s) => (
+                    <StatusPill
+                      key={s}
+                      status={s}
+                      active={selectedStatuses.has(s)}
+                      onPress={() => toggleStatus(s)}
+                    />
+                  )
+                )}
+              </View>
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 8,
+                  marginTop: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <SecondaryButton
+                  label="Limpar estados"
+                  onPress={() => setSelectedStatuses(new Set())}
+                />
+                <SecondaryButton
+                  label="Selecionar todos"
+                  onPress={() => setSelectedStatuses(new Set(HIST_STATUSES))}
+                />
+              </View>
+
+              {/* Divider visual */}
+              <View
+                style={{
+                  height: 1,
+                  backgroundColor: theme.colors.outlineVariant,
+                  opacity: 0.6,
+                  marginVertical: 12,
+                }}
+              />
+
+              {/* Datas */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  marginBottom: 6,
+                }}
+              >
+                <Icon
+                  name="calendar-range"
+                  size={16}
+                  color={theme.colors.onSurfaceVariant}
+                />
+                <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                  Intervalo de datas
+                </Text>
+              </View>
+
+              {/* Selecção de datas (From/To) */}
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {/* FROM */}
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    onPress={openFrom}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: theme.colors.outlineVariant,
+                      backgroundColor: theme.colors.surface,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Selecionar data inicial"
+                  >
+                    <Icon
+                      name="calendar-start"
+                      size={18}
+                      color={theme.colors.onSurface}
+                    />
+                    <Text style={{ color: theme.colors.onSurface }}>
+                      {new Intl.DateTimeFormat("pt-PT", {
+                        dateStyle: "medium",
+                      }).format(fromDate)}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text
+                    style={{
+                      color: theme.colors.onSurfaceVariant,
+                      marginTop: 4,
+                      fontSize: 12,
+                    }}
+                  >
+                    {new Intl.DateTimeFormat("pt-PT", {
+                      dateStyle: "medium",
+                    }).format(fromDate)}
+                  </Text>
+
+                  <DatePickerModal
+                    visible={showFrom}
+                    title="Selecionar data inicial"
+                    value={fromDate}
+                    maximumDate={toDate}
+                    onCancel={() => setShowFrom(false)}
+                    onConfirm={(d) => {
+                      const v = startOfDay(d);
+                      setFromDate(v);
+                      if (v > toDate) setToDate(endOfDay(v)); // Guard: mantém coerência.
+                      setShowFrom(false);
+                    }}
+                  />
+                </View>
+
+                {/* TO */}
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    onPress={openTo}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: theme.colors.outlineVariant,
+                      backgroundColor: theme.colors.surface,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Selecionar data final"
+                  >
+                    <Icon
+                      name="calendar-end"
+                      size={18}
+                      color={theme.colors.onSurface}
+                    />
+                    <Text style={{ color: theme.colors.onSurface }}>
+                      {new Intl.DateTimeFormat("pt-PT", {
+                        dateStyle: "medium",
+                      }).format(toDate)}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text
+                    style={{
+                      color: theme.colors.onSurfaceVariant,
+                      marginTop: 4,
+                      fontSize: 12,
+                    }}
+                  >
+                    {new Intl.DateTimeFormat("pt-PT", {
+                      dateStyle: "medium",
+                    }).format(toDate)}
+                  </Text>
+
+                  <DatePickerModal
+                    visible={showTo}
+                    title="Selecionar data final"
+                    value={toDate}
+                    minimumDate={fromDate}
+                    onCancel={() => setShowTo(false)}
+                    onConfirm={(d) => {
+                      const v = endOfDay(d);
+                      setToDate(v < fromDate ? endOfDay(fromDate) : v); // Guard: nunca antes do FROM.
+                      setShowTo(false);
+                    }}
+                  />
+                </View>
+              </View>
+
+              {/* Presets rápidos */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 8,
+                  marginTop: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <SecondaryButton
+                  label="Hoje"
+                  onPress={() => {
+                    const now = new Date();
+                    setFromDate(startOfDay(now));
+                    setToDate(endOfDay(now));
+                  }}
+                />
+                <SecondaryButton
+                  label="Última semana"
+                  onPress={() => quickPreset(7)}
+                />
+                <SecondaryButton
+                  label="Último mês"
+                  onPress={() => quickPreset(30)}
+                />
+                <SecondaryButton
+                  label="Últimos 3 meses"
+                  onPress={() => quickPreset(90)}
+                />
+              </View>
+            </View>
+          )}
+        </FlexibleCard>
+
+        {/* -------------------- Resultados + Paginação -------------------- */}
+        <FlexibleCard
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={14}
+          style={{ borderRadius: 12 }}
+        >
+          {/* Header */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 8,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Icon
+                name="clipboard-list-outline"
+                size={18}
+                color={theme.colors.onSurface}
+              />
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "800",
+                  color: theme.colors.onSurface,
+                }}
+              >
+                Resultados
+              </Text>
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 999,
+                  backgroundColor: theme.colors.secondaryContainer,
+                }}
+              >
+                <Text
+                  style={{
+                    color: theme.colors.onSecondaryContainer,
+                    fontWeight: "700",
+                    fontSize: 12,
+                  }}
+                >
+                  {items.length}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Lista / estados de carregamento */}
+          {loading ? (
+            <ActivityIndicator style={{ marginTop: 12 }} />
+          ) : items.length === 0 ? (
+            <Text
+              style={{
+                color: theme.colors.onSurfaceVariant,
+                textAlign: "center",
+                marginTop: 8,
+              }}
+            >
+              Sem resultados para os filtros aplicados.
+            </Text>
+          ) : (
+            <View style={{ gap: 8 }}>
+              {pageItems.map((it) => (
+                <ConsultationCard key={getItemKey(it)} item={it} />
+              ))}
+
+              {/* Paginador */}
+              <View style={{ marginTop: 6, alignItems: "center", gap: 6 }}>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <IconButton
+                    icon="chevron-left"
+                    disabled={!canPrev}
+                    onPress={() => setPage((p) => Math.max(1, p - 1))}
+                    accessibilityLabel="Página anterior"
+                  />
+                  <Text style={{ marginHorizontal: 6 }}>
+                    Página {page} de {totalPages}
+                  </Text>
+                  <IconButton
+                    icon="chevron-right"
+                    disabled={!canNext}
+                    onPress={() =>
+                      setPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    accessibilityLabel="Página seguinte"
+                  />
                 </View>
               </View>
             </View>
-
-            {/* Lista / estados de carregamento */}
-            {loading ? (
-              <ActivityIndicator style={{ marginTop: 12 }} />
-            ) : items.length === 0 ? (
-              <Text
-                style={{
-                  color: theme.colors.onSurfaceVariant,
-                  textAlign: "center",
-                  marginTop: 8,
-                }}
-              >
-                Sem resultados para os filtros aplicados.
-              </Text>
-            ) : (
-              <View style={{ gap: 8 }}>
-                {pageItems.map((it) => (
-                  <ConsultationCard key={getItemKey(it)} item={it} />
-                ))}
-
-                {/* Paginador */}
-                <View style={{ marginTop: 6, alignItems: "center", gap: 6 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <IconButton
-                      icon="chevron-left"
-                      disabled={!canPrev}
-                      onPress={() => setPage((p) => Math.max(1, p - 1))}
-                      accessibilityLabel="Página anterior"
-                    />
-                    <Text style={{ marginHorizontal: 6 }}>
-                      Página {page} de {totalPages}
-                    </Text>
-                    <IconButton
-                      icon="chevron-right"
-                      disabled={!canNext}
-                      onPress={() =>
-                        setPage((p) => Math.min(totalPages, p + 1))
-                      }
-                      accessibilityLabel="Página seguinte"
-                    />
-                  </View>
-                </View>
-              </View>
-            )}
-          </FlexibleCard>
-        </ScrollView>
-      </SafeAreaView>
+          )}
+        </FlexibleCard>
+      </ScrollView>
     </Background>
   );
 }

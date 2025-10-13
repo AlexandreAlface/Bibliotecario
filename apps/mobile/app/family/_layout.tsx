@@ -90,7 +90,7 @@ const ICONS: Record<
   feed: {
     active: "newspaper-variant",
     inactive: "newspaper-variant-outline",
-    label: "Feed",
+    label: "Dicas",
   },
 };
 
@@ -255,7 +255,7 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="index" />
-      <Tabs.Screen name="feed" /> {/* Rota do feed (micro-conteúdos/eventos) */}
+      <Tabs.Screen name="feed" /> 
       <Tabs.Screen name="leituras" />
       <Tabs.Screen name="avaliacoes" />
       <Tabs.Screen name="eventos" />
