@@ -466,7 +466,10 @@ async function svcConfirmConsultation(id: number, req: Authed) {
       include: { slot: true },
     });
     if (!c) throw new Error("not found");
-    if (!isAdmin(req) && req.user?.id !== c.librarianId)
+    if (
+      !isAdmin(req) &&
+      !isActor(req, { librarianId: c.librarianId, familyId: c.familyId })
+    )
       throw new Error("forbidden");
     if (!c.startAt || !c.endAt)
       throw new Error("consulta sem horário para confirmar");
@@ -612,6 +615,7 @@ r.get(
       where: { id },
       include: {
         family: { select: { id: true, fullName: true, email: true } },
+        librarian: { select: { id: true, fullName: true } }, // 👈 acrescenta
         child: { select: { id: true, name: true, birthDate: true } },
         library: { select: { id: true, name: true, address: true } },
         books: {
@@ -709,6 +713,9 @@ r.get(
         family: c.family,
         library: c.library ?? undefined,
         notes: c.notes ?? "",
+        librarian: c.librarian
+          ? { id: c.librarian.id, fullName: c.librarian.fullName }
+          : undefined,
         attachments: {
           books: c.books.map((b) => ({
             isbn: b.book.isbn,
@@ -1006,7 +1013,7 @@ r.get(
 r.post(
   "/:id/confirm",
   withUser as RequestHandler,
-  requireRole(ROLES.LIBRARIAN, ROLES.ADMIN) as RequestHandler,
+  requireRole(ROLES.LIBRARIAN, ROLES.ADMIN, ROLES.FAMILY) as RequestHandler,
   async (req: Request, res: Response) => {
     const id = asInt(req.params.id);
     if (!id) return res.status(400).json({ error: "invalid_id" });
@@ -1359,23 +1366,31 @@ r.post(
     const id = asInt(req.params.id);
     const slotId = asInt((req.body as any)?.slotId);
     const reason = String((req.body as any)?.reason ?? "") || undefined;
-    if (!id || !slotId) return res.status(400).json({ error: "invalid_id_or_slot" });
+    if (!id || !slotId)
+      return res.status(400).json({ error: "invalid_id_or_slot" });
 
     try {
-      const out = await svcRescheduleConsultation(id, slotId, req as Authed, reason);
+      const out = await svcRescheduleConsultation(
+        id,
+        slotId,
+        req as Authed,
+        reason
+      );
       res.json(out);
     } catch (e: any) {
       const msg = String(e?.message || "");
       const codeByMsg: Record<string, number> = {
         not_found: 404,
         forbidden: 403,
-        only_pending: 409,                 // tentativa fora de PENDING
+        only_pending: 409, // tentativa fora de PENDING
         slot_not_found: 404,
         slot_not_open: 409,
         slot_already_linked: 409,
         library_required_for_in_person: 400,
       };
-      res.status(codeByMsg[msg] ?? 400).json({ error: msg || "failed_to_reschedule" });
+      res
+        .status(codeByMsg[msg] ?? 400)
+        .json({ error: msg || "failed_to_reschedule" });
     }
   }
 );

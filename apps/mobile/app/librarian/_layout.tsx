@@ -1,3 +1,5 @@
+// apps\mobile\app\librarian\_layout.tsx
+
 import * as React from "react";
 import { Tabs, Slot, Redirect, usePathname } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -6,6 +8,9 @@ import { View, TouchableOpacity } from "react-native";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useAuth } from "src/contexts/AuthContext";
+
+/* ---------- tipos/aliases ---------- */
+type MdiIconName = React.ComponentProps<typeof Icon>["name"];
 
 /* ---------- helpers ---------- */
 function isLibrarian(u: any): boolean {
@@ -19,12 +24,25 @@ function isLibrarian(u: any): boolean {
   return roles.some((r) => String(r).toUpperCase().includes("BIBL"));
 }
 
-type RouteName = "Home" | "consultas" | "Familias";
-const ORDER: RouteName[] = ["Home", "consultas", "Familias"];
-const ICONS: Record<RouteName, { active: any; inactive: any; label: string }> = {
+type RouteName = "Home" | "consultas" | "Livros" | "Familias";
+const ORDER: RouteName[] = ["Home", "consultas", "Livros", "Familias"];
+
+const ICONS: Record<
+  RouteName,
+  { active: MdiIconName; inactive: MdiIconName; label: string }
+> = {
   Home: { active: "home", inactive: "home-outline", label: "Início" },
-  consultas: { active: "stethoscope", inactive: "stethoscope", label: "Consultas" },
-  Familias: { active: "account-group", inactive: "account-group-outline", label: "Famílias" },
+  consultas: {
+    active: "stethoscope",
+    inactive: "stethoscope",
+    label: "Consultas",
+  },
+  Livros: { active: "book", inactive: "book-outline", label: "Livros" },
+  Familias: {
+    active: "account-group",
+    inactive: "account-group-outline",
+    label: "Famílias",
+  },
 };
 
 function MyTabBar(props: BottomTabBarProps) {
@@ -61,7 +79,8 @@ function MyTabBar(props: BottomTabBarProps) {
             target: route.key,
             canPreventDefault: true,
           });
-          if (!focused && !evt.defaultPrevented) props.navigation.navigate(route.name);
+          if (!focused && !evt.defaultPrevented)
+            props.navigation.navigate(route.name);
         };
 
         return (
@@ -72,19 +91,28 @@ function MyTabBar(props: BottomTabBarProps) {
             accessibilityLabel={meta?.label ?? String(route.name)}
             accessibilityState={focused ? { selected: true } : {}}
             activeOpacity={0.7}
-            style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 4 }}
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: 4,
+            }}
             hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
           >
             <Icon
               name={focused ? meta.active : meta.inactive}
               size={24}
-              color={focused ? theme.colors.primary : theme.colors.onSurfaceVariant}
+              color={
+                focused ? theme.colors.primary : theme.colors.onSurfaceVariant
+              }
             />
             <Text
               style={{
                 fontSize: 11,
                 marginTop: 2,
-                color: focused ? theme.colors.primary : theme.colors.onSurfaceVariant,
+                color: focused
+                  ? theme.colors.primary
+                  : theme.colors.onSurfaceVariant,
               }}
               numberOfLines={1}
             >
@@ -114,6 +142,7 @@ export default function LibrarianLayout() {
     <Tabs tabBar={(p) => <MyTabBar {...p} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="Home" />
       <Tabs.Screen name="consultas" />
+      <Tabs.Screen name="Livros" />
       <Tabs.Screen name="Familias" />
     </Tabs>
   );

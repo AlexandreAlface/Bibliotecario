@@ -29,9 +29,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useTheme, Text, IconButton } from "react-native-paper";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
-import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
 import {
   PrimaryButton,
@@ -44,6 +43,8 @@ import {
   listLibrarianSlots,
   updateSlotStatus,
 } from "src/services/librarian/consultations";
+import { Background } from "@bibliotecario/ui-mobile";
+import ConsultationWizard from "src/features/consultations/ConsultationWizard";
 
 /* =============================================================================
  * Helpers de data/tempo — PUROS e curtos (≤ 30 linhas)
@@ -389,6 +390,23 @@ export default function AgendaPage() {
   const [slots, setSlots] = React.useState<Slot[]>([]);
   const [busyId, setBusyId] = React.useState<number | null>(null);
 
+  const { familyId: familyIdParam } = useLocalSearchParams<{
+    familyId?: string;
+  }>();
+  const defaultFamilyId = React.useMemo(() => {
+    const n = Number(familyIdParam);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  }, [familyIdParam]);
+
+  const [showWizard, setShowWizard] = React.useState(false);
+  const [wizardSlotId, setWizardSlotId] = React.useState<number | undefined>(
+    undefined
+  );
+
+  const [libs, setLibs] = React.useState<Array<{ id: number; name: string }>>(
+    []
+  );
+
   // busy ao abrir consulta por slot (quando não há consultationId no payload)
   const [openingSlotId, setOpeningSlotId] = React.useState<number | null>(null);
 
@@ -425,6 +443,28 @@ export default function AgendaPage() {
     };
   }, [range]);
 
+  const fetchLibrarianLibraries = React.useCallback(
+    async (librarianId: number) => {
+      try {
+        const r = await fetch(
+          `${API_URL}/consultations/librarians/${librarianId}/libraries`,
+          { credentials: "include", headers: { Accept: "application/json" } }
+        );
+        const json = await r.json().catch(() => []);
+        const arr = Array.isArray(json) ? json : [];
+        setLibs(
+          arr.map((x: any) => ({
+            id: Number(x?.id),
+            name: String(x?.name ?? ""),
+          }))
+        );
+      } catch {
+        setLibs([]);
+      }
+    },
+    []
+  );
+
   const load = React.useCallback(async () => {
     if (!user?.id) {
       setSlots([]);
@@ -447,12 +487,7 @@ export default function AgendaPage() {
         libraryName: s.libraryName ?? s.library?.name ?? null,
         reservedByName: s.reservedByName ?? null,
         reservedChildName: s.reservedChildName ?? null,
-        consultationId:
-          s.consultationId != null
-            ? Number(s.consultationId)
-            : s.consultation?.id != null
-            ? Number(s.consultation.id)
-            : null,
+        consultationId: s.consultationId ?? null,
       }));
 
       setSlots(rows);
@@ -462,6 +497,17 @@ export default function AgendaPage() {
       setLoading(false);
     }
   }, [user?.id, fromIso, toIso]);
+
+  React.useEffect(() => {
+    if (user?.id) fetchLibrarianLibraries(Number(user.id));
+  }, [user?.id, fetchLibrarianLibraries]);
+
+  // Abre o wizard para um slot OPEN
+  const openWizardForOpenSlot = React.useCallback((slot: Slot) => {
+    if (slot.status !== "OPEN") return;
+    setWizardSlotId(slot.id);
+    setShowWizard(true);
+  }, []);
 
   React.useEffect(() => {
     load();
@@ -582,10 +628,12 @@ export default function AgendaPage() {
           if (!res.ok) continue;
           const json = await res.json();
           const id =
-            json?.id ??
+            json?.consultationId ?? // 👈 novo
             json?.consultation?.id ??
+            (Array.isArray(json?.items) && json.items[0]?.consultationId) ??
             (Array.isArray(json?.items) && json.items[0]?.id) ??
-            (Array.isArray(json) && json[0]?.id);
+            json?.id ??
+            (Array.isArray(json) && (json[0]?.consultationId ?? json[0]?.id));
           if (id) return Number(id);
         } catch {
           /* tenta o próximo */
@@ -668,31 +716,48 @@ export default function AgendaPage() {
             borderColor: theme.colors.outlineVariant,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ gap: 8 }}>
             <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: theme.colors.primaryContainer,
-              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
             >
-              <Icon
-                name="calendar-month"
-                size={22}
-                color={theme.colors.onPrimaryContainer}
-              />
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: theme.colors.primaryContainer,
+                }}
+              >
+                <Icon
+                  name="calendar-month"
+                  size={22}
+                  color={theme.colors.onPrimaryContainer}
+                  accessibilityLabel="Ícone de calendário"
+                />
+              </View>
+              <Text
+                style={{
+                  fontSize: 24,
+                  fontWeight: "900",
+                  color: theme.colors.onSurface,
+                }}
+                accessibilityRole="header"
+              >
+                Agenda
+              </Text>
             </View>
             <Text
               style={{
-                fontSize: 24,
-                fontWeight: "900",
-                color: theme.colors.onSurface,
+                color: theme.colors.onSurfaceVariant,
+                lineHeight: 18,
               }}
+              numberOfLines={3}
             >
-              Agenda
+              Revê e gere os teus horários de atendimento. Bloqueia ou
+              desbloqueia slots, cria novos períodos e inicia consultas quando
+              existirem reservas.
             </Text>
           </View>
         </FlexibleCard>
@@ -831,7 +896,9 @@ export default function AgendaPage() {
 
                         {/* Biblioteca / Bibliotecário */}
                         {!!(s.libraryName || s.librarianName) && (
-                          <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                          <Text
+                            style={{ color: theme.colors.onSurfaceVariant }}
+                          >
                             {[s.librarianName, s.libraryName]
                               .filter(Boolean)
                               .join(" • ")}
@@ -869,6 +936,7 @@ export default function AgendaPage() {
                         ) : null}
 
                         {/* Ações */}
+                        {/* Ações */}
                         <View
                           style={{
                             flexDirection: "row",
@@ -894,7 +962,15 @@ export default function AgendaPage() {
                             accessibilityLabel="Desbloquear horário"
                           />
 
-                          {/* NOVO: “Começar” visível quando BOOKED */}
+                          {/* NOVO: “Marcar” para slots OPEN */}
+                          {s.status === "OPEN" && isFuture && (
+                            <SecondaryButton
+                              label="Marcar"
+                              onPress={() => openWizardForOpenSlot(s)}
+                            />
+                          )}
+
+                          {/* EXISTENTE: “Começar” para BOOKED */}
                           {s.status === "BOOKED" && (
                             <View style={{ marginLeft: "auto" }}>
                               <PrimaryButton
@@ -914,6 +990,19 @@ export default function AgendaPage() {
           )}
         </FlexibleCard>
       </ScrollView>
+
+      <ConsultationWizard
+        visible={showWizard}
+        onDismiss={() => setShowWizard(false)}
+        defaultLibrarianId={Number(user?.id)}
+        defaultSlotId={wizardSlotId}
+        libraries={libs}
+        onCreated={(id) => {
+          setShowWizard(false);
+          router.push(`/librarian/consultas/${id}`);
+          load();
+        }}
+      />
 
       {/* Modal de criação de horário */}
       <CreateSlotModal

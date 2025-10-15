@@ -1,33 +1,31 @@
+// apps/mobile/app/family/consultas/ConsultasTopSwitchFamily.tsx
 import * as React from "react";
 import { ScrollView, View, TouchableOpacity } from "react-native";
 import { usePathname, useRouter } from "expo-router";
 import { Text, useTheme } from "react-native-paper";
 
-type Item = { label: string; href: string; key: "agenda"|"pendentes"|"slots"|"historico" };
+type Key = "agendar" | "agenda";
+type Item = { label: string; href: string; key: Key };
 
 const ITEMS: Item[] = [
-  { key: "agenda",    label: "Agenda",    href: "/librarian/consultas/agenda" },
-  { key: "pendentes", label: "Pendentes", href: "/librarian/consultas/pendentes" },
-  { key: "slots",     label: "Slots",     href: "/librarian/consultas/slots" },
-  { key: "historico", label: "Histórico", href: "/librarian/consultas/historico" },
+  { key: "agendar", label: "Agendar consultas", href: "/family/consultas/agendar" },
+  { key: "agenda",  label: "Agenda",  href: "/family/consultas/agenda"  },
 ];
 
-export default function ConsultasTopSwitch() {
+export default function ConsultasTopSwitchFamily() {
   const pathname = usePathname();
   const router = useRouter();
   const theme = useTheme();
 
-  // deteta ativo pelo segmento final
-  const activeKey = React.useMemo(() => {
+  const activeKey: Key = React.useMemo(() => {
     const seg = pathname?.split("/").pop() ?? "";
-    if (["agenda","pendentes","slots","historico"].includes(seg)) return seg as Item["key"];
-    return "agenda";
+    // quando estás em /family/consultas (index), escolhe o “default” que quiseres mostrar como ativo
+    if (seg === "" || seg === "consultas" || seg === "index") return "agendar";
+    return (["agendar", "agenda"].includes(seg) ? (seg as Key) : "agendar");
   }, [pathname]);
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}
       contentContainerStyle={{ paddingHorizontal: 8, gap: 8, alignItems: "center" }}
     >
       {ITEMS.map((it) => {
@@ -35,9 +33,10 @@ export default function ConsultasTopSwitch() {
         return (
           <TouchableOpacity
             key={it.key}
-            onPress={() => router.navigate(it.href)}
+            onPress={() => router.replace(it.href)}
             accessibilityRole="button"
             accessibilityLabel={it.label}
+            activeOpacity={0.85}
             style={{
               paddingVertical: 6,
               paddingHorizontal: 12,
@@ -46,15 +45,16 @@ export default function ConsultasTopSwitch() {
               borderWidth: active ? 0 : 1,
               borderColor: theme.colors.outlineVariant,
             }}
-            activeOpacity={0.85}
           >
-            <Text style={{ color: active ? theme.colors.onPrimary : theme.colors.onSecondaryContainer, fontWeight: "800" }}>
+            <Text style={{
+              color: active ? theme.colors.onPrimary : theme.colors.onSecondaryContainer,
+              fontWeight: "800",
+            }}>
               {it.label}
             </Text>
           </TouchableOpacity>
         );
       })}
-      {/* pequeno spacer para não colar à borda em iOS */}
       <View style={{ width: 4 }} />
     </ScrollView>
   );

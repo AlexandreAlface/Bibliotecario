@@ -18,6 +18,8 @@ import { request } from "./api";
 /** Género normalizado (inclui "O" de Outro e `null` para desconhecido). */
 export type Gender = "M" | "F" | "O" | null;
 
+export type FamilyLite = { id: number; fullName: string };
+
 /** Criança ligada a uma família. */
 export type Child = {
   id: number;
@@ -54,6 +56,20 @@ export type ChildCreateInput = {
   readerProfile?: string | null;
 };
 export type ChildUpdateInput = ChildCreateInput;
+
+export type LibrarianFamilyRow = {
+  id: number;
+  fullName: string;
+  email?: string;
+  phone?: string | null;
+  childrenCount?: number;
+};
+
+export type LibrarianFamiliesResponse = {
+  items: LibrarianFamilyRow[];
+  nextCursor: number | null;
+};
+
 
 /* ============================ Helpers PUROS =========================== */
 
@@ -102,6 +118,63 @@ export const familiesApi = {
    */
   deleteChild: (id: number) => request(`/children/${id}`, jsonOpts("DELETE")),
 };
+
+/** Pesquisa famílias por nome. Fallbacks tolerantes. */
+export async function searchFamilies(q: string, limit = 10): Promise<FamilyLite[]> {
+  if (!q.trim()) return [];
+  const tryPaths = [
+    `/families/search?q=${encodeURIComponent(q)}&perPage=${limit}&page=1`,
+    `/families?q=${encodeURIComponent(q)}&limit=${limit}`,
+    `/public/families?q=${encodeURIComponent(q)}&limit=${limit}`,
+  ];
+  for (const p of tryPaths) {
+    try {
+      const out = await request<any>(p, { method: "GET" });
+      const items = Array.isArray(out) ? out : out?.items ?? [];
+      return (Array.isArray(items) ? items : []).map((f: any) => ({
+        id: Number(f?.id),
+        fullName: String(f?.fullName ?? f?.name ?? ""),
+      }));
+    } catch {}
+  }
+  return [];
+}
+
+/** Obtém uma família por ID (para pré-seleção). */
+export async function getFamilyById(id: number): Promise<FamilyLite | null> {
+  const tryPaths = [`/families/${id}`, `/public/families/${id}`];
+  for (const p of tryPaths) {
+    try {
+      const f = await request<any>(p, { method: "GET" });
+      if (f?.id) {
+        return { id: Number(f.id), fullName: String(f.fullName ?? f.name ?? "") };
+      }
+    } catch {}
+  }
+  return null;
+}
+
+export async function listFamiliesForLibrary(
+  libraryId: number,
+  opts?: { search?: string; limit?: number; cursor?: number }
+): Promise<LibrarianFamiliesResponse> {
+  const q = new URLSearchParams();
+  q.set("libraryId", String(libraryId));
+  if (opts?.search) q.set("search", opts.search);
+  if (opts?.limit) q.set("limit", String(opts.limit));
+  if (opts?.cursor) q.set("cursor", String(opts.cursor));
+  const s = q.toString();
+
+  const res = await request<any>(`/librarian/families${s ? `?${s}` : ""}`, {
+    method: "GET",
+  });
+
+  return {
+    items: Array.isArray(res?.items) ? res.items : [],
+    nextCursor:
+      typeof res?.nextCursor === "number" ? res.nextCursor : null,
+  };
+}
 
 /* ============================== Fim ===================================
  *  Alexandre Brissos — Nº 21131

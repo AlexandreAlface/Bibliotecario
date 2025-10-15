@@ -1,5 +1,7 @@
+// apps\mobile\app\librarian\consultas\_layout.tsx
+
 import { Stack } from "expo-router";
-import ConsultasTopSwitch from "./ConsultasTopSwitch";
+import ConsultasTopSwitch from "./ConsultasTopSwitchLibrarian";
 
 export default function ConsultasLayout() {
   const common = {
@@ -27,3 +29,5 @@ export default function ConsultasLayout() {
     </Stack>
   );
 }
+
+

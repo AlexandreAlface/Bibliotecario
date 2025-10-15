@@ -577,10 +577,10 @@ var HowItWorksSection = ({
 };
 
 // src/components/Logo/LogoBiblio.svg
-var LogoBiblio_default = "./LogoBiblio-OW4T5D4X.svg";
+var LogoBiblio_default = "./LogoBiblio-232HMIOS.svg";
 
 // src/components/Logo/AF_Logo_BF.svg
-var AF_Logo_BF_default = "./AF_Logo_BF-4D6RHLE2.svg";
+var AF_Logo_BF_default = "./AF_Logo_BF-BIQNGYPS.svg";
 var Logo = ({
   alt = "Bibliotec\xE1rio",
   variant = "biblio",

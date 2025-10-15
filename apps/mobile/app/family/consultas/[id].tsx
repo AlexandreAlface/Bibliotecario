@@ -5,5 +5,5 @@ import ConsultationRoom from "src/features/consultations/ConsultationRoom";
 
 export default function FamilyConsultationRoomModal() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  return <ConsultationRoom id={Number(id)} role="librarian" />;
+  return <ConsultationRoom id={Number(id)} role="family" />;
 }

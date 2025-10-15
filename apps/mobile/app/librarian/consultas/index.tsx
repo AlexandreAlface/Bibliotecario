@@ -1,3 +1,6 @@
+
+// apps\mobile\app\librarian\consultas\index.tsx
+
 import { Redirect } from "expo-router";
 
 export default function ConsultasIndex() {

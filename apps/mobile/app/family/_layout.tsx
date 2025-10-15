@@ -92,6 +92,11 @@ const ICONS: Record<
     inactive: "newspaper-variant-outline",
     label: "Dicas",
   },
+  // agenda: {
+  //   active: "symbol",
+  //   inactive: "symbol",
+  //   label: ""
+  // }
 };
 
 /** Menu visível para Família (sem actingChild). */

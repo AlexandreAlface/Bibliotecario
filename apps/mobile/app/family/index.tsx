@@ -297,6 +297,10 @@ export default function FamilyLanding() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
+  const goToProfiles = React.useCallback(
+    () => router.push("/family/profiles"),
+    [router]
+  );
 
   // Sessão: modo criança?
   const actingChild = React.useMemo(() => resolveActingChild(user), [user]);
@@ -572,6 +576,13 @@ export default function FamilyLanding() {
                   isActingChild ? "lightbulb-on-outline" : "book-open-variant"
                 }
                 onPress={isActingChild ? goToSugestoes : goToLeituras}
+              />
+
+              <IconTile
+                title="Trocar perfil"
+                subtitle={isActingChild ? "Modo criança" : "Modo família"}
+                icon="account-switch"
+                onPress={goToProfiles}
               />
 
               <IconTile

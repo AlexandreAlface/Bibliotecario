@@ -11,7 +11,7 @@
  * =============================================================================
  */
 
-import { API_URL, request } from "./api";
+import { API_URL, getOr, request } from "./api";
 
 export type ConsultationStatus =
   | "PENDING"
@@ -19,6 +19,20 @@ export type ConsultationStatus =
   | "DECLINED"
   | "CANCELLED"
   | "COMPLETED";
+
+type NextItem = {
+  id: number;
+  title?: string | null;
+  date?: string | null;
+  scheduledAt?: string | null;
+  status?: ConsultationStatus | null;
+  librarianId?: number | null;
+  librarianName?: string | null;
+  familyId?: number | null;
+  childId?: number | null;
+  libraryId?: number | null;
+  libraryName?: string | null;
+};
 
 /** Consulta “light” para listagens no mobile. */
 export type ConsultationLite = {
@@ -37,7 +51,7 @@ export type Slot = {
   id: number;
   startAt: string;
   endAt: string;
-  status: "OPEN" | "BOOKED" | "CANCELLED";
+  status: "OPEN" | "BOOKED" | "BLOCKED";
   librarianId: number;
   librarianName?: string | null;
   libraryId?: number | null;
@@ -110,6 +124,21 @@ async function tryJson(paths: string[]): Promise<any | null> {
   return null;
 }
 
+/* --- helper local: devolve fallback em 400/404 --- */
+async function requestOr<T>(
+  path: string,
+  init: any,
+  fallback: T,
+  statuses: number[] = [400, 404]
+): Promise<T> {
+  try {
+    return await request<T>(path, init);
+  } catch (e: any) {
+    if (statuses.includes(Number(e?.status))) return fallback;
+    throw e;
+  }
+}
+
 /**
  * Normaliza um payload de detalhes (venha ele em que forma vier) para o
  * “shape” usado pelo ecrã mobile.
@@ -122,10 +151,8 @@ function normalizeDetails(input: any): DetailsShape {
       ? input
       : {};
 
-  const attachmentsRaw =
-    input?.attachments ??
-    input?.consultation?.attachments ??
-    {
+  const attachmentsRaw = input?.attachments ??
+    input?.consultation?.attachments ?? {
       books: input?.books ?? [],
       microContents: input?.microContents ?? [],
       events: input?.events ?? [],
@@ -140,7 +167,11 @@ function normalizeDetails(input: any): DetailsShape {
     },
     readings: input?.readings ?? input?.consultation?.readings ?? [],
     // “events” é a timeline; evitar colisão com attachments.events (já tratado acima)
-    events: input?.eventsTimeline ?? input?.timeline ?? input?.eventsTimelineItems ?? [],
+    events:
+      input?.eventsTimeline ??
+      input?.timeline ??
+      input?.eventsTimelineItems ??
+      [],
     history: {
       consultations:
         input?.history?.consultations ??
@@ -168,7 +199,7 @@ export const consultationsApi = {
     order?: "asc" | "desc";
     limit?: number;
     offset?: number;
-  }) => request(`/consultations/all?${toQuery(params)}`, { method: "GET" }),
+  }) => getOr(`/consultations/all?${toQuery(params)}`, []),
 
   /**
    * Obtém os slots de um bibliotecário específico num intervalo.
@@ -177,12 +208,9 @@ export const consultationsApi = {
     librarianId: number,
     params: { from: string; to: string }
   ) =>
-    request<Slot[]>(
-      `/consultations/librarians/${librarianId}/slots${toQuery({
-        from: params.from,
-        to: params.to,
-      })}`,
-      { method: "GET" }
+    getOr<Slot[]>(
+      `/consultations/librarians/${librarianId}/slots${toQuery(params)}`,
+      []
     ),
 
   /**
@@ -193,11 +221,13 @@ export const consultationsApi = {
     childId: number;
     slotId: number;
     librarianId: number;
-  }) => request("/consultations", { method: "POST", json: data }),
+  }) =>
+    request<{ id: number }>("/consultations", { method: "POST", json: data }),
 
-  next: (params: { familyId?: number; librarianId?: number }) =>
-    request(`/consultations/next?${toQuery(params)}`, { method: "GET" }),
-
+  next: async (params: { familyId?: number; librarianId?: number }) => {
+    if (!params?.familyId && !params?.librarianId) return [] as NextItem[];
+    return getOr<NextItem[]>(`/consultations/next?${toQuery(params)}`, []);
+  },
   /**
    * 🔧 `details` “rico”: tenta endpoints completos; se faltarem secções
    * (anexos/leituras/timeline/histórico), vai buscá-las em paralelo.
@@ -206,11 +236,12 @@ export const consultationsApi = {
   details: async (id: number): Promise<DetailsShape> => {
     // 1) tenta endpoints ricos usados na web
     const base =
-      (await tryJson([`/consultations/${id}/room`, `/consultations/${id}/details`])) ??
+      (await tryJson([`/consultations/${id}/details`])) ??
       (await tryJson([`/consultations/${id}`])) ??
+      // fallback “nice to have” (caso exista noutro stack)
+      (await tryJson([`/consultations/${id}/room`])) ??
       {};
 
-    // 2) normaliza o que já veio
     const normalized = normalizeDetails(base);
 
     // 3) identificar faltas
@@ -220,9 +251,16 @@ export const consultationsApi = {
         !normalized.attachments.microContents?.length &&
         !normalized.attachments.events?.length);
 
-    const needsReadings = !(normalized.readings?.length > 0);
-    const needsTimeline = !(normalized.events?.length > 0);
-    const needsHistory = !(normalized.history?.consultations?.length > 0);
+    const needsReadings = !(
+      Array.isArray(normalized.readings) && normalized.readings.length > 0
+    );
+    const needsTimeline = !(
+      Array.isArray(normalized.events) && normalized.events.length > 0
+    );
+    const needsHistory = !(
+      Array.isArray(normalized.history?.consultations) &&
+      normalized.history!.consultations.length > 0
+    );
 
     // 4) ir buscar sub-recursos em paralelo (fall-back).
     const [attachments, readings, timeline, history] = await Promise.all([
@@ -240,7 +278,10 @@ export const consultationsApi = {
           ])
         : null,
       needsHistory
-        ? tryJson([`/consultations/${id}/history`, `/consultations/${id}/related`])
+        ? tryJson([
+            `/consultations/${id}/history`,
+            `/consultations/${id}/related`,
+          ])
         : null,
     ]);
 
@@ -297,19 +338,10 @@ export const consultationsApi = {
     libraryId?: number;
     onlyBookable?: boolean;
   }) =>
-    request(
+    getOr<Slot[]>(
       `/consultations/slots?${toQuery({ onlyBookable: true, ...params })}`,
-      { method: "GET" }
+      []
     ),
-
-  // Opcional: propostas (alinhamento com a web)
-  proposalsByFamily: (familyId: number) =>
-    request(`/consultations/families/${familyId}/proposals`, { method: "GET" }),
-
-  proposalsByLibrarian: (librarianId: number) =>
-    request(`/consultations/librarians/${librarianId}/proposals`, {
-      method: "GET",
-    }),
 
   /** Atualiza notas da consulta (bibliotecário/admin) */
   updateNotes: (id: number, data: { notes: string }) =>
@@ -341,6 +373,42 @@ export const consultationsApi = {
     if (!res.ok) throw new Error("Falha ao descarregar PDF");
     return await res.blob();
   },
+
+  proposeReschedule: (
+    id: number,
+    data: {
+      toStartAt: string; // ISO
+      toEndAt: string; // ISO
+      message?: string;
+      proposedBy?: "FAMILY" | "LIBRARIAN" | "SYSTEM";
+    }
+  ) =>
+    request(`/v1/consultations/${id}/proposals`, {
+      method: "POST",
+      json: data,
+    }),
+
+  /** Aceitar/Recusar proposta */
+  acceptProposal: (proposalId: number) =>
+    request(`/v1/proposals/${proposalId}/accept`, { method: "POST" }),
+  declineProposal: (proposalId: number) =>
+    request(`/v1/proposals/${proposalId}/decline`, { method: "POST" }),
+
+  /** Listar propostas pendentes (usa os endpoints /v1 do backend) */
+  proposalsByFamily: (familyId: number) =>
+    getOr(`/v1/families/${familyId}/proposals?status=PENDING`, {
+      page: 1,
+      limit: 20,
+      total: 0,
+      items: [],
+    }),
+  proposalsByLibrarian: (librarianId: number) =>
+    getOr(`/v1/librarians/${librarianId}/proposals?status=PENDING`, {
+      page: 1,
+      limit: 20,
+      total: 0,
+      items: [],
+    }),
 };
 
 /* ============================== Fim do módulo ===============================

@@ -659,31 +659,48 @@ export default function HistoricoPage() {
           padding={14}
           style={{ borderRadius: 12 }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ gap: 8 }}>
             <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: theme.colors.primaryContainer,
-              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
             >
-              <Icon
-                name="history"
-                size={22}
-                color={theme.colors.onPrimaryContainer}
-              />
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: theme.colors.primaryContainer,
+                }}
+              >
+                <Icon
+                  name="history"
+                  size={22}
+                  color={theme.colors.onPrimaryContainer}
+                  accessibilityLabel="Ícone de histórico"
+                />
+              </View>
+              <Text
+                style={{
+                  fontSize: 22,
+                  fontWeight: "900",
+                  color: theme.colors.onSurface,
+                }}
+                accessibilityRole="header"
+              >
+                Histórico de consultas
+              </Text>
             </View>
             <Text
               style={{
-                fontSize: 22,
-                fontWeight: "900",
-                color: theme.colors.onSurface,
+                color: theme.colors.onSurfaceVariant,
+                lineHeight: 18,
               }}
+              numberOfLines={3}
             >
-              Histórico de consultas
+              Vê todas as consultas anteriores e o seu estado. Usa os filtros de
+              estado e intervalo de datas para afinar os resultados. Toca num
+              cartão para abrir o detalhe da consulta.
             </Text>
           </View>
         </FlexibleCard>
@@ -703,7 +720,9 @@ export default function HistoricoPage() {
               justifyContent: "space-between",
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
               <Icon
                 name="filter-variant"
                 size={18}
@@ -994,7 +1013,9 @@ export default function HistoricoPage() {
               marginBottom: 8,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
               <Icon
                 name="clipboard-list-outline"
                 size={18}
@@ -1064,9 +1085,7 @@ export default function HistoricoPage() {
                   <IconButton
                     icon="chevron-right"
                     disabled={!canNext}
-                    onPress={() =>
-                      setPage((p) => Math.min(totalPages, p + 1))
-                    }
+                    onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
                     accessibilityLabel="Página seguinte"
                   />
                 </View>

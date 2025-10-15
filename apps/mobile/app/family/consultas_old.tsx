@@ -204,7 +204,7 @@ const STATUS_STYLE: Record<
 /**
  * Retorna metadados de apresentação para um estado (default = PENDING).
  */
-function statusMeta(status?: Status) {
+function statusMeta(status?: Status | null) {
   const key = (status ?? "PENDING") as Exclude<Status, undefined>;
   return STATUS_STYLE[key];
 }
@@ -653,551 +653,541 @@ export default function ConsultasScreen({ preset }: { preset?: Preset } = {}) {
   /* -------------------------------- Render -------------------------------- */
   return (
     <Background>
-        <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 16 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+      <ScrollView
+        contentContainerStyle={{ padding: 16, gap: 16 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* HEADER TOP — Consultas */}
+        <FlexibleCard
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={16}
+          style={{
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme.colors.outlineVariant,
+          }}
         >
-          {/* HEADER TOP — Consultas */}
-          <FlexibleCard
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={16}
-            style={{
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: theme.colors.outlineVariant,
-            }}
-          >
-            {/* Row 1: ícone + título + contador */}
+          {/* Row 1: ícone + título + contador */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-            >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: theme.colors.primaryContainer,
-                }}
-              >
-                <Icon
-                  name="calendar-account"
-                  size={22}
-                  color={theme.colors.onPrimaryContainer}
-                />
-              </View>
-
-              <View
-                style={{
-                  flex: 1,
-                  minWidth: 0 /* permite encolher sem quebrar por letra */,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 24,
-                    lineHeight: 28,
-                    fontWeight: "900",
-                    color: theme.colors.onSurface,
-                  }}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                >
-                  Consultas
-                </Text>
-                <Text style={{ opacity: 0.7, marginTop: 4 }} numberOfLines={2}>
-                  Próximas e anteriores marcações com os bibliotecários.
-                </Text>
-              </View>
-
-              {/* contador ao lado do título */}
-              <View
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 4,
-                  borderRadius: 999,
-                  backgroundColor: theme.colors.secondaryContainer,
-                  alignSelf: "flex-start",
-                }}
-              >
-                <Text
-                  style={{
-                    color: theme.colors.onSecondaryContainer,
-                    fontWeight: "800",
-                    fontSize: 12,
-                  }}
-                >
-                  {items.length}
-                </Text>
-              </View>
-            </View>
-          </FlexibleCard>
-
-          {/* ---------- Filtros (COLAPSÁVEL) ---------- */}
-          <FlexibleCard
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={14}
-            style={{ borderRadius: 12 }}
-          >
-            {/* Header */}
-            <TouchableOpacity
-              onPress={toggleFilters}
-              activeOpacity={0.7}
               style={{
-                flexDirection: "row",
+                width: 40,
+                height: 40,
+                borderRadius: 10,
                 alignItems: "center",
-                justifyContent: "space-between",
+                justifyContent: "center",
+                backgroundColor: theme.colors.primaryContainer,
               }}
-              accessibilityRole="button"
-              accessibilityLabel={
-                filtersCollapsed ? "Expandir filtros" : "Colapsar filtros"
-              }
             >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              <Icon
+                name="calendar-account"
+                size={22}
+                color={theme.colors.onPrimaryContainer}
+              />
+            </View>
+
+            <View
+              style={{
+                flex: 1,
+                minWidth: 0 /* permite encolher sem quebrar por letra */,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 24,
+                  lineHeight: 28,
+                  fontWeight: "900",
+                  color: theme.colors.onSurface,
+                }}
+                numberOfLines={1}
+                ellipsizeMode="tail"
               >
-                <Text
+                Consultas
+              </Text>
+              <Text style={{ opacity: 0.7, marginTop: 4 }} numberOfLines={2}>
+                Próximas e anteriores marcações com os bibliotecários.
+              </Text>
+            </View>
+
+            {/* contador ao lado do título */}
+            <View
+              style={{
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 999,
+                backgroundColor: theme.colors.secondaryContainer,
+                alignSelf: "flex-start",
+              }}
+            >
+              <Text
+                style={{
+                  color: theme.colors.onSecondaryContainer,
+                  fontWeight: "800",
+                  fontSize: 12,
+                }}
+              >
+                {items.length}
+              </Text>
+            </View>
+          </View>
+        </FlexibleCard>
+
+        {/* ---------- Filtros (COLAPSÁVEL) ---------- */}
+        <FlexibleCard
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={14}
+          style={{ borderRadius: 12 }}
+        >
+          {/* Header */}
+          <TouchableOpacity
+            onPress={toggleFilters}
+            activeOpacity={0.7}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={
+              filtersCollapsed ? "Expandir filtros" : "Colapsar filtros"
+            }
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "800",
+                  color: theme.colors.onSurface,
+                }}
+              >
+                Filtros
+              </Text>
+              {!!activeFiltersCount && (
+                <View
                   style={{
-                    fontSize: 18,
-                    fontWeight: "800",
-                    color: theme.colors.onSurface,
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 999,
+                    backgroundColor: theme.colors.secondaryContainer,
                   }}
                 >
-                  Filtros
-                </Text>
-                {!!activeFiltersCount && (
-                  <View
+                  <Text
                     style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 2,
-                      borderRadius: 999,
-                      backgroundColor: theme.colors.secondaryContainer,
+                      color: theme.colors.onSecondaryContainer,
+                      fontWeight: "700",
+                      fontSize: 12,
                     }}
                   >
-                    <Text
-                      style={{
-                        color: theme.colors.onSecondaryContainer,
-                        fontWeight: "700",
-                        fontSize: 12,
-                      }}
-                    >
-                      {activeFiltersCount}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Icon
-                name={filtersCollapsed ? "chevron-down" : "chevron-up"}
-                size={24}
-                color={theme.colors.onSurface}
-              />
-            </TouchableOpacity>
-
-            {/* Conteúdo */}
-            {!filtersCollapsed && (
-              <View style={{ marginTop: 12 }}>
-                {/* Tabs */}
-                <View
-                  style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}
-                >
-                  <PillChip
-                    label="Próximas"
-                    active={tab === "next"}
-                    onPress={() => setTab("next")}
-                  />
-                  <PillChip
-                    label="Anteriores"
-                    active={tab === "past"}
-                    onPress={() => setTab("past")}
-                  />
+                    {activeFiltersCount}
+                  </Text>
                 </View>
-
-                {/* Estados */}
-                <Text
-                  style={{
-                    color: theme.colors.onSurfaceVariant,
-                    marginBottom: 6,
-                  }}
-                >
-                  Estados
-                </Text>
-                <View
-                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}
-                >
-                  {STATUS_OPTIONS.map((opt) => (
-                    <StatusPill
-                      key={opt.key}
-                      status={opt.key}
-                      active={selectedStatuses.has(opt.key)}
-                      onPress={() => toggleStatus(opt.key)}
-                    />
-                  ))}
-                </View>
-
-                {/* Ações dos estados */}
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                  <Button
-                    mode="outlined"
-                    icon="filter-remove"
-                    onPress={() => setSelectedStatuses(new Set())}
-                  >
-                    Limpar estados
-                  </Button>
-                  <Button
-                    mode="outlined"
-                    icon="select-all"
-                    onPress={() =>
-                      setSelectedStatuses(
-                        new Set(STATUS_OPTIONS.map((o) => o.key))
-                      )
-                    }
-                  >
-                    Selecionar todos
-                  </Button>
-                </View>
-
-                <View
-                  style={{
-                    height: 1,
-                    backgroundColor: theme.colors.outlineVariant,
-                    opacity: 0.6,
-                    marginVertical: 12,
-                  }}
-                />
-
-                {/* Datas */}
-                <Text
-                  style={{
-                    color: theme.colors.onSurfaceVariant,
-                    marginBottom: 6,
-                  }}
-                >
-                  Intervalo de datas
-                </Text>
-
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  {/* FROM */}
-                  <View style={{ flex: 1 }}>
-                    <TouchableOpacity
-                      onPress={openFrom}
-                      style={{
-                        paddingVertical: 10,
-                        paddingHorizontal: 12,
-                        borderRadius: 10,
-                        borderWidth: 1,
-                        borderColor: theme.colors.outlineVariant,
-                        backgroundColor: theme.colors.surface,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <Icon
-                        name="calendar-start"
-                        size={18}
-                        color={theme.colors.onSurface}
-                      />
-                      <Text style={{ color: theme.colors.onSurface }}>
-                        {fromDate
-                          ? fmtDateTime(fromDate.toISOString())
-                          : "Sem início"}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* TO */}
-                  <View style={{ flex: 1 }}>
-                    <TouchableOpacity
-                      onPress={openTo}
-                      style={{
-                        paddingVertical: 10,
-                        paddingHorizontal: 12,
-                        borderRadius: 10,
-                        borderWidth: 1,
-                        borderColor: theme.colors.outlineVariant,
-                        backgroundColor: theme.colors.surface,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <Icon
-                        name="calendar-end"
-                        size={18}
-                        color={theme.colors.onSurface}
-                      />
-                      <Text style={{ color: theme.colors.onSurface }}>
-                        {toDate ? fmtDateTime(toDate.toISOString()) : "Sem fim"}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Modais de Data */}
-                <DatePickerModal
-                  visible={showFromModal}
-                  title="Selecionar data inicial"
-                  value={fromDate ?? new Date()}
-                  onCancel={() => setShowFromModal(false)}
-                  onConfirm={(picked) => {
-                    const nf = new Date(picked);
-                    setFromDate(nf);
-                    if (toDate && nf > toDate) setToDate(nf);
-                    setShowFromModal(false);
-                  }}
-                />
-                <DatePickerModal
-                  visible={showToModal}
-                  title="Selecionar data final"
-                  value={toDate ?? new Date()}
-                  minimumDate={fromDate ?? undefined}
-                  onCancel={() => setShowToModal(false)}
-                  onConfirm={(picked) => {
-                    const nt = new Date(picked);
-                    setToDate(fromDate && nt < fromDate ? fromDate : nt);
-                    setShowToModal(false);
-                  }}
-                />
-
-                {/* Ações de datas */}
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-                  <Button
-                    mode="outlined"
-                    icon="calendar-remove"
-                    onPress={clearDates}
-                  >
-                    Limpar datas
-                  </Button>
-                  <Button
-                    mode="outlined"
-                    icon="calendar-today"
-                    onPress={setTodayRange}
-                  >
-                    Hoje
-                  </Button>
-                </View>
-              </View>
-            )}
-          </FlexibleCard>
-
-          {/* ---------- Lista ---------- */}
-          <FlexibleCard
-            title={tab === "next" ? "Próximas" : "Anteriores"}
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={12}
-            style={{ borderRadius: 12 }}
-          >
-            {/* topo da secção: contador + refresh */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 6,
-              }}
-            >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
-                <Icon
-                  name="calendar-clock"
-                  size={18}
-                  color={theme.colors.onSurfaceVariant}
-                />
-                <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                  {loading
-                    ? "A carregar…"
-                    : `${items.length} resultado${
-                        items.length === 1 ? "" : "s"
-                      }`}
-                </Text>
-              </View>
-              <Button
-                mode="text"
-                icon="refresh"
-                onPress={load}
-                disabled={loading}
-                compact
-              >
-                Atualizar
-              </Button>
+              )}
             </View>
+            <Icon
+              name={filtersCollapsed ? "chevron-down" : "chevron-up"}
+              size={24}
+              color={theme.colors.onSurface}
+            />
+          </TouchableOpacity>
 
-            {loading ? (
-              <ActivityIndicator style={{ marginTop: 16 }} />
-            ) : items.length === 0 ? (
-              <View style={{ alignItems: "center", paddingVertical: 20 }}>
-                <Text
-                  style={{
-                    color: theme.colors.onSurfaceVariant,
-                    marginBottom: 10,
-                    textAlign: "center",
-                  }}
-                >
-                  {tab === "next"
-                    ? "Sem consultas marcadas."
-                    : "Sem histórico de consultas."}
-                </Text>
-                {!isActingChild && (
-                  <Button
-                    mode="contained"
-                    icon="calendar-plus"
-                    onPress={() => router.push("/family/agenda")}
-                  >
-                    Agendar Consulta
-                  </Button>
-                )}
+          {/* Conteúdo */}
+          {!filtersCollapsed && (
+            <View style={{ marginTop: 12 }}>
+              {/* Tabs */}
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+                <PillChip
+                  label="Próximas"
+                  active={tab === "next"}
+                  onPress={() => setTab("next")}
+                />
+                <PillChip
+                  label="Anteriores"
+                  active={tab === "past"}
+                  onPress={() => setTab("past")}
+                />
               </View>
-            ) : (
-              <View style={{ gap: 10 }}>
-                {/* Página atual */}
-                {visibleItems.map((item) => {
-                  const librarianName =
-                    (item as any)?.librarianName ??
-                    (item as any)?.librarian?.fullName ??
-                    "";
-                  const libraryName =
-                    (item as any)?.libraryName ??
-                    (item as any)?.library?.name ??
-                    "";
-                  const childName =
-                    (item as any)?.childName ??
-                    (item as any)?.child?.name ??
-                    "";
-                  const title =
-                    item.title ??
-                    (childName ? `Consulta de ${childName}` : "Consulta");
-                  const meta = statusMeta(item.status);
 
-                  return (
-                    <View
-                      key={String(item.id)}
-                      style={{
-                        borderRadius: 12,
-                        borderWidth: 1,
-                        borderColor: theme.colors.outlineVariant,
-                        backgroundColor: theme.colors.surface,
-                        overflow: "hidden",
-                        minHeight: 96, // reserva espaço para o texto
-                      }}
-                    >
+              {/* Estados */}
+              <Text
+                style={{
+                  color: theme.colors.onSurfaceVariant,
+                  marginBottom: 6,
+                }}
+              >
+                Estados
+              </Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {STATUS_OPTIONS.map((opt) => (
+                  <StatusPill
+                    key={opt.key}
+                    status={opt.key}
+                    active={selectedStatuses.has(opt.key)}
+                    onPress={() => toggleStatus(opt.key)}
+                  />
+                ))}
+              </View>
+
+              {/* Ações dos estados */}
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                <Button
+                  mode="outlined"
+                  icon="filter-remove"
+                  onPress={() => setSelectedStatuses(new Set())}
+                >
+                  Limpar estados
+                </Button>
+                <Button
+                  mode="outlined"
+                  icon="select-all"
+                  onPress={() =>
+                    setSelectedStatuses(
+                      new Set(STATUS_OPTIONS.map((o) => o.key))
+                    )
+                  }
+                >
+                  Selecionar todos
+                </Button>
+              </View>
+
+              <View
+                style={{
+                  height: 1,
+                  backgroundColor: theme.colors.outlineVariant,
+                  opacity: 0.6,
+                  marginVertical: 12,
+                }}
+              />
+
+              {/* Datas */}
+              <Text
+                style={{
+                  color: theme.colors.onSurfaceVariant,
+                  marginBottom: 6,
+                }}
+              >
+                Intervalo de datas
+              </Text>
+
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {/* FROM */}
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    onPress={openFrom}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: theme.colors.outlineVariant,
+                      backgroundColor: theme.colors.surface,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <Icon
+                      name="calendar-start"
+                      size={18}
+                      color={theme.colors.onSurface}
+                    />
+                    <Text style={{ color: theme.colors.onSurface }}>
+                      {fromDate
+                        ? fmtDateTime(fromDate.toISOString())
+                        : "Sem início"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* TO */}
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    onPress={openTo}
+                    style={{
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: theme.colors.outlineVariant,
+                      backgroundColor: theme.colors.surface,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <Icon
+                      name="calendar-end"
+                      size={18}
+                      color={theme.colors.onSurface}
+                    />
+                    <Text style={{ color: theme.colors.onSurface }}>
+                      {toDate ? fmtDateTime(toDate.toISOString()) : "Sem fim"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Modais de Data */}
+              <DatePickerModal
+                visible={showFromModal}
+                title="Selecionar data inicial"
+                value={fromDate ?? new Date()}
+                onCancel={() => setShowFromModal(false)}
+                onConfirm={(picked) => {
+                  const nf = new Date(picked);
+                  setFromDate(nf);
+                  if (toDate && nf > toDate) setToDate(nf);
+                  setShowFromModal(false);
+                }}
+              />
+              <DatePickerModal
+                visible={showToModal}
+                title="Selecionar data final"
+                value={toDate ?? new Date()}
+                minimumDate={fromDate ?? undefined}
+                onCancel={() => setShowToModal(false)}
+                onConfirm={(picked) => {
+                  const nt = new Date(picked);
+                  setToDate(fromDate && nt < fromDate ? fromDate : nt);
+                  setShowToModal(false);
+                }}
+              />
+
+              {/* Ações de datas */}
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                <Button
+                  mode="outlined"
+                  icon="calendar-remove"
+                  onPress={clearDates}
+                >
+                  Limpar datas
+                </Button>
+                <Button
+                  mode="outlined"
+                  icon="calendar-today"
+                  onPress={setTodayRange}
+                >
+                  Hoje
+                </Button>
+              </View>
+            </View>
+          )}
+        </FlexibleCard>
+
+        {/* ---------- Lista ---------- */}
+        <FlexibleCard
+          title={tab === "next" ? "Próximas" : "Anteriores"}
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={12}
+          style={{ borderRadius: 12 }}
+        >
+          {/* topo da secção: contador + refresh */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 6,
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              <Icon
+                name="calendar-clock"
+                size={18}
+                color={theme.colors.onSurfaceVariant}
+              />
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                {loading
+                  ? "A carregar…"
+                  : `${items.length} resultado${items.length === 1 ? "" : "s"}`}
+              </Text>
+            </View>
+            <Button
+              mode="text"
+              icon="refresh"
+              onPress={load}
+              disabled={loading}
+              compact
+            >
+              Atualizar
+            </Button>
+          </View>
+
+          {loading ? (
+            <ActivityIndicator style={{ marginTop: 16 }} />
+          ) : items.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 20 }}>
+              <Text
+                style={{
+                  color: theme.colors.onSurfaceVariant,
+                  marginBottom: 10,
+                  textAlign: "center",
+                }}
+              >
+                {tab === "next"
+                  ? "Sem consultas marcadas."
+                  : "Sem histórico de consultas."}
+              </Text>
+              {!isActingChild && (
+                <Button
+                  mode="contained"
+                  icon="calendar-plus"
+                  onPress={() => router.push("/family/agenda")}
+                >
+                  Agendar Consulta
+                </Button>
+              )}
+            </View>
+          ) : (
+            <View style={{ gap: 10 }}>
+              {/* Página atual */}
+              {visibleItems.map((item) => {
+                const librarianName =
+                  (item as any)?.librarianName ??
+                  (item as any)?.librarian?.fullName ??
+                  "";
+                const libraryName =
+                  (item as any)?.libraryName ??
+                  (item as any)?.library?.name ??
+                  "";
+                const childName =
+                  (item as any)?.childName ?? (item as any)?.child?.name ?? "";
+                const title =
+                  item.title ??
+                  (childName ? `Consulta de ${childName}` : "Consulta");
+                const meta = statusMeta(item.status);
+
+                return (
+                  <TouchableOpacity
+                    key={String(item.id)}
+                    onPress={() => router.push(`/family/consultas/${item.id}`)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Abrir detalhes da consulta"
+                    activeOpacity={0.85}
+                    style={{
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: theme.colors.outlineVariant,
+                      backgroundColor: theme.colors.surface,
+                      overflow: "hidden",
+                      minHeight: 96, // reserva espaço para o texto
+                    }}
+                  >
+                    <View style={{ height: 4, backgroundColor: meta.accent }} />
+                    <View style={{ padding: 14 }}>
                       <View
-                        style={{ height: 4, backgroundColor: meta.accent }}
-                      />
-                      <View style={{ padding: 14 }}>
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            justifyContent: "space-between",
-                            gap: 8,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 16,
-                              fontWeight: "600",
-                              color: theme.colors.onSurface,
-                              flex: 1,
-                            }}
-                          >
-                            {title}
-                          </Text>
-                          <View
-                            style={{
-                              paddingVertical: 4,
-                              paddingHorizontal: 10,
-                              borderRadius: 999,
-                              backgroundColor: meta.bg,
-                              alignSelf: "flex-start",
-                            }}
-                          >
-                            <Text style={{ color: meta.fg, fontSize: 12 }}>
-                              {meta.label}
-                            </Text>
-                          </View>
-                        </View>
-
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          gap: 8,
+                        }}
+                      >
                         <Text
                           style={{
-                            marginTop: 6,
+                            fontSize: 16,
+                            fontWeight: "600",
+                            color: theme.colors.onSurface,
+                            flex: 1,
+                          }}
+                        >
+                          {title}
+                        </Text>
+                        <View
+                          style={{
+                            paddingVertical: 4,
+                            paddingHorizontal: 10,
+                            borderRadius: 999,
+                            backgroundColor: meta.bg,
+                            alignSelf: "flex-start",
+                          }}
+                        >
+                          <Text style={{ color: meta.fg, fontSize: 12 }}>
+                            {meta.label}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text
+                        style={{
+                          marginTop: 6,
+                          color: theme.colors.onSurfaceVariant,
+                        }}
+                      >
+                        {fmtDateTime(item.startAt)}
+                        {librarianName ? ` • ${librarianName}` : ""}
+                        {libraryName ? ` • ${libraryName}` : ""}
+                      </Text>
+
+                      {!!childName && (
+                        <Text
+                          style={{
+                            marginTop: 2,
                             color: theme.colors.onSurfaceVariant,
                           }}
                         >
-                          {fmtDateTime(item.startAt)}
-                          {librarianName ? ` • ${librarianName}` : ""}
-                          {libraryName ? ` • ${libraryName}` : ""}
+                          Criança: {childName}
                         </Text>
-
-                        {!!childName && (
-                          <Text
-                            style={{
-                              marginTop: 2,
-                              color: theme.colors.onSurfaceVariant,
-                            }}
-                          >
-                            Criança: {childName}
-                          </Text>
-                        )}
-                      </View>
+                      )}
                     </View>
-                  );
-                })}
+                  </TouchableOpacity>
+                );
+              })}
 
-                {/* Paginador */}
-                {items.length > PAGE_SIZE && (
-                  <View
+              {/* Paginador */}
+              {items.length > PAGE_SIZE && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginTop: 4,
+                    gap: 10,
+                  }}
+                >
+                  <Button
+                    mode="outlined"
+                    icon="chevron-left"
+                    onPress={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={!canPrev}
+                    style={{ flex: 1 }}
+                  >
+                    Anterior
+                  </Button>
+
+                  <Text
                     style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      marginTop: 4,
-                      gap: 10,
+                      color: theme.colors.onSurfaceVariant,
+                      minWidth: 110,
+                      textAlign: "center",
                     }}
                   >
-                    <Button
-                      mode="outlined"
-                      icon="chevron-left"
-                      onPress={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={!canPrev}
-                      style={{ flex: 1 }}
-                    >
-                      Anterior
-                    </Button>
+                    Página {page} de {totalPages}
+                  </Text>
 
-                    <Text
-                      style={{
-                        color: theme.colors.onSurfaceVariant,
-                        minWidth: 110,
-                        textAlign: "center",
-                      }}
-                    >
-                      Página {page} de {totalPages}
-                    </Text>
-
-                    <Button
-                      mode="contained"
-                      icon="chevron-right"
-                      contentStyle={{ flexDirection: "row-reverse" }}
-                      onPress={() =>
-                        setPage((p) => Math.min(totalPages, p + 1))
-                      }
-                      disabled={!canNext}
-                      style={{ flex: 1 }}
-                    >
-                      Seguinte
-                    </Button>
-                  </View>
-                )}
-              </View>
-            )}
-          </FlexibleCard>
-        </ScrollView>
+                  <Button
+                    mode="contained"
+                    icon="chevron-right"
+                    contentStyle={{ flexDirection: "row-reverse" }}
+                    onPress={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={!canNext}
+                    style={{ flex: 1 }}
+                  >
+                    Seguinte
+                  </Button>
+                </View>
+              )}
+            </View>
+          )}
+        </FlexibleCard>
+      </ScrollView>
     </Background>
   );
 }

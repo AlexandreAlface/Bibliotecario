@@ -784,9 +784,7 @@ function PropostaRow({
             <Text style={{ color: theme.colors.onSurface }}>
               Proposto: {fmtRange(p.toStartAt, p.toEndAt)}
             </Text>
-            {!!conflict && (
-              <Text style={{ color: "#9A3412" }}>{conflict}</Text>
-            )}
+            {!!conflict && <Text style={{ color: "#9A3412" }}>{conflict}</Text>}
             {!canAccept && (
               <Text style={{ color: theme.colors.onSurfaceVariant }}>
                 A aguardar resposta da família
@@ -984,32 +982,48 @@ export default function ConsultasPendentesComReagendamento() {
             borderColor: theme.colors.outlineVariant,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={{ gap: 8 }}>
             <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: theme.colors.primaryContainer,
-              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
             >
-              <Icon
-                name="calendar-clock"
-                size={22}
-                color={theme.colors.onPrimaryContainer}
-              />
+              <View
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: theme.colors.primaryContainer,
+                }}
+              >
+                <Icon
+                  name="calendar-clock"
+                  size={22}
+                  color={theme.colors.onPrimaryContainer}
+                  accessibilityLabel="Ícone relógio de calendário"
+                />
+              </View>
+              <Text
+                style={{
+                  fontSize: 24,
+                  lineHeight: 28,
+                  fontWeight: "900",
+                  color: theme.colors.onSurface,
+                }}
+                accessibilityRole="header"
+              >
+                Pedidos de consulta
+              </Text>
             </View>
             <Text
               style={{
-                fontSize: 24,
-                lineHeight: 28,
-                fontWeight: "900",
-                color: theme.colors.onSurface,
+                color: theme.colors.onSurfaceVariant,
+                lineHeight: 18,
               }}
+              numberOfLines={3}
             >
-              Pedidos de consulta
+              Gere pedidos pendentes: aceite ou recuse solicitações com horário
+              e trate de propostas de reagendamento quando necessário.
             </Text>
           </View>
         </FlexibleCard>
