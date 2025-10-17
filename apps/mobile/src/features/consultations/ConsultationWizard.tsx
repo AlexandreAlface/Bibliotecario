@@ -379,6 +379,9 @@ export default function ConsultationWizard(p: Props) {
   const theme = useTheme();
   const { width, height } = useWindowDimensions();
 
+  // Refs/hooks precisam estar antes de qualquer return condicional
+  const evInputRef = React.useRef<any>(null);
+
   /* ---------- biblioteca automática (presencial) ---------- */
   const autoLibrary = React.useMemo(
     () => ({ id: p.libraries?.[0]?.id, name: p.libraries?.[0]?.name }),
@@ -527,16 +530,22 @@ export default function ConsultationWizard(p: Props) {
   React.useEffect(() => {
     let alive = true;
     (async () => {
+      const q = debEv.trim().toLowerCase();
+      // 👇 Sem pesquisa (ou muito curta): não mostra nada
+      if (q.length < 2) {
+        if (alive) {
+          setEvOptions([]);
+          setEvLoading(false);
+        }
+        return;
+      }
       setEvLoading(true);
       try {
         if (!eventsCacheRef.current) {
           eventsCacheRef.current = await getProximosEventosSrv(120);
         }
         const all = eventsCacheRef.current || [];
-        const q = debEv.trim().toLowerCase();
-        const filtered = q
-          ? all.filter((e) => e.title.toLowerCase().includes(q))
-          : all.slice(0, 12);
+        const filtered = all.filter((e) => e.title.toLowerCase().includes(q));
         if (alive) setEvOptions(filtered.slice(0, 12));
       } finally {
         if (alive) setEvLoading(false);
@@ -678,6 +687,7 @@ export default function ConsultationWizard(p: Props) {
   // Dimensões do “painel” (centrado) — responsivo
   const panelWidth = Math.min(width - 32, 720);
   const panelMaxHeight = Math.min(height * 0.85, 720);
+
 
   return (
     <Portal>
@@ -1096,10 +1106,24 @@ export default function ConsultationWizard(p: Props) {
                     placeholder="Procurar evento por título"
                     value={evQuery}
                     onChangeText={setEvQuery}
-                    left={<TextInput.Icon icon="calendar-search" />}
+                    ref={evInputRef}
+                    left={
+                      <TextInput.Icon
+                        icon="calendar-search"
+                        onPress={() => evInputRef.current?.focus()}
+                      />
+                    }
                   />
-                  {evLoading ? (
+                  {debEv.trim().length < 2 ? (
+                    <Text style={{ opacity: 0.7, marginTop: 8 }}>
+                      Escreve pelo menos 2 letras para procurar eventos.
+                    </Text>
+                  ) : evLoading ? (
                     <ActivityIndicator style={{ marginTop: 8 }} />
+                  ) : evOptions.length === 0 ? (
+                    <Text style={{ opacity: 0.7, marginTop: 8 }}>
+                      Sem resultados.
+                    </Text>
                   ) : (
                     <View
                       style={{

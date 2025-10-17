@@ -42,7 +42,7 @@ export default function ConsultasTabs() {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ pb: 2 }}>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       {/* Header + Tabs sticky (sem glass) */}
       <Paper
         elevation={1}

@@ -45,122 +45,124 @@ export default function LibrarianConsultasTabs() {
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
-      {/* Header + Tabs sticky (sem glass) */}
-      <Paper
-        elevation={1}
-        sx={{
-          position: "sticky",
-          top: 8,
-          zIndex: 1,
-          borderRadius: 3,
-          px: { xs: 2, sm: 3 },
-          py: { xs: 1.5, sm: 2 },
-          bgcolor: "background.paper",
-          border: 1,
-          borderColor: "divider",
-        }}
-      >
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          alignItems={{ xs: "flex-start", sm: "center" }}
-          justifyContent="space-between"
-          spacing={1.5}
-          sx={{ mb: 1.5 }}
-        >
-          <Box>
-            <Typography
-              variant="overline"
-              sx={{ letterSpacing: 1, fontWeight: 700, opacity: 0.8 }}
-            >
-              Bibliotecário
-            </Typography>
-            <Typography
-              component="h1"
-              sx={{
-                m: 0,
-                fontSize: { xs: 26, sm: 28 },
-                fontWeight: 900,
-                letterSpacing: 0.2,
-                lineHeight: 1.2,
-              }}
-            >
-              Consultas
-            </Typography>
-            <Typography variant="body2" sx={{ opacity: 0.75 }}>
-              Revise pendentes, veja a agenda, gere slots e consulte o
-              histórico.
-            </Typography>
-          </Box>
-
-          {/* Ações rápidas */}
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="contained"
-              startIcon={<EventAvailableRounded />}
-              onClick={() => navigate("pendentes")}
-            >
-              Ver pendentes
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<CalendarMonthRounded />}
-              onClick={() => navigate("agenda")}
-            >
-              Abrir agenda
-            </Button>
-            <Button
-              variant="outlined"
-              startIcon={<ScheduleRounded />}
-              onClick={() => navigate("slots")}
-            >
-              Gerir slots
-            </Button>
-          </Stack>
-        </Stack>
-
-        {/* Tabs com ícones e “pill” */}
-        <Tabs
-          value={current}
-          onChange={handleChange}
-          variant="scrollable"
-          allowScrollButtonsMobile
-          aria-label="Navegação de Consultas (Bibliotecário)"
+      <Box sx={{ width: "100%", maxWidth: 1440, mx: "auto" }}>
+        {/* Header + Tabs sticky (sem glass) */}
+        <Paper
+          elevation={1}
           sx={{
-            minHeight: 0,
-            "& .MuiTabs-flexContainer": { gap: 0.5 },
-            "& .MuiTab-root": {
-              minHeight: 40,
-              borderRadius: 999,
-              px: 1.5,
-              textTransform: "none",
-              fontWeight: 700,
-              alignItems: "center",
-              "& .MuiTab-iconWrapper": { mr: 1 },
-            },
-            "& .MuiTab-root.Mui-selected": {
-              color: theme.palette.primary.main,
-              backgroundColor: alpha(theme.palette.primary.main, 0.1),
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.28)}`,
-            },
-            "& .MuiTabs-indicator": { height: 0 },
+            position: "sticky",
+            top: 8,
+            zIndex: 1,
+            borderRadius: 3,
+            px: { xs: 2, sm: 3 },
+            py: { xs: 1.5, sm: 2 },
+            bgcolor: "background.paper",
+            border: 1,
+            borderColor: "divider",
           }}
         >
-          {TABS.map((tab) => (
-            <Tab
-              key={tab.value}
-              value={tab.value}
-              label={tab.label}
-              icon={tab.icon}
-              iconPosition="start"
-              disableRipple
-            />
-          ))}
-        </Tabs>
-      </Paper>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            alignItems={{ xs: "flex-start", sm: "center" }}
+            justifyContent="space-between"
+            spacing={1.5}
+            sx={{ mb: 1.5 }}
+          >
+            <Box>
+              <Typography
+                variant="overline"
+                sx={{ letterSpacing: 1, fontWeight: 700, opacity: 0.8 }}
+              >
+                Bibliotecário
+              </Typography>
+              <Typography
+                component="h1"
+                sx={{
+                  m: 0,
+                  fontSize: { xs: 26, sm: 28 },
+                  fontWeight: 900,
+                  letterSpacing: 0.2,
+                  lineHeight: 1.2,
+                }}
+              >
+                Consultas
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.75 }}>
+                Revise pendentes, veja a agenda, gere slots e consulte o
+                histórico.
+              </Typography>
+            </Box>
 
-      {/* Conteúdo das tabs */}
-      <Box sx={{ mt: 2 }}>
-        <Outlet />
+            {/* Ações rápidas */}
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant="contained"
+                startIcon={<EventAvailableRounded />}
+                onClick={() => navigate("pendentes")}
+              >
+                Ver pendentes
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<CalendarMonthRounded />}
+                onClick={() => navigate("agenda")}
+              >
+                Abrir agenda
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<ScheduleRounded />}
+                onClick={() => navigate("slots")}
+              >
+                Gerir slots
+              </Button>
+            </Stack>
+          </Stack>
+
+          {/* Tabs com ícones e “pill” */}
+          <Tabs
+            value={current}
+            onChange={handleChange}
+            variant="scrollable"
+            allowScrollButtonsMobile
+            aria-label="Navegação de Consultas (Bibliotecário)"
+            sx={{
+              minHeight: 0,
+              "& .MuiTabs-flexContainer": { gap: 0.5 },
+              "& .MuiTab-root": {
+                minHeight: 40,
+                borderRadius: 999,
+                px: 1.5,
+                textTransform: "none",
+                fontWeight: 700,
+                alignItems: "center",
+                "& .MuiTab-iconWrapper": { mr: 1 },
+              },
+              "& .MuiTab-root.Mui-selected": {
+                color: theme.palette.primary.main,
+                backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                border: `1px solid ${alpha(theme.palette.primary.main, 0.28)}`,
+              },
+              "& .MuiTabs-indicator": { height: 0 },
+            }}
+          >
+            {TABS.map((tab) => (
+              <Tab
+                key={tab.value}
+                value={tab.value}
+                label={tab.label}
+                icon={tab.icon}
+                iconPosition="start"
+                disableRipple
+              />
+            ))}
+          </Tabs>
+        </Paper>
+
+        {/* Conteúdo das tabs */}
+        <Box sx={{ mt: 2 }}>
+          <Outlet />
+        </Box>
       </Box>
     </Container>
   );

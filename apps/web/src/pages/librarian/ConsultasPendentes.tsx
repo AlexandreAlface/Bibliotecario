@@ -307,6 +307,7 @@ export default function LibrarianConsultasPendentes() {
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
       <Stack spacing={2.5}>
+        {/* Header */}
         <Stack
           direction="row"
           alignItems="center"
@@ -324,12 +325,14 @@ export default function LibrarianConsultasPendentes() {
           </Tooltip>
         </Stack>
 
+        {/* Erro */}
         {err && (
           <Alert severity="error" variant="outlined">
             {err}
           </Alert>
         )}
 
+        {/* Loading inicial */}
         {loading && !consultas.length && !propostas.length ? (
           <WhiteCard>
             <Stack spacing={1}>
@@ -339,7 +342,7 @@ export default function LibrarianConsultasPendentes() {
             </Stack>
           </WhiteCard>
         ) : (
-          /* >>> SURFACE DE FUNDO (o “background” pedido) <<< */
+          /* === Surface (fundo) — agora com SEÇÕES EM LINHA === */
           <WhiteCard
             sx={(t) => ({
               p: { xs: 2, md: 3 },
@@ -350,24 +353,23 @@ export default function LibrarianConsultasPendentes() {
               boxShadow: "0 6px 20px rgba(0,0,0,.06)",
             })}
           >
-            <Grid container spacing={2.5}>
-              <Grid item xs={12} md={6}>
-                <PedidosComSlotSection
-                  items={consultasComSlotSemProposta}
-                  librarianId={librarianId}
-                  onChanged={reload}
-                  loading={loading}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <PropostasSection
-                  propostas={propostas}
-                  librarianId={librarianId}
-                  onChanged={reload}
-                  loading={loading}
-                />
-              </Grid>
-            </Grid>
+            <Stack spacing={2.5}>
+              {/* 1) Pedidos com slot */}
+              <PedidosComSlotSection
+                items={consultasComSlotSemProposta}
+                librarianId={librarianId}
+                onChanged={reload}
+                loading={loading}
+              />
+
+              {/* 2) Propostas pendentes */}
+              <PropostasSection
+                propostas={propostas}
+                librarianId={librarianId}
+                onChanged={reload}
+                loading={loading}
+              />
+            </Stack>
           </WhiteCard>
         )}
       </Stack>
@@ -499,7 +501,12 @@ function PedidoComSlotCard({
         <DatePill start={c.startAt} end={c.endAt} />
 
         <Stack spacing={0.5} minWidth={0}>
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            flexWrap="wrap"
+          >
             <Users size={18} />
             <Typography
               variant="subtitle2"
@@ -532,7 +539,9 @@ function PedidoComSlotCard({
             useFlexGap
             sx={{ color: "text.secondary" }}
           >
-            <Meta icon={<Clock3 size={16} />}>{fmtRange(c.startAt, c.endAt)}</Meta>
+            <Meta icon={<Clock3 size={16} />}>
+              {fmtRange(c.startAt, c.endAt)}
+            </Meta>
             {c.child?.name && (
               <Meta icon={<User2 size={16} />}>{c.child.name}</Meta>
             )}
@@ -667,7 +676,12 @@ function PropostaRow({
         <DatePill start={start} end={end} />
 
         <Stack spacing={0.5} minWidth={0}>
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            flexWrap="wrap"
+          >
             <Users size={18} />
             <Typography variant="subtitle2" fontWeight={800} noWrap>
               {p.consultation.family?.fullName}
@@ -942,7 +956,7 @@ function SlotPickerDialog({
             </span>
           </Tooltip>
 
-        <Typography variant="body2" sx={{ opacity: 0.7 }}>
+          <Typography variant="body2" sx={{ opacity: 0.7 }}>
             {selected
               ? `Selecionado: ${fmtRange(selected.startAt, selected.endAt)}`
               : "Selecione um horário"}

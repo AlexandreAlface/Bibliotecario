@@ -26,6 +26,13 @@ export type AdminMetrics = {
   familiesServed: number;
 };
 
+export type AdminMetricsBreakdown = {
+  status: Record<string, number>;
+  weekday: { dow: number; count: number }[];
+  hourly: { hour: number; count: number }[];
+  leadHistogram: { bucket: string; count: number }[];
+};
+
 export type LibraryLite = { id: number; name: string };
 
 /* ---------- Loader principal ---------- */
@@ -87,6 +94,18 @@ export async function getAdminMetrics(libraryId: number): Promise<AdminMetrics> 
     url: `/admin/libraries/${libraryId}/metrics`,
     method: "GET",
   });
+}
+
+export async function getAdminMetricsBreakdown(
+  libraryId: number,
+  from?: string,
+  to?: string
+): Promise<AdminMetricsBreakdown> {
+  const qs = new URLSearchParams();
+  if (from) qs.set("from", from);
+  if (to) qs.set("to", to);
+  const url = `/admin/libraries/${libraryId}/metrics/breakdown${qs.toString() ? `?${qs.toString()}` : ""}`;
+  return http<AdminMetricsBreakdown>({ url, method: "GET" });
 }
 
 /* ---------- Re-exports úteis ---------- */

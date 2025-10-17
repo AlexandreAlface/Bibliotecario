@@ -903,336 +903,344 @@ export default function AgendasPage() {
         </WhiteCard>
       )}
 
-      {/* Grelha principal: calendário | lista do dia | detalhe */}
-      <Grid container spacing={2}>
-        {/* Coluna 1: Calendário */}
-        <Grid item xs={12} md={6}>
-          <WhiteCard>
-            <CardHeader
-              title={month.title.charAt(0).toUpperCase() + month.title.slice(1)}
-              icon={<CalendarMonthRounded />}
-              action={
-                <Stack direction="row" spacing={1}>
-                  <Tooltip title="Mês anterior">
-                    <span>
-                      <IconButton onClick={goPrev} aria-label="Mês anterior">
-                        <ChevronLeftRounded />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                  <Tooltip title="Mês seguinte">
-                    <span>
-                      <IconButton onClick={goNext} aria-label="Mês seguinte">
-                        <ChevronRightRounded />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                  <Tooltip title="Hoje">
-                    <span>
-                      <IconButton onClick={goToday} aria-label="Hoje">
-                        <TodayRounded />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                </Stack>
-              }
-            />
+      {/* === Layout em LINHAS: Calendário -> Lista -> Detalhe === */}
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          // deixa espaço útil para a Lista expandir com scroll
+          minHeight: "calc(100dvh - 240px)",
+        }}
+      >
+        {/* 1) Calendário */}
+        <WhiteCard>
+          <CardHeader
+            title={month.title.charAt(0).toUpperCase() + month.title.slice(1)}
+            icon={<CalendarMonthRounded />}
+            action={
+              <Stack direction="row" spacing={1}>
+                <Tooltip title="Mês anterior">
+                  <span>
+                    <IconButton onClick={goPrev} aria-label="Mês anterior">
+                      <ChevronLeftRounded />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title="Mês seguinte">
+                  <span>
+                    <IconButton onClick={goNext} aria-label="Mês seguinte">
+                      <ChevronRightRounded />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title="Hoje">
+                  <span>
+                    <IconButton onClick={goToday} aria-label="Hoje">
+                      <TodayRounded />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+            }
+          />
 
-            {/* Grelha mensal */}
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(7, 1fr)",
-                gap: 1,
-              }}
-            >
-              {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((h) => (
+          {/* Grelha mensal */}
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "repeat(7, 1fr)",
+              gap: 1,
+            }}
+          >
+            {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map((h) => (
+              <Box
+                key={h}
+                sx={{ px: 1, py: 0.5, opacity: 0.7, fontWeight: 700 }}
+              >
+                {h}
+              </Box>
+            ))}
+
+            {month.cells.map((c, i) => {
+              const items = c.ymd ? byDay.get(c.ymd) ?? [] : [];
+              const isSelected = c.ymd === selectedDate;
+              const dayNum = c.ymd ? Number(c.ymd.split("-")[2]) : "";
+              const extra = Math.max(0, items.length - 2);
+
+              return (
                 <Box
-                  key={h}
-                  sx={{ px: 1, py: 0.5, opacity: 0.7, fontWeight: 700 }}
+                  key={i}
+                  onClick={() => c.inMonth && c.ymd && setSelectedDate(c.ymd)}
+                  sx={{
+                    p: 1,
+                    minHeight: 84,
+                    borderRadius: 3,
+                    border: "1px solid",
+                    borderColor: isSelected ? "primary.main" : "divider",
+                    opacity: c.inMonth ? 1 : 0.3,
+                    cursor: c.inMonth ? "pointer" : "default",
+                  }}
                 >
-                  {h}
-                </Box>
-              ))}
+                  <Typography fontWeight={900} sx={{ mb: 0.5 }}>
+                    {dayNum}
+                  </Typography>
 
-              {month.cells.map((c, i) => {
-                const items = c.ymd ? byDay.get(c.ymd) ?? [] : [];
-                const isSelected = c.ymd === selectedDate;
-                const dayNum = c.ymd ? Number(c.ymd.split("-")[2]) : "";
-                const extra = Math.max(0, items.length - 2);
-
-                return (
-                  <Box
-                    key={i}
-                    onClick={() => c.inMonth && c.ymd && setSelectedDate(c.ymd)}
-                    sx={{
-                      p: 1,
-                      minHeight: 84,
-                      borderRadius: 3,
-                      border: "1px solid",
-                      borderColor: isSelected ? "primary.main" : "divider",
-                      opacity: c.inMonth ? 1 : 0.3,
-                      cursor: c.inMonth ? "pointer" : "default",
-                    }}
-                  >
-                    <Typography fontWeight={900} sx={{ mb: 0.5 }}>
-                      {dayNum}
-                    </Typography>
-
-                    {/* Bolinhas por estado */}
-                    {items.slice(0, 2).map((it, idx) => {
-                      const ccor = dotColor(it.status, it.scheduledAt);
-                      return (
-                        <Box
-                          key={idx}
-                          sx={{
-                            width: 20,
-                            height: 20,
-                            borderRadius: "50%",
-                            border: "2px solid",
-                            borderColor: ccor,
-                            bgcolor: ccor,
-                            display: "inline-block",
-                            mr: 0.5,
-                            opacity: 0.9,
-                          }}
-                          title={`${it.title} — ${
-                            STATUS_CFG[
-                              deriveStatus({
-                                status: it.status,
-                                scheduledAt: it.scheduledAt,
-                              })
-                            ]?.label ??
+                  {/* Bolinhas por estado */}
+                  {items.slice(0, 2).map((it, idx) => {
+                    const ccor = dotColor(it.status, it.scheduledAt);
+                    return (
+                      <Box
+                        key={idx}
+                        sx={{
+                          width: 20,
+                          height: 20,
+                          borderRadius: "50%",
+                          border: "2px solid",
+                          borderColor: ccor,
+                          bgcolor: ccor,
+                          display: "inline-block",
+                          mr: 0.5,
+                          opacity: 0.9,
+                        }}
+                        title={`${it.title} — ${
+                          STATUS_CFG[
                             deriveStatus({
                               status: it.status,
                               scheduledAt: it.scheduledAt,
                             })
-                          }`}
-                        />
-                      );
-                    })}
+                          ]?.label ??
+                          deriveStatus({
+                            status: it.status,
+                            scheduledAt: it.scheduledAt,
+                          })
+                        }`}
+                      />
+                    );
+                  })}
 
-                    {items.length === 0 && (
-                      <Typography variant="caption" sx={{ opacity: 0.6 }}>
-                        — livre
-                      </Typography>
-                    )}
+                  {items.length === 0 && (
+                    <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                      — livre
+                    </Typography>
+                  )}
 
-                    {extra > 0 && (
-                      <Typography
-                        component="span"
-                        variant="caption"
-                        sx={{ ml: 0.25, opacity: 0.7 }}
-                        title={`${items.length} consultas`}
-                      >
-                        +{extra}
-                      </Typography>
-                    )}
-                  </Box>
-                );
-              })}
-            </Box>
-          </WhiteCard>
-        </Grid>
+                  {extra > 0 && (
+                    <Typography
+                      component="span"
+                      variant="caption"
+                      sx={{ ml: 0.25, opacity: 0.7 }}
+                      title={`${items.length} consultas`}
+                    >
+                      +{extra}
+                    </Typography>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+        </WhiteCard>
 
-        {/* Coluna 2: Lista do dia */}
-        <Grid item xs={12} md={3}>
-          <WhiteCard
-            sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+        {/* 2) Lista do dia — EXPANDE e tem SCROLL */}
+        <WhiteCard
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+          }}
+        >
+          <CardHeader
+            title={new Date(selectedDate).toLocaleDateString("pt-PT", {
+              weekday: "long",
+              day: "2-digit",
+              month: "2-digit",
+            })}
+            icon={<TodayRounded />}
+          />
+          <Box
+            sx={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              pr: 1,
+              "&::-webkit-scrollbar": { width: 6 },
+              "&::-webkit-scrollbar-thumb": {
+                backgroundColor: "rgba(0,0,0,.15)",
+                borderRadius: 8,
+              },
+            }}
           >
-            <CardHeader
-              title={new Date(selectedDate).toLocaleDateString("pt-PT", {
-                weekday: "long",
-                day: "2-digit",
-                month: "2-digit",
-              })}
-              icon={<TodayRounded />}
-            />
-            <Box
-              sx={{
-                flex: 1,
-                overflowY: "auto",
-                pr: 1,
-                "&::-webkit-scrollbar": { width: 6 },
-                "&::-webkit-scrollbar-thumb": {
-                  backgroundColor: "rgba(0,0,0,.15)",
-                  borderRadius: 8,
-                },
-              }}
-            >
-              {dayList.length ? (
-                <Stack
-                  spacing={1.25}
-                  divider={<Divider sx={{ borderColor: "divider" }} />}
-                >
-                  {dayList.map((c) => (
-                    <ConsultaRow
-                      key={c.id}
-                      c={c}
-                      onClick={() => {
-                        setFocused(c);
-                        setRoomId(c.id);
-                        setRoomOpen(true);
-                      }}
-                    />
-                  ))}
-                </Stack>
-              ) : (
-                <Typography sx={{ opacity: 0.7 }}>
-                  Sem consultas neste dia.
-                </Typography>
-              )}
-            </Box>
-          </WhiteCard>
-        </Grid>
-
-        {/* Coluna 3: Detalhe */}
-        <Grid item xs={12} md={3}>
-          <WhiteCard>
-            <CardHeader title="Detalhe" icon={<InfoRounded />} />
-            {focused ? (
-              <>
-                <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
-                  {focused.title}
-                </Typography>
-
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{ mb: 1.5 }}
-                  useFlexGap
-                  flexWrap="wrap"
-                >
-                  <Chip
-                    icon={<CalendarMonthRounded fontSize="small" />}
-                    label={new Date(
-                      focused.scheduledAt || focused.date || ""
-                    ).toLocaleDateString("pt-PT", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })}
+            {dayList.length ? (
+              <Stack
+                spacing={1.25}
+                divider={<Divider sx={{ borderColor: "divider" }} />}
+              >
+                {dayList.map((c) => (
+                  <ConsultaRow
+                    key={c.id}
+                    c={c}
+                    onClick={() => {
+                      setFocused(c);
+                      setRoomId(c.id);
+                      setRoomOpen(true);
+                    }}
                   />
-                  <Chip
-                    icon={<AccessTimeRounded fontSize="small" />}
-                    label={new Date(
-                      focused.scheduledAt || focused.date || ""
-                    ).toLocaleTimeString("pt-PT", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  />
-                  {!!focused.status &&
-                    (() => {
-                      const raw = deriveStatus({
-                        status: focused.status,
-                        scheduledAt: focused.scheduledAt,
-                      });
-                      const cfg = STATUS_CFG[raw];
-                      const Ico = cfg?.Icon;
-                      return (
-                        <Chip
-                          icon={Ico ? <Ico fontSize="small" /> : undefined}
-                          label={cfg?.label || focused.status}
-                          color={cfg?.color || "default"}
-                          variant="outlined"
-                        />
-                      );
-                    })()}
-                </Stack>
-
-                {!!(focused as any)?.librarianName && (
-                  <Typography sx={{ mb: 1.5 }}>
-                    Bibliotecário: <b>{(focused as any).librarianName}</b>
-                  </Typography>
-                )}
-                <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-                  {canReschedule(focused.status) && (
-                    <Button
-                      type="button"
-                      variant="contained"
-                      startIcon={<EditCalendarRounded />}
-                      onClick={async () => {
-                        const hasPending = proposals.some(
-                          (p) =>
-                            p.consultation?.id === focused!.id &&
-                            String(p.status || "").toUpperCase() === "PENDING"
-                        );
-                        if (hasPending) {
-                          alert(
-                            "Já existe uma proposta pendente para esta consulta. Use a secção de 'Pedidos de reagendamento' acima para a editar ou cancelar."
-                          );
-                          return;
-                        }
-
-                        try {
-                          setBusyDetail("reschedule");
-                          const full = await getConsultation(focused!.id);
-                          const libId =
-                            full?.librarian?.id ??
-                            (focused as any).librarianId ??
-                            (focused as any)?.librarian?.id ??
-                            null;
-                          if (!libId) {
-                            alert(
-                              "Não foi possível identificar o bibliotecário desta consulta."
-                            );
-                            return;
-                          }
-                          setRescheduleData({
-                            id: focused!.id,
-                            status: (full?.status ??
-                              focused!.status ??
-                              "PENDING") as any,
-                            startAt:
-                              full?.startAt ??
-                              (focused!.scheduledAt as any) ??
-                              null,
-                            endAt: full?.endAt ?? null,
-                            librarianId: libId,
-                          });
-                          setRescheduleOpen(true);
-                        } catch (e: any) {
-                          console.warn(
-                            "Falha a obter consulta completa:",
-                            e?.message || e
-                          );
-                          alert("Não foi possível abrir o reagendamento.");
-                        } finally {
-                          setBusyDetail(null);
-                        }
-                      }}
-                      disabled={busyDetail === "reschedule"}
-                    >
-                      Reagendar
-                    </Button>
-                  )}
-
-                  {canCancel(focused.status) && (
-                    <Button
-                      type="button"
-                      variant="outlined"
-                      color="error"
-                      startIcon={<CancelRounded />}
-                      onClick={() => {
-                        setCancelTarget(focused);
-                        setCancelOpen(true);
-                      }}
-                      disabled={busyDetail === "cancel"}
-                    >
-                      Cancelar consulta
-                    </Button>
-                  )}
-                </Stack>
-              </>
+                ))}
+              </Stack>
             ) : (
               <Typography sx={{ opacity: 0.7 }}>
                 Sem consultas neste dia.
               </Typography>
             )}
-          </WhiteCard>
-        </Grid>
-      </Grid>
+          </Box>
+        </WhiteCard>
+
+        {/* 3) Detalhe */}
+        <WhiteCard>
+          <CardHeader title="Detalhe" icon={<InfoRounded />} />
+          {focused ? (
+            <>
+              <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+                {focused.title}
+              </Typography>
+
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ mb: 1.5 }}
+                useFlexGap
+                flexWrap="wrap"
+              >
+                <Chip
+                  icon={<CalendarMonthRounded fontSize="small" />}
+                  label={new Date(
+                    focused.scheduledAt || focused.date || ""
+                  ).toLocaleDateString("pt-PT", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  })}
+                />
+                <Chip
+                  icon={<AccessTimeRounded fontSize="small" />}
+                  label={new Date(
+                    focused.scheduledAt || focused.date || ""
+                  ).toLocaleTimeString("pt-PT", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                />
+                {!!focused.status &&
+                  (() => {
+                    const raw = deriveStatus({
+                      status: focused.status,
+                      scheduledAt: focused.scheduledAt,
+                    });
+                    const cfg = STATUS_CFG[raw];
+                    const Ico = cfg?.Icon;
+                    return (
+                      <Chip
+                        icon={Ico ? <Ico fontSize="small" /> : undefined}
+                        label={cfg?.label || focused.status}
+                        color={cfg?.color || "default"}
+                        variant="outlined"
+                      />
+                    );
+                  })()}
+              </Stack>
+
+              {!!(focused as any)?.librarianName && (
+                <Typography sx={{ mb: 1.5 }}>
+                  Bibliotecário: <b>{(focused as any).librarianName}</b>
+                </Typography>
+              )}
+              <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+                {canReschedule(focused.status) && (
+                  <Button
+                    type="button"
+                    variant="contained"
+                    startIcon={<EditCalendarRounded />}
+                    onClick={async () => {
+                      const hasPending = proposals.some(
+                        (p) =>
+                          p.consultation?.id === focused!.id &&
+                          String(p.status || "").toUpperCase() === "PENDING"
+                      );
+                      if (hasPending) {
+                        alert(
+                          "Já existe uma proposta pendente para esta consulta. Use a secção de 'Pedidos de reagendamento' acima para a editar ou cancelar."
+                        );
+                        return;
+                      }
+
+                      try {
+                        setBusyDetail("reschedule");
+                        const full = await getConsultation(focused!.id);
+                        const libId =
+                          full?.librarian?.id ??
+                          (focused as any).librarianId ??
+                          (focused as any)?.librarian?.id ??
+                          null;
+                        if (!libId) {
+                          alert(
+                            "Não foi possível identificar o bibliotecário desta consulta."
+                          );
+                          return;
+                        }
+                        setRescheduleData({
+                          id: focused!.id,
+                          status: (full?.status ??
+                            focused!.status ??
+                            "PENDING") as any,
+                          startAt:
+                            full?.startAt ??
+                            (focused!.scheduledAt as any) ??
+                            null,
+                          endAt: full?.endAt ?? null,
+                          librarianId: libId,
+                        });
+                        setRescheduleOpen(true);
+                      } catch (e: any) {
+                        console.warn(
+                          "Falha a obter consulta completa:",
+                          e?.message || e
+                        );
+                        alert("Não foi possível abrir o reagendamento.");
+                      } finally {
+                        setBusyDetail(null);
+                      }
+                    }}
+                    disabled={busyDetail === "reschedule"}
+                  >
+                    Reagendar
+                  </Button>
+                )}
+
+                {canCancel(focused.status) && (
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    color="error"
+                    startIcon={<CancelRounded />}
+                    onClick={() => {
+                      setCancelTarget(focused);
+                      setCancelOpen(true);
+                    }}
+                    disabled={busyDetail === "cancel"}
+                  >
+                    Cancelar consulta
+                  </Button>
+                )}
+              </Stack>
+            </>
+          ) : (
+            <Typography sx={{ opacity: 0.7 }}>
+              Sem consultas neste dia.
+            </Typography>
+          )}
+        </WhiteCard>
+      </Box>
 
       {/* Dialog custom: confirmar cancelamento */}
       <ConfirmCancelDialog
@@ -1255,12 +1263,10 @@ export default function AgendasPage() {
             endAt: rescheduleData.endAt ?? undefined,
             librarianId: rescheduleData.librarianId ?? undefined,
           }}
-          // refresca listas após reschedule/pedido
           onDone={async () => {
             await reloadConsultas();
             await reloadFamilyProposals();
           }}
-          // podes trocar por snackbar; por agora fica simples:
           notify={(text) => alert(text)}
         />
       )}

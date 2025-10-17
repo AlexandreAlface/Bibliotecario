@@ -88,7 +88,7 @@ app.use(express_1.default.json({ limit: "1mb" }));
  * allowedOrigins vem de ALLOWED_ORIGINS (CSV) ou recorre a defaults locais.
  * — Alexandre Brissos 21131 — 2025-10-02
  */
-const DEFAULT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const DEFAULT_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5558", "http://127.0.0.1:5558"];
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",")
     .map((s) => s.trim())
     .filter(Boolean) ?? DEFAULT_ORIGINS;
