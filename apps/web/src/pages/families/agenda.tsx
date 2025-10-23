@@ -342,7 +342,7 @@ export default function AgendasPage() {
   const { user, asChild } = useUserSession();
 
   // Estado base
-  const [localChildId, setLocalChildId] = useState<string | undefined>(); // filtro LOCAL (modo família)
+  const [localChildId, setLocalChildId] = useState<string>(""); // filtro LOCAL (modo família)
   const [monthRef, setMonthRef] = useState(startOfDay(new Date())); // mês visível
   const [consultasRaw, setConsultasRaw] = useState<ConsultaLite[]>([]); // consultas carregadas
   const [selectedDate, setSelectedDate] = useState<string>(fmtYMD(new Date())); // dia destacado
@@ -423,9 +423,12 @@ export default function AgendasPage() {
 
   /** Carrega consultas consoante modo criança/família */
   /** Carrega histórico do mês (passado+futuro) com COMPLETED */
+  /** Carrega consultas consoante modo criança/família */
+  /** Carrega histórico do mês (passado+futuro) com COMPLETED */
   const reloadConsultas = useCallback(async () => {
     try {
       const { from, to } = monthRange(monthRef);
+
       const mapFullToLite = (rows: ConsultationFull[]): ConsultaLite[] =>
         (rows || []).map((c) => ({
           id: c.id,
@@ -441,11 +444,12 @@ export default function AgendasPage() {
           libraryName: c.library?.name,
         }));
 
-      let rows: ConsultationFull[] = [];
+      // ---- Modo criança: estrito à criança ativa
       if (asChild) {
         const cid = Number((user?.actingChild?.id as any) ?? NaN);
         if (!Number.isFinite(cid)) return setConsultasRaw([]);
-        rows = await getConsultationsHistory({
+
+        const rows = await getConsultationsHistory({
           limit: 500,
           order: "asc",
           from: from.toISOString(),
@@ -459,31 +463,39 @@ export default function AgendasPage() {
           ],
           childId: cid,
         });
-      } else {
-        const famId = Number(user?.id);
-        if (!Number.isFinite(famId)) return setConsultasRaw([]);
-        rows = await getConsultationsHistory({
-          limit: 500,
-          order: "asc",
-          from: from.toISOString(),
-          to: to.toISOString(),
-          status: [
-            "PENDING",
-            "CONFIRMED",
-            "COMPLETED",
-            "CANCELLED",
-            "DECLINED",
-          ],
-          familyId: famId,
-          childId:
-            localChildId &&
-            localChildId !== "" &&
-            Number.isFinite(Number(localChildId))
-              ? Number(localChildId)
-              : undefined,
-        });
+
+        setConsultasRaw(mapFullToLite(rows));
+        return;
       }
-      setConsultasRaw(mapFullToLite(rows));
+
+      // ---- Modo família: traz tudo da família (sem childId) e filtra localmente
+      const famId = Number(user?.id);
+      if (!Number.isFinite(famId)) return setConsultasRaw([]);
+
+      const rows = await getConsultationsHistory({
+        limit: 500,
+        order: "asc",
+        from: from.toISOString(),
+        to: to.toISOString(),
+        status: ["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED", "DECLINED"],
+        familyId: famId, // intencional: não passamos childId aqui
+      });
+
+      const lite = mapFullToLite(rows);
+
+      const childFilterId =
+        localChildId &&
+        localChildId !== "" &&
+        Number.isFinite(Number(localChildId))
+          ? Number(localChildId)
+          : undefined;
+
+      // Se houver filtro por criança: mantém as dessa criança OU as “da família” (childId ausente)
+      const filtered = childFilterId
+        ? lite.filter((c) => !c.childId || c.childId === childFilterId)
+        : lite;
+
+      setConsultasRaw(filtered);
     } catch (e) {
       console.error("Falha a carregar consultas:", e);
       setConsultasRaw([]);
@@ -881,8 +893,8 @@ export default function AgendasPage() {
           <AvatarSelect
             label="Filtrar por criança"
             options={selectOptions}
-            value={localChildId ?? ""} // "" = todos
-            onChange={(id?: string) => setLocalChildId(id)}
+            value={localChildId} // "" = todos
+            onChange={(id?: string) => setLocalChildId(id ?? "")}
             minWidth={320}
           />
         </WhiteCard>
@@ -1104,6 +1116,10 @@ export default function AgendasPage() {
               <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
                 {focused.title}
               </Typography>
+
+              {!focused.childId && (
+                <Chip label="Consulta de família" variant="outlined" />
+              )}
 
               <Stack
                 direction="row"

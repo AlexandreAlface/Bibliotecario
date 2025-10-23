@@ -55,7 +55,7 @@ import { useRouter } from "expo-router";
 /** Schema: valida os filtros/inputs do formulário de agendamento. */
 const schema = z
   .object({
-    childId: z.coerce.number().gt(0, { message: "Selecione a criança" }),
+    childId: z.coerce.number().optional(),
     librarianId: z.coerce.number().optional(),
     from: z.coerce.date(),
     to: z.coerce.date(),
@@ -336,7 +336,7 @@ export default function AgendaScreen() {
   } = useForm<FormData>({
     resolver: zodResolver(schema as any),
     defaultValues: {
-      childId: user?.children?.[0]?.id ?? 0,
+      childId: undefined,
       librarianId: undefined,
       from: new Date(),
       to: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -518,7 +518,7 @@ export default function AgendaScreen() {
     try {
       await consultationsApi.create({
         familyId: user.id,
-        childId: v.childId,
+        childId: v.childId?? null,
         slotId: v.slotId,
         librarianId: slot.librarianId,
       });
@@ -741,6 +741,15 @@ export default function AgendaScreen() {
                 Criança
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <PillChip
+                  key="all"
+                  label="Todos os filhos"
+                  icon="account-group"
+                  active={!childId}
+                  onPress={() =>
+                    setValue("childId", undefined, { shouldValidate: true })
+                  }
+                />
                 {(user?.children ?? []).map((ch) => (
                   <PillChip
                     key={ch.id}
@@ -1184,7 +1193,7 @@ export default function AgendaScreen() {
             defaultFamilyId={user.id}
             defaultLibrarianId={wizardSlot.librarianId}
             defaultSlotId={wizardSlot.id}
-            // passa as bibliotecas conhecidas (se tiveres só a do slot, passa essa)
+            defaultChildId={getValues("childId") ?? null}         
             libraries={
               wizardSlot.libraryId
                 ? [

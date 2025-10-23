@@ -32,6 +32,7 @@ type NextItem = {
   childId?: number | null;
   libraryId?: number | null;
   libraryName?: string | null;
+  
 };
 
 /** Consulta “light” para listagens no mobile. */
@@ -44,6 +45,7 @@ export type ConsultationLite = {
   childName?: string | null;
   librarianName?: string | null;
   libraryName?: string | null;
+  childId?: number | null;
 };
 
 /** Slot de marcação de consulta. */
@@ -218,7 +220,7 @@ export const consultationsApi = {
    */
   create: (data: {
     familyId: number;
-    childId: number;
+    childId: number  | null;
     slotId: number;
     librarianId: number;
   }) =>

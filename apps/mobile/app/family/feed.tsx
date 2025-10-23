@@ -693,7 +693,7 @@ export default function FeedScreen() {
                                   >
                                     {body}
                                   </Text>
-
+{/* 
                                   {!isOpen && (
                                     <Text
                                       onPress={() => toggleExpanded(mc.id)}
@@ -705,7 +705,7 @@ export default function FeedScreen() {
                                     >
                                       Ver mais…
                                     </Text>
-                                  )}
+                                  )} */}
                                 </>
                               )}
 
@@ -768,13 +768,13 @@ export default function FeedScreen() {
                                 paddingTop: 4,
                               }}
                             >
-                              <Button
+                              {/* <Button
                                 mode="text"
                                 onPress={() => toggleExpanded(mc.id)}
                                 icon={isOpen ? "chevron-up" : "chevron-down"}
                               >
                                 {isOpen ? "Ver menos" : "Ver mais"}
-                              </Button>
+                              </Button> */}
 
                               <Button
                                 mode="outlined"

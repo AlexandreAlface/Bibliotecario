@@ -70,6 +70,7 @@ export type CreateConsultationDTO = {
   slotId?: number;
   modeEnum?: Mode;
   meetingUrl?: string;
+  childId?: number | null;
   libraryId?: number;
   title?: string;
   purpose?: string;
@@ -84,6 +85,7 @@ type Props = {
   onDismiss: () => void;
   defaultFamilyId?: number;
   defaultLibrarianId: number;
+  defaultChildId?: number | null; // 👈 novo
   defaultSlotId?: number;
   libraries?: Array<{ id: number; name: string }>;
   onCreated?: (id: number) => void;
@@ -607,6 +609,7 @@ export default function ConsultationWizard(p: Props) {
         bookIsbns: selectedBooks
           .map((b) => (b as any).isbn ?? b.id)
           .filter(Boolean),
+        childId: p.defaultChildId ?? null,
         microContentIds: selectedMC.map((m) => m.id),
         eventIds: selectedEV.map((e) => Number(e.id)).filter(Number.isFinite),
       };
@@ -687,7 +690,6 @@ export default function ConsultationWizard(p: Props) {
   // Dimensões do “painel” (centrado) — responsivo
   const panelWidth = Math.min(width - 32, 720);
   const panelMaxHeight = Math.min(height * 0.85, 720);
-
 
   return (
     <Portal>

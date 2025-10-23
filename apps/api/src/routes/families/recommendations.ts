@@ -6,7 +6,11 @@ import { Router, type RequestHandler } from "express";
 import z from "zod";
 import { prisma } from "../../prisma";
 import { embedOne } from "../../ai/embeddings";
-import { buildProfileText, toSqlVector, weightedCentroid } from "../../reco/utils";
+import {
+  buildProfileText,
+  toSqlVector,
+  weightedCentroid,
+} from "../../reco/utils";
 
 /* ============================== Tipos ============================== */
 type QuizAnswer = { id: string; value: unknown };
@@ -141,30 +145,39 @@ async function countAvailable(
     SELECT COUNT(*)::int AS total
     FROM "Book" b
     WHERE b."embedding" IS NOT NULL
-      AND (${eff.effMin}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${
-    eff.effMax
-  }::int)
-      AND (${eff.effMax}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${
-    eff.effMin
-  }::int)
+      AND (${eff.effMin}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${eff.effMax}::int)
+      AND (${eff.effMax}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${eff.effMin}::int)
       AND NOT EXISTS (
-        SELECT 1 FROM "Reading" rblock
-        WHERE rblock."bookIsbn" = b."isbn" AND rblock."finishedAt" IS NULL
-          AND (${childId ?? null}::int IS NOT NULL AND rblock."childId" = ${
-    childId ?? null
-  })
+        -- excluir QUALQUER leitura do miúdo (terminada ou não)
+        SELECT 1 FROM "Reading" r_any
+        WHERE r_any."bookIsbn" = b."isbn"
+          AND (${childId ?? null}::int IS NOT NULL AND r_any."childId" = ${childId ?? null})
       )
       AND NOT EXISTS (
+        -- excluir livros já avaliados pelo miúdo OU por alguém da família do miúdo
+        SELECT 1
+        FROM "Rating" rt
+        WHERE rt."bookIsbn" = b."isbn"
+          AND (
+            (${childId ?? null}::int IS NOT NULL AND rt."childId" = ${childId ?? null})
+            OR (${childId ?? null}::int IS NOT NULL AND EXISTS (
+                 SELECT 1 FROM "ChildFamily" cf
+                 WHERE cf."childId" = ${childId ?? null}
+                   AND cf."familyId" = rt."userId"
+            ))
+          )
+      )
+      AND NOT EXISTS (
+        -- reservas recentes também fora (30 dias)
         SELECT 1 FROM "BookReservation" br
         WHERE br."bookIsbn" = b."isbn"
-          AND (${childId ?? null}::int IS NOT NULL AND br."childId" = ${
-    childId ?? null
-  })
+          AND (${childId ?? null}::int IS NOT NULL AND br."childId" = ${childId ?? null})
           AND br."reservedAt" > now() - interval '30 days'
-      );
+      )
   `;
   return rows?.[0]?.total ?? 0;
 }
+
 
 async function ensureAgeFlex(
   perPage: number,
@@ -196,32 +209,40 @@ async function fetchCandidatesByVector(
            b.embedding::text AS emb
     FROM "Book" b
     WHERE b."embedding" IS NOT NULL
-      AND (${eff.effMin}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${
-    eff.effMax
-  }::int)
-      AND (${eff.effMax}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${
-    eff.effMin
-  }::int)
+      AND (${eff.effMin}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${eff.effMax}::int)
+      AND (${eff.effMax}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${eff.effMin}::int)
       AND NOT EXISTS (
-        SELECT 1 FROM "Reading" rblock
-        WHERE rblock."bookIsbn" = b."isbn"
-          AND rblock."finishedAt" IS NULL
-          AND (${childId ?? null}::int IS NOT NULL AND rblock."childId" = ${
-    childId ?? null
-  })
+        -- excluir QUALQUER leitura do miúdo (terminada ou não)
+        SELECT 1 FROM "Reading" r_any
+        WHERE r_any."bookIsbn" = b."isbn"
+          AND (${childId ?? null}::int IS NOT NULL AND r_any."childId" = ${childId ?? null})
       )
       AND NOT EXISTS (
+        -- excluir livros já avaliados pelo miúdo OU por alguém da família do miúdo
+        SELECT 1
+        FROM "Rating" rt
+        WHERE rt."bookIsbn" = b."isbn"
+          AND (
+            (${childId ?? null}::int IS NOT NULL AND rt."childId" = ${childId ?? null})
+            OR (${childId ?? null}::int IS NOT NULL AND EXISTS (
+                 SELECT 1 FROM "ChildFamily" cf
+                 WHERE cf."childId" = ${childId ?? null}
+                   AND cf."familyId" = rt."userId"
+            ))
+          )
+      )
+      AND NOT EXISTS (
+        -- reservas recentes também fora (30 dias)
         SELECT 1 FROM "BookReservation" br
         WHERE br."bookIsbn" = b."isbn"
-          AND (${childId ?? null}::int IS NOT NULL AND br."childId" = ${
-    childId ?? null
-  })
+          AND (${childId ?? null}::int IS NOT NULL AND br."childId" = ${childId ?? null})
           AND br."reservedAt" > now() - interval '30 days'
       )
     ORDER BY b."embedding" <=> ${vv}::vector
     LIMIT ${candidateCount};
   `;
 }
+
 
 async function fetchDeterministicPage(
   eff: { effMin: number | null; effMax: number | null },
@@ -236,26 +257,33 @@ async function fetchDeterministicPage(
     SELECT b."isbn", b."title", b."coverUrl", b."summary", 0.0 AS score
     FROM "Book" b
     WHERE b.embedding IS NOT NULL
-      AND (${eff.effMin}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${
-    eff.effMax
-  }::int)
-      AND (${eff.effMax}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${
-    eff.effMin
-  }::int)
+      AND (${eff.effMin}::int IS NULL OR b."ageMin" IS NULL OR b."ageMin" <= ${eff.effMax}::int)
+      AND (${eff.effMax}::int IS NULL OR b."ageMax" IS NULL OR b."ageMax" >= ${eff.effMin}::int)
       AND NOT EXISTS (
-        SELECT 1 FROM "Reading" rblock
-        WHERE rblock."bookIsbn" = b."isbn"
-          AND rblock."finishedAt" IS NULL
-          AND (${childId ?? null}::int IS NOT NULL AND rblock."childId" = ${
-    childId ?? null
-  })
+        -- excluir QUALQUER leitura do miúdo (terminada ou não)
+        SELECT 1 FROM "Reading" r_any
+        WHERE r_any."bookIsbn" = b."isbn"
+          AND (${childId ?? null}::int IS NOT NULL AND r_any."childId" = ${childId ?? null})
       )
       AND NOT EXISTS (
+        -- excluir livros já avaliados pelo miúdo OU por alguém da família do miúdo
+        SELECT 1
+        FROM "Rating" rt
+        WHERE rt."bookIsbn" = b."isbn"
+          AND (
+            (${childId ?? null}::int IS NOT NULL AND rt."childId" = ${childId ?? null})
+            OR (${childId ?? null}::int IS NOT NULL AND EXISTS (
+                 SELECT 1 FROM "ChildFamily" cf
+                 WHERE cf."childId" = ${childId ?? null}
+                   AND cf."familyId" = rt."userId"
+            ))
+          )
+      )
+      AND NOT EXISTS (
+        -- reservas recentes também fora (30 dias)
         SELECT 1 FROM "BookReservation" br
         WHERE br."bookIsbn" = b."isbn"
-          AND (${childId ?? null}::int IS NOT NULL AND br."childId" = ${
-    childId ?? null
-  })
+          AND (${childId ?? null}::int IS NOT NULL AND br."childId" = ${childId ?? null})
           AND br."reservedAt" > now() - interval '30 days'
       )
     ORDER BY b."isbn" DESC

@@ -569,7 +569,12 @@ export default function ConsultasScreen({ preset }: { preset?: Preset } = {}) {
       const data = (await fetch(url, { credentials: "include" }).then((r) =>
         r.json()
       )) as ConsultationLite[];
-      setItems(Array.isArray(data) ? data : []);
+      const base = Array.isArray(data) ? data : [];
+      const filtered =
+        isActingChild && actingChildId
+          ? base.filter((c) => !c.childId || c.childId === actingChildId)
+          : base;
+      setItems(filtered);
     } catch {
       setItems([]);
     } finally {
