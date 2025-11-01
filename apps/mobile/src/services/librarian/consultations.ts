@@ -59,6 +59,7 @@ async function fetchJson<T = any>(url: string, init?: RequestInit): Promise<T> {
 
 export type SlotLite = {
   id: number;
+  consultationId?: number | null;
   startAt: string;
   endAt: string;
   status: "OPEN" | "BOOKED" | "BLOCKED";
@@ -109,6 +110,12 @@ function normalizeSlot(raw: any, fallbackLibrarianId?: number): SlotLite {
   const statusRaw = String(raw?.status ?? "OPEN").toUpperCase();
   return {
     id: Number(raw?.id),
+    consultationId:
+      raw?.consultationId != null
+        ? Number(raw.consultationId)
+        : raw?.consultation?.id != null
+        ? Number(raw.consultation.id)
+        : null,
     startAt: String(raw?.startAt ?? raw?.begin ?? raw?.since),
     endAt: String(raw?.endAt ?? raw?.end ?? raw?.until),
     status:

@@ -9,6 +9,7 @@
  *  • Helpers PUROS (sem efeitos) e curtos (≤ 30 linhas).
  *  • Manter componentes e UI estáveis, com pequenas melhorias de UX/A11y.
  *  • Não quebrar contratos de serviços já existentes.
+ *  • NOVO: cartões clicáveis que abrem /librarian/consultas/[id]
  * ============================================================================
  */
 
@@ -27,6 +28,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme, Text } from "react-native-paper";
 import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router"; // ⇦ NOVO: navegação para o detalhe
 
 import Background from "@bibliotecario/ui-mobile/components/Background/Background";
 import FlexibleCard from "@bibliotecario/ui-mobile/components/Card/FlexibleCard";
@@ -496,6 +498,7 @@ function SlotPickerModal({
 
 /* =============================================================================
  * Cartão: Pedido COM slot — aceitar, reagendar (via modal) ou recusar
+ *  - NOVO: cartão clicável abre o detalhe da consulta se existir c.id
  * ========================================================================== */
 function PedidoComSlotCard({
   c,
@@ -507,6 +510,7 @@ function PedidoComSlotCard({
   onChanged: () => void;
 }) {
   const theme = useTheme();
+  const router = useRouter(); // ⇦ NOVO
   const [busy, setBusy] = React.useState<"confirm" | "decline" | null>(null);
   const [conflict, setConflict] = React.useState<string | null>(null);
   const [showPicker, setShowPicker] = React.useState(false);
@@ -579,81 +583,99 @@ function PedidoComSlotCard({
     }
   }
 
+  // Wrapper clicável se existir c.id (abre o Consultation Room)
+  const Wrapper = ({ children }: { children: React.ReactNode }) =>
+    c?.id ? (
+      <TouchableOpacity
+        onPress={() => router.push(`/librarian/consultas/${c.id}`)}
+        accessibilityRole="button"
+        accessibilityLabel="Abrir consulta"
+        activeOpacity={0.9}
+      >
+        {children}
+      </TouchableOpacity>
+    ) : (
+      <View>{children}</View>
+    );
+
   return (
-    <View
-      style={{
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: theme.colors.outlineVariant,
-        backgroundColor: theme.colors.surface,
-      }}
-    >
-      <View style={{ padding: 12, gap: 6 }}>
-        {/* Título: Família + estado pendente */}
-        <Text style={{ fontWeight: "800", fontSize: 16 }}>
-          {c.family?.fullName ?? `Família #${c.familyId ?? "—"}`} •{" "}
-          <Text style={{ fontWeight: "400" }}>Pendente</Text>
-        </Text>
-
-        {/* Intervalo do slot sugerido */}
-        <Text style={{ color: theme.colors.onSurfaceVariant }}>
-          {fmtRange(c.startAt, c.endAt)}
-        </Text>
-
-        {/* Aviso de conflito (se existir) */}
-        {!!conflict && <Text style={{ color: "#9A3412" }}>{conflict}</Text>}
-
-        {/* Ações: aceitar / reagendar / recusar */}
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 8,
-            marginTop: 8,
-            alignSelf: "flex-start",
-          }}
-        >
-          <PrimaryButton
-            label="✅ Aceitar"
-            onPress={confirm}
-            disabled={busy === "confirm"}
-          />
-          <SecondaryButton
-            label="📅 Reagendar"
-            onPress={() => setShowPicker(true)}
-          />
-          <SecondaryButton
-            label="❌ Recusar"
-            onPress={decline}
-            disabled={busy === "decline"}
-          />
-        </View>
-      </View>
-
-      {/* Modal de seleção de slot para reagendamento */}
-      <SlotPickerModal
-        visible={showPicker}
-        onClose={() => setShowPicker(false)}
-        librarianId={librarianId}
-        onPick={async (slot) => {
-          try {
-            await createProposalForConsultation(Number(c.id), {
-              toStartAt: slot.startAt,
-              toEndAt: slot.endAt,
-              proposedBy: "LIBRARIAN",
-            } as any);
-            setShowPicker(false);
-            onChanged();
-          } catch (e: any) {
-            Alert.alert("Erro ao propor horário", e?.message || "Falha.");
-          }
+    <Wrapper>
+      <View
+        style={{
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: theme.colors.outlineVariant,
+          backgroundColor: theme.colors.surface,
         }}
-      />
-    </View>
+      >
+        <View style={{ padding: 12, gap: 6 }}>
+          {/* Título: Família + estado pendente */}
+          <Text style={{ fontWeight: "800", fontSize: 16 }}>
+            {c.family?.fullName ?? `Família #${c.familyId ?? "—"}`} •{" "}
+            <Text style={{ fontWeight: "400" }}>Pendente</Text>
+          </Text>
+
+          {/* Intervalo do slot sugerido */}
+          <Text style={{ color: theme.colors.onSurfaceVariant }}>
+            {fmtRange(c.startAt, c.endAt)}
+          </Text>
+
+          {/* Aviso de conflito (se existir) */}
+          {!!conflict && <Text style={{ color: "#9A3412" }}>{conflict}</Text>}
+
+          {/* Ações: aceitar / reagendar / recusar */}
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              marginTop: 8,
+              alignSelf: "flex-start",
+            }}
+          >
+            <PrimaryButton
+              label="✅ Aceitar"
+              onPress={confirm}
+              disabled={busy === "confirm"}
+            />
+            <SecondaryButton
+              label="📅 Reagendar"
+              onPress={() => setShowPicker(true)}
+            />
+            <SecondaryButton
+              label="❌ Recusar"
+              onPress={decline}
+              disabled={busy === "decline"}
+            />
+          </View>
+        </View>
+
+        {/* Modal de seleção de slot para reagendamento */}
+        <SlotPickerModal
+          visible={showPicker}
+          onClose={() => setShowPicker(false)}
+          librarianId={librarianId}
+          onPick={async (slot) => {
+            try {
+              await createProposalForConsultation(Number(c.id), {
+                toStartAt: slot.startAt,
+                toEndAt: slot.endAt,
+                proposedBy: "LIBRARIAN",
+              } as any);
+              setShowPicker(false);
+              onChanged();
+            } catch (e: any) {
+              Alert.alert("Erro ao propor horário", e?.message || "Falha.");
+            }
+          }}
+        />
+      </View>
+    </Wrapper>
   );
 }
 
 /* =============================================================================
  * Linha: Proposta de reagendamento — aceitar (se família propôs) / cancelar
+ *  - NOVO: cartão clicável abre o detalhe se existir p.consultation.id
  * ========================================================================== */
 function PropostaRow({
   p,
@@ -665,6 +687,7 @@ function PropostaRow({
   onChanged: () => void;
 }) {
   const theme = useTheme();
+  const router = useRouter(); // ⇦ NOVO
   const [busy, setBusy] = React.useState<"accept" | "decline" | null>(null);
   const [conflict, setConflict] = React.useState<string | null>(null);
 
@@ -713,68 +736,89 @@ function PropostaRow({
     }
   }
 
+  const cid = p?.consultation?.id;
+
+  // Wrapper clicável se existir ID de consulta
+  const Wrapper = ({ children }: { children: React.ReactNode }) =>
+    cid ? (
+      <TouchableOpacity
+        onPress={() => router.push(`/librarian/consultas/${cid}`)}
+        accessibilityRole="button"
+        accessibilityLabel="Abrir consulta"
+        activeOpacity={0.9}
+      >
+        {children}
+      </TouchableOpacity>
+    ) : (
+      <View>{children}</View>
+    );
+
   return (
-    <View
-      style={{
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: theme.colors.outlineVariant,
-        backgroundColor: theme.colors.surface,
-      }}
-    >
-      <View style={{ padding: 12, gap: 6 }}>
-        {/* Cabeçalho: família + origem da proposta */}
-        <Text style={{ fontWeight: "800", fontSize: 16 }}>
-          {p?.consultation?.family?.fullName ?? "Família"} •{" "}
-          <Text style={{ fontWeight: "400" }}>
-            {isFromFamily ? "Proposta da família" : "Proposta do bibliotecário"}
-          </Text>
-        </Text>
-
-        {/* Detalhes dos intervalos antigo vs proposto */}
-        <View style={{ rowGap: 4 }}>
-          {!!p?.fromStartAt && !!p?.fromEndAt && (
-            <Text style={{ color: theme.colors.onSurfaceVariant }}>
-              Antigo: {fmtRange(p.fromStartAt, p.fromEndAt)}
+    <Wrapper>
+      <View
+        style={{
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: theme.colors.outlineVariant,
+          backgroundColor: theme.colors.surface,
+        }}
+      >
+        <View style={{ padding: 12, gap: 6 }}>
+          {/* Cabeçalho: família + origem da proposta */}
+          <Text style={{ fontWeight: "800", fontSize: 16 }}>
+            {p?.consultation?.family?.fullName ?? "Família"} •{" "}
+            <Text style={{ fontWeight: "400" }}>
+              {isFromFamily
+                ? "Proposta da família"
+                : "Proposta do bibliotecário"}
             </Text>
-          )}
-          <Text style={{ color: theme.colors.onSurface }}>
-            Proposto: {fmtRange(p.toStartAt, p.toEndAt)}
           </Text>
-          {!!conflict && <Text style={{ color: "#9A3412" }}>{conflict}</Text>}
-          {!canAccept && (
-            <Text style={{ color: theme.colors.onSurfaceVariant }}>
-              A aguardar resposta da família
-            </Text>
-          )}
-        </View>
 
-        {/* Ações dependentes da origem */}
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 8,
-            marginTop: 8,
-            alignSelf: "flex-start",
-          }}
-        >
-          {canAccept && (
-            <PrimaryButton
-              label="✅ Aceitar"
-              onPress={doAccept}
-              disabled={busy === "accept"}
-            />
-          )}
-          {canDecline && (
-            <SecondaryButton
-              label={isFromFamily ? "❌ Recusar" : "❌ Cancelar proposta"}
-              onPress={doDecline}
-              disabled={busy === "decline"}
-            />
-          )}
+          {/* Detalhes dos intervalos antigo vs proposto */}
+          <View style={{ rowGap: 4 }}>
+            {!!p?.fromStartAt && !!p?.fromEndAt && (
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                Antigo: {fmtRange(p.fromStartAt, p.fromEndAt)}
+              </Text>
+            )}
+            <Text style={{ color: theme.colors.onSurface }}>
+              Proposto: {fmtRange(p.toStartAt, p.toEndAt)}
+            </Text>
+            {!!conflict && <Text style={{ color: "#9A3412" }}>{conflict}</Text>}
+            {!canAccept && (
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                A aguardar resposta da família
+              </Text>
+            )}
+          </View>
+
+          {/* Ações dependentes da origem */}
+          <View
+            style={{
+              flexDirection: "row",
+              gap: 8,
+              marginTop: 8,
+              alignSelf: "flex-start",
+            }}
+          >
+            {canAccept && (
+              <PrimaryButton
+                label="✅ Aceitar"
+                onPress={doAccept}
+                disabled={busy === "accept"}
+              />
+            )}
+            {canDecline && (
+              <SecondaryButton
+                label={isFromFamily ? "❌ Recusar" : "❌ Cancelar proposta"}
+                onPress={doDecline}
+                disabled={busy === "decline"}
+              />
+            )}
+          </View>
         </View>
       </View>
-    </View>
+    </Wrapper>
   );
 }
 
@@ -783,6 +827,7 @@ function PropostaRow({
  *  - Filtro temporal (“Hoje”, “Amanhã”, “+3”, “+7”, “Todos”)
  *  - Lista pedidos pendentes com slot (aceitar/recusar/reagendar)
  *  - Lista propostas pendentes (aceitar/cancelar)
+ *  - NOVO: cartões acima clicáveis para abrir detalhe
  * ========================================================================== */
 export default function ConsultasPendentesComReagendamento() {
   const theme = useTheme();
@@ -920,27 +965,24 @@ export default function ConsultasPendentesComReagendamento() {
 
   return (
     <Background>
-      <SafeAreaView
-        style={{ flex: 1, backgroundColor: "transparent" }}
-        edges={["top"]}
+      <ScrollView
+        contentContainerStyle={{ padding: 16, gap: 16 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 16 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+        {/* HEADER TOP — Pedidos de consulta */}
+        <FlexibleCard
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={16}
+          style={{
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme.colors.outlineVariant,
+          }}
         >
-          {/* HEADER TOP — Pedidos de consulta */}
-          <FlexibleCard
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={16}
-            style={{
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: theme.colors.outlineVariant,
-            }}
-          >
+          <View style={{ gap: 8 }}>
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
             >
@@ -958,6 +1000,7 @@ export default function ConsultasPendentesComReagendamento() {
                   name="calendar-clock"
                   size={22}
                   color={theme.colors.onPrimaryContainer}
+                  accessibilityLabel="Ícone relógio de calendário"
                 />
               </View>
               <Text
@@ -967,145 +1010,156 @@ export default function ConsultasPendentesComReagendamento() {
                   fontWeight: "900",
                   color: theme.colors.onSurface,
                 }}
+                accessibilityRole="header"
               >
                 Pedidos de consulta
               </Text>
             </View>
-          </FlexibleCard>
+            <Text
+              style={{
+                color: theme.colors.onSurfaceVariant,
+                lineHeight: 18,
+              }}
+              numberOfLines={3}
+            >
+              Gere pedidos pendentes: aceite ou recuse solicitações com horário
+              e trate de propostas de reagendamento quando necessário.
+            </Text>
+          </View>
+        </FlexibleCard>
 
-          {/* Filtros rápidos (intervalos) */}
-          <FlexibleCard
-            title="Filtros"
-            backgroundColor={theme.colors.surface}
-            elevation={1}
-            padding={14}
-            style={{
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: theme.colors.outlineVariant,
-            }}
-          >
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              <Pill
-                label="Hoje"
-                active={range === "today"}
-                onPress={() => setRange("today")}
-              />
-              <Pill
-                label="Amanhã"
-                active={range === "tomorrow"}
-                onPress={() => setRange("tomorrow")}
-              />
-              <Pill
-                label="Próx. 3 dias"
-                active={range === "next3"}
-                onPress={() => setRange("next3")}
-              />
-              <Pill
-                label="Próx. 7 dias"
-                active={range === "next7"}
-                onPress={() => setRange("next7")}
-              />
-              <Pill
-                label="Todos"
-                active={range === "all"}
-                onPress={() => setRange("all")}
-              />
+        {/* Filtros rápidos (intervalos) */}
+        <FlexibleCard
+          title="Filtros"
+          backgroundColor={theme.colors.surface}
+          elevation={1}
+          padding={14}
+          style={{
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: theme.colors.outlineVariant,
+          }}
+        >
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            <Pill
+              label="Hoje"
+              active={range === "today"}
+              onPress={() => setRange("today")}
+            />
+            <Pill
+              label="Amanhã"
+              active={range === "tomorrow"}
+              onPress={() => setRange("tomorrow")}
+            />
+            <Pill
+              label="Próx. 3 dias"
+              active={range === "next3"}
+              onPress={() => setRange("next3")}
+            />
+            <Pill
+              label="Próx. 7 dias"
+              active={range === "next7"}
+              onPress={() => setRange("next7")}
+            />
+            <Pill
+              label="Todos"
+              active={range === "all"}
+              onPress={() => setRange("all")}
+            />
+          </View>
+        </FlexibleCard>
+
+        {/* Secção: pedidos com slot e sem proposta PENDING do bibliotecário */}
+        <CollapsibleSection
+          title="Solicitações com proposta de horário"
+          right={
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 999,
+                backgroundColor: theme.colors.secondaryContainer,
+              }}
+            >
+              <Text
+                style={{
+                  color: theme.colors.onSecondaryContainer,
+                  fontSize: 12,
+                }}
+              >
+                {pedidosComSlotSemPropDoBibliotecario.length}
+              </Text>
             </View>
-          </FlexibleCard>
+          }
+        >
+          {loading ? (
+            <ActivityIndicator style={{ marginTop: 8 }} />
+          ) : pedidosComSlotSemPropDoBibliotecario.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 16 }}>
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                Sem pedidos com horário.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: 8 }}>
+              {pedidosComSlotSemPropDoBibliotecario.map((c) => (
+                <PedidoComSlotCard
+                  key={String(c.id)}
+                  c={c}
+                  librarianId={librarianId}
+                  onChanged={load}
+                />
+              ))}
+            </View>
+          )}
+        </CollapsibleSection>
 
-          {/* Secção: pedidos com slot e sem proposta PENDING do bibliotecário */}
-          <CollapsibleSection
-            title="Solicitações com proposta de horário"
-            right={
-              <View
+        {/* Secção: propostas PENDING (da família ou do bibliotecário) */}
+        <CollapsibleSection
+          title="Propostas de reagendamento"
+          right={
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 999,
+                backgroundColor: theme.colors.secondaryContainer,
+              }}
+            >
+              <Text
                 style={{
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                  borderRadius: 999,
-                  backgroundColor: theme.colors.secondaryContainer,
+                  color: theme.colors.onSecondaryContainer,
+                  fontSize: 12,
                 }}
               >
-                <Text
-                  style={{
-                    color: theme.colors.onSecondaryContainer,
-                    fontSize: 12,
-                  }}
-                >
-                  {pedidosComSlotSemPropDoBibliotecario.length}
-                </Text>
-              </View>
-            }
-          >
-            {loading ? (
-              <ActivityIndicator style={{ marginTop: 8 }} />
-            ) : pedidosComSlotSemPropDoBibliotecario.length === 0 ? (
-              <View style={{ alignItems: "center", paddingVertical: 16 }}>
-                <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                  Sem pedidos com horário.
-                </Text>
-              </View>
-            ) : (
-              <View style={{ gap: 8 }}>
-                {pedidosComSlotSemPropDoBibliotecario.map((c) => (
-                  <PedidoComSlotCard
-                    key={String(c.id)}
-                    c={c}
-                    librarianId={librarianId}
-                    onChanged={load}
-                  />
-                ))}
-              </View>
-            )}
-          </CollapsibleSection>
-
-          {/* Secção: propostas PENDING (da família ou do bibliotecário) */}
-          <CollapsibleSection
-            title="Propostas de reagendamento"
-            right={
-              <View
-                style={{
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                  borderRadius: 999,
-                  backgroundColor: theme.colors.secondaryContainer,
-                }}
-              >
-                <Text
-                  style={{
-                    color: theme.colors.onSecondaryContainer,
-                    fontSize: 12,
-                  }}
-                >
-                  {propostas.length}
-                </Text>
-              </View>
-            }
-            defaultCollapsed
-          >
-            {loading ? (
-              <ActivityIndicator style={{ marginTop: 8 }} />
-            ) : propostas.length === 0 ? (
-              <View style={{ alignItems: "center", paddingVertical: 16 }}>
-                <Text style={{ color: theme.colors.onSurfaceVariant }}>
-                  Sem propostas pendentes.
-                </Text>
-              </View>
-            ) : (
-              <View style={{ gap: 8 }}>
-                {propostas.map((p) => (
-                  <PropostaRow
-                    key={String(p.id)}
-                    p={p}
-                    librarianId={librarianId}
-                    onChanged={load}
-                  />
-                ))}
-              </View>
-            )}
-          </CollapsibleSection>
-        </ScrollView>
-      </SafeAreaView>
+                {propostas.length}
+              </Text>
+            </View>
+          }
+          defaultCollapsed
+        >
+          {loading ? (
+            <ActivityIndicator style={{ marginTop: 8 }} />
+          ) : propostas.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 16 }}>
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                Sem propostas pendentes.
+              </Text>
+            </View>
+          ) : (
+            <View style={{ gap: 8 }}>
+              {propostas.map((p) => (
+                <PropostaRow
+                  key={String(p.id)}
+                  p={p}
+                  librarianId={librarianId}
+                  onChanged={load}
+                />
+              ))}
+            </View>
+          )}
+        </CollapsibleSection>
+      </ScrollView>
     </Background>
   );
 }

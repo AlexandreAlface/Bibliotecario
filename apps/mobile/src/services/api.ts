@@ -22,11 +22,27 @@ export const API_URL: string =
 /** Extensão de RequestInit que permite enviar `json` e definir `timeoutMs`. */
 export type FetchInit = RequestInit & { json?: unknown; timeoutMs?: number };
 
+
 /** Erro normalizado devolvido pelo cliente de API. */
 export interface ApiError extends Error {
   status?: number;
   code?: string;
   details?: unknown;
+}
+
+/** Retorna `fallback` se a API responder com um destes status (ex.: 400/403/404). */
+export async function requestOr<T>(
+  path: string,
+  init: FetchInit,
+  fallback: T,
+  swallowStatuses: number[] = [400, 403, 404]
+): Promise<T> {
+  try {
+    return await request<T>(path, init);
+  } catch (e: any) {
+    if (swallowStatuses.includes(Number(e?.status))) return fallback;
+    throw e;
+  }
 }
 
 /* =========================== Helpers PUROS ============================ */
@@ -42,11 +58,12 @@ function safeJson(text: string): any {
 
 /** Cria um erro enriquecido com `status`, `code` e `details`. */
 function toApiError(res: Response, data: any): ApiError {
-  const err: ApiError = new Error(
+  const url = (res as any)?.url || "";
+  const msg =
     (data && (data.error || data.message)) ||
-      res.statusText ||
-      `Erro ${res.status}`
-  );
+    res.statusText ||
+    `Erro ${res.status}`;
+  const err: ApiError = new Error(`${msg} [${res.status}] ${url}`);
   err.status = res.status;
   err.code = data?.code || data?.errorCode;
   err.details = data;
@@ -98,6 +115,14 @@ export const api = request;
 /** GET tipado. */
 export function get<T = any>(path: string, init?: Omit<FetchInit, "method">) {
   return request<T>(path, { method: "GET", ...(init || {}) });
+}
+
+export function getOr<T>(
+  path: string,
+  fallback: T,
+  swallowStatuses?: number[]
+) {
+  return requestOr<T>(path, { method: "GET" }, fallback, swallowStatuses);
 }
 
 /** POST tipado (automaticamente serializa `json`). */

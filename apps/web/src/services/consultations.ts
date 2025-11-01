@@ -53,7 +53,7 @@ export type SlotLite = {
 export type CreateConsultationDTO = {
   familyId: number;
   librarianId: number;
-  childId?: number;
+  childId?: number | null;
   libraryId?: number;
   slotId?: number;
   startAt?: string | Date;

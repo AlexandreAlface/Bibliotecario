@@ -25,11 +25,20 @@ const toCursor = (v: unknown) => {
 };
 const toSearch = (v: unknown) => String(v ?? "").trim();
 
+const toInt = (v: unknown) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+
+
 const buildFamilyWhere = (
   roleId: number,
-  q: string
+  q: string,
+  libraryId?: number
 ): Prisma.UserWhereInput => ({
   userRoles: { some: { roleId } },
+  ...(libraryId ? { userLibraries: { some: { libraryId } } } : {}),
   ...(q
     ? {
         OR: [
@@ -62,19 +71,21 @@ r.get(
   "/families",
   withUser,
   requireRole(ROLES.LIBRARIAN, ROLES.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req, res, next) => {
     try {
       const limit = toLimit(req.query.limit, 25, 50);
       const cursor = toCursor(req.query.cursor);
       const q = toSearch(req.query.search);
+      const libraryId = toInt(req.query.libraryId); // 👈 filtro por biblioteca
+
       const role = await prisma.role.findFirst({ where: { name: "FAMÍLIA" } });
       if (!role) return res.json({ items: [], nextCursor: null });
 
       const items = await prisma.user.findMany({
-        where: buildFamilyWhere(role.id, q),
+        where: buildFamilyWhere(role.id, q, libraryId),
         take: limit + 1,
         ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-        orderBy: [{ id: "asc" }],
+        orderBy: [{ fullName: "asc" }, { id: "asc" }], // 👈 UX melhor
         select: {
           id: true,
           fullName: true,

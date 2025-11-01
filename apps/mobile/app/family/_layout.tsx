@@ -11,7 +11,7 @@
  *    • Comentários em PT-PT + JSDoc.
  *    • Helpers **puros** e curtos (≤ 30 linhas) para testabilidade.
  *    • Componentes pequenos/coesos (TabBarItem).
- *    • Tipagem explícita e mapeamento de ícones centralizado.
+ *    • Tipagem explícita e mapeamento de ícones + labels centralizado.
  * ============================================================================
  */
 
@@ -20,7 +20,7 @@ import { View, TouchableOpacity } from "react-native";
 import { Tabs } from "expo-router";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTheme } from "react-native-paper";
+import { useTheme, Text } from "react-native-paper";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useAuth } from "src/contexts/AuthContext";
 import { TABBAR_HEIGHT } from "src/constants/layout";
@@ -40,33 +40,68 @@ type RouteName =
   | "avaliacoes"
   | "eventos";
 
-/** Mapa de ícones para cada rota (ativo/inativo). */
+/** Mapa de ícones + labels para cada rota (ativo/inativo). */
 const ICONS: Record<
   RouteName,
   {
     active: React.ComponentProps<typeof Icon>["name"];
     inactive: React.ComponentProps<typeof Icon>["name"];
+    label: string;
   }
 > = {
-  index: { active: "home-variant", inactive: "home-variant-outline" },
-  feed: { active: "rss", inactive: "rss" },
-  sugestoes: { active: "magic-staff", inactive: "magic-staff" },
-  agenda: { active: "calendar-month", inactive: "calendar-month-outline" },
-  conquistas: { active: "trophy-award", inactive: "trophy-outline" },
-  consultas: { active: "calendar-clock", inactive: "calendar-clock-outline" },
-  familias: { active: "account-group", inactive: "account-group-outline" },
-  leituras: { active: "book-open-variant", inactive: "book-open-variant" },
-  avaliacoes: { active: "star", inactive: "star-outline" },
+  index: { active: "home", inactive: "home-outline", label: "Início" },
+  leituras: {
+    active: "book-open-page-variant",
+    inactive: "book-outline",
+    label: "Leituras",
+  },
+  consultas: {
+    active: "stethoscope",
+    inactive: "stethoscope",
+    label: "Consultas",
+  },
+  sugestoes: {
+    active: "lightbulb-on",
+    inactive: "lightbulb-on-outline",
+    label: "Sugestões",
+  },
+
+  // rotas que deixam de aparecer no bottom (mas podem continuar acessíveis via deep-link/stack)
+  avaliacoes: {
+    active: "star-check",
+    inactive: "star-outline",
+    label: "Avaliações",
+  },
   eventos: {
     active: "ticket-confirmation",
     inactive: "ticket-confirmation-outline",
+    label: "Eventos",
   },
+  conquistas: {
+    active: "trophy",
+    inactive: "trophy-outline",
+    label: "Conquistas",
+  },
+  familias: {
+    active: "account-group",
+    inactive: "account-group-outline",
+    label: "Famílias",
+  },
+  feed: {
+    active: "newspaper-variant",
+    inactive: "newspaper-variant-outline",
+    label: "Dicas",
+  },
+  // agenda: {
+  //   active: "symbol",
+  //   inactive: "symbol",
+  //   label: ""
+  // }
 };
 
 /** Menu visível para Família (sem actingChild). */
 const MENU_FAMILIA: RouteName[] = [
   "index",
-  "feed",
   "leituras",
   "avaliacoes",
   "eventos",
@@ -75,18 +110,16 @@ const MENU_FAMILIA: RouteName[] = [
   "conquistas",
   "consultas",
   "familias",
+  "feed"
 ];
-
-/** Menu visível quando a sessão está “em modo criança”. */
 const MENU_CRIANCA: RouteName[] = [
   "index",
-  "feed",
   "leituras",
   "avaliacoes",
   "eventos",
   "sugestoes",
   "conquistas",
-  "consultas",
+  "feed"
 ];
 
 /* ================================ Helpers PUROS =============================== */
@@ -95,9 +128,8 @@ const MENU_CRIANCA: RouteName[] = [
 function extractRoles(u: any): string[] {
   if (!u) return [];
   if (Array.isArray(u.roles) && u.roles.length) return u.roles as string[];
-  if (Array.isArray(u.userRoles)) {
+  if (Array.isArray(u.userRoles))
     return u.userRoles.map((ur: any) => ur?.role?.name).filter(Boolean);
-  }
   return [];
 }
 
@@ -155,7 +187,8 @@ function TabBarItem({ route, nav, focused }: TabBarItemProps) {
   return (
     <TouchableOpacity
       key={route.key}
-      accessibilityRole="button"
+      accessibilityRole="tab"
+      accessibilityLabel={ICONS[name]?.label ?? String(name)}
       accessibilityState={focused ? { selected: true } : {}}
       onPress={onPress}
       onLongPress={onLongPress}
@@ -164,6 +197,16 @@ function TabBarItem({ route, nav, focused }: TabBarItemProps) {
       hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
     >
       <Icon name={iconName} size={24} color={color} />
+      <Text
+        style={{
+          fontSize: 11,
+          marginTop: 2,
+          color,
+        }}
+        numberOfLines={1}
+      >
+        {ICONS[name]?.label ?? name}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -194,6 +237,7 @@ function MyTabBar(props: BottomTabBarProps) {
         backgroundColor: theme.colors.surface,
         elevation: 8,
       }}
+      accessibilityRole="tablist"
     >
       {routes.map((route) => (
         <TabBarItem
@@ -216,7 +260,7 @@ export default function TabsLayout() {
       screenOptions={{ headerShown: false }}
     >
       <Tabs.Screen name="index" />
-      <Tabs.Screen name="feed" /> {/* Rota do feed (micro-conteúdos/eventos) */}
+      <Tabs.Screen name="feed" /> 
       <Tabs.Screen name="leituras" />
       <Tabs.Screen name="avaliacoes" />
       <Tabs.Screen name="eventos" />

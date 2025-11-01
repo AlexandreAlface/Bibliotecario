@@ -362,7 +362,8 @@ async function svcConfirmConsultation(id, req) {
         });
         if (!c)
             throw new Error("not found");
-        if (!isAdmin(req) && req.user?.id !== c.librarianId)
+        if (!isAdmin(req) &&
+            !isActor(req, { librarianId: c.librarianId, familyId: c.familyId }))
             throw new Error("forbidden");
         if (!c.startAt || !c.endAt)
             throw new Error("consulta sem horário para confirmar");
@@ -494,6 +495,7 @@ r.get("/:id/details", auth_1.withUser, (0, auth_1.requireRole)(auth_1.ROLES.LIBR
         where: { id },
         include: {
             family: { select: { id: true, fullName: true, email: true } },
+            librarian: { select: { id: true, fullName: true } }, // 👈 acrescenta
             child: { select: { id: true, name: true, birthDate: true } },
             library: { select: { id: true, name: true, address: true } },
             books: {
@@ -586,6 +588,9 @@ r.get("/:id/details", auth_1.withUser, (0, auth_1.requireRole)(auth_1.ROLES.LIBR
             family: c.family,
             library: c.library ?? undefined,
             notes: c.notes ?? "",
+            librarian: c.librarian
+                ? { id: c.librarian.id, fullName: c.librarian.fullName }
+                : undefined,
             attachments: {
                 books: c.books.map((b) => ({
                     isbn: b.book.isbn,
@@ -825,7 +830,7 @@ r.get("/librarians/with-open-slots", auth_1.withUser, auth_1.requireFamilyOrLibr
     }
 });
 // POST /api/consultations/:id/confirm
-r.post("/:id/confirm", auth_1.withUser, (0, auth_1.requireRole)(auth_1.ROLES.LIBRARIAN, auth_1.ROLES.ADMIN), async (req, res) => {
+r.post("/:id/confirm", auth_1.withUser, (0, auth_1.requireRole)(auth_1.ROLES.LIBRARIAN, auth_1.ROLES.ADMIN, auth_1.ROLES.FAMILY), async (req, res) => {
     const id = asInt(req.params.id);
     if (!id)
         return res.status(400).json({ error: "invalid_id" });
@@ -1122,7 +1127,9 @@ r.post("/:id/reschedule", auth_1.withUser, auth_1.requireFamilyOrLibrarian, asyn
             slot_already_linked: 409,
             library_required_for_in_person: 400,
         };
-        res.status(codeByMsg[msg] ?? 400).json({ error: msg || "failed_to_reschedule" });
+        res
+            .status(codeByMsg[msg] ?? 400)
+            .json({ error: msg || "failed_to_reschedule" });
     }
 });
 exports.default = r;

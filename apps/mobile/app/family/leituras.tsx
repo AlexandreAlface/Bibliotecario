@@ -9,6 +9,7 @@
  * • Helpers PUROS (determinísticos) extraídos para claridade e reutilização.
  * • Funções auxiliares ≤ 30 linhas (sempre que aplicável).
  * • Sem alterações de comportamento — apenas organização e comentários.
+ * • 🪵 Logs de debug para perceber pedidos e respostas.
  * ============================================================================
  */
 
@@ -34,7 +35,10 @@ import {
   Divider,
 } from "react-native-paper";
 import { useRouter } from "expo-router";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
 import { Background } from "@bibliotecario/ui-mobile";
@@ -75,9 +79,6 @@ type HistoryRow = {
  * Helpers PUROS (determinísticos, ≤ 30 linhas)
  * ========================================================================== */
 
-/**
- * Extrai/normaliza um ID de criança a partir de vários formatos aceites.
- */
 function toChildId(val: unknown): number | undefined {
   if (val == null) return undefined;
   if (typeof val === "number") return Number.isFinite(val) ? val : undefined;
@@ -93,25 +94,16 @@ function toChildId(val: unknown): number | undefined {
   return undefined;
 }
 
-/**
- * Formata uma data ISO em dd/mm/aaaa (locale pt-PT).
- */
 function formatDatePT(d?: string | null): string {
   if (!d) return "";
   const dt = new Date(d);
   return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleDateString("pt-PT");
 }
 
-/**
- * Determina se um estado "pending" é válido para as listas de ação.
- */
 function isPendingStatus(s: PendingRatingRow["status"]): s is PendingStatus {
   return s === "reserved" || s === "reading";
 }
 
-/**
- * Mapeia leituras cruas do serviço para linhas do histórico.
- */
 function mapReadingsToHistoryRows(raw: (ReadingLite & any)[]): HistoryRow[] {
   return raw
     .map((r) => {
@@ -127,17 +119,14 @@ function mapReadingsToHistoryRows(raw: (ReadingLite & any)[]): HistoryRow[] {
         date: r.date ?? r.finishedAt ?? r.startedAt ?? null,
         childId: r.childId,
         childName: r.childName ?? null,
-        stars: typeof r.stars === "number" ? r.stars : undefined,
-        comment: r.comment ?? undefined,
+        stars: r.stars ?? null,
+        comment: r.comment ?? null,
         status,
       };
     })
     .filter((row) => row.status !== "reserved"); // histórico não mostra “reservado”
 }
 
-/**
- * Visuals por estado (cores/ícones) — usa a paleta do tema (sem hardcode).
- */
 function statusVisuals(theme: MD3Theme, s: HistoryStatus) {
   switch (s) {
     case "reserved":
@@ -166,151 +155,6 @@ function statusVisuals(theme: MD3Theme, s: HistoryStatus) {
 }
 
 /* =============================================================================
- * UI Reutilizável
- * ========================================================================== */
-
-/** Cartão “branco” de secção. */
-const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({
-  children,
-  style,
-}) => {
-  const theme = useTheme<MD3Theme>();
-  return (
-    <View
-      style={[
-        {
-          backgroundColor: theme.colors.surface,
-          borderRadius: 16,
-          padding: 16,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: theme.colors.outlineVariant,
-          shadowColor: "#000",
-          shadowOpacity: 0.08,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 6 },
-          elevation: 3,
-        },
-        style,
-      ]}
-    >
-      {children}
-    </View>
-  );
-};
-
-/** Linha clicável com faixa de acento (mini-card de livro). */
-const RowCard: React.FC<{
-  children: React.ReactNode;
-  onPress?: () => void;
-  style?: any;
-  accentColor?: string;
-}> = ({ children, onPress, style, accentColor }) => {
-  const theme = useTheme<MD3Theme>();
-  return (
-    <TouchableRipple
-      onPress={onPress}
-      rippleColor={theme.colors.primary}
-      style={[
-        {
-          backgroundColor: theme.colors.background,
-          borderRadius: 12,
-          padding: 12,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: theme.colors.outlineVariant,
-          borderLeftWidth: 4,
-          borderLeftColor: accentColor ?? theme.colors.outlineVariant,
-        },
-        style,
-      ]}
-    >
-      <View style={{ flexDirection: "row", alignItems: "center" }}>{children}</View>
-    </TouchableRipple>
-  );
-};
-
-/** Componente de estrelas “só leitura”. */
-const StarsDisplay: React.FC<{ value?: number | null }> = ({ value }) => {
-  const theme = useTheme<MD3Theme>();
-  if (typeof value !== "number") return null;
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-      <Icon name="star" size={16} color={theme.colors.tertiary} />
-      <Text style={{ opacity: 0.8 }}>{value}/5</Text>
-    </View>
-  );
-};
-
-/** Placeholder de capa de livro (com imagem opcional). */
-const BookCover: React.FC<{ uri?: string | null }> = ({ uri }) => {
-  const theme = useTheme<MD3Theme>();
-  if (uri) {
-    return (
-      <Image
-        source={{ uri }}
-        style={{
-          width: 64,
-          height: 96,
-          borderRadius: 8,
-          marginRight: 12,
-          backgroundColor: theme.colors.surfaceVariant,
-        }}
-      />
-    );
-  }
-  return (
-    <View
-      style={{
-        width: 64,
-        height: 96,
-        borderRadius: 8,
-        marginRight: 12,
-        backgroundColor: theme.colors.surfaceVariant,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Icon name="book-outline" size={28} color={theme.colors.onSurfaceVariant} />
-    </View>
-  );
-};
-
-/** Chip de filtro com “selected” no branding. */
-const FilterChip: React.FC<{
-  selected: boolean;
-  onPress: () => void;
-  icon?: string;
-  children: React.ReactNode;
-}> = ({ selected, onPress, icon, children }) => {
-  const theme = useTheme<MD3Theme>();
-  const BORDER = theme.colors.outlineVariant;
-  const selBg = theme.colors.primaryContainer;
-  const selFg = theme.colors.onPrimaryContainer;
-  const selBorder = theme.colors.primary;
-
-  return (
-    <Chip
-      mode="outlined"
-      selected={selected}
-      onPress={onPress}
-      style={{
-        marginRight: 8,
-        marginBottom: 8,
-        backgroundColor: selected ? selBg : undefined,
-        borderColor: selected ? selBorder : BORDER,
-      }}
-      textStyle={{
-        color: selected ? selFg : theme.colors.onSurface,
-        fontWeight: (selected ? "700" : "400") as any,
-      }}
-      selectedColor={selected ? selFg : theme.colors.onSurface}
-      icon={icon as any}
-    >
-      {children}
-    </Chip>
-  );
-};
-
-/* =============================================================================
  * Ecrã principal
  * ========================================================================== */
 
@@ -320,9 +164,11 @@ export default function LeiturasTab() {
   const insets = useSafeAreaInsets();
   const theme = useTheme<MD3Theme>();
 
-  // Habilitar animações de layout no Android (UI polida).
   React.useEffect(() => {
-    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+    if (
+      Platform.OS === "android" &&
+      UIManager.setLayoutAnimationEnabledExperimental
+    ) {
       UIManager.setLayoutAnimationEnabledExperimental(true);
     }
   }, []);
@@ -331,35 +177,56 @@ export default function LeiturasTab() {
   const actingChildId = (user as any)?.actingChild?.id
     ? Number((user as any).actingChild.id)
     : undefined;
+  const childFromProfile = (user as any)?.child?.id
+    ? Number((user as any).child.id)
+    : undefined;
 
   const firstChildId =
-    !actingChildId && user?.children?.length ? Number(user.children[0].id) : undefined;
+    !actingChildId && user?.children?.length
+      ? Number(user.children[0].id)
+      : undefined;
 
-  const [selectedChildId, setSelectedChildId] = React.useState<string | undefined>(
-    firstChildId ? String(firstChildId) : undefined
-  );
+  const [selectedChildId, setSelectedChildId] = React.useState<
+    string | undefined
+  >(firstChildId ? String(firstChildId) : undefined);
 
-  const childId = selectedChildId ? Number(selectedChildId) : actingChildId;
+  const childId = selectedChildId
+    ? Number(selectedChildId)
+    : actingChildId ?? childFromProfile;
 
-  // FamilyId — pode ser necessário para autorização em endpoints de leitura
-  const familyIdForAuth =
+  // ⚠️ Id do agregado (para cruzar ratings do utilizador) — não cair para user.id de perfil-criança
+  const parentFamilyId =
     Number((user as any)?.family?.id) ||
     Number((user as any)?.families?.[0]?.id) ||
-    Number((user as any)?.id) ||
     undefined;
+
+  // 🪵 debug contexto
+  if (__DEV__) {
+    console.debug("[LeiturasTab] ctx", {
+      actingChildId,
+      childFromProfile,
+      selectedChildId,
+      childId,
+      parentFamilyId,
+      hasChildren: !!user?.children?.length,
+    });
+  }
 
   // Estado de dados
   const [pending, setPending] = React.useState<PendingRatingRow[]>([]);
   const [history, setHistory] = React.useState<HistoryRow[]>([]);
   const [busyIsbn, setBusyIsbn] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
-  const [snack, setSnack] = React.useState<{ msg: string; type: "success" | "error" } | null>(
-    null
-  );
+  const [snack, setSnack] = React.useState<{
+    msg: string;
+    type: "success" | "error";
+  } | null>(null);
 
   // Filtros
   const [pendingFilter, setPendingFilter] = React.useState<PendingStatus[]>([]);
-  const [historyFilter, setHistoryFilter] = React.useState<("rated" | "unrated")[]>([]);
+  const [historyFilter, setHistoryFilter] = React.useState<
+    ("rated" | "unrated")[]
+  >([]);
 
   // Colapsar/expandir cartões
   const [pendingCollapsed, setPendingCollapsed] = React.useState(false);
@@ -399,17 +266,54 @@ export default function LeiturasTab() {
     if (!childId) {
       setPending([]);
       setHistory([]);
+      if (__DEV__) console.warn("[LeiturasTab] loadAll: sem childId → skip");
       return;
     }
     setLoading(true);
     try {
       // Pendentes (apenas estados úteis)
-      const pRows = await listPendingRatings({ childId, limit: 80, userId: familyIdForAuth });
-      setPending(pRows.filter((r) => r.status === "reserved" || r.status === "reading"));
+      const pRows = await listPendingRatings({
+        childId,
+        familyId: parentFamilyId, // útil para cruzar estrelas do utilizador
+        limit: 80,
+        userId: parentFamilyId,
+      });
 
-      // Histórico (exclui “reservado”)
-      const hRaw = await getLeiturasAtuais(200, { childId });
-      setHistory(mapReadingsToHistoryRows(hRaw as (ReadingLite & any)[]));
+      const normalized = pRows.map((r) => ({
+        ...r,
+        status: String(r.status).toLowerCase() as
+          | "reserved"
+          | "reading"
+          | "finished",
+      }));
+
+      setPending(
+        normalized.filter(
+          (r) => r.status === "reserved" || r.status === "reading"
+        )
+      );
+
+      // Histórico (⚠️ passamos ambos se existirem)
+      const hRaw = await getLeiturasAtuais(200, {
+        childId,
+        familyId: parentFamilyId,
+      });
+
+      const mapped = mapReadingsToHistoryRows(hRaw as (ReadingLite & any)[]);
+      setHistory(mapped);
+
+      // 🪵 debug
+      if (__DEV__) {
+        console.debug("[LeiturasTab] pending:", {
+          total: normalized.length,
+          filtered: filteredPending.length,
+        });
+        console.debug("[LeiturasTab] history raw/mapped:", {
+          raw: hRaw.length,
+          mapped: mapped.length,
+          sample: hRaw[0],
+        });
+      }
     } catch (e) {
       console.error(e);
       setSnack({ msg: "Falha ao carregar leituras.", type: "error" });
@@ -418,7 +322,6 @@ export default function LeiturasTab() {
     }
   }
 
-  // Recarrega sempre que muda a criança selecionada
   React.useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -432,12 +335,16 @@ export default function LeiturasTab() {
     }
     setBusyIsbn(isbn);
     try {
-      await startReading(childId, familyIdForAuth, isbn);
+      // já tens childId -> familyId opcional
+      await startReading(childId, parentFamilyId, isbn);
       await loadAll();
       setSnack({ msg: "Leitura iniciada.", type: "success" });
     } catch (e: any) {
       console.error(e);
-      setSnack({ msg: e?.message || "Não foi possível iniciar.", type: "error" });
+      setSnack({
+        msg: e?.message || "Não foi possível iniciar.",
+        type: "error",
+      });
     } finally {
       setBusyIsbn(null);
     }
@@ -451,45 +358,48 @@ export default function LeiturasTab() {
     }
     setBusyIsbn(isbn);
     try {
-      await finishReading(childId, familyIdForAuth, isbn);
+      await finishReading(childId, parentFamilyId, isbn);
       await loadAll();
       setSnack({ msg: "Leitura terminada.", type: "success" });
     } catch (e: any) {
       console.error(e);
-      setSnack({ msg: e?.message || "Não foi possível terminar.", type: "error" });
+      setSnack({
+        msg: e?.message || "Não foi possível terminar.",
+        type: "error",
+      });
     } finally {
       setBusyIsbn(null);
     }
   };
 
-  // Labels/ícones de estado (UI)
   const statusLabel: Record<HistoryStatus, string> = {
     reserved: "Reservado",
     reading: "A ler",
     finished: "Terminado",
   };
-  const statusIcon: Record<HistoryStatus, string> = {
-    reserved: "bookmark-outline",
-    reading: "book-open-page-variant",
-    finished: "check",
-  };
 
-  // Contadores + histórico filtrado
   const pendingCount = filteredPending.length;
   const historyFiltered = React.useMemo(
     () =>
       historyFilter.length
-        ? history.filter((h) => historyFilter.includes(typeof h.stars === "number" ? "rated" : "unrated"))
+        ? history.filter((h) =>
+            historyFilter.includes(
+              typeof h.stars === "number" ? "rated" : "unrated"
+            )
+          )
         : history,
     [history, historyFilter]
   );
   const historyCount = historyFiltered.length;
 
   /* ======================== Caso sem crianças registadas ===================== */
-  if (!user?.children?.length) {
+  if (!actingChildId && !childFromProfile && !user?.children?.length) {
     return (
       <Background>
-        <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["top"]}>
+        <SafeAreaView
+          style={{ flex: 1, backgroundColor: "transparent" }}
+          edges={["top"]}
+        >
           <ScrollView
             contentInsetAdjustmentBehavior="automatic"
             contentContainerStyle={{
@@ -499,13 +409,22 @@ export default function LeiturasTab() {
             }}
           >
             <WhiteCard>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  marginBottom: 8,
+                }}
+              >
                 <Icon name="book-plus" size={22} color={theme.colors.primary} />
                 <Text variant="titleMedium" style={{ fontWeight: "900" }}>
                   Sem crianças na família
                 </Text>
               </View>
-              <Text>Para usar as leituras, adiciona uma criança à tua família.</Text>
+              <Text>
+                Para usar as leituras, adiciona uma criança à tua família.
+              </Text>
               <Button
                 mode="contained"
                 style={{ marginTop: 12 }}
@@ -541,7 +460,10 @@ export default function LeiturasTab() {
 
   return (
     <Background>
-      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }} edges={["top"]}>
+      <SafeAreaView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        edges={["top"]}
+      >
         <ScrollView
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{
@@ -560,7 +482,14 @@ export default function LeiturasTab() {
                 gap: 12,
               }}
             >
-              <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
                 <View
                   style={{
                     width: 36,
@@ -571,13 +500,19 @@ export default function LeiturasTab() {
                     backgroundColor: theme.colors.primaryContainer,
                   }}
                 >
-                  <Icon name="book-multiple" size={20} color={theme.colors.onPrimaryContainer} />
+                  <Icon
+                    name="book-multiple"
+                    size={20}
+                    color={theme.colors.onPrimaryContainer}
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text variant="titleLarge" style={{ fontWeight: "900" }}>
                     Leituras
                   </Text>
-                  <Text style={{ opacity: 0.7, marginTop: 2 }}>Reservas, leituras em curso e histórico</Text>
+                  <Text style={{ opacity: 0.7, marginTop: 2 }}>
+                    Reservas, leituras em curso e histórico
+                  </Text>
                 </View>
               </View>
 
@@ -585,7 +520,9 @@ export default function LeiturasTab() {
                 icon="refresh"
                 disabled={loading || !childId}
                 onPress={() => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  LayoutAnimation.configureNext(
+                    LayoutAnimation.Presets.easeInEaseOut
+                  );
                   loadAll();
                 }}
                 accessibilityLabel="Atualizar leituras"
@@ -609,14 +546,20 @@ export default function LeiturasTab() {
                   value={selectedChildId}
                   onChange={(val: any) => {
                     const id = toChildId(val);
-                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    LayoutAnimation.configureNext(
+                      LayoutAnimation.Presets.easeInEaseOut
+                    );
                     setSelectedChildId(id ? String(id) : undefined);
                   }}
                   clearable
                   disabled={!user?.children?.length}
                   menuMaxHeight={360}
                 />
-                {!childId && <Text style={{ opacity: 0.7 }}>Seleciona uma criança para veres leituras e reservas.</Text>}
+                {!childId && (
+                  <Text style={{ opacity: 0.7 }}>
+                    Seleciona uma criança para veres leituras e reservas.
+                  </Text>
+                )}
               </View>
             )}
           </WhiteCard>
@@ -627,11 +570,25 @@ export default function LeiturasTab() {
               onPress={togglePending}
               role="button"
               borderless
-              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
             >
               <>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <Icon name="book-open-variant" size={20} color={theme.colors.primary} />
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <Icon
+                    name="book-open-variant"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
                   <Text variant="titleLarge" style={{ fontWeight: "900" }}>
                     Leituras em Curso
                   </Text>
@@ -643,7 +600,13 @@ export default function LeiturasTab() {
                       backgroundColor: theme.colors.secondaryContainer,
                     }}
                   >
-                    <Text style={{ color: theme.colors.onSecondaryContainer, fontWeight: "700", fontSize: 12 }}>
+                    <Text
+                      style={{
+                        color: theme.colors.onSecondaryContainer,
+                        fontWeight: "700",
+                        fontSize: 12,
+                      }}
+                    >
                       {pendingCount}
                     </Text>
                   </View>
@@ -651,7 +614,9 @@ export default function LeiturasTab() {
                 <IconButton
                   icon={pendingCollapsed ? "chevron-down" : "chevron-up"}
                   onPress={togglePending}
-                  accessibilityLabel={pendingCollapsed ? "Expandir" : "Colapsar"}
+                  accessibilityLabel={
+                    pendingCollapsed ? "Expandir" : "Colapsar"
+                  }
                 />
               </>
             </TouchableRipple>
@@ -659,11 +624,23 @@ export default function LeiturasTab() {
             {!pendingCollapsed && (
               <View>
                 {/* Filtros rápidos */}
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8, marginBottom: 8 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    marginTop: 8,
+                    marginBottom: 8,
+                  }}
+                >
                   <FilterChip
                     selected={pendingFilter.includes("reserved")}
                     onPress={() =>
-                      setPendingFilter((s) => (s.includes("reserved") ? s.filter((x) => x !== "reserved") : [...s, "reserved"]))
+                      setPendingFilter((s) =>
+                        s.includes("reserved")
+                          ? s.filter((x) => x !== "reserved")
+                          : [...s, "reserved"]
+                      )
                     }
                     icon="bookmark-outline"
                   >
@@ -672,7 +649,11 @@ export default function LeiturasTab() {
                   <FilterChip
                     selected={pendingFilter.includes("reading")}
                     onPress={() =>
-                      setPendingFilter((s) => (s.includes("reading") ? s.filter((x) => x !== "reading") : [...s, "reading"]))
+                      setPendingFilter((s) =>
+                        s.includes("reading")
+                          ? s.filter((x) => x !== "reading")
+                          : [...s, "reading"]
+                      )
                     }
                     icon="book-open-page-variant"
                   >
@@ -682,11 +663,15 @@ export default function LeiturasTab() {
 
                 {/* Listagem */}
                 {mustPickChild ? (
-                  <Text style={{ opacity: 0.75 }}>Escolhe a criança para veres reservas e leituras em curso.</Text>
+                  <Text style={{ opacity: 0.75 }}>
+                    Escolhe a criança para veres reservas e leituras em curso.
+                  </Text>
                 ) : loading ? (
                   <ActivityIndicator />
                 ) : filteredPending.length === 0 ? (
-                  <Text style={{ opacity: 0.75 }}>Não há reservas por iniciar nem leituras por terminar.</Text>
+                  <Text style={{ opacity: 0.75 }}>
+                    Não há reservas por iniciar nem leituras por terminar.
+                  </Text>
                 ) : (
                   <View style={{ rowGap: 10 }}>
                     {filteredPending.map((r, idx) => {
@@ -696,9 +681,17 @@ export default function LeiturasTab() {
                           <RowCard accentColor={vis.bar}>
                             <BookCover uri={r.coverUrl} />
                             <View style={{ flex: 1 }}>
-                              {/* Título + estado */}
-                              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                <Text numberOfLines={2} style={{ fontWeight: "700", flex: 1 }}>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                }}
+                              >
+                                <Text
+                                  numberOfLines={2}
+                                  style={{ fontWeight: "700", flex: 1 }}
+                                >
                                   {r.title}
                                 </Text>
                                 <View
@@ -712,18 +705,34 @@ export default function LeiturasTab() {
                                     borderRadius: 999,
                                   }}
                                 >
-                                  <Icon name={vis.icon as any} size={14} color={vis.chipFg} />
-                                  <Text style={{ color: vis.chipFg, fontWeight: "700", fontSize: 12 }}>
-                                    {r.status === "reserved" ? "Reservado" : "A ler"}
+                                  <Icon
+                                    name={vis.icon as any}
+                                    size={14}
+                                    color={vis.chipFg}
+                                  />
+                                  <Text
+                                    style={{
+                                      color: vis.chipFg,
+                                      fontWeight: "700",
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    {r.status === "reserved"
+                                      ? "Reservado"
+                                      : "A ler"}
                                   </Text>
                                 </View>
                               </View>
 
-                              {/* Estrelas se já houver avaliação parcial */}
-                              {typeof r.stars === "number" && <StarsDisplay value={r.stars} />}
+                              <StarsDisplay value={r.stars} />
 
-                              {/* Ações contextuais */}
-                              <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  gap: 8,
+                                  marginTop: 8,
+                                }}
+                              >
                                 {r.status === "reserved" ? (
                                   <Button
                                     mode="contained"
@@ -752,7 +761,13 @@ export default function LeiturasTab() {
                           </RowCard>
 
                           {idx < filteredPending.length - 1 && (
-                            <Divider style={{ marginHorizontal: 4, marginTop: 10, opacity: 0.15 }} />
+                            <Divider
+                              style={{
+                                marginHorizontal: 4,
+                                marginTop: 10,
+                                opacity: 0.15,
+                              }}
+                            />
                           )}
                         </View>
                       );
@@ -769,10 +784,20 @@ export default function LeiturasTab() {
               onPress={toggleHistory}
               role="button"
               borderless
-              style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
             >
               <>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
                   <Icon name="history" size={20} color={theme.colors.primary} />
                   <Text variant="titleLarge" style={{ fontWeight: "900" }}>
                     Histórico de leituras
@@ -785,7 +810,13 @@ export default function LeiturasTab() {
                       backgroundColor: theme.colors.secondaryContainer,
                     }}
                   >
-                    <Text style={{ color: theme.colors.onSecondaryContainer, fontWeight: "700", fontSize: 12 }}>
+                    <Text
+                      style={{
+                        color: theme.colors.onSecondaryContainer,
+                        fontWeight: "700",
+                        fontSize: 12,
+                      }}
+                    >
                       {historyCount}
                     </Text>
                   </View>
@@ -793,7 +824,9 @@ export default function LeiturasTab() {
                 <IconButton
                   icon={historyCollapsed ? "chevron-down" : "chevron-up"}
                   onPress={toggleHistory}
-                  accessibilityLabel={historyCollapsed ? "Expandir" : "Colapsar"}
+                  accessibilityLabel={
+                    historyCollapsed ? "Expandir" : "Colapsar"
+                  }
                 />
               </>
             </TouchableRipple>
@@ -801,11 +834,23 @@ export default function LeiturasTab() {
             {!historyCollapsed && (
               <View>
                 {/* Filtros de avaliação */}
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8, marginBottom: 8 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    marginTop: 8,
+                    marginBottom: 8,
+                  }}
+                >
                   <FilterChip
                     selected={historyFilter.includes("rated")}
                     onPress={() =>
-                      setHistoryFilter((s) => (s.includes("rated") ? s.filter((x) => x !== "rated") : [...s, "rated"]))
+                      setHistoryFilter((s) =>
+                        s.includes("rated")
+                          ? s.filter((x) => x !== "rated")
+                          : [...s, "rated"]
+                      )
                     }
                     icon="star"
                   >
@@ -814,7 +859,11 @@ export default function LeiturasTab() {
                   <FilterChip
                     selected={historyFilter.includes("unrated")}
                     onPress={() =>
-                      setHistoryFilter((s) => (s.includes("unrated") ? s.filter((x) => x !== "unrated") : [...s, "unrated"]))
+                      setHistoryFilter((s) =>
+                        s.includes("unrated")
+                          ? s.filter((x) => x !== "unrated")
+                          : [...s, "unrated"]
+                      )
                     }
                     icon="star-outline"
                   >
@@ -827,7 +876,9 @@ export default function LeiturasTab() {
                   <ActivityIndicator />
                 ) : historyFiltered.length === 0 ? (
                   <Text style={{ opacity: 0.75 }}>
-                    {childId ? "Sem resultados para os filtros aplicados." : "Escolhe uma criança para ver o histórico."}
+                    {childId
+                      ? "Sem resultados para os filtros aplicados."
+                      : "Escolhe uma criança para ver o histórico."}
                   </Text>
                 ) : (
                   <View style={{ rowGap: 10 }}>
@@ -838,9 +889,17 @@ export default function LeiturasTab() {
                           <RowCard accentColor={vis.bar}>
                             <BookCover uri={row.coverUrl} />
                             <View style={{ flex: 1 }}>
-                              {/* Título + estado */}
-                              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                                <Text numberOfLines={2} style={{ fontWeight: "700", flex: 1 }}>
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 8,
+                                }}
+                              >
+                                <Text
+                                  numberOfLines={2}
+                                  style={{ fontWeight: "700", flex: 1 }}
+                                >
                                   {row.title}
                                 </Text>
                                 <View
@@ -854,22 +913,40 @@ export default function LeiturasTab() {
                                     borderRadius: 999,
                                   }}
                                 >
-                                  <Icon name={vis.icon as any} size={14} color={vis.chipFg} />
-                                  <Text style={{ color: vis.chipFg, fontWeight: "700", fontSize: 12 }}>
-                                    {statusLabel[row.status]}
+                                  <Icon
+                                    name={vis.icon as any}
+                                    size={14}
+                                    color={vis.chipFg}
+                                  />
+                                  <Text
+                                    style={{
+                                      color: vis.chipFg,
+                                      fontWeight: "700",
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    {row.status === "finished"
+                                      ? "Terminado"
+                                      : row.status === "reading"
+                                      ? "A ler"
+                                      : "Reservado"}
                                   </Text>
                                 </View>
                               </View>
 
-                              {/* Data/childName + estrelas + comentário */}
                               <Text style={{ opacity: 0.7, marginTop: 2 }}>
-                                {row.date ? formatDatePT(row.date) : row.childName ?? ""}
+                                {row.date
+                                  ? formatDatePT(row.date)
+                                  : row.childName ?? ""}
                               </Text>
 
                               <StarsDisplay value={row.stars} />
 
                               {!!row.comment && (
-                                <Text style={{ opacity: 0.85, marginTop: 4 }} numberOfLines={2}>
+                                <Text
+                                  style={{ opacity: 0.85, marginTop: 4 }}
+                                  numberOfLines={2}
+                                >
                                   “{row.comment}”
                                 </Text>
                               )}
@@ -877,7 +954,13 @@ export default function LeiturasTab() {
                           </RowCard>
 
                           {idx < arr.length - 1 && (
-                            <Divider style={{ marginHorizontal: 4, marginTop: 10, opacity: 0.15 }} />
+                            <Divider
+                              style={{
+                                marginHorizontal: 4,
+                                marginTop: 10,
+                                opacity: 0.15,
+                              }}
+                            />
                           )}
                         </View>
                       );
@@ -909,3 +992,154 @@ export default function LeiturasTab() {
     </Background>
   );
 }
+
+/** UI reutilizável (mesmo ficheiro) */
+
+const WhiteCard: React.FC<{ children: React.ReactNode; style?: any }> = ({
+  children,
+  style,
+}) => {
+  const theme = useTheme<MD3Theme>();
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: theme.colors.surface,
+          borderRadius: 16,
+          padding: 16,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.colors.outlineVariant,
+          shadowColor: "#000",
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 3,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
+  );
+};
+
+const RowCard: React.FC<{
+  children: React.ReactNode;
+  onPress?: () => void;
+  style?: any;
+  accentColor?: string;
+}> = ({ children, onPress, style, accentColor }) => {
+  const theme = useTheme<MD3Theme>();
+  return (
+    <TouchableRipple
+      onPress={onPress}
+      rippleColor={theme.colors.primary}
+      style={[
+        {
+          backgroundColor: theme.colors.background,
+          borderRadius: 12,
+          padding: 12,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.colors.outlineVariant,
+          borderLeftWidth: 4,
+          borderLeftColor: accentColor ?? theme.colors.outlineVariant,
+        },
+        style,
+      ]}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        {children}
+      </View>
+    </TouchableRipple>
+  );
+};
+
+const StarsDisplay: React.FC<{ value?: number | null }> = ({ value }) => {
+  const theme = useTheme<MD3Theme>();
+  if (typeof value !== "number") return null;
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        marginTop: 2,
+      }}
+    >
+      <Icon name="star" size={16} color={theme.colors.tertiary} />
+      <Text style={{ opacity: 0.8 }}>{value}/5</Text>
+    </View>
+  );
+};
+
+const BookCover: React.FC<{ uri?: string | null }> = ({ uri }) => {
+  const theme = useTheme<MD3Theme>();
+  if (uri) {
+    return (
+      <Image
+        source={{ uri }}
+        style={{
+          width: 64,
+          height: 96,
+          borderRadius: 8,
+          marginRight: 12,
+          backgroundColor: theme.colors.surfaceVariant,
+        }}
+      />
+    );
+  }
+  return (
+    <View
+      style={{
+        width: 64,
+        height: 96,
+        borderRadius: 8,
+        marginRight: 12,
+        backgroundColor: theme.colors.surfaceVariant,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Icon
+        name="book-outline"
+        size={28}
+        color={theme.colors.onSurfaceVariant}
+      />
+    </View>
+  );
+};
+
+const FilterChip: React.FC<{
+  selected: boolean;
+  onPress: () => void;
+  icon?: string;
+  children: React.ReactNode;
+}> = ({ selected, onPress, icon, children }) => {
+  const theme = useTheme<MD3Theme>();
+  const BORDER = theme.colors.outlineVariant;
+  const selBg = theme.colors.primaryContainer;
+  const selFg = theme.colors.onPrimaryContainer;
+  const selBorder = theme.colors.primary;
+
+  return (
+    <Chip
+      mode="outlined"
+      selected={selected}
+      onPress={onPress}
+      style={{
+        marginRight: 8,
+        marginBottom: 8,
+        backgroundColor: selected ? selBg : undefined,
+        borderColor: selected ? selBorder : BORDER,
+      }}
+      textStyle={{
+        color: selected ? selFg : theme.colors.onSurface,
+        fontWeight: (selected ? "700" : "400") as any,
+      }}
+      selectedColor={selected ? selFg : theme.colors.onSurface}
+      icon={icon as any}
+    >
+      {children}
+    </Chip>
+  );
+};

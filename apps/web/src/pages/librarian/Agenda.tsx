@@ -33,7 +33,6 @@ import {
   Tooltip,
   MenuItem,
 } from "@mui/material";
-import Grid from "@mui/material/GridLegacy";
 
 import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
@@ -543,11 +542,10 @@ function DayItemRow({
           }
           variant="outlined"
         />
-        <Typography fontWeight={700} sx={{ mr: "auto" }}>
+        <Typography fontWeight={700} sx={{ mr: "auto", minWidth: 0 }}>
           {timeRange} {!!item.libraryName && <>— {item.libraryName}</>}
         </Typography>
 
-        {/* ✨ Novo: Marcar a partir do slot (desativa se não houver família escolhida) */}
         {isOpen &&
           (canStartWizard ? (
             marcarBtn
@@ -557,7 +555,6 @@ function DayItemRow({
             </Tooltip>
           ))}
 
-        {/* Abrir / Bloquear */}
         {item.status !== "BOOKED" && (
           <Stack direction="row" spacing={1}>
             {isOpen ? (
@@ -647,7 +644,7 @@ export default function LibrarianAgenda() {
 
   function handleOpenRoom(it: DayItem) {
     if (it.kind !== "CONSULTA") return;
-    const s = deriveStatus(it); // CONFIRMED | OVERDUE | COMPLETED | ...
+    const s = deriveStatus(it);
     if (["CONFIRMED", "OVERDUE", "COMPLETED"].includes(s)) {
       setRoomConsultationId(it.id);
       setRoomOpen(true);
@@ -676,7 +673,6 @@ export default function LibrarianAgenda() {
 
     const { from, to } = monthRange(monthRef);
     try {
-      // Consultas do mês (passado+futuro), incluindo COMPLETED
       const hist = await getConsultationsHistory({
         limit: 500,
         order: "asc",
@@ -820,8 +816,6 @@ export default function LibrarianAgenda() {
   };
 
   /* -------------------------- Filtros da lista do dia (PUROS) -------------------------- */
-
-  /** Verifica se item “bate” com a query livre. */
   function matchQuery(it: DayItem, q: string): boolean {
     const s = q.trim().toLowerCase();
     if (!s) return true;
@@ -846,7 +840,6 @@ export default function LibrarianAgenda() {
     );
   }
 
-  /** Aplica os toggles de filtros à lista. */
   function applyToggles(
     arr: DayItem[],
     toggles: {
@@ -1005,7 +998,7 @@ export default function LibrarianAgenda() {
   if (!Number.isFinite(librarianId)) {
     return (
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant="h5" fontWeight={900} sx={{ mb: 2 }}>
+        <Typography variant="h4" fontWeight={900} sx={{ mb: 2 }}>
           Agenda do bibliotecário
         </Typography>
         <WhiteCard>
@@ -1017,29 +1010,35 @@ export default function LibrarianAgenda() {
 
   return (
     <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
-      {/* Topo */}
-      <Stack
-        direction="row"
-        alignItems="center"
-        justifyContent="space-between"
-        sx={{ mb: 2 }}
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "calc(100dvh - 68px)",
+        }}
       >
-        <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
-          Agenda do bibliotecário
-        </Typography>
-        <Tooltip title="Atualizar">
-          <span>
-            <IconButton onClick={reloadAll} disabled={loading}>
-              <RefreshRounded />
-            </IconButton>
-          </span>
-        </Tooltip>
-      </Stack>
+        {/* Header */}
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          sx={{ mb: 2 }}
+        >
+          <Typography variant="h3" fontWeight={900} sx={{ letterSpacing: 0.3 }}>
+            Agenda do bibliotecário
+          </Typography>
+          <Tooltip title="Atualizar">
+            <span>
+              <IconButton onClick={reloadAll} disabled={loading}>
+                <RefreshRounded />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
 
-      <Grid container spacing={2}>
-        {/* Coluna 1: Calendário */}
-        <Grid item xs={12} md={6}>
-          <WhiteCard>
+        {/* LINHA 1: Calendário (largura total) */}
+        <Box sx={{ mb: 2 }}>
+          <WhiteCard sx={{ display: "flex", flexDirection: "column" }}>
             <CardHeader
               title={month.title.charAt(0).toUpperCase() + month.title.slice(1)}
               action={
@@ -1099,7 +1098,7 @@ export default function LibrarianAgenda() {
               />
             </Stack>
 
-            {/* Grelha */}
+            {/* Grelha do calendário */}
             <Box
               sx={{
                 display: "grid",
@@ -1128,19 +1127,20 @@ export default function LibrarianAgenda() {
                     onClick={() => c.inMonth && c.ymd && setSelectedDate(c.ymd)}
                     sx={{
                       p: 1,
-                      minHeight: 90,
+                      minHeight: 88,
                       borderRadius: 3,
                       border: "1px solid",
                       borderColor: isSelected ? "primary.main" : "divider",
                       opacity: c.inMonth ? 1 : 0.3,
                       cursor: c.inMonth ? "pointer" : "default",
+                      display: "flex",
+                      flexDirection: "column",
                     }}
                   >
                     <Typography fontWeight={900} sx={{ mb: 0.5 }}>
                       {dayNum}
                     </Typography>
 
-                    {/* “Dots” de estado */}
                     {items.slice(0, 3).map((it, idx) => (
                       <Dot
                         key={idx}
@@ -1161,7 +1161,6 @@ export default function LibrarianAgenda() {
                         — livre
                       </Typography>
                     )}
-
                     {extra > 0 && (
                       <Typography
                         component="span"
@@ -1176,12 +1175,18 @@ export default function LibrarianAgenda() {
               })}
             </Box>
           </WhiteCard>
-        </Grid>
+        </Box>
 
-        {/* Coluna 2: Lista do dia */}
-        <Grid item xs={12} md={6}>
+        {/* LINHA 2 + LINHA 3: agora em LINHAS (lista em cima, detalhe em baixo) */}
+        <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
+          {/* Linha 2: Lista do Dia (expande e scrolla) */}
           <WhiteCard
-            sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+            sx={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
           >
             <CardHeader
               title={new Date(selectedDate).toLocaleDateString("pt-PT", {
@@ -1200,7 +1205,7 @@ export default function LibrarianAgenda() {
               }
             />
 
-            {/* Toolbar: pesquisa + toggles + ✨ família alvo p/ wizard */}
+            {/* Toolbar filtros */}
             <Stack
               direction={{ xs: "column", md: "row" }}
               spacing={1}
@@ -1275,7 +1280,6 @@ export default function LibrarianAgenda() {
                 />
               </Stack>
 
-              {/* ✨ Select de família (por nome) */}
               <TextField
                 select
                 label="Família para marcar"
@@ -1300,10 +1304,11 @@ export default function LibrarianAgenda() {
               </TextField>
             </Stack>
 
-            {/* Lista / loading */}
+            {/* Lista SCROLLÁVEL — EXPANDE PARA BAIXO */}
             <Box
               sx={{
                 flex: 1,
+                minHeight: 0,
                 overflowY: "auto",
                 pr: 1,
                 "&::-webkit-scrollbar": { width: 6 },
@@ -1314,15 +1319,12 @@ export default function LibrarianAgenda() {
               }}
             >
               {loading ? (
-                <Stack spacing={1.25}>
-                  <Skeleton height={86} />
-                  <Skeleton height={86} />
+                <Stack spacing={1.5}>
+                  <Skeleton height={120} />
+                  <Skeleton height={120} />
                 </Stack>
               ) : filteredItemsForSelected.length ? (
-                <Stack
-                  spacing={1.25}
-                  divider={<Divider sx={{ borderColor: "divider" }} />}
-                >
+                <Stack spacing={1.5}>
                   {filteredItemsForSelected.map((it) => (
                     <DayItemRow
                       key={`${it.kind}-${it.id}`}
@@ -1338,7 +1340,7 @@ export default function LibrarianAgenda() {
                       }
                       canStartWizard={Number(selectedFamilyId) > 0}
                       busyId={busyId}
-                      onOpenRoom={handleOpenRoom} // 👈 novo
+                      onOpenRoom={handleOpenRoom}
                     />
                   ))}
                 </Stack>
@@ -1349,46 +1351,56 @@ export default function LibrarianAgenda() {
               )}
             </Box>
           </WhiteCard>
-        </Grid>
-      </Grid>
+{/* 
+          Linha 3: Painel de Detalhes (altura ao conteúdo)
+          <WhiteCard sx={{ display: "flex", flexDirection: "column" }}>
+            <Typography variant="h6" fontWeight={900} sx={{ mb: 1 }}>
+              Detalhe
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.7 }}>
+              Seleciona uma consulta ou slot para ver detalhes.
+            </Typography>
+          </WhiteCard> */}
+        </Stack>
 
-      {/* Dialog de Cancelamento */}
-      <CancelDialog
-        open={cancelOpen}
-        onClose={() => {
-          if (!cancelBusy) {
-            setCancelOpen(false);
-            setCancelId(null);
+        {/* Dialogs */}
+        <CancelDialog
+          open={cancelOpen}
+          onClose={() => {
+            if (!cancelBusy) {
+              setCancelOpen(false);
+              setCancelId(null);
+            }
+          }}
+          onConfirm={handleDoCancel}
+          busy={cancelBusy}
+        />
+
+        <ConsultationWizard
+          open={wizardOpen}
+          onClose={() => setWizardOpen(false)}
+          defaultFamilyId={
+            Number(selectedFamilyId) > 0 ? Number(selectedFamilyId) : 0
           }
-        }}
-        onConfirm={handleDoCancel}
-        busy={cancelBusy}
-      />
+          defaultLibrarianId={librarianId}
+          defaultSlotId={wizardSlotId ?? undefined}
+          libraries={wizardLibraries}
+          onCreated={async () => {
+            setWizardOpen(false);
+            setWizardSlotId(null);
+            await reloadAll();
+          }}
+        />
 
-      {/* ✨ Consultation Wizard */}
-      <ConsultationWizard
-        open={wizardOpen}
-        onClose={() => setWizardOpen(false)}
-        defaultFamilyId={
-          Number(selectedFamilyId) > 0 ? Number(selectedFamilyId) : 0
-        }
-        defaultLibrarianId={librarianId}
-        defaultSlotId={wizardSlotId ?? undefined}
-        libraries={wizardLibraries}
-        onCreated={async () => {
-          setWizardOpen(false);
-          setWizardSlotId(null);
-          await reloadAll();
-        }}
-      />
-      <ConsultationRoom
-        open={roomOpen}
-        onClose={() => {
-          setRoomOpen(false);
-          reloadAll();
-        }}
-        consultationId={roomConsultationId ?? 0}
-      />
+        <ConsultationRoom
+          open={roomOpen}
+          onClose={() => {
+            setRoomOpen(false);
+            reloadAll();
+          }}
+          consultationId={roomConsultationId ?? 0}
+        />
+      </Box>
     </Container>
   );
 }

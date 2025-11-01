@@ -1,7 +1,7 @@
 /**
  * ============================================================
  *  Pedidos de consulta (versão Bibliotecário)
- *  Refatorado e comentado — com helpers PUROS e funções pequenas
+ *  Refatorado e comentado — helpers PUROS + funções pequenas
  *
  *  Autor do trabalho (aluno): <O TEU NOME AQUI> — Nº <O TEU NÚMERO AQUI>
  *  👉 Substitui a linha acima pelos teus dados.
@@ -22,7 +22,10 @@ import {
   Alert,
   IconButton,
   Tooltip,
+  Container,
+  Divider,
 } from "@mui/material";
+import Grid from "@mui/material/GridLegacy";
 import {
   WhiteCard,
   PrimaryButton,
@@ -54,12 +57,12 @@ import {
   ArrowRightLeft,
 } from "lucide-react";
 import type { SlotLite } from "@/services/consultations";
+import { alpha } from "@mui/material/styles";
 
 /* ============================================================
- * Helpers PUROS (sem efeitos colaterais) — fáceis de testar
+ * Helpers PUROS
  * ============================================================ */
 
-/** [PURO] formatadores de data/hora (memoizáveis no módulo) */
 const fmtDate = new Intl.DateTimeFormat("pt-PT", {
   day: "2-digit",
   month: "2-digit",
@@ -70,7 +73,6 @@ const fmtTime = new Intl.DateTimeFormat("pt-PT", {
   minute: "2-digit",
 });
 
-/** [PURO] String do intervalo “DD/MM/AAAA, HH:MM — HH:MM” ou fallback */
 function fmtRange(
   start?: string | Date | null,
   end?: string | Date | null
@@ -81,23 +83,10 @@ function fmtRange(
   return `${fmtDate.format(a)}, ${fmtTime.format(a)} — ${fmtTime.format(b)}`;
 }
 
-/** [PURO] devolve as consultas com horário proposto (startAt & endAt) */
 function computeConsultasComSlot(consultas: any[]): any[] {
   return (consultas || []).filter((c) => c.startAt && c.endAt);
 }
 
-/** [PURO] devolve um Set com ids de consultas que já têm proposta do bibliotecário */
-function buildLibrarianPendingSet(propostas: any[]): Set<number> {
-  const set = new Set<number>();
-  for (const p of propostas || []) {
-    if (p?.proposedBy === "LIBRARIAN" && p?.consultation?.id) {
-      set.add(Number(p.consultation.id));
-    }
-  }
-  return set;
-}
-
-/** [PURO] utilidade para deduplicar slots por id e ordenar por hora */
 function dedupMergeSlots(prev: SlotLite[], next: SlotLite[]): SlotLite[] {
   const map = new Map<number, SlotLite>();
   for (const s of prev) map.set(Number(s.id), s);
@@ -107,7 +96,6 @@ function dedupMergeSlots(prev: SlotLite[], next: SlotLite[]): SlotLite[] {
   );
 }
 
-/** [PURO] somar dias a uma data (não muta o original) */
 function addDays(d: Date, n: number): Date {
   const x = new Date(d);
   x.setDate(x.getDate() + n);
@@ -115,38 +103,8 @@ function addDays(d: Date, n: number): Date {
 }
 
 /* ============================================================
- * Subcomponentes de UI pequenos e reaproveitáveis
+ * UI pequena e sólida (sem glass)
  * ============================================================ */
-
-function PageHeader({
-  title,
-  onRefresh,
-  loading,
-}: {
-  title: string;
-  onRefresh: () => void;
-  loading?: boolean;
-}) {
-  return (
-    <Stack
-      direction="row"
-      alignItems="center"
-      justifyContent="space-between"
-      sx={{ mb: 1 }}
-    >
-      <Typography variant="h5" fontWeight={900}>
-        {title}
-      </Typography>
-      <Tooltip title="Atualizar">
-        <span>
-          <IconButton onClick={onRefresh} disabled={!!loading}>
-            <RefreshCw size={18} />
-          </IconButton>
-        </span>
-      </Tooltip>
-    </Stack>
-  );
-}
 
 function SectionHeader({
   title,
@@ -158,18 +116,75 @@ function SectionHeader({
   icon?: React.ReactNode;
 }) {
   return (
-    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-      {!!icon && <Box sx={{ lineHeight: 0 }}>{icon}</Box>}
-      <Typography variant="subtitle1" fontWeight={700}>
-        {title}
+    <Stack sx={{ mb: 0.75 }}>
+      <Stack direction="row" alignItems="center" spacing={1}>
+        {!!icon && <Box sx={{ lineHeight: 0 }}>{icon}</Box>}
+        <Typography variant="subtitle1" fontWeight={800}>
+          {title}
+        </Typography>
+        <Chip size="small" label={count} sx={{ fontWeight: 800 }} />
+      </Stack>
+      <Divider sx={{ mt: 1 }} />
+    </Stack>
+  );
+}
+
+function DatePill({
+  start,
+  end,
+}: {
+  start?: string | Date | null;
+  end?: string | Date | null;
+}) {
+  const a = start ? new Date(start) : null;
+  const b = end ? new Date(end) : null;
+  const day = a ? a.toLocaleDateString("pt-PT", { day: "2-digit" }) : "—";
+  const mon = a ? a.toLocaleDateString("pt-PT", { month: "short" }) : "";
+  const time =
+    a && b ? `${fmtTime.format(a)} — ${fmtTime.format(b)}` : undefined;
+
+  return (
+    <Box
+      sx={(t) => ({
+        width: 88,
+        borderRadius: 2,
+        border: `1px solid ${t.palette.divider}`,
+        backgroundColor: alpha(t.palette.primary.main, 0.06),
+        p: 1,
+        textAlign: "center",
+      })}
+    >
+      <Typography fontWeight={900} lineHeight={1}>
+        {day}
       </Typography>
-      <Chip
-        size="small"
-        label={count}
-        sx={{ fontWeight: 600 }}
-        color="default"
-        variant="outlined"
-      />
+      <Typography
+        variant="caption"
+        sx={{ textTransform: "uppercase", opacity: 0.7, lineHeight: 1 }}
+      >
+        {mon}
+      </Typography>
+      {time && (
+        <Typography variant="caption" sx={{ display: "block", mt: 0.5 }}>
+          {time}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+function Meta({
+  icon,
+  children,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <Stack direction="row" spacing={0.5} alignItems="center">
+      <Box sx={{ lineHeight: 0, opacity: 0.8 }}>{icon}</Box>
+      <Typography variant="body2" sx={{ opacity: 0.9 }}>
+        {children}
+      </Typography>
     </Stack>
   );
 }
@@ -181,14 +196,23 @@ function LineCard({
   children: React.ReactNode;
   tone?: "default" | "warn" | "success";
 }) {
-  const paletteKey: "primary" | "warning" | "success" =
-    tone === "warn" ? "warning" : tone === "success" ? "success" : "primary";
   return (
     <WhiteCard
-      sx={{
-        borderLeft: (t) => `4px solid ${t.palette[paletteKey].main}`,
-        pl: 2,
-      }}
+      sx={(t) => ({
+        p: 1.5,
+        borderRadius: 3,
+        border: `1px solid ${t.palette.divider}`,
+        backgroundColor: t.palette.background.paper,
+        backgroundImage: "none",
+        boxShadow: "0 2px 10px rgba(0,0,0,.05)",
+        borderLeft: `4px solid ${
+          tone === "warn"
+            ? t.palette.warning.main
+            : tone === "success"
+            ? t.palette.success.main
+            : t.palette.primary.main
+        }`,
+      })}
     >
       {children}
     </WhiteCard>
@@ -197,16 +221,28 @@ function LineCard({
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <WhiteCard>
-      <Typography variant="body2" sx={{ opacity: 0.7 }}>
-        {children}
-      </Typography>
+    <WhiteCard
+      sx={(t) => ({
+        py: 3,
+        borderRadius: 3,
+        border: `1px dashed ${t.palette.divider}`,
+        backgroundColor: t.palette.background.paper,
+        backgroundImage: "none",
+        textAlign: "center",
+      })}
+    >
+      <Stack spacing={1} alignItems="center">
+        <CalendarClock size={18} />
+        <Typography variant="body2" sx={{ opacity: 0.75 }}>
+          {children}
+        </Typography>
+      </Stack>
     </WhiteCard>
   );
 }
 
 /* ============================================================
- * Hook para carregar dados (mantido curto e focado)
+ * Hook de dados
  * ============================================================ */
 
 function usePendingData(librarianId: number) {
@@ -240,7 +276,7 @@ function usePendingData(librarianId: number) {
 }
 
 /* ============================================================
- * Página (container) — pequena, delega render a sub-secções
+ * Página
  * ============================================================ */
 
 export default function LibrarianConsultasPendentes() {
@@ -250,12 +286,11 @@ export default function LibrarianConsultasPendentes() {
   const { loading, err, consultas, propostas, reload } =
     usePendingData(librarianId);
 
-  // 1) PENDING com horário (família propôs)…
   const consultasComSlot = useMemo(
     () => computeConsultasComSlot(consultas),
     [consultas]
   );
-  // 2) Remover as que já têm proposta pendente do bibliotecário
+
   const anyPendingSet = useMemo(() => {
     const s = new Set<number>();
     for (const p of propostas || []) {
@@ -263,52 +298,82 @@ export default function LibrarianConsultasPendentes() {
     }
     return s;
   }, [propostas]);
+
   const consultasComSlotSemProposta = useMemo(
     () => consultasComSlot.filter((c) => !anyPendingSet.has(Number(c.id))),
     [consultasComSlot, anyPendingSet]
   );
 
   return (
-    <Box sx={{ py: 3, display: "grid", gap: 3 }}>
-      <Typography variant="h3" fontWeight={900} sx={{ mb: 2 }}>
-        Pedidos de consulta
-      </Typography>
+    <Container maxWidth={false} sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      <Stack spacing={2.5}>
+        {/* Header */}
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+        >
+          <Typography variant="h4" fontWeight={900}>
+            Pedidos de consulta
+          </Typography>
+          <Tooltip title="Atualizar">
+            <span>
+              <IconButton onClick={reload} disabled={!!loading}>
+                <RefreshCw size={18} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
 
-      <PageHeader title="Resumo" onRefresh={reload} loading={loading} />
+        {/* Erro */}
+        {err && (
+          <Alert severity="error" variant="outlined">
+            {err}
+          </Alert>
+        )}
 
-      {err && (
-        <Alert severity="error" variant="outlined">
-          {err}
-        </Alert>
-      )}
+        {/* Loading inicial */}
+        {loading && !consultas.length && !propostas.length ? (
+          <WhiteCard>
+            <Stack spacing={1}>
+              <Skeleton height={24} width="40%" />
+              <Skeleton height={72} />
+              <Skeleton height={72} />
+            </Stack>
+          </WhiteCard>
+        ) : (
+          /* === Surface (fundo) — agora com SEÇÕES EM LINHA === */
+          <WhiteCard
+            sx={(t) => ({
+              p: { xs: 2, md: 3 },
+              borderRadius: 4,
+              border: `1px solid ${t.palette.divider}`,
+              backgroundColor: t.palette.background.paper,
+              backgroundImage: "none",
+              boxShadow: "0 6px 20px rgba(0,0,0,.06)",
+            })}
+          >
+            <Stack spacing={2.5}>
+              {/* 1) Pedidos com slot */}
+              <PedidosComSlotSection
+                items={consultasComSlotSemProposta}
+                librarianId={librarianId}
+                onChanged={reload}
+                loading={loading}
+              />
 
-      {loading && (
-        <WhiteCard>
-          <Stack spacing={1}>
-            <Skeleton height={28} width="40%" />
-            <Skeleton height={64} />
-            <Skeleton height={64} />
-            <Skeleton height={64} />
-          </Stack>
-        </WhiteCard>
-      )}
-
-      {/* ✅ Secção: pedidos com slot (excluindo os com proposta do bibliotecário) */}
-      <PedidosComSlotSection
-        items={consultasComSlotSemProposta}
-        librarianId={librarianId}
-        onChanged={reload}
-        loading={loading}
-      />
-
-      {/* ✅ Secção: propostas pendentes (família + bibliotecário) */}
-      <PropostasSection
-        propostas={propostas}
-        librarianId={librarianId}
-        onChanged={reload}
-        loading={loading}
-      />
-    </Box>
+              {/* 2) Propostas pendentes */}
+              <PropostasSection
+                propostas={propostas}
+                librarianId={librarianId}
+                onChanged={reload}
+                loading={loading}
+              />
+            </Stack>
+          </WhiteCard>
+        )}
+      </Stack>
+    </Container>
   );
 }
 
@@ -337,7 +402,7 @@ function PedidosComSlotSection({
       {items.length === 0 && !loading && (
         <Empty>Sem pedidos com horário.</Empty>
       )}
-      <Stack spacing={2}>
+      <Stack spacing={1.25} sx={{ mt: 1.25 }}>
         {items.map((c) => (
           <PedidoComSlotCard
             key={c.id}
@@ -376,7 +441,7 @@ function PropostasSection({
       {propostas.length === 0 && !loading && (
         <Empty>Sem propostas pendentes.</Empty>
       )}
-      <Stack spacing={2}>
+      <Stack spacing={1.25} sx={{ mt: 1.25 }}>
         {propostas.map((p: any) => (
           <PropostaRow
             key={p.id}
@@ -391,7 +456,7 @@ function PropostasSection({
 }
 
 /* ============================================================
- * Card: pedido COM slot → aceitar / recusar / reagendar
+ * Card: pedido COM slot
  * ============================================================ */
 
 function PedidoComSlotCard({
@@ -409,7 +474,6 @@ function PedidoComSlotCard({
   const start = c.startAt ? new Date(c.startAt) : null;
   const end = c.endAt ? new Date(c.endAt) : null;
 
-  // Validação de conflito ao montar/atualizar o horário proposto
   useEffect(() => {
     if (!start || !end) return;
     checkLibrarianConflict(librarianId, {
@@ -422,25 +486,34 @@ function PedidoComSlotCard({
           conflict && setMsg("Conflito com outra consulta confirmada")
       )
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [librarianId, c.id, c.startAt, c.endAt]);
-
-  const hasChild = !!c.child?.name;
-  const hasLib = !!c.library?.name;
 
   return (
     <LineCard tone={msg ? "warn" : "default"}>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        alignItems={{ xs: "flex-start", sm: "center" }}
-        justifyContent="space-between"
-        spacing={2}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "104px 1fr auto" },
+          gap: 16,
+          alignItems: "center",
+        }}
       >
-        {/* Meta do pedido */}
-        <Stack spacing={0.75}>
-          <Stack direction="row" alignItems="center" spacing={1}>
+        <DatePill start={c.startAt} end={c.endAt} />
+
+        <Stack spacing={0.5} minWidth={0}>
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            flexWrap="wrap"
+          >
             <Users size={18} />
-            <Typography variant="subtitle1" fontWeight={700}>
+            <Typography
+              variant="subtitle2"
+              fontWeight={800}
+              noWrap
+              title={c.family?.fullName ?? `Família #${c.familyId}`}
+            >
               {c.family?.fullName ?? `Família #${c.familyId}`}
             </Typography>
             <Chip
@@ -449,110 +522,80 @@ function PedidoComSlotCard({
               variant="outlined"
               icon={<AlertTriangle size={14} />}
             />
-          </Stack>
-
-          {/* Metadados com ícones */}
-          <Stack
-            direction="row"
-            spacing={1}
-            alignItems="center"
-            flexWrap="wrap"
-            useFlexGap
-          >
-            <Chip
-              size="small"
-              variant="outlined"
-              icon={<Clock3 size={14} />}
-              label={fmtRange(c.startAt, c.endAt)}
-            />
-            {hasChild && (
-              <Chip
-                size="small"
-                variant="outlined"
-                icon={<User2 size={14} />}
-                label={c.child.name}
-              />
-            )}
-            {hasLib && (
-              <Chip
-                size="small"
-                variant="outlined"
-                icon={<Building2 size={14} />}
-                label={c.library.name}
-              />
-            )}
-            {c.location && (
-              <Chip
-                size="small"
-                variant="outlined"
-                icon={<MapPin size={14} />}
-                label={String(c.location)}
-              />
-            )}
             {msg && (
               <Chip
                 size="small"
                 color="warning"
-                icon={<AlertTriangle size={14} />}
                 label={msg}
+                icon={<AlertTriangle size={14} />}
               />
+            )}
+          </Stack>
+
+          <Stack
+            direction="row"
+            spacing={2}
+            flexWrap="wrap"
+            useFlexGap
+            sx={{ color: "text.secondary" }}
+          >
+            <Meta icon={<Clock3 size={16} />}>
+              {fmtRange(c.startAt, c.endAt)}
+            </Meta>
+            {c.child?.name && (
+              <Meta icon={<User2 size={16} />}>{c.child.name}</Meta>
+            )}
+            {c.library?.name && (
+              <Meta icon={<Building2 size={16} />}>{c.library.name}</Meta>
+            )}
+            {c.location && (
+              <Meta icon={<MapPin size={16} />}>{String(c.location)}</Meta>
             )}
           </Stack>
         </Stack>
 
-        {/* Ações */}
-        <Stack direction="row" spacing={1}>
-          <Tooltip title="Aceitar e confirmar este horário">
-            <span>
-              <PrimaryButton
-                onClick={async () => {
-                  try {
-                    setMsg(null);
-                    await confirmConsultation(c.id);
-                    onChanged();
-                  } catch (e: any) {
-                    const m = e?.message?.includes("conflict")
-                      ? "Conflito com outra consulta confirmada"
-                      : e?.message || "Erro";
-                    setMsg(m);
-                  }
-                }}
-                startIcon={<CheckCircle2 size={18} />}
-              >
-                Aceitar
-              </PrimaryButton>
-            </span>
-          </Tooltip>
+        <Stack direction="row" spacing={1} sx={{ justifySelf: "end" }}>
+          <PrimaryButton
+            size="small"
+            onClick={async () => {
+              try {
+                setMsg(null);
+                await confirmConsultation(c.id);
+                onChanged();
+              } catch (e: any) {
+                const m = e?.message?.includes("conflict")
+                  ? "Conflito com outra consulta confirmada"
+                  : e?.message || "Erro";
+                setMsg(m);
+              }
+            }}
+            startIcon={<CheckCircle2 size={18} />}
+          >
+            Aceitar
+          </PrimaryButton>
 
-          <Tooltip title="Propor novo horário">
-            <span>
-              <SecondaryButton
-                onClick={() => setOpenReschedule(true)}
-                startIcon={<CalendarClock size={18} />}
-              >
-                Reagendar
-              </SecondaryButton>
-            </span>
-          </Tooltip>
+          <SecondaryButton
+            size="small"
+            onClick={() => setOpenReschedule(true)}
+            startIcon={<CalendarClock size={18} />}
+          >
+            Reagendar
+          </SecondaryButton>
 
-          <Tooltip title="Recusar pedido">
-            <span>
-              <SecondaryButton
-                variant="outlined"
-                onClick={async () => {
-                  await declineConsultation(c.id);
-                  onChanged();
-                }}
-                startIcon={<XCircle size={18} />}
-              >
-                Recusar
-              </SecondaryButton>
-            </span>
-          </Tooltip>
+          <SecondaryButton
+            size="small"
+            variant="outlined"
+            onClick={async () => {
+              await declineConsultation(c.id);
+              onChanged();
+            }}
+            startIcon={<XCircle size={18} />}
+          >
+            Recusar
+          </SecondaryButton>
         </Stack>
-      </Stack>
+      </Box>
 
-      {/* Dialog de reagendamento */}
       <SlotPickerDialog
         open={openReschedule}
         onClose={() => setOpenReschedule(false)}
@@ -565,17 +608,13 @@ function PedidoComSlotCard({
               proposedBy: "LIBRARIAN",
             });
             setOpenReschedule(false);
-            onChanged(); // sai desta lista e aparece em “Propostas…”
+            onChanged();
           } catch (e: any) {
             const m = String(e?.message || "");
             if (m.includes("pending_proposal_other_actor")) {
-              setMsg(
-                "Já existe proposta pendente da família. Aguarde a decisão ou peça para a recusarem."
-              );
+              setMsg("Já existe proposta pendente da família.");
             } else if (m.includes("invalid_state")) {
-              setMsg(
-                "Esta consulta não pode ser reagendada (estado inválido)."
-              );
+              setMsg("Estado inválido para reagendar.");
             } else if (m.includes("invalid_dates")) {
               setMsg("Intervalo inválido.");
             } else {
@@ -589,7 +628,7 @@ function PedidoComSlotCard({
 }
 
 /* ============================================================
- * Row: proposta de reagendamento (aceitar/recusar/cancelar)
+ * Row: proposta de reagendamento
  * ============================================================ */
 
 function PropostaRow({
@@ -609,10 +648,8 @@ function PropostaRow({
   const end = new Date(p.toEndAt);
 
   const isFromFamily = p.proposedBy === "FAMILY";
-  const canAccept = isFromFamily; // bibliotecário só aceita quando veio da família
-  const canDecline = true; // ambos podem recusar/cancelar
+  const canAccept = isFromFamily;
 
-  // Validação de conflito para a janela proposta
   useEffect(() => {
     checkLibrarianConflict(librarianId, {
       startAt: start,
@@ -624,166 +661,130 @@ function PropostaRow({
           conflict && setMsg("Conflito com outra consulta confirmada")
       )
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [librarianId, p?.id]);
-
-  const hasChild = !!p.consultation?.child?.name;
-  const hasLib = !!p.consultation?.library?.name;
 
   return (
     <LineCard tone={msg ? "warn" : "default"}>
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        alignItems={{ xs: "flex-start", sm: "center" }}
-        justifyContent="space-between"
-        spacing={2}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "104px 1fr auto" },
+          gap: 16,
+          alignItems: "center",
+        }}
       >
-        <Stack spacing={0.75}>
-          <Stack direction="row" alignItems="center" spacing={1}>
+        <DatePill start={start} end={end} />
+
+        <Stack spacing={0.5} minWidth={0}>
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            flexWrap="wrap"
+          >
             <Users size={18} />
-            <Typography variant="subtitle1" fontWeight={700}>
+            <Typography variant="subtitle2" fontWeight={800} noWrap>
               {p.consultation.family?.fullName}
             </Typography>
             <Chip
               size="small"
+              variant="outlined"
+              icon={<ArrowRightLeft size={14} />}
               label={
                 isFromFamily
                   ? "Proposta da família"
                   : "Proposta do bibliotecário"
               }
-              variant="outlined"
-              icon={<ArrowRightLeft size={14} />}
             />
             {!canAccept && (
               <Chip
                 size="small"
-                color="default"
                 variant="outlined"
                 label="A aguardar resposta da família"
-              />
-            )}
-          </Stack>
-
-          {/* Horário antigo e novo + metadados */}
-          <Stack
-            direction="row"
-            spacing={1}
-            alignItems="center"
-            useFlexGap
-            flexWrap="wrap"
-          >
-            {fromStart && fromEnd && (
-              <Chip
-                size="small"
-                variant="outlined"
-                icon={<Clock3 size={14} />}
-                label={`Antigo: ${fmtRange(fromStart, fromEnd)}`}
-              />
-            )}
-            <Chip
-              size="small"
-              color="primary"
-              variant="outlined"
-              icon={<CalendarClock size={14} />}
-              label={`Proposto: ${fmtRange(start, end)}`}
-            />
-            {hasChild && (
-              <Chip
-                size="small"
-                variant="outlined"
-                icon={<User2 size={14} />}
-                label={p.consultation.child.name}
-              />
-            )}
-            {hasLib && (
-              <Chip
-                size="small"
-                variant="outlined"
-                icon={<Building2 size={14} />}
-                label={p.consultation.library.name}
-              />
-            )}
-            {p.consultation?.location && (
-              <Chip
-                size="small"
-                variant="outlined"
-                icon={<MapPin size={14} />}
-                label={String(p.consultation.location)}
               />
             )}
             {msg && (
               <Chip
                 size="small"
                 color="warning"
-                icon={<AlertTriangle size={14} />}
                 label={msg}
+                icon={<AlertTriangle size={14} />}
               />
+            )}
+          </Stack>
+
+          <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+            {fromStart && fromEnd && (
+              <Meta icon={<Clock3 size={16} />}>
+                Antigo: {fmtRange(fromStart, fromEnd)}
+              </Meta>
+            )}
+            <Meta icon={<CalendarClock size={16} />}>
+              Proposto: {fmtRange(start, end)}
+            </Meta>
+            {p.consultation?.child?.name && (
+              <Meta icon={<User2 size={16} />}>
+                {p.consultation.child.name}
+              </Meta>
+            )}
+            {p.consultation?.library?.name && (
+              <Meta icon={<Building2 size={16} />}>
+                {p.consultation.library.name}
+              </Meta>
+            )}
+            {p.consultation?.location && (
+              <Meta icon={<MapPin size={16} />}>
+                {String(p.consultation.location)}
+              </Meta>
             )}
           </Stack>
         </Stack>
 
-        <Stack direction="row" spacing={1}>
+        <Stack direction="row" spacing={1} sx={{ justifySelf: "end" }}>
           {canAccept && (
-            <Tooltip title="Aceitar a proposta da família">
-              <span>
-                <PrimaryButton
-                  onClick={async () => {
-                    try {
-                      await acceptProposal(p.id);
-                      onChanged();
-                    } catch (e: any) {
-                      const m = String(e?.message || "");
-                      if (m.includes("forbidden")) {
-                        setMsg("Não pode aceitar a própria proposta.");
-                      } else if (m.includes("conflict")) {
-                        setMsg("Conflito com outra consulta confirmada");
-                      } else {
-                        setMsg(e?.message || "Erro");
-                      }
-                    }
-                  }}
-                  startIcon={<CheckCircle2 size={18} />}
-                >
-                  Aceitar
-                </PrimaryButton>
-              </span>
-            </Tooltip>
-          )}
-
-          {canDecline && (
-            <Tooltip
-              title={
-                isFromFamily
-                  ? "Recusar proposta da família"
-                  : "Cancelar a sua proposta"
-              }
+            <PrimaryButton
+              size="small"
+              onClick={async () => {
+                try {
+                  await acceptProposal(p.id);
+                  onChanged();
+                } catch (e: any) {
+                  const m = String(e?.message || "");
+                  if (m.includes("forbidden"))
+                    setMsg("Não pode aceitar a própria proposta.");
+                  else if (m.includes("conflict"))
+                    setMsg("Conflito com outra consulta confirmada");
+                  else setMsg(m || "Erro");
+                }
+              }}
+              startIcon={<CheckCircle2 size={18} />}
             >
-              <span>
-                <SecondaryButton
-                  variant="outlined"
-                  onClick={async () => {
-                    try {
-                      await declineProposal(p.id);
-                      onChanged();
-                    } catch (e: any) {
-                      setMsg(e?.message || "Erro ao cancelar/recusar");
-                    }
-                  }}
-                  startIcon={<XCircle size={18} />}
-                >
-                  {isFromFamily ? "Recusar" : "Cancelar"}
-                </SecondaryButton>
-              </span>
-            </Tooltip>
+              Aceitar
+            </PrimaryButton>
           )}
+          <SecondaryButton
+            size="small"
+            variant="outlined"
+            onClick={async () => {
+              try {
+                await declineProposal(p.id);
+                onChanged();
+              } catch (e: any) {
+                setMsg(e?.message || "Erro");
+              }
+            }}
+            startIcon={<XCircle size={18} />}
+          >
+            {isFromFamily ? "Recusar" : "Cancelar"}
+          </SecondaryButton>
         </Stack>
-      </Stack>
+      </Box>
     </LineCard>
   );
 }
 
 /* ============================================================
- * Dialog: selector de slots (com seleção + confirmar)
+ * Dialog: selector de slots
  * ============================================================ */
 
 function SlotPickerDialog({
@@ -806,7 +807,6 @@ function SlotPickerDialog({
   const [windowEnd, setWindowEnd] = useState<Date | null>(null);
   const [noMore, setNoMore] = useState(false);
 
-  // Carregar janela inicial (14 dias)
   useEffect(() => {
     if (!open) return;
     setSlots([]);
@@ -833,7 +833,6 @@ function SlotPickerDialog({
     })();
   }, [open, librarianId]);
 
-  // Mostrar +14 dias
   async function handleShowMore() {
     if (!windowEnd || moreLoading || initialLoading || noMore) return;
     setMoreLoading(true);
@@ -853,7 +852,6 @@ function SlotPickerDialog({
     }
   }
 
-  // Group por dia (PURO + memo)
   const grouped = useMemo(() => {
     const map = new Map<string, SlotLite[]>();
     for (const s of slots) {
@@ -904,7 +902,15 @@ function SlotPickerDialog({
 
         <Stack spacing={2}>
           {grouped.map((g) => (
-            <WhiteCard key={g.key} sx={{ p: 1.5 }}>
+            <WhiteCard
+              key={g.key}
+              sx={(t) => ({
+                p: 1.5,
+                border: `1px solid ${t.palette.divider}`,
+                backgroundColor: t.palette.background.paper,
+                backgroundImage: "none",
+              })}
+            >
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
                 {g.label}
               </Typography>

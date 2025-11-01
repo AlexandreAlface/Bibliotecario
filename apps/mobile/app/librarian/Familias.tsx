@@ -190,33 +190,48 @@ export default function LibrarianFamiliesScreen() {
             padding={14}
             style={{ borderRadius: 12 }}
           >
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-            >
+            <View style={{ gap: 8 }}>
               <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: theme.colors.primaryContainer,
-                }}
+                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
               >
-                <Icon
-                  name="account-group-outline"
-                  size={22}
-                  color={theme.colors.onPrimaryContainer}
-                />
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: theme.colors.primaryContainer,
+                  }}
+                >
+                  <Icon
+                    name="account-group-outline"
+                    size={22}
+                    color={theme.colors.onPrimaryContainer}
+                    accessibilityLabel="Ícone de famílias"
+                  />
+                </View>
+                <Text
+                  style={{
+                    fontSize: 22,
+                    fontWeight: "900",
+                    color: theme.colors.onSurface,
+                  }}
+                  accessibilityRole="header"
+                >
+                  Famílias
+                </Text>
               </View>
               <Text
                 style={{
-                  fontSize: 22,
-                  fontWeight: "900",
-                  color: theme.colors.onSurface,
+                  color: theme.colors.onSurfaceVariant,
+                  lineHeight: 18,
                 }}
+                numberOfLines={3}
               >
-                Famílias
+                Explora e pesquisa famílias associadas. Usa a barra de pesquisa
+                para filtrar por nome, email ou telefone. Toca numa família para
+                abrir o perfil e ver mais detalhes.
               </Text>
             </View>
           </FlexibleCard>

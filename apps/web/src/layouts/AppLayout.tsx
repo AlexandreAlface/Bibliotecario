@@ -26,6 +26,7 @@ import {
   Outlet,
   useLocation,
   useNavigate,
+  matchPath,
 } from "react-router-dom";
 
 import HomeRounded from "@mui/icons-material/HomeRounded";
@@ -52,6 +53,7 @@ import LightbulbRounded from "@mui/icons-material/LightbulbRounded";
 import { useUserSession } from "@/contexts/UserSession";
 import { GradientBackgroundWithShapes, Logo } from "@bibliotecario/ui-web";
 import { alpha } from "@mui/material/styles";
+import { Book, BookRounded } from "@mui/icons-material";
 
 const drawerWidth = 248;
 
@@ -70,12 +72,12 @@ function buildMenu(opts: {
       { to: "/", label: "Início", icon: <HomeRounded /> },
       { to: "/reading", label: "Leituras", icon: <LibraryBooksRounded /> },
       { to: "/eventos", label: "Eventos", icon: <EventAvailableRounded /> },
-      { to: "/suggestions", label: "Sugestões", icon: <EmojiEventsRounded /> },
-      {
-        to: "/suggestions-categories",
-        label: "Sug. por categorias",
-        icon: <CategoryRounded />,
-      },
+      { to: "/suggestions", label: "Sugestões", icon: <BookRounded /> },
+      // {
+      //   to: "/suggestions-categories",
+      //   label: "Sug. por categorias",
+      //   icon: <CategoryRounded />,
+      // },
       { to: "/contents", label: "Conteúdos", icon: <LightbulbRounded /> }, // 👈 NOVO (criança)
       {
         to: "/achievements",
@@ -92,22 +94,25 @@ function buildMenu(opts: {
     items.push(
       { to: "/", label: "Início", icon: <HomeRounded /> },
       { to: "/familia", label: "Família", icon: <FamilyRestroomRounded /> },
-      { to: "/consultas", label: "Consultas", icon: <PeopleAltRounded /> },
+      {
+        to: "/consultas",
+        label: "Consultas",
+        icon: <PeopleAltRounded />,
+      },
       { to: "/eventos", label: "Eventos", icon: <EventAvailableRounded /> },
       { to: "/reading", label: "Leituras", icon: <LibraryBooksRounded /> },
-      { to: "/suggestions", label: "Sugestões", icon: <EmojiEventsRounded /> },
-      {
-        to: "/suggestions-categories",
-        label: "Sug. por categorias",
-        icon: <CategoryRounded />,
-      },
+      { to: "/suggestions", label: "Sugestões", icon: <BookRounded /> },
+      // {
+      //   to: "/suggestions-categories",
+      //   label: "Sug. por categorias",
+      //   icon: <CategoryRounded />,
+      // },
       { to: "/contents", label: "Conteúdos", icon: <LightbulbRounded /> }, // 👈 NOVO (família)
       {
         to: "/achievements",
         label: "Conquistas",
         icon: <EmojiEventsRounded />,
       },
-      { to: "/agenda", label: "Agenda", icon: <CalendarMonthRounded /> },
       { to: "/reviews", label: "Opiniões", icon: <RateReviewRounded /> }
     );
   }
@@ -120,34 +125,19 @@ function buildMenu(opts: {
         icon: <DashboardCustomizeRounded />,
       },
       {
-        to: "/librarian/livros",
-        label: "Livros",
-        icon: <LibraryBooksRounded />,
-      },
-      {
-        to: "/librarian/consultas/pendentes",
-        label: "Pendentes",
-        icon: <EventAvailableRounded />,
-      },
-      {
-        to: "/librarian/agenda",
-        label: "Agenda",
+        to: "/librarian/consultas",
+        label: "Consultas",
         icon: <CalendarMonthRounded />,
-      },
+      }, // ✅ único item
       {
         to: "/librarian/familias",
         label: "Famílias",
         icon: <PeopleAltRounded />,
       },
       {
-        to: "/librarian/slots",
-        label: "Slots",
-        icon: <ScheduleRounded />,
-      },
-      {
-        to: "/librarian/historico",
-        label: "Histórico",
-        icon: <HistoryRounded />,
+        to: "/librarian/livros",
+        label: "Livros",
+        icon: <LibraryBooksRounded />,
       }
     );
   }
@@ -222,12 +212,12 @@ export default function AppLayout() {
     [asChild, isFamily, isLibrarian, isAdmin]
   );
 
-  function matchesPath(pathname: string, base: string) {
-    const p = pathname.replace(/\/+$/, "");
-    const b = base.replace(/\/+$/, "");
-    if (b === "/") return p === "/";
-    return p === b || p.startsWith(b + "/");
-  }
+function matchesPath(pathname: string, base: string) {
+  return (
+    !!matchPath({ path: base, end: true }, pathname) ||
+    !!matchPath({ path: base + "/*" }, pathname)
+  );
+}
 
   // escolhe o item com o 'to' mais longo que casa com o path atual
   const activeTo = React.useMemo(() => {
@@ -517,11 +507,13 @@ export default function AppLayout() {
             p: { xs: 2, sm: 3 },
           }}
         >
-          {loading ? (
-            <Typography sx={{ opacity: 0.6 }}>A carregar…</Typography>
-          ) : (
-            <Outlet />
-          )}
+          <Box sx={{ width: "100%", maxWidth: 1440, mx: "auto" }}>
+            {loading ? (
+              <Typography sx={{ opacity: 0.6 }}>A carregar…</Typography>
+            ) : (
+              <Outlet />
+            )}
+          </Box>
         </GradientBackgroundWithShapes>
       </Box>
     </Box>

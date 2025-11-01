@@ -304,14 +304,14 @@ function ProfilesScreen() {
                 </Text>
               }
             />
-            <Button
+            {/* <Button
               mode="text"
               icon="account-plus"
               onPress={() => {}}
               style={{ alignSelf: "center", marginTop: 4 }}
             >
               Gerir crianças
-            </Button>
+            </Button> */}
           </WhiteCard>
         </View>
 
@@ -328,6 +328,7 @@ function ProfilesScreen() {
 }
 
 export default ProfilesScreen;
+
 
 /* ============================== Fim do ficheiro =============================
  *  Alexandre Brissos — Nº 21131

@@ -49,6 +49,7 @@ async function svcListLibrarianSlots(librarianId, from, to) {
         startAt: s.startAt,
         endAt: s.endAt,
         status: s.status,
+        consultationId: s.consultation?.id ?? null,
         libraryId: s.library?.id ?? null,
         libraryName: s.library?.name ?? null,
         librarianId: s.librarian?.id ?? librarianId,

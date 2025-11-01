@@ -8,6 +8,9 @@
  *   • Helpers **PUROS** para querystrings e tratamento de erros.
  *   • Funções pequenas (≤ 30 linhas), coesas e tipadas.
  *   • Tipos claros para leituras, pendentes e concluídas.
+ *   • ✅ Preserva startedAt/finishedAt (histórico).
+ *   • 🪵 Logs de debug para inspeção do tráfego (apagar depois).
+ *   • 🛠️ Fix: NÃO usar `URLSearchParams.size` (inexistente no RN). Usar `toString()`.
  * =============================================================================
  */
 
@@ -24,7 +27,14 @@ export type ReadingLite = {
   isbn: string;
   title: string;
   coverUrl?: string | null;
-  date?: string | null; // ISO
+  /** Data “principal” (finishedAt || startedAt) já calculada no backend */
+  date?: string | null;
+  /** ✅ Campos necessários para distinguir reading vs finished no cliente */
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  /** (opcional) última avaliação agregada à leitura */
+  stars?: number | null;
+  comment?: string | null;
 };
 
 type Options = {
@@ -103,6 +113,38 @@ function asArray<T>(data: unknown): T[] {
   return Array.isArray(data) ? (data as T[]) : [];
 }
 
+/** 🔹 **PURO**: normaliza um item vindo do backend para `ReadingLite`. */
+function normalizeReading(item: any): ReadingLite {
+  const id = Number(item?.id ?? 0);
+  const childId = Number(item?.childId ?? 0);
+  const startedAt =
+    item?.startedAt == null || item?.startedAt === ""
+      ? null
+      : String(item.startedAt);
+  const finishedAt =
+    item?.finishedAt == null || item?.finishedAt === ""
+      ? null
+      : String(item.finishedAt);
+
+  return {
+    id,
+    childId,
+    childName: item?.childName ?? null,
+    isbn: String(item?.isbn ?? ""),
+    title: item?.title ?? "Livro",
+    coverUrl: item?.coverUrl ?? null,
+    // o backend já envia `date`, mas garantimos fallback
+    date: item?.date ?? finishedAt ?? startedAt ?? null,
+    startedAt,
+    finishedAt,
+    stars:
+      item?.stars !== undefined && item?.stars !== null
+        ? Number(item.stars)
+        : null,
+    comment: item?.comment ?? null,
+  };
+}
+
 /* ================================ API ================================= */
 
 /**
@@ -121,32 +163,56 @@ export async function listPendingRatings(opts: {
     limit: opts.limit,
     userId: opts.userId,
   });
-  const data = await request<PendingRatingRow[]>(
-    `/ratings/pending?${qs.toString()}`
-  );
+  const url = `/ratings/pending?${qs.toString()}`;
+  // 🪵 debug
+  if (__DEV__) console.debug("[API] GET", url);
+  const data = await request<PendingRatingRow[]>(url);
   return asArray<PendingRatingRow>(data);
 }
 
 /**
  * Leituras atuais (histórico recente + em curso) vindas de `/readings`.
  * Aceita filtros por criança(s) e/ou família.
+ *
+ * ⚠️ Importante: normalizamos manualmente para não perder campos.
  */
 export async function getLeiturasAtuais(
   limit = 4,
   opts: Options = {}
 ): Promise<ReadingLite[]> {
+  // ⚠️ Se vier sem childId e sem familyId, o backend devolve []
+  if (!opts.childId && !opts.familyId && !opts.childIds?.length) {
+    if (__DEV__)
+      console.warn("[API] getLeiturasAtuais sem childId/familyId → []");
+  }
+
   const qs = toParams({
     limit: safeLimit(limit, 4),
-    childId: opts.childId,
-    familyId: opts.familyId,
-    // backend aceita lista separada por vírgulas
+    childId: opts.childId, // passamos SEMPRE se existir
+    familyId: opts.familyId, // idem
     childIds: opts.childIds?.length ? opts.childIds.join(",") : undefined,
   });
 
-  const data = await request<ReadingLite[]>(
-    `/readings${qs.size ? `?${qs.toString()}` : ""}`
-  );
-  return asArray<ReadingLite>(data);
+  // 🛠️ `URLSearchParams` não tem `.size` no RN → usar toString() para decidir
+  const qstr = qs.toString();
+  const url = `/readings${qstr ? `?${qstr}` : ""}`;
+
+  // 🪵 debug
+  if (__DEV__) console.debug("[API] GET", url);
+
+  const raw = await request<unknown[]>(url);
+  const arr = asArray<any>(raw).map(normalizeReading);
+
+  // 🪵 debug
+  if (__DEV__) {
+    const sample = arr[0];
+    console.debug(
+      `[API] /readings → ${arr.length} items`,
+      sample ? { sample } : ""
+    );
+  }
+
+  return arr;
 }
 
 /**
@@ -159,16 +225,11 @@ export async function startReading(
   isbn: string
 ) {
   try {
-    const qs = toParams({
-      childId,
-      familyId,
-    }).toString();
-
-    const { data } = await axios.post(
-      `${API_URL}/readings/start?${qs}`,
-      { isbn },
-      { withCredentials: true }
-    );
+    const qs = toParams({ childId, familyId }).toString();
+    const url = `${API_URL}/readings/start?${qs}`;
+    // 🪵 debug
+    if (__DEV__) console.debug("[API] POST", url, { isbn });
+    const { data } = await axios.post(url, { isbn }, { withCredentials: true });
     return data; // { ok, reading }
   } catch (err: any) {
     return mapAxiosError(
@@ -192,23 +253,16 @@ export async function finishReading(
   isbn: string
 ) {
   try {
-    const qs = toParams({
-      childId,
-      familyId,
-    }).toString();
-
-    const { data } = await axios.post(
-      `${API_URL}/readings/finish?${qs}`,
-      { isbn },
-      { withCredentials: true }
-    );
+    const qs = toParams({ childId, familyId }).toString();
+    const url = `${API_URL}/readings/finish?${qs}`;
+    // 🪵 debug
+    if (__DEV__) console.debug("[API] POST", url, { isbn });
+    const { data } = await axios.post(url, { isbn }, { withCredentials: true });
     return data; // { ok, reading }
   } catch (err: any) {
     return mapAxiosError(
       err,
-      {
-        "404:no_open_reading": "Não há leitura em curso para este livro.",
-      },
+      { "404:no_open_reading": "Não há leitura em curso para este livro." },
       "Não foi possível terminar a leitura."
     );
   }
@@ -228,8 +282,15 @@ export async function getLeiturasTerminadas(
     familyId: opts.familyId,
   });
 
-  const data = await request<unknown[]>(`/readings?${qs.toString()}`);
-  const arr = asArray<any>(data);
+  // Mesma correção do getLeiturasAtuais
+  const qstr = qs.toString();
+  const url = `/readings${qstr ? `?${qstr}` : ""}`;
+
+  // 🪵 debug
+  if (__DEV__) console.debug("[API] GET", url);
+
+  const raw = await request<unknown[]>(url);
+  const arr = asArray<any>(raw).map(normalizeReading);
   return arr.filter((r) => !!r.finishedAt) as FinishedReading[];
 }
 

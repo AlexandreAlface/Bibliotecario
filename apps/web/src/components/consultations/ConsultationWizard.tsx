@@ -35,6 +35,7 @@ type Props = {
   defaultLibrarianId?: number;
   defaultFamilyId: number;
   defaultSlotId?: number;
+  defaultChildId?: number | null;
   /** Lista (do próprio bibliotecário). Usamos a primeira automaticamente no modo presencial. */
   libraries?: { id: number; name: string }[];
   /** Ex.: na área do bibliotecário podes querer resultados de microconteúdos admin; aqui fico no público p/ simplicidade */
@@ -61,6 +62,10 @@ export default function ConsultationWizard(p: Props) {
     const first = p.libraries?.[0];
     return { id: first?.id, name: first?.name };
   }, [p.libraries]);
+
+
+  const [childId, setChildId] = useState<number | null>(p.defaultChildId ?? null);
+  
 
   /* --------- form + navegação --------- */
   const [step, setStep] = useState(0);
@@ -219,6 +224,7 @@ export default function ConsultationWizard(p: Props) {
       bookIsbns: selectedBooks.map((b) => b.isbn),
       microContentIds: selectedMC.map((m) => m.id),
       eventIds: selectedEV.map((e) => e.id),
+      childId: childId,
     };
 
     const out = await createConsultation(payload);

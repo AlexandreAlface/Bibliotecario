@@ -168,7 +168,11 @@ export default function ConsultasPage() {
     avatar: (c as any).avatarUrl ?? undefined,
   }));
   const selectOptions: AvatarOption[] = [
-    { id: "", nome: "Todos os filhos", avatar: undefined },
+    {
+      id: "",
+      nome: "Todos os filhos (consulta da família)",
+      avatar: undefined,
+    },
     ...childOptions,
   ];
 
@@ -616,6 +620,11 @@ export default function ConsultasPage() {
           defaultLibrarianId={selectedSlot.librarianId}
           defaultSlotId={selectedSlot.id}
           libraries={libraryOptions}
+          defaultChildId={
+            localChildId && localChildId !== ""
+              ? Number(localChildId)
+              : undefined
+          }
           onCreated={(id) => {
             setWizardOpen(false);
             onWizardCreated(id);
