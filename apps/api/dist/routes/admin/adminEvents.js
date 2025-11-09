@@ -8,7 +8,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const prisma_js_1 = require("../../prisma.js"); // mantém .js como no original
+const prisma_1 = require("../../prisma"); // mantém .js como no original
 const auth_js_1 = require("../../middlewares/auth.js");
 const r = (0, express_1.Router)();
 /* ========================= Helpers puros =========================
@@ -80,7 +80,7 @@ function parsePageLimit(q) {
 r.get("/admin/libraries/:libraryId/events", (0, auth_js_1.requireRole)(auth_js_1.ROLES.ADMIN), async (req, res, next) => {
     try {
         const libraryId = parseLibraryId(req.params.libraryId);
-        const events = await prisma_js_1.prisma.culturalEvent.findMany({
+        const events = await prisma_1.prisma.culturalEvent.findMany({
             where: { OR: [{ libraryId }, { feed: { libraryId } }] },
             orderBy: { startDate: "asc" },
             select: {
@@ -111,13 +111,13 @@ r.post("/admin/libraries/:libraryId/events", (0, auth_js_1.requireRole)(auth_js_
         assertNonEmpty(title, "título");
         const start = toDateStrict(startDate, "início");
         const end = endDate ? toDateStrict(endDate, "fim") : undefined;
-        const lib = await prisma_js_1.prisma.library.findUnique({
+        const lib = await prisma_1.prisma.library.findUnique({
             where: { id: libraryId },
             select: { name: true },
         });
         const finalCategory = (category && String(category).trim()) || lib?.name || "MANUAL";
         if (id && Number.isFinite(Number(id))) {
-            const updated = await prisma_js_1.prisma.culturalEvent.update({
+            const updated = await prisma_1.prisma.culturalEvent.update({
                 where: { id: Number(id) },
                 data: {
                     title: title.trim(),
@@ -141,7 +141,7 @@ r.post("/admin/libraries/:libraryId/events", (0, auth_js_1.requireRole)(auth_js_
             return res.json(eventToDto(updated));
         }
         const guid = manualGuid(libraryId, title, start);
-        const created = await prisma_js_1.prisma.culturalEvent.upsert({
+        const created = await prisma_1.prisma.culturalEvent.upsert({
             where: { guid },
             create: {
                 guid,
@@ -194,7 +194,7 @@ r.post("/admin/libraries/:libraryId/events", (0, auth_js_1.requireRole)(auth_js_
         const start = toDateStrict(startDate, "início");
         const end = endDate ? toDateStrict(endDate, "fim") : undefined;
         if (id && Number.isFinite(Number(id))) {
-            const updated = await prisma_js_1.prisma.culturalEvent.update({
+            const updated = await prisma_1.prisma.culturalEvent.update({
                 where: { id: Number(id) },
                 data: {
                     title: title.trim(),
@@ -216,7 +216,7 @@ r.post("/admin/libraries/:libraryId/events", (0, auth_js_1.requireRole)(auth_js_
             return res.json(eventToDto(updated));
         }
         const guid = manualGuid(libraryId, title, start);
-        const created = await prisma_js_1.prisma.culturalEvent.upsert({
+        const created = await prisma_1.prisma.culturalEvent.upsert({
             where: { guid },
             create: {
                 guid,
@@ -264,10 +264,10 @@ r.delete("/admin/libraries/:libraryId/events/:id", (0, auth_js_1.requireRole)(au
         const id = Number(req.params.id);
         if (!Number.isFinite(id))
             return res.status(400).json({ error: "id inválido" });
-        const ev = await prisma_js_1.prisma.culturalEvent.findUnique({ where: { id } });
+        const ev = await prisma_1.prisma.culturalEvent.findUnique({ where: { id } });
         if (!ev || ev.feedId !== null || ev.libraryId !== libraryId)
             return res.status(403).json({ error: "evento_não_permitido" });
-        await prisma_js_1.prisma.culturalEvent.delete({ where: { id } });
+        await prisma_1.prisma.culturalEvent.delete({ where: { id } });
         return res.status(204).end();
     }
     catch (e) {
@@ -279,7 +279,7 @@ r.delete("/admin/libraries/:libraryId/events/:id", (0, auth_js_1.requireRole)(au
  */
 /** Verifica capacidade antes de confirmar. — Alexandre Brissos — 2025-10-02 */
 async function ensureCanConfirm(eventId) {
-    const ev = await prisma_js_1.prisma.culturalEvent.findUnique({
+    const ev = await prisma_1.prisma.culturalEvent.findUnique({
         where: { id: eventId },
         select: {
             capacity: true,
@@ -311,8 +311,8 @@ r.get("/admin/events/:eventId/reservations", (0, auth_js_1.requireRole)(auth_js_
                 { family: { phone: { contains: q, mode: "insensitive" } } },
             ];
         const [total, rows] = await Promise.all([
-            prisma_js_1.prisma.eventReservation.count({ where }),
-            prisma_js_1.prisma.eventReservation.findMany({
+            prisma_1.prisma.eventReservation.count({ where }),
+            prisma_1.prisma.eventReservation.findMany({
                 where,
                 orderBy: [{ status: "asc" }, { bookedAt: "asc" }],
                 skip: (page - 1) * limit,
@@ -349,7 +349,7 @@ r.post("/admin/events/:eventId/reservations", (0, auth_js_1.requireRole)(auth_js
             return res.status(400).json({ error: "familyId inválido" });
         if (status === "CONFIRMED")
             await ensureCanConfirm(eventId);
-        const created = await prisma_js_1.prisma.eventReservation.create({
+        const created = await prisma_1.prisma.eventReservation.create({
             data: {
                 eventId,
                 familyId: Number(familyId),
@@ -378,7 +378,7 @@ r.patch("/admin/events/:eventId/reservations/:id", (0, auth_js_1.requireRole)(au
             return res.status(400).json({ error: "status_necessário" });
         if (status === "CONFIRMED")
             await ensureCanConfirm(eventId);
-        const updated = await prisma_js_1.prisma.eventReservation.update({
+        const updated = await prisma_1.prisma.eventReservation.update({
             where: { id },
             data: { status },
             select: { id: true, status: true },
@@ -396,7 +396,7 @@ r.patch("/admin/events/:eventId/reservations/:id", (0, auth_js_1.requireRole)(au
 r.delete("/admin/events/:eventId/reservations/:id", (0, auth_js_1.requireRole)(auth_js_1.ROLES.ADMIN), async (_req, res, next) => {
     try {
         const id = Number(_req.params.id);
-        await prisma_js_1.prisma.eventReservation.delete({ where: { id } });
+        await prisma_1.prisma.eventReservation.delete({ where: { id } });
         return res.status(204).end();
     }
     catch (e) {
@@ -411,14 +411,14 @@ r.get("/admin/events/:eventId/reservations/summary", (0, auth_js_1.requireRole)(
     try {
         const eventId = Number(req.params.eventId);
         const [ev, conf, pend] = await Promise.all([
-            prisma_js_1.prisma.culturalEvent.findUnique({
+            prisma_1.prisma.culturalEvent.findUnique({
                 where: { id: eventId },
                 select: { capacity: true },
             }),
-            prisma_js_1.prisma.eventReservation.count({
+            prisma_1.prisma.eventReservation.count({
                 where: { eventId, status: "CONFIRMED" },
             }),
-            prisma_js_1.prisma.eventReservation.count({
+            prisma_1.prisma.eventReservation.count({
                 where: { eventId, status: "PENDING" },
             }),
         ]);
@@ -440,7 +440,7 @@ r.get("/admin/events/:eventId/reservations/summary", (0, auth_js_1.requireRole)(
 r.get("/admin/events/:eventId/reservations/export.csv", (0, auth_js_1.requireRole)(auth_js_1.ROLES.ADMIN), async (req, res, next) => {
     try {
         const eventId = Number(req.params.eventId);
-        const rows = await prisma_js_1.prisma.eventReservation.findMany({
+        const rows = await prisma_1.prisma.eventReservation.findMany({
             where: { eventId },
             orderBy: [{ status: "asc" }, { bookedAt: "asc" }],
             select: {

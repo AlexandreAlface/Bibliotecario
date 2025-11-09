@@ -1,4 +1,3 @@
-// apps/api/tsconfig.json
 {
   "compilerOptions": {
     "target": "ES2020",
@@ -6,13 +5,13 @@
     "moduleResolution": "node",
     "rootDir": "src",
     "outDir": "dist",
-
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
 
-    "allowJs": true,           // 👈 aceitar .js
-    "checkJs": false,          // (opcional) não validar JS
-    "strict": true,
+    "allowJs": true,
+    "checkJs": false,
+
+    "strict": false,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "types": ["node"]

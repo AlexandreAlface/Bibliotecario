@@ -58,9 +58,9 @@ async function computeChildVector(childId) {
             continue;
         const ageDays = (now - new Date(r.ratedAt).getTime()) / 86400000;
         const recency = Math.exp(-ageDays / 90);
-        const gusto = (r.stars - 3) / 2; // 0.5..1.0
+        const gostos = (r.stars - 3) / 2; // 0.5..1.0
         vecs.push(v);
-        weights.push(0.3 + 0.7 * gusto * recency); // 0.3..1.0
+        weights.push(0.3 + 0.7 * gostos * recency); // 0.3..1.0
     }
     // 2) Leituras em curso
     const reading = await prisma.$queryRaw `

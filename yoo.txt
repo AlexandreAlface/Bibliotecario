@@ -1,0 +1,147 @@
+///////////////////////////////////////////////////////
+// Family Librarian — ER Core (reduced)  — DBML
+// Cole este código em https://dbdiagram.io/d
+///////////////////////////////////////////////////////
+
+// ---------- Enums essenciais ----------
+Enum consultation_status {
+  PENDING
+  CONFIRMED
+  DECLINED
+  CANCELLED
+  COMPLETED
+}
+
+Enum slot_status {
+  OPEN
+  BOOKED
+  BLOCKED
+}
+
+// ---------- Tabelas nucleares ----------
+Table User {
+  id            int        [pk, increment]
+  full_name     varchar
+  email         varchar    [unique]
+  password_hash varchar
+  // opcional: phone, address...
+}
+
+Table Child {
+  id            int        [pk, increment]
+  name          varchar
+  birth_date    date
+  gender        varchar    [note: 'opcional']
+  reader_profile varchar   [note: 'opcional']
+}
+
+Table ChildPreference {
+  child_id    int          [pk, ref: > Child.id]
+  profile_text text
+  embedding    text        [note: 'pgvector(1536) no implemento real']
+  updated_at   datetime
+}
+
+Table ChildFamily {         // ponte N:N User (família) ↔ Child
+  child_id  int
+  family_id int
+  Note: 'PK composta'
+  Indexes {
+    (child_id, family_id) [pk]
+  }
+}
+
+Table Book {
+  isbn        varchar      [pk]
+  title       varchar
+  author      varchar
+  category    varchar
+  age_min     int
+  age_max     int
+  embedding   text         [note: 'pgvector(1536) no implemento real']
+}
+
+Table Reading {
+  id         int           [pk, increment]
+  child_id   int           [ref: > Child.id]
+  book_isbn  varchar       [ref: > Book.isbn]
+  started_at datetime
+  finished_at datetime
+  Indexes {
+    (child_id, book_isbn) [unique]
+  }
+}
+
+Table Rating {
+  id         int           [pk, increment]
+  user_id    int           [ref: > User.id]
+  child_id   int           [ref: > Child.id, note: 'opcional']
+  book_isbn  varchar       [ref: > Book.isbn]
+  stars      int
+  rated_at   datetime
+  Indexes {
+    (user_id, child_id, book_isbn) [unique]
+  }
+}
+
+Table BookReservation {
+  id         int           [pk, increment]
+  child_id   int           [ref: > Child.id]
+  book_isbn  varchar       [ref: > Book.isbn]
+  reserved_at datetime
+  Indexes {
+    (child_id, book_isbn) [unique]
+  }
+}
+
+Table Library {
+  id      int             [pk, increment]
+  name    varchar
+  address varchar
+}
+
+Table CulturalEvent {
+  id          int         [pk, increment]
+  library_id  int         [ref: > Library.id]
+  title       varchar
+  start_date  datetime
+  end_date    datetime
+  capacity    int
+}
+
+Table EventReservation {
+  id         int          [pk, increment]
+  family_id  int          [ref: > User.id]
+  event_id   int          [ref: > CulturalEvent.id]
+  status     varchar
+  booked_at  datetime
+  Indexes {
+    (family_id, event_id) [unique]
+  }
+}
+
+Table Consultation {
+  id            int                [pk, increment]
+  family_id     int                [ref: > User.id]
+  librarian_id  int                [ref: > User.id]
+  child_id      int                [ref: > Child.id, note: 'opcional']
+  library_id    int                [ref: > Library.id, note: 'opcional']
+  start_at      datetime
+  end_at        datetime
+  status        consultation_status
+  slot_id       int                [ref: - ConsultationSlot.id, note: '1–1 opcional']
+}
+
+Table ConsultationSlot {
+  id           int          [pk, increment]
+  librarian_id int          [ref: > User.id]
+  library_id   int          [ref: > Library.id, note: 'opcional']
+  start_at     datetime
+  end_at       datetime
+  status       slot_status
+  // relação 1–1 com Consultation via Consultation.slot_id
+}
+
+// ---------- Relações familiares (explícitas) ----------
+Ref: ChildFamily.child_id  > Child.id
+Ref: ChildFamily.family_id > User.id

@@ -30,7 +30,6 @@
     "vite": "^5.4.19"
   },
   "overrides": {
-    "resolve-from": "5.0.0",
-    "@expo/metro-runtime": "^6.1.2"
+    "resolve-from": "5.0.0"
   }
 }

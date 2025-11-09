@@ -51,7 +51,7 @@ const axios_1 = __importDefault(require("axios"));
 const cheerio = __importStar(require("cheerio"));
 const node_path_1 = __importDefault(require("node:path"));
 const node_crypto_1 = __importDefault(require("node:crypto"));
-const prisma_js_1 = require("../../prisma.js");
+const prisma_1 = require("../../prisma");
 const client_1 = require("@prisma/client");
 const embeddings_js_1 = require("../../ai/embeddings.js");
 const utils_js_1 = require("../../reco/utils.js");
@@ -164,19 +164,19 @@ function forceHttps(u) {
 /** Garante colunas de embedding na tabela Book (idempotente). — Alexandre Brissos — 2025-10-02 */
 async function ensureEmbeddingSchema() {
     try {
-        await prisma_js_1.prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS vector;`);
+        await prisma_1.prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS vector;`);
     }
     catch { }
     try {
-        await prisma_js_1.prisma.$executeRawUnsafe(`ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "embedding" vector(1536);`);
+        await prisma_1.prisma.$executeRawUnsafe(`ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "embedding" vector(1536);`);
     }
     catch { }
     try {
-        await prisma_js_1.prisma.$executeRawUnsafe(`ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "embedding_hash" text;`);
+        await prisma_1.prisma.$executeRawUnsafe(`ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "embedding_hash" text;`);
     }
     catch { }
     try {
-        await prisma_js_1.prisma.$executeRawUnsafe(`ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "embedding_at" timestamptz;`);
+        await prisma_1.prisma.$executeRawUnsafe(`ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "embedding_at" timestamptz;`);
     }
     catch { }
 }
@@ -186,7 +186,7 @@ async function reembedByIsbns(isbns, opts) {
     const uniq = Array.from(new Set(isbns.map(normalizeIsbn))).filter(Boolean);
     let ok = 0, fail = 0;
     await withConcurrency(uniq, Math.max(1, Math.min(8, Number(opts?.concurrency ?? 4))), async (isbn) => {
-        const rows = await prisma_js_1.prisma.$queryRaw `
+        const rows = await prisma_1.prisma.$queryRaw `
       SELECT "isbn","title","author","summary","category","collection","embedding_hash" FROM "Book" WHERE "isbn" = ${isbn} LIMIT 1;`;
         const b = rows[0];
         if (!b)
@@ -194,7 +194,7 @@ async function reembedByIsbns(isbns, opts) {
         const text = buildBookEmbeddingText(b);
         const hash = sha256(text || "");
         if (!text) {
-            await prisma_js_1.prisma.$executeRaw `UPDATE "Book" SET "embedding"=NULL,"embedding_hash"=NULL,"embedding_at"=now() WHERE "isbn"=${isbn};`;
+            await prisma_1.prisma.$executeRaw `UPDATE "Book" SET "embedding"=NULL,"embedding_hash"=NULL,"embedding_at"=now() WHERE "isbn"=${isbn};`;
             ok++;
             return;
         }
@@ -204,7 +204,7 @@ async function reembedByIsbns(isbns, opts) {
         }
         try {
             const vec = await (0, embeddings_js_1.embedOne)(text);
-            await prisma_js_1.prisma.$executeRaw `UPDATE "Book" SET "embedding"=${(0, utils_js_1.toSqlVector)(vec)}::vector, "embedding_hash"=${hash}, "embedding_at"=now() WHERE "isbn"=${isbn};`;
+            await prisma_1.prisma.$executeRaw `UPDATE "Book" SET "embedding"=${(0, utils_js_1.toSqlVector)(vec)}::vector, "embedding_hash"=${hash}, "embedding_at"=now() WHERE "isbn"=${isbn};`;
             ok++;
         }
         catch {
@@ -219,13 +219,13 @@ async function reembedWhereNull(opts) {
     const { libraryId, limit = 200 } = opts || {};
     let rows = [];
     if (libraryId != null) {
-        rows = await prisma_js_1.prisma.$queryRaw `
+        rows = await prisma_1.prisma.$queryRaw `
       SELECT b."isbn" AS isbn FROM "Book" b JOIN "LibraryBook" lb ON lb."bookIsbn"=b."isbn"
       WHERE lb."libraryId"=${libraryId} AND (b."embedding" IS NULL OR b."embedding_hash" IS NULL)
       ORDER BY b."isbn" ASC LIMIT ${limit};`;
     }
     else {
-        rows = await prisma_js_1.prisma.$queryRaw `
+        rows = await prisma_1.prisma.$queryRaw `
       SELECT "isbn" AS isbn FROM "Book" WHERE "embedding" IS NULL OR "embedding_hash" IS NULL
       ORDER BY "isbn" ASC LIMIT ${limit};`;
     }
@@ -363,7 +363,7 @@ const IMPORT_BATCH_SIZE = 250;
 async function upsertBooksAndLink(libraryId, rows) {
     let inserted = 0, updated = 0, linked = 0;
     const isbnsToReindex = new Set();
-    await prisma_js_1.prisma.libraryBook.deleteMany({ where: { libraryId } });
+    await prisma_1.prisma.libraryBook.deleteMany({ where: { libraryId } });
     const map = new Map();
     for (const r of rows) {
         const isbn = normalizeIsbn(r.ISBN);
@@ -376,7 +376,7 @@ async function upsertBooksAndLink(libraryId, rows) {
     for (let i = 0; i < items.length; i += IMPORT_BATCH_SIZE) {
         const chunk = items.slice(i, i + IMPORT_BATCH_SIZE);
         const chunkIsbns = chunk.map((r) => r.ISBN);
-        const existing = await prisma_js_1.prisma.book.findMany({
+        const existing = await prisma_1.prisma.book.findMany({
             where: { isbn: { in: chunkIsbns } },
             select: { isbn: true, title: true, summary: true, category: true },
         });
@@ -428,7 +428,7 @@ async function upsertBooksAndLink(libraryId, rows) {
             }
         }
         if (toCreate.length) {
-            const res = await prisma_js_1.prisma.book.createMany({
+            const res = await prisma_1.prisma.book.createMany({
                 data: toCreate,
                 skipDuplicates: true,
             });
@@ -438,15 +438,15 @@ async function upsertBooksAndLink(libraryId, rows) {
             const UPD_BATCH = 100;
             for (let j = 0; j < toUpdate.length; j += UPD_BATCH) {
                 const ups = toUpdate.slice(j, j + UPD_BATCH);
-                await prisma_js_1.prisma.$transaction(ups.map((u) => prisma_js_1.prisma.book.update({ where: { isbn: u.isbn }, data: u.data })));
+                await prisma_1.prisma.$transaction(ups.map((u) => prisma_1.prisma.book.update({ where: { isbn: u.isbn }, data: u.data })));
                 const toInvalidate = ups.filter((u) => u.invalidate).map((u) => u.isbn);
                 if (toInvalidate.length) {
-                    await prisma_js_1.prisma.$executeRaw `UPDATE "Book" SET "embedding_hash" = NULL WHERE "isbn" IN (${client_1.Prisma.join(toInvalidate)});`;
+                    await prisma_1.prisma.$executeRaw `UPDATE "Book" SET "embedding_hash" = NULL WHERE "isbn" IN (${client_1.Prisma.join(toInvalidate)});`;
                 }
             }
             updated += toUpdate.length;
         }
-        const linkRes = await prisma_js_1.prisma.libraryBook.createMany({
+        const linkRes = await prisma_1.prisma.libraryBook.createMany({
             data: chunkIsbns.map((isbn) => ({ libraryId, bookIsbn: isbn })),
             skipDuplicates: true,
         });
@@ -610,17 +610,17 @@ async function reindexEmbeddingsWhereNull(opts) {
 /** Apaga livros órfãos (sem holdings). — Alexandre Brissos — 2025-10-02 */
 async function cleanupOrphanBooks(opts = {}) {
     const dryRun = !!opts.dryRun;
-    const rows = await prisma_js_1.prisma.$queryRaw `
+    const rows = await prisma_1.prisma.$queryRaw `
     SELECT b."isbn" FROM "Book" b WHERE NOT EXISTS (SELECT 1 FROM "LibraryBook" lb WHERE lb."bookIsbn" = b."isbn");`;
     const isbns = rows.map((r) => r.isbn);
     if (!isbns.length)
         return { deleted: 0, candidates: 0, details: {} };
     if (dryRun) {
         const [origins, readings, ratings, reservations] = await Promise.all([
-            prisma_js_1.prisma.bookOrigin.count({ where: { bookIsbn: { in: isbns } } }),
-            prisma_js_1.prisma.reading.count({ where: { bookIsbn: { in: isbns } } }),
-            prisma_js_1.prisma.rating.count({ where: { bookIsbn: { in: isbns } } }),
-            prisma_js_1.prisma.bookReservation.count({ where: { bookIsbn: { in: isbns } } }),
+            prisma_1.prisma.bookOrigin.count({ where: { bookIsbn: { in: isbns } } }),
+            prisma_1.prisma.reading.count({ where: { bookIsbn: { in: isbns } } }),
+            prisma_1.prisma.rating.count({ where: { bookIsbn: { in: isbns } } }),
+            prisma_1.prisma.bookReservation.count({ where: { bookIsbn: { in: isbns } } }),
         ]);
         return {
             deleted: 0,
@@ -628,7 +628,7 @@ async function cleanupOrphanBooks(opts = {}) {
             details: { origins, readings, ratings, reservations },
         };
     }
-    const result = await prisma_js_1.prisma.$transaction(async (tx) => {
+    const result = await prisma_1.prisma.$transaction(async (tx) => {
         const delOrigins = await tx.bookOrigin.deleteMany({
             where: { bookIsbn: { in: isbns } },
         });

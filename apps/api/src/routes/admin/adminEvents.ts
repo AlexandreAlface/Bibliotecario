@@ -7,7 +7,7 @@
  */
 
 import { Router, Request, Response, NextFunction } from "express";
-import { prisma } from "../../prisma.js"; // mantém .js como no original
+import { prisma } from "../../prisma"; // mantém .js como no original
 import { requireRole, ROLES } from "../../middlewares/auth.js";
 
 const r = Router();

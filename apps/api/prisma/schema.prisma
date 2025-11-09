@@ -7,6 +7,16 @@ generator client {
   provider = "prisma-client-js"
 }
 
+generator erd {
+  provider    = "prisma-erd-generator"
+  output      = "./ERD.svg"
+  theme       = "forest"
+  ignoreEnums = true
+  tableOnly   = true
+}
+
+
+
 enum ConsultationStatus {
   PENDING
   CONFIRMED

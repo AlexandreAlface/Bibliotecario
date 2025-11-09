@@ -1,0 +1,49 @@
+erDiagram
+  %% ---- Núcleo de utilizadores/roles ----
+  User ||--o{ UserRole : has
+  Role ||--o{ UserRole : in
+
+  %% ---- Família & crianças ----
+  User ||--o{ ChildFamily : family
+  Child ||--o{ ChildFamily : member
+
+  %% ---- Consultas ----
+  User ||--o{ Consultation : family
+  User ||--o{ Consultation : librarian
+  Child ||--o{ Consultation : child
+  Library ||--o{ Consultation : at
+  ConsultationSlot ||--o| Consultation : booked
+  User ||--o{ ConsultationSlot : owns
+  Library ||--o{ ConsultationSlot : at
+  Consultation ||--o{ ConsultationProposal : proposals
+  Consultation ||--o{ ConsultationEvent : events
+  Consultation ||--o{ ConsultationBook : books
+  Book ||--o{ ConsultationBook : in
+
+  %% ---- Leituras & avaliações ----
+  Child ||--o{ Reading : reads
+  Book  ||--o{ Reading : of
+  User  ||--o{ Rating : gives
+  Child ||--o{ Rating : context
+  Book  ||--o{ Rating : for
+
+  %% ---- Conteúdos ----
+  User ||--o{ MicroContent : author
+  Library ||--o{ MicroContent : hosts
+  MicroContent ||--o{ MicroContentBook : about
+  Book ||--o{ MicroContentBook : mentioned
+  User ||--o{ MicroInteraction : does
+  MicroContent ||--o{ MicroInteraction : has
+
+  %% ---- Eventos culturais ----
+  Library ||--o{ CulturalEvent : organizes
+  CulturalEvent ||--o{ EventReservation : has
+  User ||--o{ EventReservation : reserves
+
+  %% ---- Acervo por biblioteca ----
+  Library ||--o{ LibraryBook : stocks
+  Book ||--o{ LibraryBook : available
+
+  %% ---- Bloqueios de agenda ----
+  Library ||--o{ LibraryBlock : blocks
+  LibraryBlock ||--o{ ConsultationSlot : affects

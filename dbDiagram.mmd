@@ -1,0 +1,384 @@
+erDiagram
+  %% =========================
+  %% ENTIDADES (principais)
+  %% =========================
+  Role {
+    INT id PK
+    STRING name UK
+  }
+
+  User {
+    INT id PK
+    STRING fullName
+    STRING email UK
+    STRING phone
+    STRING citizenCard
+    STRING address
+    STRING postalCode
+    STRING passwordHash
+  }
+
+  UserRole {
+    INT userId PK,FK
+    INT roleId PK,FK
+  }
+
+  Library {
+    INT id PK
+    STRING name
+    STRING address
+    STRING contact
+  }
+
+  UserLibrary {
+    INT userId PK,FK
+    INT libraryId PK,FK
+  }
+
+  FeedRss {
+    INT id PK
+    INT libraryId FK
+    STRING url
+    DATETIME lastBuildDate
+    INT ttl
+  }
+
+  CsvSource {
+    INT id PK
+    STRING name UK
+    STRING filePath
+    DATETIME importDate
+  }
+
+  Book {
+    STRING isbn PK
+    STRING title
+    STRING author
+    INT publicationYear
+    STRING collection
+    STRING category
+    STRING cdu
+    STRING ageRange
+    STRING coverUrl
+  }
+
+  Origin {
+    INT id PK
+    STRING description UK
+  }
+
+  BookOrigin {
+    STRING bookIsbn PK,FK
+    INT originId PK,FK
+  }
+
+  Child {
+    INT id PK
+    STRING name
+    DATETIME birthDate
+    STRING gender
+    STRING readerProfile
+  }
+
+  ChildPreference {
+    INT childId PK,FK
+    STRING profileText
+    BYTES embedding
+    DATETIME updatedAt
+  }
+
+  ChildFamily {
+    INT childId PK,FK
+    INT familyId PK,FK
+  }
+
+  Reading {
+    INT id PK
+    INT childId FK
+    STRING bookIsbn FK
+    DATETIME startedAt
+    DATETIME finishedAt
+    INT reservationId FK
+  }
+
+  Rating {
+    INT id PK
+    INT userId FK
+    INT childId FK
+    STRING bookIsbn FK
+    INT readingId FK
+    INT stars
+    STRING comment
+    DATETIME ratedAt
+  }
+
+  Badge {
+    INT id PK
+    STRING name UK
+    STRING type
+    STRING criteria
+  }
+
+  BadgeAssignment {
+    INT childId PK,FK
+    INT badgeId PK,FK
+    DATETIME assignedAt
+  }
+
+  PointsHistory {
+    INT id PK
+    INT userId FK
+    STRING action
+    FLOAT points
+    DATETIME actionDate
+  }
+
+  Consultation {
+    INT id PK
+    INT familyId FK
+    INT librarianId FK
+    INT childId FK
+    INT libraryId FK
+    STRING title
+    STRING purpose
+    STRING description
+    STRING meetingUrl
+    STRING meetingNotes
+    STRING mode
+    STRING location
+    DATETIME requestedAt
+    DATETIME startAt
+    DATETIME endAt
+    STRING status
+    INT slotId UK,FK
+    STRING notes
+    DATETIME createdAt
+    DATETIME updatedAt
+  }
+
+  ConsultationBook {
+    INT consultationId PK,FK
+    STRING bookIsbn PK,FK
+    DATETIME addedAt
+  }
+
+  ConsultationMicroContent {
+    INT consultationId PK,FK
+    INT microContentId PK,FK
+    DATETIME addedAt
+  }
+
+  ConsultationCulturalEvent {
+    INT consultationId PK,FK
+    INT eventId PK,FK
+    DATETIME addedAt
+  }
+
+  ConsultationEvent {
+    INT id PK
+    INT consultationId FK
+    STRING type
+    DATETIME at
+    INT actorId FK
+    JSON payload
+  }
+
+  ConsultationSlot {
+    INT id PK
+    INT librarianId FK
+    INT libraryId FK
+    DATETIME startAt
+    DATETIME endAt
+    STRING status
+    INT blockedByLibraryBlockId FK
+    DATETIME createdAt
+    DATETIME updatedAt
+  }
+
+  ConsultationProposal {
+    INT id PK
+    INT consultationId FK
+    STRING proposedBy
+    DATETIME fromStartAt
+    DATETIME fromEndAt
+    DATETIME toStartAt
+    DATETIME toEndAt
+    STRING message
+    STRING status
+    DATETIME createdAt
+    DATETIME decidedAt
+    INT decidedById FK
+  }
+
+  CulturalEvent {
+    INT id PK
+    INT feedId FK
+    STRING guid UK
+    STRING title
+    STRING description
+    DATETIME pubDate
+    DATETIME startDate
+    DATETIME endDate
+    STRING location
+    STRING category
+    INT capacity
+    STRING imageUrl
+    INT libraryId FK
+  }
+
+  EventReservation {
+    INT id PK
+    INT familyId FK
+    INT eventId FK
+    DATETIME bookedAt
+    STRING status
+  }
+
+  BookReservation {
+    INT id PK
+    INT childId FK
+    STRING bookIsbn FK
+    DATETIME reservedAt
+  }
+
+  Newsletter {
+    INT id PK
+    STRING title
+    STRING content
+    DATETIME publishedAt
+  }
+
+  NewsletterSubscription {
+    INT id PK
+    INT familyId FK
+    STRING frequency
+    DATETIME subscribedAt
+    STRING status
+  }
+
+  MicroContent {
+    INT id PK
+    STRING type
+    STRING text
+    STRING[] tags
+    BOOLEAN isPublished
+    DATETIME publishedAt
+    INT libraryId FK
+    INT authorId FK
+    DATETIME createdAt
+    DATETIME updatedAt
+  }
+
+  MicroInteraction {
+    INT id PK
+    INT userId FK
+    INT microContentId FK
+    DATETIME interactedAt
+  }
+
+  MicroContentBook {
+    INT microContentId PK,FK
+    STRING bookIsbn PK,FK
+  }
+
+  LibraryBook {
+    INT libraryId PK,FK
+    STRING bookIsbn PK,FK
+    INT quantity
+    STRING shelfCode
+    STRING accessionNo
+    DATETIME addedAt
+    DATETIME updatedAt
+  }
+
+  LibraryBlock {
+    INT id PK
+    INT libraryId FK
+    DATETIME startAt
+    DATETIME endAt
+    STRING reason
+    DATETIME createdAt
+    DATETIME updatedAt
+  }
+
+  %% =========================
+  %% RELACIONAMENTOS
+  %% =========================
+  Role ||--o{ UserRole : "has many"
+  User ||--o{ UserRole : "has many"
+
+  User ||--o{ UserLibrary : "member of"
+  Library ||--o{ UserLibrary : "has members"
+
+  Library ||--o{ FeedRss : "feeds"
+  FeedRss ||--o{ CulturalEvent : "imports"
+
+  Book ||--o{ BookOrigin : "has origin"
+  Origin ||--o{ BookOrigin : "in"
+
+  Child ||--o{ ChildFamily : "belongs"
+  User ||--o{ ChildFamily : "family"
+
+  Child ||--o{ Reading : "reads"
+  Book  ||--o{ Reading : "is read in"
+
+  Reading ||--o{ Rating : "has"
+  User    ||--o{ Rating : "gives"
+  Child   ||--o{ Rating : "context"
+  Book    ||--o{ Rating : "rated"
+
+  Badge ||--o{ BadgeAssignment : "awarded"
+  Child ||--o{ BadgeAssignment : "earns"
+
+  User ||--o{ PointsHistory : "points"
+
+  User ||--o{ Consultation : "as family"
+  User ||--o{ Consultation : "as librarian"
+  Child ||--o{ Consultation : "topic"
+  Library ||--o{ Consultation : "host"
+
+  Consultation ||--o{ ConsultationBook : "recommends"
+  Book ||--o{ ConsultationBook : "in consultation"
+
+  Consultation ||--o{ ConsultationMicroContent : "uses"
+  MicroContent ||--o{ ConsultationMicroContent : "used in"
+
+  Consultation ||--o{ ConsultationCulturalEvent : "links"
+  CulturalEvent ||--o{ ConsultationCulturalEvent : "linked to"
+
+  Consultation ||--o{ ConsultationEvent : "timeline"
+  User ||--o{ ConsultationEvent : "actor"
+
+  User ||--o{ ConsultationSlot : "owns slots"
+  Library ||--o{ ConsultationSlot : "at"
+  ConsultationSlot ||--o| Consultation : "books 0..1"
+
+  Consultation ||--o{ ConsultationProposal : "proposals"
+  User ||--o{ ConsultationProposal : "decider"
+
+  Library ||--o{ CulturalEvent : "organizes"
+  User ||--o{ EventReservation : "reserves"
+  CulturalEvent ||--o{ EventReservation : "reservations"
+
+  Child ||--o{ BookReservation : "reserves"
+  Book  ||--o{ BookReservation : "reserved by"
+  BookReservation ||--o{ Reading : "yields readings"
+
+  User ||--o{ NewsletterSubscription : "subscribes"
+
+  Library ||--o{ MicroContent : "hosts"
+  User ||--o{ MicroContent : "author"
+
+  User ||--o{ MicroInteraction : "interacts"
+  MicroContent ||--o{ MicroInteraction : "has interactions"
+
+  MicroContent ||--o{ MicroContentBook : "about"
+  Book ||--o{ MicroContentBook : "mentioned"
+
+  Library ||--o{ LibraryBook : "stocks"
+  Book ||--o{ LibraryBook : "available at"
+
+  Library ||--o{ LibraryBlock : "blocks"
+  LibraryBlock ||--o{ ConsultationSlot : "affects"
+
+  Child ||--|| ChildPreference : "has 0..1"

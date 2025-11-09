@@ -6,7 +6,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const prisma_js_1 = require("../../prisma.js"); // — Alexandre Brissos — 2025-10-02
+const prisma_1 = require("../../prisma"); // — Alexandre Brissos — 2025-10-02
 const rssService_js_1 = require("../../services/rssService.js"); // — Alexandre Brissos — 2025-10-02
 const r = (0, express_1.Router)();
 /* ===================== Helpers puros =====================
@@ -34,7 +34,7 @@ function parsePositiveId(v, field = "id") {
  */
 /** Garante que o utilizador tem acesso à biblioteca. — Alexandre Brissos — 2025-10-02 */
 async function assertLibraryAccess(userId, libraryId) {
-    const link = await prisma_js_1.prisma.userLibrary.findFirst({
+    const link = await prisma_1.prisma.userLibrary.findFirst({
         where: { userId, libraryId },
         select: { userId: true },
     });
@@ -53,7 +53,7 @@ async function assertLibraryAccess(userId, libraryId) {
  */
 r.get("/admin/feeds/my-library", async (req, res) => {
     requireUser(req, res);
-    const link = await prisma_js_1.prisma.userLibrary.findFirst({
+    const link = await prisma_1.prisma.userLibrary.findFirst({
         where: { userId: req.user.id },
         include: { library: { select: { id: true, name: true } } },
         orderBy: { libraryId: "asc" },
@@ -74,7 +74,7 @@ r.get("/admin/libraries/:libraryId/feeds", async (req, res) => {
     try {
         const libraryId = parsePositiveId(req.params.libraryId, "libraryId");
         await assertLibraryAccess(req.user.id, libraryId);
-        const feeds = await prisma_js_1.prisma.feedRss.findMany({
+        const feeds = await prisma_1.prisma.feedRss.findMany({
             where: { libraryId },
             orderBy: { id: "asc" },
         });
@@ -97,7 +97,7 @@ r.post("/admin/libraries/:libraryId/feeds", async (req, res) => {
     try {
         const libraryId = parsePositiveId(req.params.libraryId, "libraryId");
         await assertLibraryAccess(req.user.id, libraryId);
-        const feed = await prisma_js_1.prisma.feedRss.create({ data: { libraryId, url: String(url), ttl: ttl ?? null } });
+        const feed = await prisma_1.prisma.feedRss.create({ data: { libraryId, url: String(url), ttl: ttl ?? null } });
         try {
             await (0, rssService_js_1.fetchAndUpsertFeed)(feed.id, { force: true });
         }
@@ -119,10 +119,10 @@ r.patch("/admin/libraries/:libraryId/feeds/:id", async (req, res) => {
         const libraryId = parsePositiveId(req.params.libraryId, "libraryId");
         const id = parsePositiveId(req.params.id, "id");
         await assertLibraryAccess(req.user.id, libraryId);
-        const exists = await prisma_js_1.prisma.feedRss.findFirst({ where: { id, libraryId } });
+        const exists = await prisma_1.prisma.feedRss.findFirst({ where: { id, libraryId } });
         if (!exists)
             return res.status(404).json({ error: "not_found" });
-        const feed = await prisma_js_1.prisma.feedRss.update({
+        const feed = await prisma_1.prisma.feedRss.update({
             where: { id },
             data: {
                 ...(url != null ? { url: String(url) } : {}),
@@ -149,10 +149,10 @@ r.delete("/admin/libraries/:libraryId/feeds/:id", async (req, res) => {
         const libraryId = parsePositiveId(req.params.libraryId, "libraryId");
         const id = parsePositiveId(req.params.id, "id");
         await assertLibraryAccess(req.user.id, libraryId);
-        const exists = await prisma_js_1.prisma.feedRss.findFirst({ where: { id, libraryId } });
+        const exists = await prisma_1.prisma.feedRss.findFirst({ where: { id, libraryId } });
         if (!exists)
             return res.status(404).json({ error: "not_found" });
-        await prisma_js_1.prisma.feedRss.delete({ where: { id } });
+        await prisma_1.prisma.feedRss.delete({ where: { id } });
         res.json({ ok: true });
     }
     catch (e) {
@@ -165,11 +165,11 @@ r.delete("/admin/libraries/:libraryId/feeds/:id", async (req, res) => {
  */
 r.get("/admin/feeds", async (req, res) => {
     requireUser(req, res);
-    const libs = await prisma_js_1.prisma.userLibrary.findMany({
+    const libs = await prisma_1.prisma.userLibrary.findMany({
         where: { userId: req.user.id },
         select: { libraryId: true },
     });
-    const feeds = await prisma_js_1.prisma.feedRss.findMany({
+    const feeds = await prisma_1.prisma.feedRss.findMany({
         where: { libraryId: { in: libs.map((l) => l.libraryId) } },
         orderBy: { id: "asc" },
     });
@@ -185,7 +185,7 @@ r.post("/admin/feeds", async (req, res) => {
     if (!libraryId || !url)
         return res.status(400).json({ error: "missing_params" });
     await assertLibraryAccess(req.user.id, Number(libraryId));
-    const feed = await prisma_js_1.prisma.feedRss.create({ data: { libraryId: Number(libraryId), url: String(url), ttl: ttl ?? null } });
+    const feed = await prisma_1.prisma.feedRss.create({ data: { libraryId: Number(libraryId), url: String(url), ttl: ttl ?? null } });
     try {
         await (0, rssService_js_1.fetchAndUpsertFeed)(feed.id, { force: true });
     }
@@ -200,11 +200,11 @@ r.patch("/admin/feeds/:id", async (req, res) => {
     requireUser(req, res);
     const id = parsePositiveId(req.params.id, "id");
     const { url, ttl } = req.body;
-    const feed = await prisma_js_1.prisma.feedRss.findUnique({ where: { id } });
+    const feed = await prisma_1.prisma.feedRss.findUnique({ where: { id } });
     if (!feed)
         return res.status(404).json({ error: "not_found" });
     await assertLibraryAccess(req.user.id, feed.libraryId);
-    const upd = await prisma_js_1.prisma.feedRss.update({
+    const upd = await prisma_1.prisma.feedRss.update({
         where: { id },
         data: {
             ...(url != null ? { url: String(url) } : {}),
@@ -224,11 +224,11 @@ r.patch("/admin/feeds/:id", async (req, res) => {
 r.delete("/admin/feeds/:id", async (req, res) => {
     requireUser(req, res);
     const id = parsePositiveId(req.params.id, "id");
-    const feed = await prisma_js_1.prisma.feedRss.findUnique({ where: { id } });
+    const feed = await prisma_1.prisma.feedRss.findUnique({ where: { id } });
     if (!feed)
         return res.status(404).json({ error: "not_found" });
     await assertLibraryAccess(req.user.id, feed.libraryId);
-    await prisma_js_1.prisma.feedRss.delete({ where: { id } });
+    await prisma_1.prisma.feedRss.delete({ where: { id } });
     res.json({ ok: true });
 });
 /**
@@ -237,7 +237,7 @@ r.delete("/admin/feeds/:id", async (req, res) => {
  */
 r.post("/admin/feeds/refresh", async (req, res) => {
     requireUser(req, res);
-    const libs = await prisma_js_1.prisma.userLibrary.findMany({
+    const libs = await prisma_1.prisma.userLibrary.findMany({
         where: { userId: req.user.id },
         select: { libraryId: true },
     });

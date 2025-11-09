@@ -14,7 +14,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import path from "node:path";
 import crypto from "node:crypto";
-import { prisma } from "../../prisma.js";
+import { prisma } from "../../prisma";
 import { Prisma } from "@prisma/client";
 import { embedOne } from "../../ai/embeddings.js";
 import { toSqlVector } from "../../reco/utils.js";

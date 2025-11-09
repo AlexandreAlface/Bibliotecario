@@ -5,7 +5,7 @@
  */
 
 import { Router, Request, Response } from "express";
-import { prisma } from "../../prisma.js"; // — Alexandre Brissos — 2025-10-02
+import { prisma } from "../../prisma"; // — Alexandre Brissos — 2025-10-02
 import {
   fetchAndUpsertFeed,
   fetchAndUpsertAllFeeds,

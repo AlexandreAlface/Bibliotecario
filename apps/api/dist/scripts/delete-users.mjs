@@ -1,4 +1,3 @@
-"use strict";
 // apps/api/src/scripts/delete-users.mjs
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
